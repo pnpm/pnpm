@@ -1,0 +1,285 @@
+---
+id: add
+title: "pnpm add <pkg>"
+---
+
+Installs a package and any packages that it depends on.
+By default, any new package is installed as a production dependency.
+
+## TL;DR
+
+| Command                                | Meaning                            |
+|----------------------------------------|------------------------------------|
+| `pnpm add sax`                         | Save to `dependencies`             |
+| `pnpm add -D sax`                      | Save to `devDependencies`          |
+| `pnpm add -O sax`                      | Save to `optionalDependencies`     |
+| `pnpm add -g sax `                     | Install package globally           |
+| `pnpm add sax@next`                    | Install from the `next` tag        |
+| `pnpm add sax@3.0.0`                   | Specify version `3.0.0`            |
+| `pnpm add lodash@npm:awesome-lodash`   | Install `awesome-lodash` as `lodash` |
+| `pnpm add crate:serde`                 | Add a [Cargo](../cargo.md) crate   |
+| `pnpm add pypi:httpx`                  | Add a [Python](../python.md) package |
+
+## Supported package sources
+
+pnpm supports installing packages from various sources. See the [Supported package sources](../package-sources.md) page for detailed documentation on:
+
+- npm registry
+- JSR registry
+- Workspace packages
+- Local file system (tarballs and directories)
+- Remote tarballs
+- Git repositories (with semver, subdirectories, and more)
+- crates.io and PyPI, through the `crate:` and `pypi:` prefixes
+
+## Package aliases
+
+To install an npm package under a different local name, use an `npm:` alias:
+
+```sh
+pnpm add <alias>@npm:<package>
+pnpm add <alias>@npm:<package>@<version-or-tag>
+```
+
+The package after `npm:` may be scoped and versioned. For example:
+
+```sh
+pnpm add babel-core@npm:@babel/core@8.0.6
+```
+
+This writes `babel-core` as the dependency name while resolving
+`@babel/core@8.0.6` as the target package. The `npm:` part is the npm
+package-alias protocol, not a [named registry](../package-sources.md#named-registries);
+registry routing still follows the target package's default or scope-specific
+npm registry configuration.
+
+See [Aliases](../aliases.md) for more examples.
+
+## Adding a package manager or a runtime
+
+Added in: v12.0.0-rc.6 (pnpm v12 only)
+
+Naming a [package manager](../package-managers.md) (`npm`, `yarn` or `bun`) records which one the project uses instead of installing the npm package that shares the name:
+
+```sh
+pnpm add yarn@4
+```
+
+writes `"packageManager": "yarn@4.18.0"`. npm and Bun are recorded as a range in [`devEngines.packageManager`](../package_json.md#devenginespackagemanager) instead. Each write removes the other field. Naming a runtime (`node`, `deno`) records it under `engines.runtime`, as the explicit [`node@tool:22`](../package-sources.md#provisioned-tools) spelling does since v12.13.0. `bun` is both, and is declared as the project's package manager unless you ask for the runtime (`pnpm add bun@tool:1.3.0`).
+
+Globally, `pnpm add -g yarn` installs the current Yarn line rather than the Classic-only `yarn` package, and `pnpm add -g node@22` installs that Node.js release rather than a wrapper that downloads one.
+
+A specifier that locates a package rather than asking for a released version, such as `pnpm add yarn@npm:yarn@1.22.22` or `pnpm add yarn@yarnpkg/berry`, installs what it names, as an ordinary dependency.
+
+## Adding the Rust toolchain
+
+Added in: v12.11.0
+
+`rust` names the [Rust toolchain](../cargo.md#rust-toolchain), not the npm package of that name. The version is a Rust release channel: a version (`1.95.0` or `1.95`), `stable`, `beta`, `nightly`, or a dated channel such as `nightly-2026-01-01`. A bare `rust` asks for `stable`.
+
+In a project, `pnpm add rust@1.95` pins the toolchain in the `rust-toolchain.toml` that governs the project, the nearest one at or above it in the workspace. It creates one in the project if there is none, and changes only the `channel`, keeping the rest of the file. With [`cargo.enabled`](../cargo.md#cargoenabled), the toolchain is installed too. Nothing is added to `package.json`.
+
+`pnpm add -g rust@stable` installs the toolchain globally. The `cargo`, `rustc`, and other Rust commands run it outside projects whose `rust-toolchain.toml` names a toolchain of their own. `pnpm update -g rust` installs the newest release of its channel, `pnpm ls -g` lists it, and `pnpm remove -g rust` removes it.
+
+## Protocol-prefixed selectors
+
+A selector may carry the protocol in front of the name rather than after it:
+
+```sh
+pnpm add jsr:@scope/pkg
+pnpm add npm:pkg@^1.0.0
+pnpm add workspace:pkg@*
+```
+
+## Package URLs
+
+Added in: v12.5.0
+
+`pnpm add` accepts [Package URLs](https://github.com/package-url/purl-spec) for npm, Cargo, and Python packages:
+
+```sh
+pnpm add pkg:npm/express@4.18.2
+pnpm add pkg:cargo/serde@1.0.188
+pnpm add pkg:pypi/requests@2.31.0
+```
+
+These save dependencies to `package.json`, `Cargo.toml`, and `pyproject.toml`, respectively. Cargo and Python use their ecosystem configuration. `pkg` is a reserved specifier prefix, regardless of case, and cannot be used as a named registry alias.
+
+## Options
+
+### --save-prod, -P, -p
+
+Install the specified packages as regular `dependencies`.
+
+### --save-dev, -D, -d
+
+Install the specified packages as `devDependencies`.
+
+### --save-optional, -O, -o
+
+Install the specified packages as `optionalDependencies`.
+
+### --save-exact, -E, -e
+
+Saved dependencies will be configured with an exact version rather than using
+pnpm's default semver range operator.
+
+### --save-build
+
+Install `crate:` packages as Cargo build dependencies.
+
+### --save-peer
+
+Using `--save-peer` will add one or more packages to `peerDependencies` and
+install them as dev dependencies. `--no-save-peer` overrides a `savePeer: true` setting.
+
+### --save-types
+
+Added in: v12.6.0
+
+Saves available `@types/*` packages in `devDependencies` alongside registry
+dependencies. Packages that declare bundled TypeScript types are skipped.
+
+```sh
+pnpm add express --save-types
+# saves express to dependencies, @types/express to devDependencies
+```
+
+Set [`saveTypes: true`](../settings/other.md#savetypes) in `pnpm-workspace.yaml` to enable this by default. `--no-save-types` overrides that setting.
+
+### --save-prefix &lt;prefix\>
+
+The prefix of the saved version range: `^`, `~`, `=` for an explicit exact pin, or an empty string for a bare exact version. Overrides the [`savePrefix`](../settings/other.md#saveprefix) setting.
+
+### --tilde
+
+Added in: v12.6.0
+
+Alias for `--save-prefix=~`. Saved dependencies will be configured with a tilde
+range (`~1.2.3`) instead of the default caret range (`^1.2.3`).
+
+### --save-catalog
+
+Save the new dependency to the default [catalog].
+
+### --save-catalog-name &lt;catalog_name\>
+
+Save the new dependency to the specified [catalog].
+
+[catalog]: ../catalogs.md
+
+### --config
+
+Save the dependency to [configDependencies](../config-dependencies.md).
+
+Since v12.12.0, the saved range follows the same rules as for a dependency in `package.json`.
+
+### --ignore-workspace-root-check
+
+Adding a new dependency to the root workspace package fails, unless you pass
+`--ignore-workspace-root-check` or target the root with `-w` (`--workspace-root`).
+
+For instance, `pnpm add debug -w`.
+
+### --global, -g
+
+Install a package globally. See [Global Packages](../global-packages.md) for details.
+
+Each space-separated package is installed into its own isolated directory. To bundle several packages into a single isolated install (so they share dependencies and are removed together), pass them as a comma-separated list, e.g. `pnpm add -g eslint,prettier`.
+
+### --workspace
+
+Only adds the new dependency if it is found in the workspace. The dependency is
+saved with the [`workspace:` protocol](../workspaces.md#workspace-protocol-workspace)
+and linked from the workspace project that provides it. When no workspace
+project provides the package, the command fails instead of falling back to the
+registry.
+
+
+### --allow-build
+
+A list of package names that are allowed to run postinstall scripts during installation.
+
+Example:
+
+```sh
+pnpm --allow-build=esbuild add my-bundler
+```
+
+This will run `esbuild`'s postinstall script and also add it to the `allowBuilds` field of `pnpm-workspace.yaml`. So, `esbuild` will always be allowed to run its scripts in the future.
+
+Since v12.4.0, prefixing a name with `!` denies the build instead:
+
+```sh
+pnpm add --allow-build=!core-js my-bundler
+```
+
+writes `allowBuilds: { core-js: false }`, so the package is never asked about again. Global installs (`pnpm add -g`) record both kinds of decision under [`globalPackagesConfig.permissions`](../configuring.md#settings-for-global-packages) in the global `config.yaml`.
+
+Since v12.23.0, the option takes a comma-separated list as well as being repeatable:
+
+```sh
+pnpm add my-bundler --allow-build=esbuild,sharp
+```
+
+Pass a git or tarball key in its own `--allow-build`. A value that contains one is not split at its commas.
+
+### --lockfile-only
+
+Update `package.json` and `pnpm-lock.yaml` without downloading dependencies or writing `node_modules`.
+
+### --force
+
+Reinstall every package the lockfile names, relinking packages that an earlier install already linked.
+
+### --lockfile-dir &lt;dir\>
+
+The directory in which `pnpm-lock.yaml` is created. Same as the [`lockfileDir`](../settings/store.md#lockfiledir) setting.
+
+### --prod, --production
+
+Leave `devDependencies` out of `node_modules`.
+
+### --dev
+
+Leave `dependencies` out of `node_modules`.
+
+### --[no-]optional
+
+Include or exclude `optionalDependencies` from `node_modules`.
+
+### --[no-]auto-dedupe
+
+Enable or disable the [`autoDedupe`](../settings/dependency-resolution.md#autodedupe) setting for this install.
+
+### --ignore-scripts
+
+Do not run the lifecycle scripts of the project or its dependencies. Same as the [`ignoreScripts`](../settings/build.md#ignorescripts) setting.
+
+### --ignore-pnpmfile
+
+Disable the [pnpmfile](../pnpmfile.md) hooks, including the pnpmfiles of config dependencies.
+
+### --registry
+
+Specify the registry to use for this installation:
+
+```sh
+pnpm add --registry=https://registry.npmjs.org/ lodash
+```
+
+### --filter &lt;package_selector\>
+
+[Read more about filtering.](../filtering.md)
+
+import CpuFlag from '../settings/_cpuFlag.mdx'
+
+<CpuFlag />
+
+import OsFlag from '../settings/_osFlag.mdx'
+
+<OsFlag />
+
+import LibcFlag from '../settings/_libcFlag.mdx'
+
+<LibcFlag />

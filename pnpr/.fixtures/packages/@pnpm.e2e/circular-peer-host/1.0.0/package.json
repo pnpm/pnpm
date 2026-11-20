@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/circular-peer-host",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/circular-peer-plugin": "1.0.0"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm/postinstall-modifies-source",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  }
+}

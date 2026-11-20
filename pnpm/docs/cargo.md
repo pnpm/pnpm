@@ -1,0 +1,154 @@
+---
+id: cargo
+title: Cargo dependencies
+---
+
+Added in: v12.4.0 (pnpm v12 only)
+
+:::warning
+
+Multi-ecosystem support is experimental. The settings and the layout it writes may change.
+
+:::
+
+pnpm can install the crates a Cargo workspace depends on, next to the npm packages in the same repository. One `pnpm install` resolves both graphs, fetches over one shared connection budget, and puts each crate in pnpm's content-addressable store, so a crate downloaded for one project is not downloaded again for the next.
+
+Turn it on in `pnpm-workspace.yaml`:
+
+```yaml title="pnpm-workspace.yaml"
+cargo:
+  enabled: true
+```
+
+Then install as usual:
+
+```sh
+pnpm install
+```
+
+## Adding a crate
+
+Prefix the crate name with `crate:`:
+
+```sh
+pnpm add crate:serde
+pnpm add crate:serde@^1.0.200
+```
+
+pnpm writes the dependency into `Cargo.toml` without reformatting anything else in the file, and regenerates `Cargo.lock`. With no version requirement, the latest stable release is selected. A repository that has only a `Cargo.toml` needs no `package.json`: `pnpm add crate:` does not scaffold one.
+
+`pnpm add crate:` and `pnpm add rust@` fail with `--recursive` or `--filter`. Run them in the project instead.
+
+[`pnpm outdated`](./cli/outdated.md) and [`pnpm update`](./cli/update.md) also check and update Cargo dependencies when `cargo.enabled` is `true`, and accept `crate:<name>` selectors to target specific crates.
+
+`pnpm add crate:<name>` and `pnpm update crate:<name>` keep the other compatible versions recorded in `Cargo.lock`. `pnpm update` without selectors updates every crate in `Cargo.lock`, as `cargo update` does.
+
+## What an install does
+
+1. Reads the workspace's `Cargo.toml`, including its members.
+2. Resolves the graph against the sparse index, or with Cargo (see [Source overrides](#source-overrides)), and writes a deterministic `Cargo.lock`. When `Cargo.lock` is already there, it is used as-is.
+3. Verifies each locked `.crate` archive against its checksum and unpacks it into pnpm's store.
+4. Links the store slots into a Cargo [directory source](https://doc.rust-lang.org/cargo/reference/source-replacement.html) under `.pnpm/crates/crates-io`, generating the `.cargo-checksum.json` files Cargo expects.
+5. Writes the source replacement for those crates into `.pnpm/crates/config.toml`.
+6. Adds an optional `[[include]]` of that file to `.cargo/config.toml`, between the markers `# >>> pnpm-managed cargo sources >>>` and `# <<< pnpm-managed cargo sources <<<`. Anything you wrote outside those markers is left alone. If you list your own includes, write them as `[[include]]` tables too.
+
+A crate that an earlier install unpacked into the store is linked as it is, without comparing its files with the store again. [`verifyStoreIntegrity`](./settings/store.md#verifystoreintegrity) applies when a crate is unpacked. `pnpm install --force` unpacks every crate again.
+
+`cargo build` then compiles offline against the vendored sources. pnpm does not compile anything itself. Cargo 1.95 and later read the include.
+
+Without `.pnpm`, for example in a fresh clone, Cargo skips the include and fetches crates from their registry as usual.
+
+Crates are recorded in `Cargo.lock`, never in `pnpm-lock.yaml`. The two lockfiles stay independent.
+
+`--lockfile-only`, `--frozen-lockfile`, and `--offline` mean for crates what they mean for npm packages: resolve without materializing, fail rather than change the lockfile, and refuse the network.
+
+## Registries
+
+```yaml title="pnpm-workspace.yaml"
+cargo:
+  enabled: true
+registries:
+  https://index.crates.io/:
+    ecosystem: cargo
+```
+
+Declare the sparse index through [`registries`](./registries.md#ecosystem) with `ecosystem: cargo`. Without a declaration, pnpm uses `https://index.crates.io`. Only one Cargo index may be declared. pnpm fails on a `cargo.indexUrl` setting. Move the index to `registries`. The registry a crate came from is recorded in `Cargo.lock`, and pnpm points Cargo's source replacement at that registry, so a local resolve and a [pnpr-accelerated](/pnpr/install-acceleration) one record the same source.
+
+A dependency that names a third-party registry of its own (`registry = "..."` in `Cargo.toml`) is rejected: pnpm resolves one index per workspace.
+
+### Authentication
+
+Index and archive requests go through pnpm's URL-scoped credentials, the same map that authenticates npm registries. For crates.io, pnpm also reads `CARGO_REGISTRY_TOKEN` and `$CARGO_HOME/credentials.toml`. Cargo tokens keep their bare `Authorization` form and are only ever sent to the index host they belong to.
+
+## Git-sourced crates
+
+A crate pinned to a git revision, whether through `[patch.crates-io]` or a plain git dependency, is checked out at the commit `Cargo.lock` names and vendored the way `cargo vendor` lays a git package out: the package's own directory, a `.cargo-checksum.json` with a null `package`, and a source replacement for the git source. Vendored git packages get their own directory, `.pnpm/crates/git`, because a git package and a registry crate may share a name and version, and one directory source cannot hold both.
+
+The store slot is keyed by the commit, so a second install links it without cloning again, offline included. `--frozen-lockfile` leaves the pinned revision untouched.
+
+## Source overrides
+
+pnpm honors root Cargo.toml `[patch]` and `[replace]` overrides when generating
+`Cargo.lock` or adding crates. Path overrides stay local.
+Git overrides are pinned to the commit Cargo resolves and vendored for offline
+builds.
+
+Workspaces with source overrides or direct Git dependencies use Cargo for
+resolution. pnpm runs the `cargo` of the workspace's [Rust toolchain](#rust-toolchain), so this path needs the toolchain. It also requires the default crates.io sparse index. With a custom index,
+generate and commit `Cargo.lock` using Cargo before installing with pnpm.
+
+Cargo resolution reads only `unstable.bindeps` and
+`resolver.incompatible-rust-versions` from the checkout's `.cargo/config.toml`. It
+ignores every other setting there. User Cargo home configuration still applies. `--offline` requires the index and Git repositories needed for
+resolution to be cached. `--frozen-lockfile` does not generate a missing
+`Cargo.lock` or change an existing revision.
+
+Git resolution permits the `file`, `git`, `http`, `https`, and `ssh` protocols.
+When Cargo uses command-line Git fetching, pnpm preserves stricter protocol
+settings from the workspace Git configuration and `GIT_ALLOW_PROTOCOL`. pnpm refuses Git remote helpers for other protocols, such as `ext::`, during lockfile resolution.
+
+## Building the standard library
+
+When `.cargo/config.toml` sets `unstable.build-std` to a non-empty list, pnpm also vendors the dependencies of the standard library. It reads them from the toolchain's `rust-src` component, so the toolchain needs that component. With a toolchain file that pnpm installs, list `rust-src` in `components`.
+
+## Faster resolution through pnpr
+
+With [`pnprServer`](/pnpr/install-acceleration) set, pnpm asks the server to resolve the Cargo graph instead of fetching one sparse-index file per crate. pnpm resolves locally if the server does not answer for Cargo, or if it refuses a setting or lockfile format the request uses. Other server errors stop the install.
+
+## Rust toolchain
+
+Added in: v12.11.0
+
+`pnpm install` installs the Rust toolchain that the workspace's [toolchain file](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file) names. pnpm reads `rust-toolchain.toml`, or the older `rust-toolchain`, the way rustup does. Each Cargo manifest uses the nearest file at or above it inside the repository.
+
+```toml title="rust-toolchain.toml"
+[toolchain]
+channel = "1.95.0"
+components = ["rust-src"]
+targets = ["wasm32-unknown-unknown"]
+```
+
+* `channel` accepts a version (`1.95.0` or `1.95`), `stable`, `beta`, `nightly`, or a dated channel such as `nightly-2026-01-01`.
+* `profile` accepts `minimal` (`rustc`, `cargo`, and the standard library) and `default`, which adds `rustfmt` and `clippy`. pnpm leaves out `rust-docs` unless `components` lists it.
+* `components` and `targets` add components and standard libraries for other targets.
+* A file that sets `path`, sets no `channel`, names a toolchain linked with `rustup toolchain link`, or asks for another profile such as `complete` is left to rustup. So is a machine Rust publishes no toolchain for.
+* On Windows, pnpm installs the toolchain for rustup's default host, which `rustup set default-host` changes. Without one, it installs the MSVC toolchain for the machine's architecture, as rustup does.
+
+pnpm verifies the release manifest against the Rust release signing key and checks every download against the hash the manifest lists. The toolchain is stored once per machine under `rust` in the [store](./settings/store.md#storedir) and linked into `.pnpm/rust` beside the toolchain file.
+
+`pnpm run`, `pnpm exec`, and the `cargo` commands pnpm runs during an install use the linked toolchain. A machine without rustup can build the workspace with `pnpm exec cargo build` or with a script. To run a different release for one command, such as a nightly, use [`pnx --package=rust@<channel>`](./cli/pnx.md#running-a-rust-release).
+
+A channel that moves, such as `stable`, is checked once a day, so a new release is installed when it comes out. Offline, or when the server cannot be reached, pnpm uses the newest release of the channel already in the store. Pin a version to avoid the check.
+
+`pnpm add rust@1.95` writes the toolchain file for you. `pnpm add -g rust` installs a toolchain globally and makes the bare `cargo`, `rustc`, and the other Rust tools in your shell run the toolchain the project's toolchain file names, and the global one elsewhere. On a machine with rustup, `pnpm shim add rust` does the same without a global toolchain. See [Adding the Rust toolchain](./cli/add.md#adding-the-rust-toolchain) and [`pnpm shim`](./cli/shim.md#how-a-version-is-chosen).
+
+[`runtimeOnFail`](./settings/cli.md#runtimeonfail) set to `error`, `warn`, or `ignore` turns this off and leaves the toolchain to rustup. A distribution that builds a package with its own Rust toolchain can run `pnpm install --config.runtime-on-fail=ignore`. Download toolchains from a mirror with [`tools.rust.mirror`](./settings/cli.md#tools).
+
+## Settings
+
+### cargo.enabled
+
+* Default: **false**
+* Type: **Boolean**
+
+Whether `pnpm install` resolves and installs the workspace's Cargo dependencies.

@@ -1,0 +1,9 @@
+extends: existence
+message: "Name the link target instead of '%s'."
+link: https://developers.google.com/style/link-text
+level: error
+ignorecase: true
+scope: raw
+nonword: true
+tokens:
+  - '\[(?:here|click here|this|this link|link|read more|more|this page)\]\('

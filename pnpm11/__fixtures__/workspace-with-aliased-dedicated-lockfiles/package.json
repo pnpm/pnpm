@@ -1,0 +1,8 @@
+{
+  "name": "root",
+  "version": "1.0.0",
+  "dependencies": {
+    "alias-one": "workspace:@scope/c@*",
+    "alias-two": "workspace:@scope/c@*"
+  }
+}

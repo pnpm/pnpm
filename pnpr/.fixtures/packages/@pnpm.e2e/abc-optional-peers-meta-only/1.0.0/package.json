@@ -1,0 +1,15 @@
+{
+  "name": "@pnpm.e2e/abc-optional-peers-meta-only",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/peer-a": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/peer-b": {
+      "optional": true
+    },
+    "@pnpm.e2e/peer-c": {
+      "optional": true
+    }
+  }
+}

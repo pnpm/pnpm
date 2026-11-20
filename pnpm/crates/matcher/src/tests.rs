@@ -1,0 +1,251 @@
+use super::{
+    WildcardMatcher,
+    create_matcher,
+    create_matcher_with_index,
+};
+
+fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
+    patterns
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect()
+}
+
+/// Boolean `matcher()` semantics across includes, ignores, and ordering.
+#[test]
+fn matcher_boolean_semantics() {
+    let matcher = create_matcher(&pats(["*"]));
+    assert!(matcher.matches("@eslint/plugin-foo"));
+    assert!(matcher.matches("express"));
+
+    let matcher = create_matcher(&pats(["eslint-*"]));
+    assert!(matcher.matches("eslint-plugin-foo"));
+    assert!(!matcher.matches("express"));
+
+    let matcher = create_matcher(&pats(["*plugin*"]));
+    assert!(matcher.matches("@eslint/plugin-foo"));
+    assert!(!matcher.matches("express"));
+
+    let matcher = create_matcher(&pats(["a*c"]));
+    assert!(matcher.matches("abc"));
+
+    let matcher = create_matcher(&pats(["*-positive"]));
+    assert!(matcher.matches("is-positive"));
+
+    let matcher = create_matcher(&pats(["foo", "bar"]));
+    assert!(matcher.matches("foo"));
+    assert!(matcher.matches("bar"));
+    assert!(!matcher.matches("express"));
+
+    let matcher = create_matcher(&pats(["eslint-*", "!eslint-plugin-bar"]));
+    assert!(matcher.matches("eslint-plugin-foo"));
+    assert!(!matcher.matches("eslint-plugin-bar"));
+
+    let matcher = create_matcher(&pats(["!eslint-plugin-bar", "eslint-*"]));
+    assert!(matcher.matches("eslint-plugin-foo"));
+    // The include matches at index 1 after the leading ignore misses, so
+    // boolean-side this counts as "matched".
+    assert!(matcher.matches("eslint-plugin-bar"));
+
+    let matcher = create_matcher(&pats(["eslint-*", "!eslint-plugin-*", "eslint-plugin-bar"]));
+    assert!(matcher.matches("eslint-config-foo"));
+    assert!(!matcher.matches("eslint-plugin-foo"));
+    assert!(matcher.matches("eslint-plugin-bar"));
+}
+
+/// `createMatcherWithIndex()` semantics, the matched include's index, or
+/// `None` when nothing matches.
+#[test]
+fn matcher_with_index_semantics() {
+    let matcher = create_matcher_with_index(&pats(["*"]));
+    assert_eq!(matcher.matches("@eslint/plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("express"), Some(0));
+
+    let matcher = create_matcher_with_index(&pats(["eslint-*"]));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("express"), None);
+
+    let matcher = create_matcher_with_index(&pats(["*plugin*"]));
+    assert_eq!(matcher.matches("@eslint/plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("express"), None);
+
+    let matcher = create_matcher_with_index(&pats(["a*c"]));
+    assert_eq!(matcher.matches("abc"), Some(0));
+
+    let matcher = create_matcher_with_index(&pats(["*-positive"]));
+    assert_eq!(matcher.matches("is-positive"), Some(0));
+
+    let matcher = create_matcher_with_index(&pats(["foo", "bar"]));
+    assert_eq!(matcher.matches("foo"), Some(0));
+    assert_eq!(matcher.matches("bar"), Some(1));
+    assert_eq!(matcher.matches("express"), None);
+
+    let matcher = create_matcher_with_index(&pats(["eslint-*", "!eslint-plugin-bar"]));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), Some(0));
+    assert_eq!(matcher.matches("eslint-plugin-bar"), None);
+
+    let matcher = create_matcher_with_index(&pats(["!eslint-plugin-bar", "eslint-*"]));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), Some(1));
+    assert_eq!(matcher.matches("eslint-plugin-bar"), Some(1));
+
+    let matcher =
+        create_matcher_with_index(&pats(["eslint-*", "!eslint-plugin-*", "eslint-plugin-bar"]));
+    assert_eq!(matcher.matches("eslint-config-foo"), Some(0));
+    assert_eq!(matcher.matches("eslint-plugin-foo"), None);
+    assert_eq!(matcher.matches("eslint-plugin-bar"), Some(2));
+
+    let matcher = create_matcher_with_index(&pats(["!@pnpm.e2e/peer-*"]));
+    assert_eq!(matcher.matches("@pnpm.e2e/foo"), Some(0));
+
+    let matcher = create_matcher_with_index(&pats(["!foo", "!bar"]));
+    assert_eq!(matcher.matches("foo"), None);
+    assert_eq!(matcher.matches("bar"), None);
+    assert_eq!(matcher.matches("baz"), Some(0));
+
+    let matcher = create_matcher_with_index(&pats(["!foo", "!bar", "qar"]));
+    assert_eq!(matcher.matches("foo"), None);
+    assert_eq!(matcher.matches("bar"), None);
+    assert_eq!(matcher.matches("baz"), None);
+}
+
+#[test]
+fn empty_pattern_list_never_matches() {
+    let matcher = create_matcher(&[]);
+    assert!(!matcher.matches("anything"));
+    let matcher = create_matcher_with_index(&[]);
+    assert_eq!(matcher.matches("anything"), None);
+}
+
+#[test]
+fn regex_special_chars_are_literal_except_glob_wildcards() {
+    let matcher = create_matcher(&pats(["a.b"]));
+    assert!(matcher.matches("a.b"));
+    assert!(!matcher.matches("axb"));
+
+    let matcher = create_matcher(&pats(["a?b"]));
+    assert!(matcher.matches("axb"));
+    assert!(matcher.matches("a🐙b"));
+    assert!(matcher.matches("a\nb"));
+    assert!(!matcher.matches("ab"));
+    assert!(!matcher.matches("axxb"));
+
+    let matcher = create_matcher(&pats(["(foo)"]));
+    assert!(matcher.matches("(foo)"));
+    assert!(!matcher.matches("foo"));
+}
+
+#[test]
+fn star_matches_empty() {
+    let matcher = create_matcher(&pats(["a*b"]));
+    assert!(matcher.matches("ab"));
+    assert!(matcher.matches("axb"));
+    assert!(matcher.matches("axxxb"));
+}
+
+#[test]
+fn multi_segment_glob_in_order() {
+    let matcher = create_matcher(&pats(["a*b*c"]));
+    assert!(matcher.matches("abc"));
+    assert!(matcher.matches("axxbxxc"));
+    assert!(!matcher.matches("acb"));
+    assert!(!matcher.matches("axbcx"));
+}
+
+#[test]
+fn is_empty_only_for_empty_pattern_list() {
+    assert!(create_matcher(&[]).is_empty());
+    assert!(!create_matcher(&pats(["*"])).is_empty());
+    assert!(!create_matcher(&pats(["foo"])).is_empty());
+    assert!(!create_matcher(&pats(["!nothing"])).is_empty());
+    assert!(!create_matcher(&pats(["foo", "bar"])).is_empty());
+}
+
+#[test]
+fn wildcard_matcher_preserves_literal_star_semantics() {
+    for (pattern, input, expected) in [
+        ("", "", true),
+        ("", "a", false),
+        ("*", "", true),
+        ("**", "", true),
+        ("a**b", "ab", true),
+        ("a*a", "a", false),
+        ("*ab*bc", "abc", false),
+        ("*ab*bc", "abbc", true),
+        ("!foo", "bar", false),
+        ("!foo", "!foo", true),
+        ("a?b", "acb", true),
+        ("a?b", "a?b", true),
+        ("a?b", "a🐙b", true),
+        ("a?b", "a\nb", true),
+        ("a?b", "ab", false),
+        ("a?b", "axxb", false),
+        ("?*", "a", true),
+        ("?*", "", false),
+        ("*?", "a", true),
+        ("*?", "", false),
+        ("a*?b", "ab", false),
+        ("a*?b", "axb", true),
+        ("a*?b", "axxb", true),
+        ("a?*b", "axxxb", true),
+        ("a?*b", "ab", false),
+        ("*a?b", "xacb", true),
+        ("*a?b", "xacbb", false),
+        ("*a?b*", "xacby", true),
+        ("?*?", "a", false),
+        ("?*?", "ab", true),
+        ("?*?", "abc", true),
+        ("[ab]", "a", false),
+        ("[ab]", "[ab]", true),
+        ("a*b", "a/path/b", true),
+        ("é*終", "é中終", true),
+        ("é*終", "é終", true),
+        ("*é*é", "é", false),
+    ] {
+        assert_eq!(
+            WildcardMatcher::new(pattern).matches(input),
+            expected,
+            "{pattern:?}, {input:?}",
+        );
+    }
+}
+
+#[test]
+fn question_wildcard_handles_long_near_matches() {
+    let pattern = format!("*{}x", "?".repeat(256));
+    let input = format!("{}y", "a".repeat(8192));
+
+    assert!(!WildcardMatcher::new(&pattern).matches(&input));
+}
+
+#[test]
+fn matches_any_evaluates_includes_and_ignores_across_all_identities() {
+    let ids = ["ryu", "my_ryu", "other_ryu"];
+
+    assert!(!create_matcher(&[]).matches_any(&ids));
+    assert!(!create_matcher(&pats(["*"])).matches_any(&[]));
+    assert!(create_matcher(&pats(["other_ryu"])).matches_any(&ids));
+    assert!(!create_matcher(&pats(["!other_ryu"])).matches_any(&ids));
+    assert!(!create_matcher(&pats(["!ryu", "!itoa"])).matches_any(&ids));
+    assert!(create_matcher(&pats(["!serde", "!itoa"])).matches_any(&ids));
+    assert!(!create_matcher(&pats(["*ryu*", "!other_ryu"])).matches_any(&ids));
+    assert!(create_matcher(&pats(["!ryu*", "other_ryu"])).matches_any(&ids));
+}
+
+#[test]
+fn prune_orphan_ignores_clears_leftover_exclusions_only_when_original_had_includes() {
+    assert_eq!(
+        crate::prune_orphan_ignores(pats(["!lodash"]), &pats(["actions/checkout", "!lodash"])),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        crate::prune_orphan_ignores(pats(["!lodash"]), &pats(["!lodash"])),
+        pats(["!lodash"]),
+    );
+    assert_eq!(
+        crate::prune_orphan_ignores(
+            pats(["react", "!lodash"]),
+            &pats(["react", "actions/checkout", "!lodash"]),
+        ),
+        pats(["react", "!lodash"]),
+    );
+}

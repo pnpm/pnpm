@@ -1,0 +1,29 @@
+{
+  "description": "gypfile: false cancels the implicit build of a root binding.gyp (better-sqlite3).",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "13.0.0",
+      "gypfile": false
+    },
+    "files": [
+      "package.json",
+      "binding.gyp"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "13.0.0",
+    "gypfile": false
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "13.0.0",
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

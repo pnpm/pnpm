@@ -1,0 +1,48 @@
+---
+id: uninstall
+title: Uninstalling pnpm
+---
+
+## Removing the globally installed packages
+
+Before removing the pnpm CLI, it might make sense to remove all global packages that were installed by pnpm.
+
+To list all the global packages, run `pnpm ls -g`. There are two ways to remove the global packages:
+
+1. Run `pnpm rm -g <pkg>...` with each global package listed.
+2. Run `pnpm root -g` to find the location of the global directory and remove it manually.
+
+## Removing the pnpm CLI
+
+If you used the standalone script to install pnpm, then you should be able to uninstall the pnpm CLI by removing the pnpm home directory:
+
+```sh
+rm -rf "$PNPM_HOME"
+```
+
+You might also want to clean the `PNPM_HOME` env variable in your shell configuration file (`$HOME/.bashrc`, `$HOME/.zshrc`, `$HOME/.config/fish/config.fish`, or `$HOME/.config/powershell/profile.ps1`).
+
+If you used npm to install pnpm, then you should use npm to uninstall pnpm:
+
+```sh
+npm rm -g pnpm
+```
+
+## Removing the global content-addressable store
+
+```sh
+rm -rf "$(pnpm store path)"
+```
+
+If you used pnpm in non-primary disks, then you must run the above command in every disk, where pnpm was used.
+pnpm creates one store per disk. On a disk other than the one with the pnpm home
+directory, the store is a `.pnpm-store` directory near the root of the disk, or
+`node_modules/.pnpm-store` inside the project.
+
+## Removing the cache, state, and configuration
+
+pnpm also writes to these directories. Remove them too:
+
+* the cache directory, see [`cacheDir`](./settings/other.md#cachedir) for its default location
+* the state directory, see [`stateDir`](./settings/other.md#statedir) for its default location
+* the directory of the global configuration file, see [Global configuration](./configuring.md#global-configuration)

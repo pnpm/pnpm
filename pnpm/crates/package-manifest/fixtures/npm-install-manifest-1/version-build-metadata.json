@@ -1,0 +1,26 @@
+{
+  "description": "npm's version cleaning drops build metadata (lerna canary builds): the archive version 1.0.0-canary.1+abc is published as 1.0.0-canary.1.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0-canary.1+abc"
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0-canary.1"
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0-canary.1",
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

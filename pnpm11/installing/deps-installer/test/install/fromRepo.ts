@@ -1,0 +1,553 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
+import { assertProject } from '@pnpm/assert-project'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { depPathToFilename } from '@pnpm/deps.path'
+import {
+  addDependenciesToPackage,
+  install,
+} from '@pnpm/installing.deps-installer'
+import { prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { rimrafSync } from '@zkochan/rimraf'
+import { isCI } from 'ci-info'
+import { safeExeca as execa } from 'execa'
+
+import { commitLocalGitRepo, testDefaults } from '../utils/index.js'
+
+const testFixtures = fixtures(import.meta.dirname)
+const withGitProtocolDepFixture = testFixtures.find('with-git-protocol-dep')
+
+beforeEach(async () => {
+  await setupMockAgent()
+  getMockAgent().enableNetConnect()
+})
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
+
+test('from a github repo', async () => {
+  const project = prepareEmpty()
+  // Mock the HEAD request that isRepoPublic() in @pnpm/resolving.git-resolver makes.
+  // Without this, transient network failures cause fallback to git+https:// resolution.
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['kevva/is-negative'], testDefaults())
+
+  project.has('is-negative')
+
+  expect(manifest.dependencies).toStrictEqual({
+    'is-negative': 'github:kevva/is-negative',
+  })
+})
+
+test('from a github repo through URL', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['https://github.com/kevva/is-negative'], testDefaults())
+
+  project.has('is-negative')
+
+  expect(manifest.dependencies).toStrictEqual({ 'is-negative': 'github:kevva/is-negative' })
+})
+
+test('from a github repo with different name via named installation', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/zkochan/hi', method: 'HEAD' })
+    .reply(200)
+
+  const reporter = jest.fn()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'],
+    testDefaults({ fastUnpack: false, reporter })
+  )
+
+  const moduleExports = project.requireModule('say-hi')
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
+      dependencyType: 'prod',
+      name: 'say-hi',
+      realName: 'hi',
+      version: '1.0.0',
+    }),
+    level: 'debug',
+    name: 'pnpm:root',
+  }))
+
+  expect(moduleExports).toBe('Hi')
+
+  expect(manifest.dependencies).toStrictEqual({ 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies).toStrictEqual({
+    'say-hi': {
+      specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      version: 'hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    },
+  })
+
+  project.isExecutable('.bin/hi')
+  project.isExecutable('.bin/szia')
+})
+
+test('from a github repo with different name', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/zkochan/hi', method: 'HEAD' })
+    .reply(200)
+
+  const reporter = jest.fn()
+
+  const { updatedManifest: manifest } = await install({
+    dependencies: {
+      'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    },
+  }, testDefaults({ fastUnpack: false, reporter }))
+
+  const moduleExports = project.requireModule('say-hi')
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
+      dependencyType: 'prod',
+      name: 'say-hi',
+      realName: 'hi',
+      version: '1.0.0',
+    }),
+    level: 'debug',
+    name: 'pnpm:root',
+  }))
+
+  expect(moduleExports).toBe('Hi')
+
+  expect(manifest.dependencies).toStrictEqual({
+    'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies).toStrictEqual({
+    'say-hi': {
+      specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      version: 'hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    },
+  })
+
+  project.isExecutable('.bin/hi')
+  project.isExecutable('.bin/szia')
+})
+
+test('a subdependency is from a github repo with different name', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/zkochan/hi', method: 'HEAD' })
+    .reply(200)
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-aliased-git-dependency'], testDefaults({ fastUnpack: false }))
+
+  const moduleExports = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
+
+  expect(moduleExports).toBe('Hi')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots['@pnpm.e2e/has-aliased-git-dependency@1.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/has-say-hi-peer': '1.0.0(hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)',
+    'say-hi': 'hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+  })
+
+  project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/hi')
+  project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/szia')
+
+  expect(fs.existsSync(path.resolve(`node_modules/.pnpm/${depPathToFilename('@pnpm.e2e/has-say-hi-peer@1.0.0(hi@https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd)', 120)}/node_modules/@pnpm.e2e/has-say-hi-peer`))).toBeTruthy()
+})
+
+test('from a git repo', async () => {
+  if (isCI) {
+    console.log('not testing the SSH GIT access via CI')
+    return
+  }
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['git+ssh://git@github.com/kevva/is-negative.git'], testDefaults())
+
+  project.has('is-negative')
+})
+
+// This test is unstable due to dependency on third party registry
+test.skip('from a non-github git repo', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], testDefaults())
+
+  const moduleExports = project.requireModule('ikt')
+
+  expect(moduleExports).toBeTruthy()
+
+  const lockfile = project.readLockfile()
+
+  const pkgId = 'ikt.pm2.io/ikt/3325a3e39a502418dc2e2e4bf21529cbbde96228'
+  expect(lockfile.packages).toHaveProperty([pkgId])
+  expect(lockfile.packages[pkgId].resolution).toStrictEqual({
+    commit: '3325a3e39a502418dc2e2e4bf21529cbbde96228',
+    repo: 'http://ikt.pm2.io/ikt.git',
+    type: 'git',
+  })
+})
+
+test('from a github repo the has no package.json file', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/pnpm/for-testing.no-package-json', method: 'HEAD' })
+    .reply(200)
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/pnpm/for-testing.no-package-json', method: 'HEAD' })
+    .reply(200)
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], testDefaults())
+
+  project.has('for-testing.no-package-json')
+
+  expect(manifest.dependencies).toStrictEqual({
+    'for-testing.no-package-json': 'github:pnpm/for-testing.no-package-json',
+  })
+  fs.rmSync(path.join(project.dir(), 'node_modules'), {
+    recursive: true, force: true,
+  })
+  fs.rmSync(path.join(project.dir(), 'pnpm-lock.yaml'))
+  // if there is an unresolved promise, this test will hang until timeout.
+  // e.g. thrown: "Exceeded timeout of 240000 ms for a test.
+  await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], testDefaults())
+  project.has('for-testing.no-package-json')
+})
+
+test.skip('from a github repo that needs to be built. isolated node linker is used', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-works'], testDefaults({ ignoreScripts: true }, { ignoreScripts: true }))
+
+  project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ preferFrozenLockfile: false }))
+  project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+  project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ frozenLockfile: true, ignoreScripts: true }, { ignoreScripts: true }))
+  project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
+})
+
+test.skip('from a github repo that needs to be built. hoisted node linker is  used', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['pnpm-e2e/prepare-script-works'],
+    testDefaults({ ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true })
+  )
+
+  project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ preferFrozenLockfile: false, nodeLinker: 'hoisted' }))
+  project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ frozenLockfile: true, nodeLinker: 'hoisted' }))
+  project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ frozenLockfile: true, ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true }))
+  project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
+})
+
+test('re-adding a git repo with a different tag', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['kevva/is-negative#1.0.0'], testDefaults())
+  project.has('is-negative')
+  expect(manifest.dependencies).toStrictEqual({
+    'is-negative': 'github:kevva/is-negative#1.0.0',
+  })
+  expect(JSON.parse(fs.readFileSync('./node_modules/is-negative/package.json', 'utf8')).version).toBe('1.0.0')
+  let lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['is-negative']).toEqual({
+    specifier: 'github:kevva/is-negative#1.0.0',
+    version: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
+  })
+  expect(lockfile.packages).toEqual(
+    {
+      'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99': {
+        resolution: {
+          tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
+          integrity: expect.stringMatching(/^sha512-/),
+          gitHosted: true,
+        },
+        version: '1.0.0',
+        engines: { node: '>=0.10.0' },
+      },
+    }
+  )
+  manifest = (await addDependenciesToPackage(manifest, ['kevva/is-negative#1.0.1'], testDefaults())).updatedManifest
+  project.has('is-negative')
+  expect(JSON.parse(fs.readFileSync('./node_modules/is-negative/package.json', 'utf8')).version).toBe('1.0.1')
+  lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['is-negative']).toEqual({
+    specifier: 'github:kevva/is-negative#1.0.1',
+    version: 'https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3',
+  })
+  expect(lockfile.packages).toEqual(
+    {
+      'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3': {
+        resolution: {
+          tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/f7dec4d66a5a56719e49b9f94a24d73f924ddeb3',
+          integrity: expect.stringMatching(/^sha512-/),
+          gitHosted: true,
+        },
+        version: '1.0.1',
+        engines: { node: '>=0.10.0' },
+      },
+    }
+  )
+})
+
+// https://github.com/pnpm/pnpm/issues/13338
+test('a git-hosted tarball reused from the store keeps its integrity in a fresh lockfile', async () => {
+  const project = prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/kevva/is-negative', method: 'HEAD' })
+    .reply(200)
+    .times(2)
+  const manifest = { dependencies: { 'is-negative': 'github:kevva/is-negative#1.0.0' } }
+  const coldStoreOpts = testDefaults({ lockfileOnly: true })
+  await install(manifest, coldStoreOpts)
+  const coldStorePackages = project.readLockfile().packages
+
+  fs.rmSync(WANTED_LOCKFILE)
+  await install(manifest, testDefaults({ lockfileOnly: true, storeDir: coldStoreOpts.storeDir }))
+
+  expect(coldStorePackages).toStrictEqual({
+    'is-negative@https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99': {
+      resolution: {
+        tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99',
+        integrity: expect.stringMatching(/^sha512-/),
+        gitHosted: true,
+      },
+      version: '1.0.0',
+      engines: { node: '>=0.10.0' },
+    },
+  })
+  expect(project.readLockfile().packages).toStrictEqual(coldStorePackages)
+})
+
+test('should not update when adding unrelated dependency', async () => {
+  process.chdir(withGitProtocolDepFixture)
+  fs.rmSync('./node_modules', {
+    recursive: true,
+    force: true,
+  })
+  let manifest = JSON.parse(fs.readFileSync('./package.json', 'utf8'))
+  await install(manifest, testDefaults({ preferFrozenLockfile: false, dir: withGitProtocolDepFixture, lockfileDir: withGitProtocolDepFixture }))
+
+  expect(fs.readdirSync('./node_modules/.pnpm')).toContain('is-negative@https+++codeload.github.com+kevva+is-negative+tar.gz+1d7e288222b53a0cab90a331f1865220ec29560c') // cspell:disable-line
+
+  manifest = (await addDependenciesToPackage(manifest, ['is-number'], testDefaults({ preferFrozenLockfile: false, modulesCacheMaxAge: 0 }))).updatedManifest
+
+  expect(manifest.dependencies).toHaveProperty('is-number')
+  expect(manifest.dependencies['is-negative']).toBe('github:kevva/is-negative#master')
+
+  const project = assertProject(withGitProtocolDepFixture)
+  project.has('is-number')
+  expect(fs.existsSync('./node_modules/.pnpm/is-negative@https+++codeload.github.com+kevva+is-negative+tar.gz+1d7e288222b53a0cab90a331f1865220ec29560c')).toBe(true) // cspell:disable-line
+  expect(project.readLockfile().importers['.'].dependencies).toEqual({
+    'is-negative': {
+      specifier: 'github:kevva/is-negative#master',
+      version: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
+    },
+    'is-number': {
+      specifier: '^7.0.0',
+      version: '7.0.0',
+    },
+  })
+})
+
+test('git-hosted repository is not added to the store if it fails to be built', async () => {
+  prepareEmpty()
+
+  await expect(
+    addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-fails'], testDefaults())
+  ).rejects.toThrow()
+
+  await expect(
+    addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-fails'], testDefaults())
+  ).rejects.toThrow()
+})
+
+test('from subdirectories of a git repo', async () => {
+  const project = prepareEmpty()
+  const repoDir = path.resolve('test-git-subfolder-fetch')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({ name: 'monorepo-root', version: '0.0.0' }))
+  for (const name of ['simple-react-app', 'simple-express-server']) {
+    const pkgDir = path.join(repoDir, 'packages', name)
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: `@my-namespace/${name}`, version: '1.0.0' }))
+  }
+  const repoSpec = await commitLocalGitRepo(repoDir)
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
+    `${repoSpec}&path:/packages/simple-react-app`,
+    `${repoSpec}&path:/packages/simple-express-server`,
+  ], testDefaults())
+
+  project.has('@my-namespace/simple-react-app')
+  project.has('@my-namespace/simple-express-server')
+
+  expect(manifest.dependencies).toStrictEqual({
+    '@my-namespace/simple-express-server': `${repoSpec}&path:/packages/simple-express-server`,
+    '@my-namespace/simple-react-app': `${repoSpec}&path:/packages/simple-react-app`,
+  })
+})
+
+test('lockfile-only updates reuse locked Git dependencies with peers and aliased Git children', async () => {
+  const project = prepareEmpty()
+  const repoRoot = path.resolve('repos')
+  const childDir = path.join(repoRoot, 'child')
+  const parentDir = path.join(repoRoot, 'parent')
+  fs.mkdirSync(childDir, { recursive: true })
+  fs.mkdirSync(parentDir)
+  fs.writeFileSync(path.join(childDir, 'package.json'), JSON.stringify({ name: 'example-child', version: '1.0.0' }))
+  const childSpec = (await commitLocalGitRepo(childDir)).replace(/#.+$/, '#main')
+  fs.writeFileSync(path.join(parentDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'child-alias': childSpec, 'is-positive': '1.0.0' },
+    peerDependencies: { 'is-positive': '^1.0.0' },
+  }))
+  const parentSpec = (await commitLocalGitRepo(parentDir)).replace(/#.+$/, '#main')
+  const manifest = { dependencies: { 'example-parent': parentSpec, 'is-positive': '1.0.0', 'is-negative': '1.0.0' } }
+  const options = { lockfileOnly: true, trustLockfile: true, blockExoticSubdeps: false }
+  await install(manifest, testDefaults(options))
+  const initialLockfile = project.readLockfile()
+
+  fs.renameSync(repoRoot, path.resolve('unavailable-repos'))
+  await install({ dependencies: { ...manifest.dependencies, 'is-negative': '1.0.1' } }, testDefaults(options))
+
+  const updatedLockfile = project.readLockfile()
+  expect(updatedLockfile.importers['.'].dependencies?.['is-negative']?.version).toBe('1.0.1')
+  for (const depPath of Object.keys(initialLockfile.packages).filter((key) => key.includes('@git+file:'))) {
+    expect(updatedLockfile.packages[depPath]).toEqual(initialLockfile.packages[depPath])
+  }
+  for (const depPath of Object.keys(initialLockfile.snapshots).filter((key) => key.includes('@git+file:'))) {
+    expect(updatedLockfile.snapshots[depPath]).toEqual(initialLockfile.snapshots[depPath])
+  }
+
+  await expect(install(manifest, testDefaults({ ...options, blockExoticSubdeps: true })))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_EXOTIC_SUBDEP' })
+  await expect(install(manifest, testDefaults({ ...options, update: true, depth: 0 })))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_GIT_RESOLVE_FAILED' })
+})
+
+test('a targeted lockfile-only update uses the range declared by its Git parent', async () => {
+  const project = prepareEmpty()
+  const repoDir = path.resolve('git-parent')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '^1.0.0' },
+  }))
+  const parentSpec = await commitLocalGitRepo(repoDir)
+  const manifest = { dependencies: { 'example-parent': parentSpec } }
+  const options = { lockfileOnly: true, trustLockfile: true }
+  await install(manifest, testDefaults({
+    ...options,
+    preferredVersions: { 'is-negative': { '1.0.0': 'version' } } as const,
+  }))
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.0' })
+
+  await install(manifest, testDefaults({
+    ...options,
+    depth: 1,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === 'is-negative',
+  }))
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.1' })
+})
+
+test('a locked Git package keeps its own dependency when its inherited peer is removed', async () => {
+  const project = prepareEmpty()
+  const repoDir = path.resolve('git-parent')
+  fs.mkdirSync(repoDir)
+  fs.writeFileSync(path.join(repoDir, 'package.json'), JSON.stringify({
+    name: 'example-parent',
+    version: '1.0.0',
+    dependencies: { 'is-negative': '1.0.0' },
+    peerDependencies: { 'is-negative': '^1.0.0' },
+  }))
+  const parentSpec = await commitLocalGitRepo(repoDir)
+  const options = { lockfileOnly: true, trustLockfile: true, autoInstallPeers: false }
+  await install({ dependencies: { 'example-parent': parentSpec, 'is-negative': '1.0.1' } }, testDefaults(options))
+  const initialGitSnapshot = `example-parent@${parentSpec}(is-negative@1.0.1)`
+  expect(project.readLockfile().snapshots[initialGitSnapshot].dependencies).toEqual({ 'is-negative': '1.0.1' })
+
+  await install({ dependencies: { 'example-parent': parentSpec } }, testDefaults(options))
+
+  expect(project.readLockfile().snapshots[`example-parent@${parentSpec}`].dependencies).toEqual({ 'is-negative': '1.0.0' })
+})
+
+test('from a subdirectory of a hosted git repo', async () => {
+  const project = prepareEmpty()
+  const commit = 'c0ffee0000000000000000000000000000000001'
+  const archiveRoot = `monorepo-${commit}`
+  const pkgDir = path.join(archiveRoot, 'packages', 'nested')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(archiveRoot, 'package.json'), JSON.stringify({ name: 'monorepo-root', version: '0.0.0' }))
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: '@my-namespace/nested', version: '1.0.0' }))
+  const archivePath = 'monorepo.tgz'
+  // Relative paths: GNU tar on Windows reads a `C:` prefix as a remote host.
+  await execa('tar', ['-czf', archivePath, archiveRoot])
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/my-org/monorepo', method: 'HEAD' })
+    .reply(200)
+  getMockAgent().get('https://codeload.github.com')
+    .intercept({ path: `/my-org/monorepo/tar.gz/${commit}`, method: 'GET' })
+    .reply(200, fs.readFileSync(archivePath))
+
+  await addDependenciesToPackage({}, [`github:my-org/monorepo#${commit}&path:/packages/nested`], testDefaults())
+
+  project.has('@my-namespace/nested')
+  expect(JSON.parse(fs.readFileSync('node_modules/@my-namespace/nested/package.json', 'utf8'))).toHaveProperty('name', '@my-namespace/nested')
+})
+
+test('no hash character for github subdirectory install', async () => {
+  prepareEmpty()
+  getMockAgent().get('https://github.com')
+    .intercept({ path: '/pnpm/only-allow', method: 'HEAD' })
+    .reply(200)
+
+  await addDependenciesToPackage({}, [
+    'github:pnpm/only-allow#path:/&v1.2.1',
+  ], testDefaults())
+
+  expect(fs.readdirSync('./node_modules/.pnpm'))
+    .toContain('only-allow@https+++codeload.github.com+pnpm+only-allow+tar.gz+91ab41994c6a1b7319869fa88_56355147ba630bfd9db93b3858553cde') // cspell:disable-line
+})

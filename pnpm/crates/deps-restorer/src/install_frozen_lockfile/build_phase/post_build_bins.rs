@@ -1,0 +1,252 @@
+use super::{
+    BuildPhaseError,
+    BuildPhaseInputs,
+};
+use crate::build_options::HoistedBinPlans;
+use pnpm_cmd_shim::{
+    Host,
+    LinkBinsOptions,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use std::{
+    borrow::Cow,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+#[cfg(all(test, unix))]
+mod tests;
+
+pub(super) fn link_options(
+    options: &LinkBinsOptions,
+    mutated_slots: bool,
+) -> Cow<'_, LinkBinsOptions> {
+    if !mutated_slots {
+        return Cow::Borrowed(options);
+    }
+    let mut refreshed = options.clone();
+    refreshed.force = true;
+    Cow::Owned(refreshed)
+}
+
+pub(super) fn relink_dependency_bins(
+    inputs: &BuildPhaseInputs<'_>,
+    mutated: &HashSet<PackageKey>,
+    plans: &HoistedBinPlans,
+) -> Result<(), BuildPhaseError> {
+    let options = link_options(inputs.directories.link_options, true);
+    let Some(snapshots) = inputs.graph.snapshots else { return Ok(()) };
+    let consumers: Vec<_> = snapshots
+        .iter()
+        .filter(|(key, snapshot)| mutated.contains(*key) || depends_on_mutation(snapshot, mutated))
+        .map(|(key, _)| key.clone())
+        .collect();
+    if inputs.directories.is_hoisted {
+        return relink_hoisted_bins(inputs, &options, (&consumers, mutated), plans);
+    }
+    crate::LinkVirtualStoreBins {
+        layout: inputs.directories.layout,
+        snapshots: inputs.graph.snapshots,
+        selected_snapshots: Some(&consumers),
+        packages: inputs.graph.packages,
+        package_manifests: &crate::PackageManifests::default(),
+        package_bins: None,
+        skipped: inputs.skipped,
+        link_options: &options,
+    }
+    .run()
+    .map_err(BuildPhaseError::DependencyBinLink)?;
+    plans.refresh_private_hoist(mutated, &options).map_err(BuildPhaseError::TopLevelBinLink)
+}
+
+fn relink_hoisted_bins(
+    inputs: &BuildPhaseInputs<'_>,
+    options: &LinkBinsOptions,
+    selection: (&[PackageKey], &HashSet<PackageKey>),
+    plans: &HoistedBinPlans,
+) -> Result<(), BuildPhaseError> {
+    let Some(roots) = inputs.directories.hoisted_pkg_roots_by_key else { return Ok(()) };
+    for modules in hoisted_modules_dirs(roots, selection.0, selection.1) {
+        if refresh_cached_directory(plans, &modules, roots, selection.1, options)? {
+            continue;
+        }
+        crate::link_bins_dir(
+            &modules,
+            crate::BinCandidates::ModulesDir,
+            crate::BinsDirPass::new(options),
+        )
+        .map_err(BuildPhaseError::TopLevelBinLink)?;
+    }
+    Ok(())
+}
+
+pub(super) fn hoisted_modules_dirs(
+    roots: &HashMap<PackageKey, Vec<PathBuf>>,
+    consumers: &[PackageKey],
+    mutated: &HashSet<PackageKey>,
+) -> HashSet<PathBuf> {
+    let own_modules = consumers
+        .iter()
+        .filter_map(|key| roots.get(key))
+        .flatten()
+        .map(|root| root.join("node_modules"));
+    let physical_modules = mutated
+        .iter()
+        .filter_map(|key| roots.get(key))
+        .flatten()
+        .filter_map(|root| crate::link_hoisted_modules::containing_modules_dir(root))
+        .map(PathBuf::from);
+    own_modules.chain(physical_modules).collect()
+}
+
+fn depends_on_mutation(snapshot: &SnapshotEntry, mutated: &HashSet<PackageKey>) -> bool {
+    snapshot.dependencies
+        .iter()
+        .chain(snapshot.optional_dependencies.iter())
+        .flat_map(|dependencies| dependencies.iter())
+        .filter_map(|(name, reference)| reference.resolve(name))
+        .any(|key| mutated.contains(&key))
+}
+
+fn refresh_cached_directory(
+    plans: &HoistedBinPlans,
+    directory: &Path,
+    roots: &HashMap<PackageKey, Vec<PathBuf>>,
+    mutated: &HashSet<PackageKey>,
+    options: &LinkBinsOptions,
+) -> Result<bool, BuildPhaseError> {
+    let Some(entry) = plans.existing_directory(directory) else { return Ok(false) };
+    let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let pending: HashSet<_> = mutated
+        .difference(&entry.completed)
+        .filter(|key| {
+            roots
+                .get(*key)
+                .is_some_and(|locations| {
+                    locations
+                        .iter()
+                        .any(|root| {
+                            crate::link_hoisted_modules::containing_modules_dir(root)
+                                == Some(directory)
+                        })
+                })
+        })
+        .cloned()
+        .collect();
+    let locations = pending
+        .iter()
+        .filter_map(|key| roots.get(key))
+        .flatten()
+        .filter(|root| crate::link_hoisted_modules::containing_modules_dir(root) == Some(directory))
+        .cloned()
+        .collect();
+    let Some(plan) = entry.plan.as_mut() else { return Ok(false) };
+    plan.refresh::<Host>(&locations, &directory.join(".bin"), options)
+        .map_err(BuildPhaseError::TopLevelBinLink)?;
+    entry.completed.extend(pending);
+    Ok(true)
+}
+
+pub(super) fn importer_sources(
+    plans: &HoistedBinPlans,
+    directory: &Path,
+    direct: &[String],
+    hoisted: &[String],
+) -> Option<HashMap<PathBuf, pnpm_cmd_shim::PreparedPackageBins>> {
+    let entry = plans.existing_directory(directory)?;
+    let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let plan = entry.plan_or_seeded()?;
+    Some(
+        direct
+            .iter()
+            .chain(hoisted)
+            .filter_map(|name| {
+                let location = directory.join(name);
+                plan.package_bins(&location)
+                    .map(|prepared| (location, prepared.with_build_pending(false)))
+            })
+            .collect(),
+    )
+}
+
+pub(super) fn finish_importer_top_level_bins(
+    inputs: &BuildPhaseInputs<'_>,
+    mutated_slots: bool,
+    plans: &HoistedBinPlans,
+) -> Result<(), BuildPhaseError> {
+    let mut claimed_importer_bins = inputs.pending_bins
+        .map(|pending| pending.claimed_importer_bins.clone())
+        .unwrap_or_default();
+    let modules_dirs = crate::ImporterModulesDirs::from_config(
+        inputs.policy.config,
+        inputs.directories.workspace_root,
+    );
+    for (importer_id, importer_snapshot) in inputs.graph.importers {
+        if let Some((modules_dir, linked)) = super::link_importer_top_level_bins(
+            inputs,
+            mutated_slots,
+            &modules_dirs,
+            importer_id,
+            importer_snapshot,
+            plans,
+        )? {
+            claimed_importer_bins.claim_recorded(&modules_dir, linked);
+        }
+    }
+    let selected_dirs = selected_importer_modules_dirs(inputs, &modules_dirs);
+    claimed_importer_bins
+        .prune_stale_bins(
+            claimed_importer_bins
+                .dirs()
+                .filter(|modules_dir| {
+                    selected_dirs
+                        .as_ref()
+                        .is_none_or(|dirs| dirs.contains(*modules_dir))
+                }),
+        )
+        .map_err(BuildPhaseError::TopLevelBinLink)
+}
+
+fn selected_importer_modules_dirs(
+    inputs: &BuildPhaseInputs<'_>,
+    modules_dirs: &crate::ImporterModulesDirs,
+) -> Option<HashSet<PathBuf>> {
+    (!inputs.graph.trusted_importer_ids.is_empty()).then(|| {
+        let mut dirs = HashSet::new();
+        for importer_id in inputs.graph.trusted_importer_ids {
+            let project_dir =
+                super::importer_root_dir(inputs.directories.workspace_root, importer_id);
+            dirs.insert(pnpm_fs::lexical_normalize(&modules_dirs.of(&project_dir)));
+            // The link pass places a symlinked project's modules directory
+            // under its `std::fs::canonicalize` path, so match that spelling.
+            if let Ok(real_dir) = std::fs::canonicalize(&project_dir) {
+                dirs.insert(pnpm_fs::lexical_normalize(&modules_dirs.of(&real_dir)));
+            }
+        }
+        dirs
+    })
+}
+
+pub(super) fn loaded_snapshots(
+    inputs: &BuildPhaseInputs<'_>,
+) -> HashMap<PackageKey, SnapshotEntry> {
+    let snapshots = inputs.graph.snapshots;
+    let Some(keys) = inputs.graph.loaded_snapshots else {
+        return crate::create_virtual_store::cas::materialized_snapshots(
+            inputs.policy.config,
+            snapshots,
+        );
+    };
+    keys.iter()
+        .filter_map(|key| Some((key.clone(), snapshots?.get(key)?.clone())))
+        .collect()
+}

@@ -1,0 +1,1644 @@
+//! End-to-end coverage for `injectWorkspacePackages: true` in a
+//! `pnpm-workspace.yaml` monorepo.
+//!
+//! Asserts the behavioral consequences of the global flag:
+//! workspace packages materialise as `file:` snapshots (not `link:`)
+//! with peer-dep hash suffixes; `dependenciesMeta` on the importer is
+//! **not** populated (the global flag flips the resolution scheme
+//! without a per-dep opt-in); and the lockfile records
+//! `settings.injectWorkspacePackages: true` so a later install with the
+//! flag flipped re-resolves.
+
+mod catalogs;
+mod hardlink_refresh;
+mod relative_peers;
+
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::fs;
+
+/// Three-project workspace with `injectWorkspacePackages: true`.
+/// project-1 has its own deps + a peer requirement; project-2
+/// consumes project-1 via `workspace:1.0.0`; project-3 consumes
+/// project-2 the same way and pulls a different `is-positive` peer
+/// version. The peer-resolver produces a peer-suffixed `file:`
+/// resolution for each project-1 occurrence.
+///
+/// Assertions:
+///
+/// - install succeeds.
+/// - `pnpm-lock.yaml` carries `settings.injectWorkspacePackages: true`.
+/// - The workspace resolutions are recorded as `file:` (not `link:`)
+///   inside the importer entries; that's the byte-level signal that
+///   the global flag took effect.
+/// - The virtual-store directory layout matches the upstream count:
+///   eight slots, accounting for `is-negative`, two `is-positive`
+///   versions, one `@pnpm.e2e/dep-of-pkg-with-1-dep`, its single
+///   transitive registry dep, and three peer-suffixed file
+///   resolutions (project-1 × {is-positive@1.0.0, is-positive@2.0.0}
+///   + project-2 × is-positive@2.0.0).
+#[test]
+fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // Flip the workspace yaml: `injectWorkspacePackages: true`,
+    // `autoInstallPeers: false`, and the `packages:` glob covering the
+    // three sibling projects.
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("injectWorkspacePackages: true\n");
+    workspace_yaml.push_str("autoInstallPeers: false\n");
+    workspace_yaml.push_str("packages:\n  - 'project-*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    // Workspace root: empty manifest so any installed dep is
+    // attributable to the siblings below.
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+            "devDependencies": {
+                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
+            },
+            "peerDependencies": { "is-positive": ">=1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+            "devDependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    fs::create_dir_all(workspace.join("project-3")).expect("mkdir project-3");
+    fs::write(
+        workspace.join("project-3/package.json"),
+        serde_json::json!({
+            "name": "project-3",
+            "version": "1.0.0",
+            "dependencies": { "project-2": "workspace:1.0.0" },
+            "devDependencies": { "is-positive": "2.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-3/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+
+    // (1) `settings.injectWorkspacePackages: true` round-trips through
+    // the writer.
+    assert!(
+        lockfile.contains("injectWorkspacePackages: true"),
+        "pnpm-lock.yaml missing `settings.injectWorkspacePackages: true`:\n{lockfile}",
+    );
+
+    // (2) The workspace dep resolutions are recorded as `file:`, not
+    // `link:`. Read each consumer's importer block and check the
+    // recorded version of its workspace dep (project-2 → project-1,
+    // project-3 → project-2).
+    // The `file:` paths are rendered relative to the *lockfile root*
+    // (the workspace dir), not relative to each consumer project. So
+    // `project-2`'s recorded dep on project-1 reads
+    // `file:project-1(...)` even though project-2 lives a directory
+    // away. The ref is the plain `file:` form, the `<name>@<ref>`
+    // alias form is reserved for renamed deps, and here the alias
+    // equals the package name.
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .map_err(|err| {
+            format!(
+                "re-parse the lockfile we just wrote (this should never fail): {err}\n{lockfile}",
+            )
+        })
+        .unwrap();
+
+    let importer_version = |importer_id: &str, dep_name: &str| -> String {
+        let dep_name_parsed = dep_name
+            .parse::<pnpm_lockfile::PkgName>()
+            .unwrap_or_else(|err| panic!("parse PkgName {dep_name:?}: {err}"));
+        let importer = parsed.importers
+            .get(importer_id)
+            .unwrap_or_else(|| {
+                panic!("pnpm-lock.yaml missing `importers[{importer_id:?}]` block:\n{lockfile}")
+            });
+        let deps = importer.dependencies.as_ref().unwrap_or_else(|| {
+            panic!(
+                "pnpm-lock.yaml `importers[{importer_id:?}]` has no `dependencies` block:\n{lockfile}",
+            )
+        });
+        let spec = deps.get(&dep_name_parsed).unwrap_or_else(|| {
+            panic!(
+                "pnpm-lock.yaml `importers[{importer_id:?}].dependencies` missing {dep_name:?}:\n{lockfile}",
+            )
+        });
+        spec.version.to_string()
+    };
+
+    let p2_dep_on_p1 = importer_version("project-2", "project-1");
+    assert!(
+        p2_dep_on_p1.starts_with("file:project-1"),
+        "project-2 importer must record project-1 as `file:project-1(...)` (inject on), not `link:`; \
+         got version={p2_dep_on_p1:?}",
+    );
+    assert!(
+        !p2_dep_on_p1.starts_with("link:"),
+        "project-2 importer must NOT record project-1 as `link:` when inject is on; \
+         got version={p2_dep_on_p1:?}",
+    );
+
+    let p3_dep_on_p2 = importer_version("project-3", "project-2");
+    assert!(
+        p3_dep_on_p2.starts_with("file:project-2"),
+        "project-3 importer must record project-2 as `file:project-2(...)` (inject on), not `link:`; \
+         got version={p3_dep_on_p2:?}",
+    );
+
+    // (3) Virtual store cardinality: seven slot dirs + the sibling
+    // `lock.yaml` (recording what was materialised) + the private-
+    // hoist target `node_modules/` (default `hoistPattern: ["*"]`
+    // privately hoists every transitive to `<vs>/node_modules/`).
+    // Empirically matches pnpm v11.4.0 with the same
+    // `enableGlobalVirtualStore: false` config, pnpm produces the
+    // same nine entries on the equivalent fixture.
+    let dot_pnpm = workspace.join("node_modules/.pnpm");
+    let entries: Vec<String> = fs::read_dir(&dot_pnpm)
+        .expect("read node_modules/.pnpm")
+        .filter_map(Result::ok)
+        .map(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(
+        entries.len(),
+        9,
+        "expected 9 entries under node_modules/.pnpm \
+         (7 virtual-store slot dirs + the sibling `lock.yaml` + the private-hoist `node_modules/`), got {}. Contents:\n{entries:?}",
+        entries.len(),
+    );
+
+    // (4) The virtual-store slot names must escape `:` to `+`.
+    // Without the escape, Windows refuses the directory name with
+    // `ERROR_INVALID_NAME (123)`. Pin this here so a regression on
+    // the escape rule fails on every platform, not just NTFS.
+    assert!(
+        entries
+            .iter()
+            .any(|name| name == "project-1@file+project-1_is-positive@1.0.0"),
+        "missing FS-safe virtual-store slot for project-1 × is-positive@1.0.0; \
+         entries: {entries:?}",
+    );
+    assert!(
+        entries
+            .iter()
+            .all(|name| !name.contains("file:")),
+        "no virtual-store slot may contain an unescaped `:`, Windows refuses it; \
+         entries: {entries:?}",
+    );
+
+    // (5) The peer-suffixed `file:` snapshots must pass the lockfile
+    // freshness check.
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+/// `dependenciesMeta[<name>].injected = true` opts a single workspace
+/// dep into the `file:` resolution shape even when the global
+/// `injectWorkspacePackages` setting is off, the per-dep variant of
+/// the same fixture, with the workspace-level flag unset.
+///
+/// Two-project workspace: project-2 depends on project-1 via
+/// `workspace:1.0.0`, with `dependenciesMeta.project-1.injected =
+/// true`. The lockfile must record project-1 as a `file:` resolution
+/// inside project-2's importer block, proving the per-dep flag
+/// flowed all the way from manifest read to resolver output, even
+/// with the workspace-level `injectWorkspacePackages` unset.
+#[test]
+fn dependencies_meta_injected_per_dep_overrides_global_off() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    // Explicit `false` so a contributor flipping the global default
+    // can't accidentally make this test pass for the wrong reason.
+    workspace_yaml.push_str("injectWorkspacePackages: false\n");
+    // Isolate the resolver-output assertion below from the
+    // `dedupeInjectedDeps` pass that rewrites an injected workspace
+    // dep back to `link:` when the target's children are a subset of
+    // the injected snapshot's. With project-1 being a childless leaf
+    // and dedupe enabled, the file: resolution this test asserts on
+    // would otherwise collapse to `link:../project-1`.
+    workspace_yaml.push_str("dedupeInjectedDeps: false\n");
+    workspace_yaml.push_str("packages:\n  - 'project-*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+            // Per-dep opt-in. With the global flag off, this is the
+            // only signal that should flip project-1 onto the `file:`
+            // path.
+            "dependenciesMeta": { "project-1": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
+
+    let importer = parsed.importers
+        .get("project-2")
+        .unwrap_or_else(|| panic!("missing `importers[project-2]`:\n{lockfile}"));
+    let deps = importer.dependencies
+        .as_ref()
+        .unwrap_or_else(|| panic!("missing project-2 dependencies:\n{lockfile}"));
+    let project_1_name: pnpm_lockfile::PkgName = "project-1".parse().unwrap();
+    let spec = deps
+        .get(&project_1_name)
+        .unwrap_or_else(|| panic!("missing project-1 in project-2 deps:\n{lockfile}"));
+    let version = spec.version.to_string();
+    assert!(
+        version.starts_with("file:project-1"),
+        "per-dep `dependenciesMeta.project-1.injected = true` must produce a `file:` resolution \
+         even with the global `injectWorkspacePackages` off; got version={version:?}",
+    );
+    assert!(
+        !version.starts_with("link:"),
+        "per-dep inject must NOT fall back to `link:`; got version={version:?}",
+    );
+
+    // `lockfile.settings.injectWorkspacePackages` stays absent / false;
+    // this is the per-dep branch, not the global one.
+    assert!(
+        !lockfile.contains("injectWorkspacePackages: true"),
+        "global `injectWorkspacePackages` must remain off in the lockfile settings; \
+         lockfile:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `injectWorkspacePackages: true` applies to a workspace dependency
+/// declared with a relative path (`workspace:../project-1`), not only to
+/// one matched by name and range.
+#[test]
+fn inject_workspace_packages_applies_to_relative_path_workspace_spec() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("injectWorkspacePackages: true\n");
+    // A childless project-1 would otherwise be deduped back to `link:`.
+    workspace_yaml.push_str("dedupeInjectedDeps: false\n");
+    workspace_yaml.push_str("packages:\n  - 'project-*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({ "name": "project-1", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write project-1/package.json");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:../project-1" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
+    let project_1_name: pnpm_lockfile::PkgName = "project-1".parse().unwrap();
+    let spec = parsed.importers
+        .get("project-2")
+        .and_then(|importer| importer.dependencies.as_ref())
+        .and_then(|deps| deps.get(&project_1_name))
+        .unwrap_or_else(|| panic!("missing project-1 in project-2 deps:\n{lockfile}"));
+    assert_eq!(spec.version.to_string(), "file:project-1", "lockfile:\n{lockfile}");
+
+    let installed = fs::canonicalize(workspace.join("project-2/node_modules/project-1"))
+        .expect("resolve project-2/node_modules/project-1");
+    assert_ne!(
+        installed,
+        fs::canonicalize(workspace.join("project-1")).expect("resolve project-1"),
+        "project-1 must be an injected copy, not a link to the workspace project",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A relative-path `workspace:` dependency of an injected project
+/// resolves from that project's directory: `libs/lib-b`'s
+/// `workspace:../lib-a` names `libs/lib-a`.
+#[test]
+fn relative_path_workspace_spec_of_an_injected_project_resolves_from_its_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("injectWorkspacePackages: true\n");
+    workspace_yaml.push_str("dedupeInjectedDeps: false\n");
+    workspace_yaml.push_str("packages:\n  - 'apps/*'\n  - 'libs/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    for (dir, manifest) in [
+        ("libs/lib-a", serde_json::json!({ "name": "lib-a", "version": "1.0.0" })),
+        (
+            "libs/lib-b",
+            serde_json::json!({
+                "name": "lib-b",
+                "version": "1.0.0",
+                "dependencies": { "lib-a": "workspace:../lib-a" },
+            }),
+        ),
+        (
+            "apps/main",
+            serde_json::json!({
+                "name": "main",
+                "version": "1.0.0",
+                "dependencies": { "lib-b": "workspace:*" },
+            }),
+        ),
+    ] {
+        fs::create_dir_all(workspace.join(dir)).expect("create the project directory");
+        fs::write(workspace.join(dir).join("package.json"), manifest.to_string())
+            .expect("write package.json");
+    }
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
+    let lib_b_key: pnpm_lockfile::PkgNameVerPeer = "lib-b@file:libs/lib-b".parse().unwrap();
+    let lib_a_name: pnpm_lockfile::PkgName = "lib-a".parse().unwrap();
+    let lib_a = parsed.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&lib_b_key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|deps| deps.get(&lib_a_name))
+        .unwrap_or_else(|| panic!("missing lib-a in the lib-b snapshot:\n{lockfile}"));
+    assert_eq!(lib_a.to_string(), "file:libs/lib-a", "lockfile:\n{lockfile}");
+
+    drop((root, mock_instance));
+}
+
+/// How a per-project-lockfile workspace injects `project-1` into `project-2`.
+#[derive(Clone, Copy)]
+enum Injection {
+    DependenciesMeta,
+    WorkspaceSetting,
+}
+
+/// A workspace with per-project lockfiles where `project-2` injects
+/// `project-1`, installed once.
+fn install_per_project_injection_workspace(
+    pacquet: std::process::Command,
+    workspace: &std::path::Path,
+    injection: Injection,
+) {
+    let settings = match injection {
+        Injection::DependenciesMeta => "",
+        Injection::WorkspaceSetting => "injectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    };
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("packages:\n  - 'project-*'\nsharedWorkspaceLockfile: false\n{settings}"),
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    write_project_1(workspace, &serde_json::json!({ "is-positive": "1.0.0" }));
+
+    let mut consumer = serde_json::json!({
+        "name": "project-2",
+        "version": "1.0.0",
+        "dependencies": { "project-1": "workspace:*" },
+    });
+    if matches!(injection, Injection::DependenciesMeta) {
+        consumer["dependenciesMeta"] = serde_json::json!({ "project-1": { "injected": true } });
+    }
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(workspace.join("project-2/package.json"), consumer.to_string())
+        .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+}
+
+fn write_project_1(workspace: &std::path::Path, dependencies: &serde_json::Value) {
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": dependencies,
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+}
+
+fn pnpm_in(workspace: &std::path::Path) -> std::process::Command {
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+}
+
+#[test]
+fn injected_workspace_dependency_updated_re_resolves() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_per_project_injection_workspace(pacquet, &workspace, Injection::DependenciesMeta);
+
+    write_project_1(
+        &workspace,
+        &serde_json::json!({ "is-positive": "1.0.0", "is-negative": "1.0.0" }),
+    );
+    pnpm_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("project-2/pnpm-lock.yaml"))
+        .expect("read project-2/pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("is-negative"),
+        "project-2 lockfile must contain is-negative after project-1 added it:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// With `injectWorkspacePackages`, the consumer's manifest names no
+/// injection and a filtered install sees only the consumer, so the repeat
+/// install has to read the injection from the consumer's lockfile.
+#[test]
+fn filtered_install_re_resolves_a_dependency_injected_by_the_workspace_setting() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_per_project_injection_workspace(pacquet, &workspace, Injection::WorkspaceSetting);
+
+    write_project_1(&workspace, &serde_json::json!({ "is-positive": "2.0.0" }));
+    pnpm_in(&workspace)
+        .with_args(["--filter=project-2", "install", "--no-frozen-lockfile"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("project-2/pnpm-lock.yaml"))
+        .expect("read project-2/pnpm-lock.yaml");
+    assert!(lockfile.contains("is-positive@2.0.0"), "{lockfile}");
+    let installed: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join("project-2/node_modules/project-1/package.json"))
+            .expect("read the injected project-1 manifest"),
+    )
+    .expect("parse the injected project-1 manifest");
+    assert_eq!(installed["dependencies"]["is-positive"], "2.0.0");
+
+    pnpm_in(&workspace)
+        .with_args(["--filter=project-2", "install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn filtered_lockfile_only_install_re_resolves_a_dependency_injected_by_the_workspace_setting() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_per_project_injection_workspace(pacquet, &workspace, Injection::WorkspaceSetting);
+
+    write_project_1(&workspace, &serde_json::json!({ "is-positive": "2.0.0" }));
+    pnpm_in(&workspace)
+        .with_args(["--filter=project-2", "install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("project-2/pnpm-lock.yaml"))
+        .expect("read project-2/pnpm-lock.yaml");
+    assert!(lockfile.contains("is-positive@2.0.0"), "{lockfile}");
+
+    drop((root, mock_instance));
+}
+
+fn write_workspace_with_prepare(workspace: &std::path::Path, settings: &str) {
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n{settings}",
+        ),
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "scripts": { "prepare": "node build.cjs" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+    fs::write(
+        workspace.join("project-1/build.cjs"),
+        "const fs = require('fs')\nfs.mkdirSync(__dirname + '/dist', { recursive: true })\nfs.writeFileSync(__dirname + '/dist/index.js', 'built')\n",
+    )
+    .expect("write project-1/build.cjs");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+}
+
+fn assert_injected_copy_is_built(workspace: &std::path::Path, copy: &std::path::Path) {
+    let source = fs::canonicalize(workspace.join("project-1")).expect("canonicalize project-1");
+    assert_ne!(
+        fs::canonicalize(copy).expect("canonicalize the injected copy"),
+        source,
+        "project-1 should be injected at {copy:?}, not linked to its source",
+    );
+    assert_eq!(
+        fs::read_to_string(copy.join("dist/index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {copy:?}: {error}")),
+        "built",
+    );
+}
+
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_run_by_install() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let copy = workspace.join("project-2/node_modules/project-1");
+    assert_injected_copy_is_built(&workspace, &copy);
+
+    for dir in ["node_modules", "project-1/dist", "project-2/node_modules"] {
+        fs::remove_dir_all(workspace.join(dir)).expect("clean the install");
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_injected_copy_is_built(&workspace, &copy);
+
+    drop((root, mock_instance));
+}
+
+/// The sync after `prepare` reads the same files as the install, so the copy
+/// gains none that `files` leaves out.
+#[test]
+fn injected_copy_built_by_prepare_holds_only_the_files_the_manifest_lists() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "");
+    let manifest_path = workspace.join("project-1/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).expect("read project-1 manifest"))
+            .expect("parse project-1 manifest");
+    manifest["files"] = serde_json::json!(["dist"]);
+    fs::write(&manifest_path, manifest.to_string()).expect("write project-1 manifest");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let copy = workspace.join("project-2/node_modules/project-1");
+    assert_injected_copy_is_built(&workspace, &copy);
+    assert!(!copy.join("build.cjs").exists(), "the copy holds a file `files` leaves out");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_with_the_hoisted_linker() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "nodeLinker: hoisted\n");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_injected_copy_is_built(&workspace, &workspace.join("project-2/node_modules/project-1"));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_with_a_custom_modules_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "modulesDir: vendor\n");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_injected_copy_is_built(&workspace, &workspace.join("project-2/vendor/project-1"));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn injected_copy_gets_the_output_of_the_prepare_script_with_a_nested_modules_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "modulesDir: deps/vendor\n");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace.join("deps/vendor/.modules.yaml").is_file(),
+        "the workspace's modules manifest should be under the nested modulesDir",
+    );
+    assert_injected_copy_is_built(
+        &workspace,
+        &workspace.join("deps/vendor/.pnpm/project-1@file+project-1/node_modules/project-1"),
+    );
+
+    drop((root, mock_instance));
+}
+
+/// project-1 publishes from `publishConfig.directory: dist`, which its own
+/// `prepare` script builds. The directory does not exist until the script
+/// runs, after project-2's injected copy of it is linked (pnpm/pnpm#7811).
+fn write_workspace_with_publish_directory(workspace: &std::path::Path) {
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "scripts": { "prepare": "node build.cjs" },
+            "publishConfig": { "directory": "dist" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+    fs::write(
+        workspace.join("project-1/build.cjs"),
+        "const fs = require('fs')\n\
+         fs.mkdirSync(__dirname + '/dist', { recursive: true })\n\
+         fs.copyFileSync(__dirname + '/package.json', __dirname + '/dist/package.json')\n\
+         fs.writeFileSync(__dirname + '/dist/index.js', 'built')\n",
+    )
+    .expect("write project-1/build.cjs");
+
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+}
+
+/// A `workspace:` dependency on a project that publishes from a directory is
+/// resolved from the project's manifest, and a `file:` dependency on that
+/// directory from the `package.json` in it. The lockfile is checked against
+/// the same manifest, so one that differs from the other does not make it
+/// look outdated.
+fn assert_frozen_install_accepts_a_publish_directory_declared_as(spec: &str) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    // No `prepare` script, so the install leaves `dist/package.json` as written.
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+            "publishConfig": { "directory": "dist" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+    fs::create_dir_all(workspace.join("project-1/dist")).expect("mkdir dist");
+    fs::write(
+        workspace.join("project-1/dist/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write dist/package.json");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": spec },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    for dir in ["node_modules", "project-1/node_modules", "project-2/node_modules"] {
+        let _ = fs::remove_dir_all(workspace.join(dir));
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_accepts_a_publish_directory_whose_manifest_differs_from_the_project() {
+    assert_frozen_install_accepts_a_publish_directory_declared_as("workspace:1.0.0");
+}
+
+#[test]
+fn frozen_install_accepts_a_file_dependency_on_a_publish_directory() {
+    assert_frozen_install_accepts_a_publish_directory_declared_as("file:../project-1/dist");
+}
+
+#[test]
+fn injected_copy_of_a_package_that_publishes_from_a_directory_gets_the_prepare_output() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let copy = workspace.join("project-2/node_modules/project-1");
+    // The injected copy is packed from the publish directory, so the built
+    // file sits at the copy's root, and `dist/` is not nested inside it.
+    assert_eq!(
+        fs::read_to_string(copy.join("index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {copy:?}: {error}")),
+        "built",
+    );
+    assert!(!copy.join("dist").exists(), "the copy should not nest the publish directory");
+
+    for dir in ["node_modules", "project-1/dist", "project-2/node_modules"] {
+        fs::remove_dir_all(workspace.join(dir)).expect("clean the install");
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(copy.join("index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {copy:?}: {error}")),
+        "built",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A hoisted reinstall reads the publish directory before `prepare` rebuilds
+/// it. While it is missing, the installed copy must survive.
+#[test]
+fn hoisted_reinstall_keeps_the_injected_copy_while_the_publish_directory_is_missing() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    let settings = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&settings).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: hoisted\n");
+    fs::write(&settings, yaml).expect("write pnpm-workspace.yaml");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let copy = workspace.join("project-2/node_modules/project-1");
+    assert_eq!(fs::read_to_string(copy.join("index.js")).unwrap(), "built");
+
+    fs::remove_dir_all(workspace.join("project-1/dist")).expect("remove the publish directory");
+    fs::write(workspace.join("project-1/build.cjs"), "").expect("stop prepare from building");
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(copy.join("index.js")).unwrap(), "built");
+
+    drop((root, mock_instance));
+}
+
+/// A `file:` dependency on project-1 bypasses the `workspace:` protocol's
+/// publish-directory redirect (`resolve_workspace_package_dir` in
+/// `pnpm-resolving-npm-resolver` only applies to `workspace:` specs), so its
+/// injected copy is built from project-1's root rather than its `dist/`. A
+/// workspace can mix both dependency styles on the same source project, and
+/// each copy must be refreshed from its own source after `prepare` builds
+/// `dist/`.
+#[test]
+fn injected_copy_of_a_file_dependency_gets_the_project_root_not_the_publish_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_publish_directory(&workspace);
+    fs::create_dir_all(workspace.join("project-3")).expect("mkdir project-3");
+    fs::write(
+        workspace.join("project-3/package.json"),
+        serde_json::json!({
+            "name": "project-3",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "file:../project-1" },
+            // `injectWorkspacePackages` only auto-injects `workspace:` specs,
+            // so a `file:` dependency needs this to opt into injection.
+            "dependenciesMeta": { "project-1": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write project-3/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let workspace_copy = workspace.join("project-2/node_modules/project-1");
+    let root_copy = workspace.join("project-3/node_modules/project-1");
+    // The `workspace:` dependency's copy is packed from the publish directory.
+    assert_eq!(
+        fs::read_to_string(workspace_copy.join("index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {workspace_copy:?}: {error}")),
+        "built",
+    );
+    assert!(
+        !workspace_copy.join("dist").exists(),
+        "the workspace: copy should not nest the publish directory",
+    );
+    // The `file:` dependency's copy is packed from the project root,
+    // unaffected by the publish-directory redirect.
+    assert_eq!(
+        fs::read_to_string(root_copy.join("dist/index.js"))
+            .unwrap_or_else(|error| panic!("read the build output in {root_copy:?}: {error}")),
+        "built",
+    );
+    assert!(
+        !root_copy.join("index.js").exists(),
+        "the file: copy should nest the publish directory instead",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[cfg(unix)]
+#[test]
+fn relinked_bin_of_an_injected_copy_keeps_a_custom_modules_dir_on_node_path() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace_with_prepare(&workspace, "modulesDir: vendor\n");
+    let manifest_path = workspace.join("project-1/package.json");
+    let mut manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&manifest_path).expect("read project-1/package.json"),
+    )
+    .expect("parse project-1/package.json");
+    manifest["bin"] = serde_json::json!({ "project-1-bin": "bin.js" });
+    fs::write(&manifest_path, manifest.to_string()).expect("write project-1/package.json");
+    fs::write(workspace.join("project-1/bin.js"), "#!/usr/bin/env node\n")
+        .expect("write project-1/bin.js");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let shim = fs::read_to_string(workspace.join("project-2/vendor/.bin/project-1-bin"))
+        .expect("read the project-1-bin shim");
+    assert!(
+        shim.contains(r#"export NODE_PATH="$basedir_abs"/'..':"#),
+        "the shim should put the vendor directory first on NODE_PATH:\n{shim}",
+    );
+
+    drop((root, mock_instance));
+}
+
+fn write_workspace_with_injected_peer_consumer(
+    workspace: &std::path::Path,
+    peer_provider_spec: &str,
+) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - app\n  - lib\n  - peer\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    let projects = [
+        ("peer", serde_json::json!({ "name": "is-positive", "version": "1.0.0" })),
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "peerDependencies": { "is-positive": "^1.0.0" },
+            }),
+        ),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "private": true,
+                "dependencies": { "lib": "workspace:*", "is-positive": peer_provider_spec },
+                "dependenciesMeta": { "lib": { "injected": true } },
+            }),
+        ),
+    ];
+    for (dir, manifest) in projects {
+        fs::create_dir_all(workspace.join(dir)).expect("mkdir project");
+        fs::write(workspace.join(dir).join("package.json"), manifest.to_string())
+            .expect("write project package.json");
+    }
+}
+
+/// Generates the lockfile, removes every `node_modules`, and installs again
+/// with `--frozen-lockfile`, which must accept the lockfile it just wrote.
+fn assert_frozen_install_accepts_fresh_lockfile(peer_provider_spec: &str) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_with_injected_peer_consumer(&workspace, peer_provider_spec);
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    for dir in ["node_modules", "app/node_modules", "lib/node_modules", "peer/node_modules"] {
+        let _ = fs::remove_dir_all(workspace.join(dir));
+    }
+    std::process::Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(
+        workspace.join("app/node_modules/lib/package.json").exists(),
+        "the frozen install must materialize the injected copy of lib",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A sibling importer supplies an injected package's optional peer. The
+/// resulting snapshot records that peer under `optionalDependencies`.
+#[test]
+fn frozen_install_accepts_injected_optional_peer_from_sibling_importer() {
+    assert_frozen_install_accepts_injected_optional_peer(true);
+}
+
+#[test]
+fn frozen_install_accepts_injected_meta_only_optional_peer() {
+    assert_frozen_install_accepts_injected_optional_peer(false);
+}
+
+fn assert_frozen_install_accepts_injected_optional_peer(declared_range: bool) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - app\n  - app2\n  - lib\n  - peer\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root manifest");
+    let peer_name = "@pnpm.e2e/foo";
+    let mut lib = serde_json::json!({
+        "name": "lib",
+        "version": "1.0.0",
+        "peerDependenciesMeta": { (peer_name): { "optional": true } },
+    });
+    if declared_range {
+        lib["peerDependencies"] = serde_json::json!({ (peer_name): "^100.0.0" });
+    }
+    let projects = [
+        ("peer", serde_json::json!({ "name": peer_name, "version": "100.0.0" })),
+        ("lib", lib),
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "private": true,
+                "dependencies": { "lib": "workspace:*" },
+                "dependenciesMeta": { "lib": { "injected": true } },
+            }),
+        ),
+        (
+            "app2",
+            serde_json::json!({
+                "name": "app2",
+                "private": true,
+                "dependencies": { "lib": "workspace:*", (peer_name): "workspace:*" },
+                "dependenciesMeta": { "lib": { "injected": true } },
+            }),
+        ),
+    ];
+    for (dir, manifest) in projects {
+        fs::create_dir_all(workspace.join(dir)).expect("create workspace project");
+        fs::write(workspace.join(dir).join("package.json"), manifest.to_string())
+            .expect("write project manifest");
+    }
+
+    pacquet
+        .with_args(["install", "--lockfile-only", "--ignore-scripts"])
+        .assert()
+        .success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("fresh lockfile should exist");
+    let parsed: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str(&lockfile).expect("parse generated lockfile");
+    let peer_key: pnpm_lockfile::PkgName = peer_name.parse().expect("parse peer name");
+    let has_sibling_optional_peer = parsed.snapshots
+        .as_ref()
+        .is_some_and(|snapshots| {
+            snapshots
+                .iter()
+                .any(|(key, snapshot)| {
+                    key.to_string().starts_with("lib@file:lib(")
+                        && snapshot.optional_dependencies
+                            .as_ref()
+                            .is_some_and(|deps| {
+                                deps.get(&peer_key)
+                                    .and_then(pnpm_lockfile::SnapshotDepRef::as_link_target)
+                                    == Some("peer")
+                            })
+                })
+        });
+    assert!(has_sibling_optional_peer, "lib's optional peer must link to its sibling:\n{lockfile}");
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+    let frozen_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    eprintln!("EXPECTED LOCKFILE:\n{lockfile}\n");
+    eprintln!("FROZEN LOCKFILE:\n{frozen_lockfile}\n");
+    assert_eq!(frozen_lockfile, lockfile);
+    assert!(
+        workspace.join("app2/node_modules/lib/package.json").exists(),
+        "frozen install must materialize the injected copy",
+    );
+
+    let mut lib: serde_json::Value =
+        serde_json::from_slice(&fs::read(workspace.join("lib/package.json")).expect("read lib"))
+            .expect("parse lib manifest");
+    lib["peerDependenciesMeta"][peer_name]["optional"] = serde_json::json!(false);
+    fs::write(workspace.join("lib/package.json"), lib.to_string())
+        .expect("change the optional peer declaration");
+    let output = crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .output()
+        .expect("run frozen install after manifest change");
+    assert!(!output.status.success(), "stale peer metadata was accepted: {output:?}");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_OUTDATED_LOCKFILE"),
+        "{output:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/16332>.
+#[test]
+fn frozen_install_accepts_injected_dependency_whose_peer_is_a_workspace_link() {
+    assert_frozen_install_accepts_fresh_lockfile("workspace:*");
+}
+
+#[test]
+fn frozen_install_accepts_injected_dependency_with_an_unmet_peer() {
+    assert_frozen_install_accepts_fresh_lockfile("2.0.0");
+}
+
+/// Install a workspace whose `project-2` injects `project-1` with
+/// `project_1` as its manifest, then run a frozen install from a clean tree.
+fn assert_frozen_install_accepts_an_injected_project(project_1: &serde_json::Value) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::create_dir_all(workspace.join("project-1/node_modules/is-negative"))
+        .expect("mkdir project-1");
+    fs::write(workspace.join("project-1/package.json"), project_1.to_string())
+        .expect("write project-1/package.json");
+    // What a bundled dependency ships with.
+    fs::write(
+        workspace.join("project-1/node_modules/is-negative/package.json"),
+        serde_json::json!({ "name": "is-negative", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write bundled is-negative");
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": { "project-1": "workspace:1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    for dir in ["node_modules", "project-2/node_modules"] {
+        let _ = fs::remove_dir_all(workspace.join(dir));
+    }
+    crate::_utils::pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+/// A bundled dependency ships inside the package, so the resolver leaves it
+/// out of the snapshot.
+#[test]
+fn frozen_install_accepts_an_injected_project_with_a_bundled_dependency() {
+    assert_frozen_install_accepts_an_injected_project(&serde_json::json!({
+        "name": "project-1",
+        "version": "1.0.0",
+        "dependencies": { "is-positive": "1.0.0", "is-negative": "1.0.0" },
+        "bundledDependencies": ["is-negative"],
+    }));
+}
+
+/// A name in both `dependencies` and `optionalDependencies` is one optional
+/// child, recorded under `optionalDependencies`.
+#[test]
+fn frozen_install_accepts_an_injected_project_with_a_dependency_that_is_also_optional() {
+    assert_frozen_install_accepts_an_injected_project(&serde_json::json!({
+        "name": "project-1",
+        "version": "1.0.0",
+        "dependencies": { "is-positive": "1.0.0" },
+        "optionalDependencies": { "is-positive": "1.0.0" },
+    }));
+}
+
+/// A filtered check reads the injected project from its directory, not from
+/// the hooked project manifests.
+#[test]
+fn filtered_frozen_install_accepts_a_peer_a_read_package_hook_adds_to_an_injected_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - 'project-*'\ninjectWorkspacePackages: true\ndedupeInjectedDeps: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage(pkg) {\n\
+           if (pkg.name === 'project-1') pkg.peerDependencies['is-negative'] = '*';\n\
+           return pkg;\n\
+         } } };\n",
+    )
+    .expect("write .pnpmfile.cjs");
+    fs::create_dir_all(workspace.join("project-1")).expect("mkdir project-1");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "peerDependencies": { "is-positive": "^1.0.0" },
+            "devDependencies": { "is-positive": "1.0.0", "is-negative": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1/package.json");
+    fs::create_dir_all(workspace.join("project-2")).expect("mkdir project-2");
+    fs::write(
+        workspace.join("project-2/package.json"),
+        serde_json::json!({
+            "name": "project-2",
+            "version": "1.0.0",
+            "dependencies": {
+                "project-1": "workspace:*",
+                "is-positive": "1.0.0",
+                "is-negative": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write project-2/package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(lockfile.contains("project-1@file:project-1(is-negative@1.0.0)"), "{lockfile}");
+    for dir in ["node_modules", "project-1/node_modules", "project-2/node_modules"] {
+        let _ = fs::remove_dir_all(workspace.join(dir));
+    }
+    pnpm_in(&workspace)
+        .with_args(["--filter=project-2", "install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn frozen_install_checks_a_plain_range_workspace_child_of_a_directory_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nlinkWorkspacePackages: deep\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::create_dir_all(workspace.join("packages/app")).expect("mkdir packages/app");
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "file:../../vendor/lib" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+    fs::create_dir_all(workspace.join("packages/workspace-child"))
+        .expect("mkdir packages/workspace-child");
+    fs::write(
+        workspace.join("packages/workspace-child/package.json"),
+        serde_json::json!({ "name": "workspace-child", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/workspace-child/package.json");
+    fs::create_dir_all(workspace.join("vendor/lib")).expect("mkdir vendor/lib");
+    let write_lib = |injected: &[&str]| {
+        let mut manifest = serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "dependencies": { "workspace-child": "^1.0.0" },
+        });
+        for child in injected {
+            manifest["dependenciesMeta"][child]["injected"] = serde_json::json!(true);
+        }
+        fs::write(workspace.join("vendor/lib/package.json"), manifest.to_string())
+            .expect("write vendor/lib/package.json");
+    };
+    let assert_frozen_outdated = || {
+        let output = pnpm_in(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .failure()
+            .get_output()
+            .clone();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR:\n{stderr}\n");
+        assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "stderr: {stderr}");
+    };
+
+    write_lib(&[]);
+    pnpm_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    eprintln!("LOCKFILE (linked):\n{lockfile}\n");
+    assert!(lockfile.contains("workspace-child: link:packages/workspace-child"));
+    pnpm_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    write_lib(&["workspace-child"]);
+    assert_frozen_outdated();
+
+    pnpm_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    eprintln!("LOCKFILE (injected):\n{lockfile}\n");
+    assert!(lockfile.contains("workspace-child: file:packages/workspace-child"));
+    pnpm_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    write_lib(&[]);
+    assert_frozen_outdated();
+
+    drop((root, mock_instance));
+}

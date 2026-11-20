@@ -1,0 +1,813 @@
+/// <reference path="../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { PnpmError } from '@pnpm/error'
+import { prepare } from '@pnpm/prepare'
+
+const envInstaller = await import('@pnpm/installing.env-installer')
+
+jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
+  ...envInstaller,
+  resolveAndInstallConfigDeps: jest.fn(),
+}))
+
+jest.unstable_mockModule('@pnpm/store.connection-manager', () => ({
+  createStoreController: jest.fn(),
+}))
+
+const loggerMock = {
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+}
+jest.unstable_mockModule('@pnpm/logger', () => ({
+  logger: Object.assign(jest.fn(() => loggerMock), loggerMock),
+  globalWarn: jest.fn(),
+  globalInfo: jest.fn(),
+  globalError: jest.fn(),
+}))
+
+const { resolveAndInstallConfigDeps } = await import('@pnpm/installing.env-installer')
+const { globalWarn, logger } = await import('@pnpm/logger')
+const { createStoreController } = await import('@pnpm/store.connection-manager')
+const { calcPnpmfilePathsOfPluginDeps, getConfig, installConfigDepsAndLoadHooks } = await import('../src/getConfig.js')
+
+const storeCloseMock = jest.fn<() => Promise<void>>()
+
+beforeEach(() => {
+  jest.spyOn(console, 'warn')
+  loggerMock.debug.mockClear()
+  jest.mocked(globalWarn).mockClear()
+  jest.mocked(resolveAndInstallConfigDeps).mockReset()
+  storeCloseMock.mockReset().mockResolvedValue(undefined)
+  jest.mocked(createStoreController).mockReset().mockResolvedValue({
+    ctrl: { close: storeCloseMock },
+    dir: '/tmp/store',
+  } as unknown as Awaited<ReturnType<typeof createStoreController>>)
+})
+
+afterEach(() => {
+  jest.mocked(console.warn).mockRestore()
+})
+
+test.each([undefined, '', 'dummy-token'])('emit trusted auth environment warnings for %p', async (token) => {
+  prepare()
+  const originalToken = process.env.PNPM_TEST_AUTH_TOKEN
+  const originalAuthFile = process.env.PNPM_CONFIG_NPMRC_AUTH_FILE
+  fs.writeFileSync('auth.npmrc', '//registry.example/:_authToken=${PNPM_TEST_AUTH_TOKEN}')
+  process.env.PNPM_CONFIG_NPMRC_AUTH_FILE = path.resolve('auth.npmrc')
+  if (token === undefined) delete process.env.PNPM_TEST_AUTH_TOKEN
+  else process.env.PNPM_TEST_AUTH_TOKEN = token
+  try {
+    await getConfig({ json: false }, { workspaceDir: '.', excludeReporter: false })
+    const warning = expect.stringContaining('Failed to replace env in config: ${PNPM_TEST_AUTH_TOKEN} in .npmrc key "_authToken"')
+    if (token) expect(console.warn).not.toHaveBeenCalledWith(warning)
+    else expect(console.warn).toHaveBeenCalledWith(warning)
+    expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('dummy-token'))
+  } finally {
+    if (originalToken === undefined) delete process.env.PNPM_TEST_AUTH_TOKEN
+    else process.env.PNPM_TEST_AUTH_TOKEN = originalToken
+    if (originalAuthFile === undefined) delete process.env.PNPM_CONFIG_NPMRC_AUTH_FILE
+    else process.env.PNPM_CONFIG_NPMRC_AUTH_FILE = originalAuthFile
+  }
+})
+
+test('console a warning when a project-level .npmrc has an unresolved env variable in an expanded setting', async () => {
+  prepare()
+
+  // `cafile` is still env-expanded (unlike registry/proxy URLs), so an
+  // unresolved placeholder surfaces the generic env-replace warning.
+  fs.writeFileSync('.npmrc', 'cafile=${ENV_VAR_123}', 'utf8')
+
+  await getConfig({
+    json: false,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
+test('console warnings before rethrowing a config error', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+
+  await expect(getConfig({
+    json: false,
+    userconfig,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}'))
+})
+
+test('console warnings before rethrowing a config error when onlyInheritDlxSettingsFromLocal is true', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+
+  await expect(getConfig({
+    json: false,
+    userconfig,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+    onlyInheritDlxSettingsFromLocal: true,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(console.warn).toHaveBeenCalledTimes(1)
+  const printed = jest.mocked(console.warn).mock.calls[0][0] as string
+  expect(printed.split('Failed to replace env in config: ${ENV_VAR_123}')).toHaveLength(2)
+})
+
+test('console a warning when a project-level .npmrc uses an env variable in a request destination', async () => {
+  prepare()
+
+  // Env placeholders in repository-controlled proxy URLs are not
+  // expanded at all — the setting is dropped with a dedicated warning
+  // instead of the generic env-replace one.
+  fs.writeFileSync('.npmrc', 'https-proxy=${ENV_VAR_123}', 'utf8')
+
+  await getConfig({
+    json: false,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })
+
+  expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Ignored project-level request destination "https-proxy"'))
+})
+
+describe('calcPnpmfilePathsOfPluginDeps', () => {
+  test('yields pnpmfile.mjs when it exists', () => {
+    const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
+    try {
+      const pluginDir = path.join(tmpDir, 'pnpm-plugin-foo')
+      fs.mkdirSync(pluginDir, { recursive: true })
+      fs.writeFileSync(path.join(pluginDir, 'pnpmfile.mjs'), '')
+      fs.writeFileSync(path.join(pluginDir, 'pnpmfile.cjs'), '')
+
+      const paths = [...calcPnpmfilePathsOfPluginDeps(tmpDir, { 'pnpm-plugin-foo': '1.0.0' })]
+      expect(paths).toEqual([path.join(pluginDir, 'pnpmfile.mjs')])
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true })
+    }
+  })
+
+  test('falls back to pnpmfile.cjs when pnpmfile.mjs does not exist', () => {
+    const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
+    try {
+      const pluginDir = path.join(tmpDir, 'pnpm-plugin-foo')
+      fs.mkdirSync(pluginDir, { recursive: true })
+      fs.writeFileSync(path.join(pluginDir, 'pnpmfile.cjs'), '')
+
+      const paths = [...calcPnpmfilePathsOfPluginDeps(tmpDir, { 'pnpm-plugin-foo': '1.0.0' })]
+      expect(paths).toEqual([path.join(pluginDir, 'pnpmfile.cjs')])
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true })
+    }
+  })
+
+  test('skips plugins whose directory is missing (e.g. config dep install never ran)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
+    try {
+      const paths = [...calcPnpmfilePathsOfPluginDeps(tmpDir, { 'pnpm-plugin-foo': '1.0.0' })]
+      expect(paths).toEqual([])
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true })
+    }
+  })
+
+  test('yields pnpmfile.cjs path even if missing when the plugin directory exists (so requireHooks reports the misconfiguration)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(import.meta.dirname, '.tmp-'))
+    try {
+      const pluginDir = path.join(tmpDir, 'pnpm-plugin-foo')
+      fs.mkdirSync(pluginDir, { recursive: true })
+
+      const paths = [...calcPnpmfilePathsOfPluginDeps(tmpDir, { 'pnpm-plugin-foo': '1.0.0' })]
+      expect(paths).toEqual([path.join(pluginDir, 'pnpmfile.cjs')])
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true })
+    }
+  })
+})
+
+test('hoist: false removes hoistPattern', async () => {
+  prepare()
+
+  const { config } = await getConfig({
+    hoist: false,
+  }, {
+    workspaceDir: '.',
+    excludeReporter: false,
+  })
+
+  expect(config.hoist).toBe(false)
+  expect(config.hoistPattern).toBeUndefined()
+})
+
+describe('installConfigDepsAndLoadHooks', () => {
+  test.each([false, true])('handles malformed lockfiles before opening the store (tolerate=%s)', async (tolerateConfigDependenciesErrors) => {
+    prepare()
+    fs.writeFileSync('pnpm-lock.yaml', '---\nlockfileVersion: [invalid\n---\n')
+    const { config, context } = buildBaseConfig()
+    const result = installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors })
+    if (tolerateConfigDependenciesErrors) {
+      await expect(result).resolves.toBeDefined()
+      expect(loggerMock.debug).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('Failed to install configDependencies'),
+      }))
+    } else {
+      await expect(result).rejects.toThrow()
+      expect(loggerMock.debug).not.toHaveBeenCalled()
+    }
+    expect(createStoreController).not.toHaveBeenCalled()
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+  })
+
+  test.each([false, true])('does not open the store without config dependencies (reconcile=%s)', async (reconcileConfigDependencies) => {
+    prepare()
+    const { config, context } = buildBaseConfig()
+    delete config.configDependencies
+    await installConfigDepsAndLoadHooks(config, context, { reconcileConfigDependencies })
+    expect(createStoreController).not.toHaveBeenCalled()
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+  })
+
+  test('proceeds normally when configDependencies install succeeds', async () => {
+    prepare()
+
+    jest.mocked(resolveAndInstallConfigDeps).mockResolvedValueOnce(undefined as never)
+
+    const { config, context } = buildBaseConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result).toBeDefined()
+    expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
+    expect(loggerMock.debug).not.toHaveBeenCalled()
+  })
+
+  test('does not throw when install fails and tolerateConfigDependenciesErrors is true', async () => {
+    prepare()
+
+    const simulatedError = new Error('401 Unauthorized: missing auth token')
+    jest.mocked(resolveAndInstallConfigDeps).mockRejectedValueOnce(simulatedError)
+
+    const { config, context } = buildBaseConfig()
+
+    const result = await installConfigDepsAndLoadHooks(config, context, {
+      tolerateConfigDependenciesErrors: true,
+    })
+
+    expect(result).toBeDefined()
+    expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining('Failed to install configDependencies'),
+        err: simulatedError,
+      })
+    )
+  })
+
+  test('does not load installed config plugins after tolerated verification transport failure', async () => {
+    prepare()
+    jest.mocked(resolveAndInstallConfigDeps).mockRejectedValueOnce(new Error('401 Unauthorized'))
+    const { config, context } = buildBaseConfig()
+    config.ignorePnpmfile = false
+    config.configDependencies = { 'pnpm-plugin-unverified': '1.0.0' }
+    fs.mkdirSync('node_modules/.pnpm-config/pnpm-plugin-unverified', { recursive: true })
+    fs.writeFileSync('node_modules/.pnpm-config/pnpm-plugin-unverified/pnpmfile.cjs', `
+      require('fs').writeFileSync('unverified-plugin-loaded', '')
+      module.exports = { hooks: {} }
+    `)
+    await installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true })
+    expect(fs.existsSync('unverified-plugin-loaded')).toBe(false)
+  })
+
+  test('does not tolerate configuration dependency verification violations', async () => {
+    prepare()
+    const error = new PnpmError('BAD_CONFIG_DEP', 'Unapproved configuration dependency tarball')
+    jest.mocked(resolveAndInstallConfigDeps).mockRejectedValueOnce(error)
+    const { config, context } = buildBaseConfig()
+    await expect(installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true }))
+      .rejects.toBe(error)
+  })
+
+  test('throws when install fails and tolerateConfigDependenciesErrors is not set (default behaviour)', async () => {
+    prepare()
+
+    const simulatedError = new Error('401 Unauthorized: missing auth token')
+    jest.mocked(resolveAndInstallConfigDeps).mockRejectedValueOnce(simulatedError)
+
+    const { config, context } = buildBaseConfig()
+
+    await expect(
+      installConfigDepsAndLoadHooks(config, context)
+    ).rejects.toThrow('401 Unauthorized: missing auth token')
+
+    expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
+  })
+
+  test('does not swallow store creation errors even when tolerateConfigDependenciesErrors is true', async () => {
+    prepare()
+
+    const storeError = new Error('EACCES: permission denied opening store dir')
+    jest.mocked(createStoreController).mockRejectedValueOnce(storeError)
+
+    const { config, context } = buildBaseConfig()
+
+    await expect(
+      installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true })
+    ).rejects.toThrow('EACCES: permission denied opening store dir')
+
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+    expect(loggerMock.debug).not.toHaveBeenCalled()
+  })
+
+  test('does not swallow store close errors even when tolerateConfigDependenciesErrors is true', async () => {
+    prepare()
+
+    jest.mocked(resolveAndInstallConfigDeps).mockResolvedValueOnce(undefined as never)
+    storeCloseMock.mockReset().mockRejectedValueOnce(new Error('store close failed'))
+
+    const { config, context } = buildBaseConfig()
+
+    await expect(
+      installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors: true })
+    ).rejects.toThrow('store close failed')
+
+    expect(resolveAndInstallConfigDeps).toHaveBeenCalledTimes(1)
+    expect(loggerMock.debug).not.toHaveBeenCalled()
+  })
+
+  test('forSelfUpdate does not load the default project pnpmfile', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      require('fs').writeFileSync('pnpmfile-was-loaded', '')
+      module.exports = { hooks: {} }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    await installConfigDepsAndLoadHooks(config, context, { forSelfUpdate: true })
+
+    // A repo-controlled .pnpmfile.cjs must not run during self-update — its
+    // updateConfig hook or custom resolvers/fetchers could steer the fetch.
+    expect(fs.existsSync('pnpmfile-was-loaded')).toBe(false)
+    expect(context.hooks?.updateConfig ?? []).toHaveLength(0)
+  })
+
+  test('the default project pnpmfile is loaded when forSelfUpdate is not set', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      require('fs').writeFileSync('pnpmfile-was-loaded', '')
+      module.exports = { hooks: {} }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(fs.existsSync('pnpmfile-was-loaded')).toBe(true)
+  })
+
+  test('global commands do not load the current directory .pnpmfile.cjs while still loading globalPnpmfile', async () => {
+    prepare()
+    const globalPkgDir = path.resolve('global-pkg-dir')
+    const globalHooksPath = path.resolve('global-hooks.cjs')
+    fs.mkdirSync(globalPkgDir, { recursive: true })
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      require('fs').writeFileSync('cwd-pnpmfile-was-loaded', '')
+      module.exports = { hooks: { updateConfig: (cfg) => ({ ...cfg, registry: 'https://evil-cwd.example/' }) } }
+    `)
+    fs.writeFileSync(globalHooksPath, `
+      require('fs').writeFileSync('global-pnpmfile-was-loaded', '')
+      module.exports = { hooks: { updateConfig: (cfg) => ({ ...cfg, registry: 'https://trusted-global.example/' }) } }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    config.global = true
+    config.globalPkgDir = globalPkgDir
+    delete config.lockfileDir
+    context.rootProjectManifestDir = globalPkgDir
+    config.globalPnpmfile = globalHooksPath
+
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(fs.existsSync('cwd-pnpmfile-was-loaded')).toBe(false)
+    expect(fs.existsSync('global-pnpmfile-was-loaded')).toBe(true)
+    expect(result.config.registry).toBe('https://trusted-global.example/')
+  })
+
+  test('warns when an updateConfig hook changes legacy registry routes but leaves scope routes unchanged', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => { config.registries.default = 'https://other-mirror.example/'; return config }")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
+  })
+
+  test('warns when an updateConfig hook changes legacy registry routes and the default registry', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registry: 'https://other-mirror.example/', registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
+  })
+
+  test('warns when an updateConfig hook omits scope routes while changing the default registry', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registry: 'https://other-mirror.example/', registriesByScope: undefined, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('registriesByScope'))
+  })
+
+  test('does not name a scope route that already matches the legacy default registry', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://other-mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledTimes(1)
+    expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('@acme'))
+  })
+
+  test('warns that the default registry is unchanged when an updateConfig hook returns only a legacy default route', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://other-mirror.example/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('still use their configured registry: default.'))
+  })
+
+  test('does not warn when a scope route matches a legacy registry without a trailing slash', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+  })
+
+  test('does not warn when a scope route matches a legacy registry with an explicit default port', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example:443/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://mirror.example/' } })
+    config.registriesByScope['@acme'] = 'https://mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+  })
+
+  test('warns when a scope route and legacy registry have different credentials', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { default: 'https://mirror.example:443/' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { default: 'https://registry-a/' } })
+    config.registriesByScope['@acme'] = 'https://user:pass@mirror.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).toHaveBeenCalledWith(expect.stringContaining('@acme'))
+  })
+
+  test('does not warn when an updateConfig hook changes registry URL settings', async () => {
+    prepare()
+    writeUpdateConfigHook("(config) => ({ ...config, registries: { 'https://registry.example/': 'npm' } })")
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, { registries: { 'https://registry.example/': 'artifactory' } })
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    await installConfigDepsAndLoadHooks(config, context)
+
+    expect(globalWarn).not.toHaveBeenCalled()
+  })
+
+  test.each(['.pnpmfile.cjs', '.pnpmfile.mjs'])('the updateConfig hook of %s runs after the ones of config dependency plugins', async (defaultPnpmfile) => {
+    prepare()
+
+    jest.mocked(resolveAndInstallConfigDeps).mockResolvedValueOnce(undefined as never)
+    for (const plugin of ['pnpm-plugin-a', 'pnpm-plugin-b']) {
+      const pluginDir = path.join('node_modules/.pnpm-config', plugin)
+      fs.mkdirSync(pluginDir, { recursive: true })
+      fs.writeFileSync(path.join(pluginDir, 'pnpmfile.cjs'), `
+        module.exports = { hooks: { updateConfig: (config) => ({ ...config, order: [...(config.order ?? []), '${plugin}'] }) } }
+      `)
+    }
+    fs.writeFileSync(defaultPnpmfile, `
+      const hooks = { updateConfig: (config) => ({ ...config, order: [...(config.order ?? []), 'project'] }) }
+      ${defaultPnpmfile.endsWith('.mjs') ? 'export { hooks }' : 'module.exports = { hooks }'}
+    `)
+
+    const { config, context } = buildBaseConfig()
+    config.ignorePnpmfile = false
+    config.configDependencies = {
+      'pnpm-plugin-b': '1.0.0+sha512-abc',
+      'pnpm-plugin-a': '1.0.0+sha512-abc',
+    }
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect((result.config as unknown as { order: string[] }).order).toStrictEqual(['pnpm-plugin-a', 'pnpm-plugin-b', 'project'])
+  })
+
+  test('an updateConfig hook that drops the default and @jsr routes falls back to the configured registry and the built-in @jsr route', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => ({ ...config, registriesByScope: { '@acme': 'https://acme.example' } }),
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://mirror.example/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@acme': 'https://acme.example/',
+    })
+    expect(result.config.registry).toBe('https://mirror.example/')
+  })
+
+  test('the default route an updateConfig hook sets becomes the registry', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => ({
+            ...config,
+            registriesByScope: { default: 'https://other-mirror.example/', '@jsr': 'https://jsr-mirror.example/' },
+          }),
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://other-mirror.example/',
+      '@jsr': 'https://jsr-mirror.example/',
+    })
+    expect(result.config.registry).toBe('https://other-mirror.example/')
+  })
+
+  test('a scope an updateConfig hook sets to undefined is removed', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      registriesByScope: { ...config.registriesByScope, '@acme': undefined },
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    config.registriesByScope['@acme'] = 'https://acme.example/'
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope).toStrictEqual({
+      default: 'https://mirror.example/',
+      '@jsr': 'https://npm.jsr.io/',
+    })
+  })
+
+  test.each([
+    ['a null route', '{ ...config.registriesByScope, \'@acme\': null }'],
+    ['a non-object map', '\'https://acme.example/\''],
+    ['a Map instance', 'new Map([[\'@acme\', \'https://acme.example/\']])'],
+  ])('an updateConfig hook that sets registriesByScope to %s fails', async (_, registriesByScope) => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({ ...config, registriesByScope: ${registriesByScope} })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    await expect(installConfigDepsAndLoadHooks(config, context)).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_UPDATE_CONFIG_RESULT',
+    })
+  })
+
+  test('the registry an updateConfig hook sets becomes the default route', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => {
+      config.registry = 'https://other-mirror.example'
+      return config
+    }`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://other-mirror.example/')
+    expect(result.config.registry).toBe('https://other-mirror.example/')
+  })
+
+  test('the registry an updateConfig hook sets wins over the default route it sets', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      registry: 'https://registry-mirror.example/',
+      registriesByScope: { default: 'https://route-mirror.example/' },
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://registry-mirror.example/')
+    expect(result.config.registry).toBe('https://registry-mirror.example/')
+  })
+
+  test('an updateConfig hook that removes both the registry and the default route keeps the configured registry', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      registry: undefined,
+      registriesByScope: { '@acme': 'https://acme.example/' },
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://mirror.example/')
+    expect(result.config.registry).toBe('https://mirror.example/')
+  })
+
+  test('an updateConfig hook that sets the registry to null restores the default registry', async () => {
+    prepare()
+
+    writeUpdateConfigHook('(config) => ({ ...config, registry: null })')
+
+    const { config, context } = buildPnpmfileConfig()
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.registriesByScope.default).toBe('https://registry.npmjs.org/')
+    expect(result.config.registry).toBe('https://registry.npmjs.org/')
+  })
+
+  test('the command line outranks the updateConfig hook', async () => {
+    prepare()
+
+    fs.writeFileSync('.pnpmfile.cjs', `
+      module.exports = {
+        hooks: {
+          updateConfig: (config) => {
+            config.hoistPattern.push('*babel*')
+            return {
+              ...config,
+              registry: 'http://hook.example/',
+              registriesByScope: { default: 'http://hook.example/', '@scoped': 'http://hook.example/' },
+              packageManagerRegistries: { default: 'http://hook.example/' },
+              nodeLinker: 'isolated',
+              storeDir: '/hook/store',
+              minimumReleaseAge: 1440,
+            }
+          },
+        },
+      }
+    `)
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, {
+      registry: 'http://cli.example/',
+      registriesByScope: { default: 'http://cli.example/', '@scoped': 'http://cli.example/scoped/', '@yaml': 'http://yaml.example/' },
+      packageManagerRegistries: { default: 'http://cli.example/', '@scoped': 'http://cli.example/scoped/' },
+      nodeLinker: 'hoisted',
+      storeDir: '/resolved/cli/store',
+      minimumReleaseAge: 0,
+      hoistPattern: ['*eslint*'],
+    })
+    context.cliOptions = {
+      registry: 'http://cli.example',
+      '@scoped:registry': 'http://cli.example/scoped',
+      'node-linker': 'hoisted',
+      'store-dir': 'store',
+      'hoist-pattern': ['*eslint*'],
+    }
+
+    const { config: updated } = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(updated.registry).toBe('http://cli.example/')
+    expect(updated.registriesByScope).toStrictEqual({
+      default: 'http://cli.example/',
+      '@jsr': 'https://npm.jsr.io/',
+      '@scoped': 'http://cli.example/scoped/',
+    })
+    expect(updated.packageManagerRegistries).toStrictEqual({
+      default: 'http://cli.example/',
+      '@scoped': 'http://cli.example/scoped/',
+    })
+    expect(updated.nodeLinker).toBe('hoisted')
+    expect(updated.storeDir).toBe('/resolved/cli/store')
+    expect(updated.minimumReleaseAge).toBe(1440)
+    expect(updated.hoistPattern).toStrictEqual(['*eslint*'])
+  })
+
+  test('an updateConfig hook cannot replace the public hoist pattern that --shamefully-hoist derives', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      shamefullyHoist: false,
+      publicHoistPattern: ['*types*'],
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    Object.assign(config, {
+      shamefullyHoist: true,
+      publicHoistPattern: ['*'],
+      symlink: true,
+    })
+    context.cliOptions = { 'shamefully-hoist': true }
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.shamefullyHoist).toBe(true)
+    expect(result.config.publicHoistPattern).toStrictEqual(['*'])
+  })
+
+  test('an updateConfig hook rebases relative filter and filterProd selectors to config.dir', async () => {
+    prepare()
+
+    writeUpdateConfigHook(`(config) => ({
+      ...config,
+      filter: ['./packages/app', 'named-pkg'],
+      filterProd: ['{./packages/app}...'],
+    })`)
+
+    const { config, context } = buildPnpmfileConfig()
+    const rootDir = config.dir
+    config.workspaceDir = rootDir
+    config.lockfileDir = rootDir
+    config.dir = path.join(rootDir, 'packages/other')
+    const result = await installConfigDepsAndLoadHooks(config, context)
+
+    expect(result.config.filter).toStrictEqual(['../app', 'named-pkg'])
+    expect(result.config.filterProd).toStrictEqual(['{../app}...'])
+  })
+
+  function writeUpdateConfigHook (updateConfig: string): void {
+    fs.writeFileSync('.pnpmfile.cjs', `module.exports = { hooks: { updateConfig: ${updateConfig} } }`)
+  }
+
+  function buildPnpmfileConfig (): { config: Config, context: ConfigContext } {
+    const { config, context } = buildBaseConfig()
+    config.ignorePnpmfile = false
+    delete (config as { configDependencies?: unknown }).configDependencies
+    config.registry = 'https://mirror.example/'
+    config.registriesByScope = { default: 'https://mirror.example/', '@jsr': 'https://npm.jsr.io/' }
+    return { config, context }
+  }
+
+  function buildBaseConfig (): { config: Config, context: ConfigContext } {
+    const dir = process.cwd()
+    const config = {
+      ignorePnpmfile: true,
+      configDependencies: { 'some-helper-pkg': '1.0.0+sha512-abc' },
+      dir,
+      lockfileDir: dir,
+    } as unknown as Config
+    const context = {
+      rootProjectManifestDir: dir,
+      cliOptions: {},
+    } as unknown as ConfigContext
+    return { config, context }
+  }
+})

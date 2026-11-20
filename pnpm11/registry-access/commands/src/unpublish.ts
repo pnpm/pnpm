@@ -1,0 +1,358 @@
+import { docsUrl } from '@pnpm/cli.utils'
+import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { PnpmError } from '@pnpm/error'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
+import { createOtpSession, type OtpSession, SyntheticOtpError } from '@pnpm/network.web-auth'
+import npa from '@pnpm/npm-package-arg'
+import { sanitizeInline } from '@pnpm/text.sanitize'
+import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
+import { renderHelp } from 'render-help'
+import semver from 'semver'
+
+import { createOtpContext, normalizeRegistryUrl, parsePackageSpec, rcOptionsTypes, readErrorBody, WEB_AUTH_FETCH_OPTIONS } from './common.js'
+
+export { rcOptionsTypes }
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...rcOptionsTypes(),
+    force: Boolean,
+    otp: String,
+  }
+}
+
+export const commandNames = ['unpublish']
+
+export function help (): string {
+  return renderHelp({
+    description: 'Removes a package from the registry.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'The base URL of the npm registry.',
+            name: '--registry <url>',
+          },
+          {
+            description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password.',
+            name: '--otp',
+          },
+          {
+            description: 'Removes the package from the registry regardless of what version is currently published. Without this flag, pnpm will refuse to unpublish an entire package.',
+            name: '--force',
+          },
+        ],
+      },
+    ],
+    url: docsUrl('unpublish'),
+    usages: [
+      'pnpm unpublish [<package>[@<version>]]',
+    ],
+  })
+}
+
+export interface UnpublishOptions extends CreateFetchFromRegistryOptions {
+  cliOptions: {
+    force?: boolean
+    otp?: string
+  }
+  configByUri?: Record<string, RegistryConfig>
+  registriesByScope?: RegistriesByScope
+}
+
+interface PackumentResponse {
+  _id?: string
+  _rev?: string
+  name: string
+  'dist-tags': Record<string, string>
+  versions: Record<string, VersionData>
+  time?: Record<string, string>
+  _revisions?: unknown
+  _attachments?: unknown
+  [key: string]: unknown
+}
+
+interface VersionData {
+  name: string
+  version: string
+  dist: {
+    tarball: string
+    [key: string]: unknown
+  }
+  [key: string]: unknown
+}
+
+export async function handler (
+  opts: UnpublishOptions,
+  params: string[]
+): Promise<string> {
+  if (params.length === 0) {
+    throw new PnpmError('UNPUBLISH_REQUIRED', 'Package name is required')
+  }
+
+  const packageSpec = params[0]
+  const { name, versionRange } = parsePackageSpec(packageSpec)
+
+  return unpublishPackage(name, versionRange, opts)
+}
+
+/**
+ * Everything a registry mutation of one package needs. The OTP session is
+ * shared by every mutation of the run, so a partial unpublish (one `PUT`
+ * plus a tarball `DELETE` per removed version) authenticates once.
+ */
+interface RegistryMutationContext {
+  authHeader: string | undefined
+  /** Mirrors npm's `auth-type`: `'web'` opts into the web-based OTP
+   * challenge, `'legacy'` is set when the user passes `--otp` so a classic
+   * code is accepted. */
+  authType: 'web' | 'legacy'
+  cliOtp: string | undefined
+  fetchFromRegistry: FetchFromRegistry
+  otpSession: OtpSession
+  packageUrl: string
+  registryUrl: string
+}
+
+async function unpublishPackage (
+  packageName: string,
+  versionRange: string | undefined,
+  opts: UnpublishOptions
+): Promise<string> {
+  const registryUrl = pickRegistryForPackage(opts.registriesByScope ?? { default: 'https://registry.npmjs.org/' }, packageName)
+
+  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
+
+  const authHeader = getAuthHeader(registryUrl, { pkgName: packageName })
+
+  const packageUrl = new URL(npa(packageName).escapedName, registryUrl).href
+
+  const fetchFromRegistry = createFetchFromRegistry(opts)
+  const pkg = await fetchPackument(packageUrl, fetchFromRegistry, authHeader)
+
+  const allVersions = pkg.versions
+  if (!allVersions || Object.keys(allVersions).length === 0) {
+    throw new PnpmError('NO_VERSIONS', `Package "${packageName}" has no versions`)
+  }
+
+  const cliOtp = opts.cliOptions?.otp
+  const ctx: RegistryMutationContext = {
+    authHeader,
+    authType: cliOtp ? 'legacy' : 'web',
+    cliOtp,
+    fetchFromRegistry,
+    otpSession: createOtpSession({
+      context: createOtpContext(opts),
+      fetchOptions: WEB_AUTH_FETCH_OPTIONS,
+    }),
+    packageUrl,
+    registryUrl,
+  }
+
+  const force = opts.cliOptions?.force ?? false
+  if (!versionRange) {
+    return unpublishAll(ctx, pkg, { force })
+  }
+
+  const versionsToUnpublish = getVersionsMatchingRange(allVersions, versionRange)
+  if (versionsToUnpublish.length === 0) {
+    throw new PnpmError('NO_MATCHING_VERSIONS', `No versions match "${versionRange}"`)
+  }
+
+  if (versionsToUnpublish.length === Object.keys(allVersions).length) {
+    return unpublishAll(ctx, pkg, { force, fullRangeSpec: `${packageName}@${versionRange}` })
+  }
+
+  return unpublishVersions(ctx, pkg, versionsToUnpublish)
+}
+
+async function fetchPackument (
+  packageUrl: string,
+  fetchFromRegistry: FetchFromRegistry,
+  authHeader: string | undefined
+): Promise<PackumentResponse> {
+  const response = await fetchFromRegistry(`${packageUrl}?write=true`, {
+    authHeaderValue: authHeader,
+    fullMetadata: true,
+  })
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      const url = new URL(packageUrl)
+      const packageName = decodeURIComponent(url.pathname.split('/').pop()!)
+      throw new PnpmError('PACKAGE_NOT_FOUND', `Package "${packageName}" not found in registry`)
+    }
+    throw new PnpmError('REGISTRY_ERROR', `Failed to fetch package info: ${response.status} ${response.statusText}`)
+  }
+
+  return await response.json() as PackumentResponse
+}
+
+async function unpublishVersions (
+  ctx: RegistryMutationContext,
+  pkg: PackumentResponse,
+  versions: string[]
+): Promise<string> {
+  const tarballs = removeVersionsFromPackument(pkg, versions)
+
+  const putResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
+    method: 'PUT',
+    body: JSON.stringify(pkg),
+  })
+
+  if (!putResponse.ok) {
+    await throwRegistryError(putResponse, 'unpublish')
+  }
+
+  await deleteTarballs(ctx, tarballs)
+
+  return `Successfully unpublished ${versions.length} version(s) of ${pkg.name}`
+}
+
+/**
+ * Removes the versions, the dist-tags pointing at them, and the internal
+ * metadata from the packument. Returns the tarball URLs of the removed versions.
+ */
+function removeVersionsFromPackument (pkg: PackumentResponse, versions: string[]): string[] {
+  const tarballs: string[] = []
+  for (const version of versions) {
+    const versionData = pkg.versions[version]
+    if (versionData?.dist?.tarball) {
+      tarballs.push(versionData.dist.tarball)
+    }
+    delete pkg.versions[version]
+  }
+
+  const removedSet = new Set(versions)
+  const latestVer = pkg['dist-tags'].latest
+  for (const tag of Object.keys(pkg['dist-tags'])) {
+    if (removedSet.has(pkg['dist-tags'][tag])) {
+      delete pkg['dist-tags'][tag]
+    }
+  }
+
+  // If we removed 'latest', reassign it to the highest remaining version
+  if (latestVer && removedSet.has(latestVer)) {
+    const remaining = Object.keys(pkg.versions).sort(semver.compareLoose)
+    if (remaining.length > 0) {
+      pkg['dist-tags'].latest = remaining[remaining.length - 1]
+    }
+  }
+
+  delete pkg._revisions
+  delete pkg._attachments
+  return tarballs
+}
+
+async function deleteTarballs (ctx: RegistryMutationContext, tarballs: string[]): Promise<void> {
+  const registryUrl = normalizeRegistryUrl(ctx.registryUrl)
+  /* eslint-disable no-await-in-loop -- each DELETE needs the revision produced by the previous one */
+  for (const tarball of tarballs) {
+    const updated = await fetchPackument(ctx.packageUrl, ctx.fetchFromRegistry, ctx.authHeader)
+    const tarballPathname = getTarballPathname(tarball, registryUrl)
+    const deleteResponse = await sendMutation(ctx, `${registryUrl}${tarballPathname}/-rev/${updated._rev}`, {
+      method: 'DELETE',
+    })
+
+    // Some registries handle tarball cleanup automatically on packument update,
+    // so treat 404 as success.
+    if (!deleteResponse.ok && deleteResponse.status !== 404) {
+      await throwRegistryError(deleteResponse, 'unpublish')
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+}
+
+async function unpublishAll (
+  ctx: RegistryMutationContext,
+  pkg: PackumentResponse,
+  opts: { force: boolean, fullRangeSpec?: string }
+): Promise<string> {
+  const packageName = pkg.name
+  const versionCount = Object.keys(pkg.versions).length
+
+  if (!opts.force) {
+    const versionsList = Object.keys(pkg.versions).join(', ')
+    if (opts.fullRangeSpec) {
+      throw new PnpmError('UNPUBLISH_CONFIRM', `${opts.fullRangeSpec} matches every published version (${versionsList}).
+Run pnpm unpublish "${opts.fullRangeSpec}" --force to remove the whole package from the registry.`)
+    }
+    throw new PnpmError('UNPUBLISH_CONFIRM', `Run pnpm unpublish --force to remove all published versions of ${packageName} (${versionsList}) from the registry.
+This is a protection mechanism to prevent accidental unpublish of packages with many versions.
+If you want to unpublish a specific version, run pnpm unpublish ${packageName}@<version>`)
+  }
+
+  const deleteResponse = await sendMutation(ctx, `${ctx.packageUrl}/-rev/${pkg._rev}`, {
+    method: 'DELETE',
+  })
+
+  if (!deleteResponse.ok) {
+    if (deleteResponse.status === 405) {
+      throw new PnpmError('UNPUBLISH_FORBIDDEN', 'This package cannot be completely unpublished. Deprecate it instead or contact npm support.')
+    }
+    await throwRegistryError(deleteResponse, 'unpublish')
+  }
+
+  return `Successfully unpublished all ${versionCount} version(s) of ${packageName}`
+}
+
+/**
+ * Sends one authenticated mutation through the OTP session: a `401` that is
+ * an OTP challenge is answered (web flow or classic prompt) and the request
+ * retried with the one-time password; any other `401` is a plain
+ * authentication failure. Every other status is left to the caller.
+ */
+async function sendMutation (
+  ctx: RegistryMutationContext,
+  url: string,
+  init: { method: 'PUT' | 'DELETE', body?: string }
+): Promise<Response> {
+  return ctx.otpSession.run(async (challengeOtp) => {
+    const otp = challengeOtp ?? ctx.cliOtp
+    const response = await ctx.fetchFromRegistry(url, {
+      authHeaderValue: ctx.authHeader,
+      method: init.method,
+      headers: {
+        'npm-auth-type': ctx.authType,
+        'npm-command': 'unpublish',
+        ...(init.body != null ? { 'content-type': 'application/json' } : {}),
+        ...(otp ? { 'npm-otp': otp } : {}),
+      },
+      body: init.body,
+    })
+    if (response.status !== 401) return response
+    const body = await readErrorBody(response)
+    throw SyntheticOtpError.fromUnauthorizedBody(body) ??
+      new PnpmError('UNAUTHORIZED', `You must be logged in to unpublish packages. ${sanitizeInline(body)}`)
+  })
+}
+
+async function throwRegistryError (response: Response, verb: string): Promise<never> {
+  if (response.status === 403) {
+    throw new PnpmError('FORBIDDEN', `You do not have permission to ${verb} this package`)
+  }
+  const errorBody = await response.text()
+  throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${response.status} ${response.statusText}. ${errorBody}`)
+}
+
+export function getTarballPathname (tarballUrl: string, registryUrl: string): string {
+  let registryPath = new URL(registryUrl).pathname.replace(/^\/+/g, '')
+  if (registryPath && !registryPath.endsWith('/')) {
+    registryPath += '/'
+  }
+  let tarballPath = new URL(tarballUrl).pathname.replace(/^\/+/g, '')
+  if (registryPath && tarballPath.startsWith(registryPath)) {
+    tarballPath = tarballPath.slice(registryPath.length)
+  }
+  return tarballPath
+}
+
+function getVersionsMatchingRange (
+  versions: Record<string, VersionData>,
+  range: string
+): string[] {
+  return Object.keys(versions).filter((version) => semver.satisfies(version, range))
+}

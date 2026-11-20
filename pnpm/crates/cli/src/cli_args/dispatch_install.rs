@@ -1,0 +1,436 @@
+pub(super) use maintenance::{
+    approve,
+    approve_builds,
+    dedupe,
+    deploy,
+    env,
+    fetch,
+    import,
+    link,
+    permissions,
+    prune,
+    rebuild,
+    runtime,
+    unlink,
+};
+pub(super) use patches::{
+    patch,
+    patch_commit,
+    patch_remove,
+};
+pub(super) use pipeline::{
+    install_test,
+    pipeline,
+};
+
+use super::{
+    add::{
+        AddArgs,
+        apply_allow_build,
+    },
+    approve_builds::{
+        ApprovalStore,
+        ApproveBuildsArgs,
+    },
+    ci::CiArgs,
+    create::CreateArgs,
+    dedupe::DedupeArgs,
+    deploy::DeployArgs,
+    dispatch::{
+        CommandFuture,
+        RunCtx,
+        apply_global_update_config,
+        apply_update_config,
+    },
+    dlx::DlxArgs,
+    env::{
+        EnvArgs,
+        EnvSubcommand,
+    },
+    fetch::FetchArgs,
+    global,
+    import::ImportArgs,
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
+    link::LinkArgs,
+    patch::PatchArgs,
+    patch_commit::PatchCommitArgs,
+    patch_remove::PatchRemoveArgs,
+    permissions::{
+        ApproveArgs,
+        PermissionsArgs,
+        PermissionsCommand,
+        render_permissions,
+    },
+    pipeline::{
+        PipelineArgs,
+        PipelineInvocation,
+        WatchInvocation,
+        run_pipeline,
+        run_watch,
+    },
+    pipelines::{
+        AddPipeline,
+        DedupePipeline,
+        DeployPipeline,
+        InstallPipeline,
+        PrunePipeline,
+        RemovePipeline,
+        UpdatePipeline,
+        apply_install_cli_config,
+        derive_config_root,
+        ensure_project_manifest,
+        installed_project_config,
+        keeps_project_lockfiles,
+        run_dedicated_lockfile_workspace_install,
+        warn_about_config_root,
+    },
+    prune::PruneArgs,
+    rebuild::RebuildArgs,
+    remove::RemoveArgs,
+    reporter::{
+        ReporterType,
+        reporter_emit,
+    },
+    runtime::RuntimeArgs,
+    unlink::UnlinkArgs,
+    update::UpdateArgs,
+    update_notifier,
+    workspace_option::workspace_link_root,
+};
+use crate::{
+    cli_args::reporter::{
+        CliReporter,
+        selected_reporter,
+    },
+    package_specifier::{
+        EcosystemPackageSpecifier,
+        PackageSpecifierPlan,
+    },
+};
+use miette::Context;
+use pnpm_config::Config;
+use std::path::{
+    Path,
+    PathBuf,
+};
+
+pub(super) fn add<'a>(ctx: &RunCtx<'a>, mut args: AddArgs) -> miette::Result<CommandFuture<'a>> {
+    let ecosystem_packages = route_package_specifiers(&mut args)?;
+    if args.target.global {
+        return add_global(ctx, args);
+    }
+    let config_dependencies = args.parse_config_dependencies()?;
+    let dir = ctx.locations.dir;
+    let cli_dir = ctx.locations.cli_dir;
+    let manifest_path = ctx.locations.manifest_path;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = selected_reporter();
+    Ok(Box::pin(async move {
+        let (config_root, recursive_sort) =
+            prepare_add_config(&args, cfg, dir, cli_dir, reporter, config_dependencies.is_none())?;
+        let update_check = update_notifier::spawn(cfg, reporter_emit(reporter));
+        let pipeline = AddPipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+            config_dependencies,
+            ecosystem_packages,
+        };
+        let added = Box::pin(pipeline.run::<CliReporter>()).await;
+        update_notifier::settle(update_check);
+        added
+    }))
+}
+
+/// Resolve each selector to the spelling its ecosystem's add path reads,
+/// leaving the npm ones in [`AddArgs::package_names`] and returning the rest.
+fn route_package_specifiers(args: &mut AddArgs) -> miette::Result<Vec<EcosystemPackageSpecifier>> {
+    let mut plan = PackageSpecifierPlan::parse(std::mem::take(&mut args.package_names))?;
+    // A global add installs the toolchain itself rather than pinning a
+    // project, and takes `rust` from the selectors on its own.
+    if !args.target.global {
+        plan.take_rust_toolchains()?;
+    }
+    check_specifier_combination(args, &plan)?;
+    args.package_names = plan.node_packages;
+    Ok(plan.ecosystem_packages)
+}
+
+/// Apply the add's settings to the config and derive its root. Returns the
+/// config root and the `sort` setting as it stood before the command-line
+/// settings applied.
+fn prepare_add_config(
+    args: &AddArgs,
+    cfg: &mut Config,
+    dir: &Path,
+    cli_dir: &Path,
+    reporter: ReporterType,
+    plain_dependencies: bool,
+) -> miette::Result<(PathBuf, bool)> {
+    // Before `apply_allow_build` persists anything: a `--workspace` add
+    // that cannot run must leave `pnpm-workspace.yaml` untouched.
+    workspace_link_root(args.target.workspace, cfg.workspace_dir.as_deref())?;
+    let recursive_sort = cfg.sort;
+    if plain_dependencies {
+        args.check_workspace_root(cfg, dir, cli_dir)?;
+    }
+    args.install.lockfile_dir.apply_to(cfg, dir);
+    args.apply_cli_config(cfg);
+    let config_root = derive_config_root(&mut *cfg, dir, reporter)
+        .wrap_err("derive workspace root and package manager policy")?;
+    // `allowBuilds` is persisted to `pnpm-workspace.yaml`, which stays
+    // at the workspace root even when `lockfileDir` moved the config
+    // root elsewhere.
+    let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+    apply_allow_build(cfg, &args.install.allow_build, ApprovalStore::Workspace(&allow_build_root))?;
+    Ok((config_root, recursive_sort))
+}
+
+fn add_global<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.global_packages_config)()?;
+    args.install.lockfile_dir.apply_to_global(config)?;
+    args.apply_cli_config(config);
+    let dir = ctx.locations.dir;
+    let reporter = selected_reporter();
+    Ok(Box::pin(async move {
+        apply_global_update_config(config).await?;
+        let update_check = update_notifier::spawn(config, reporter_emit(reporter));
+        let installed = Box::pin(args.run_global::<CliReporter>(config, dir)).await;
+        update_notifier::settle(update_check);
+        installed
+    }))
+}
+
+/// Reject the flag and specifier combinations `pnpm add` cannot honour.
+///
+/// Checked up front: `AddPipeline::run` scaffolds a `package.json`
+/// through `State::init`, and an invalid selector must be rejected
+/// before that.
+fn check_specifier_combination(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
+    if args.dependency_options.save_build() && !plan.has_cargo() {
+        return Err(miette::miette!("--save-build requires at least one Cargo dependency"));
+    }
+    if args.target.workspace && (plan.has_cargo() || plan.has_python()) {
+        return Err(miette::miette!(
+            "--workspace cannot be combined with Cargo or Python dependencies"
+        ));
+    }
+    if args.target.workspace && args.target.config {
+        return Err(miette::miette!("`pnpm add --config` cannot be combined with --workspace."));
+    }
+    if args.target.config && plan.has_rust_toolchain() {
+        return Err(miette::miette!("The Rust toolchain cannot be a configuration dependency"));
+    }
+    check_non_npm_targets(args, plan)
+}
+
+/// A Cargo or Python specifier has no global install and no
+/// configuration-dependency form, however its selector spelled it.
+fn check_non_npm_targets(args: &AddArgs, plan: &PackageSpecifierPlan) -> miette::Result<()> {
+    if args.target.global {
+        if plan.has_cargo() {
+            return Err(miette::miette!("Cargo dependencies cannot be installed globally"));
+        }
+        if plan.has_python() {
+            return Err(miette::miette!("Python dependencies cannot be installed globally"));
+        }
+    }
+    if args.target.config {
+        if plan.has_cargo() {
+            return Err(miette::miette!("Cargo dependencies cannot be configuration dependencies"));
+        }
+        if plan.has_python() {
+            return Err(miette::miette!(
+                "Python dependencies cannot be configuration dependencies"
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn update<'a>(ctx: &RunCtx<'a>, args: UpdateArgs) -> miette::Result<CommandFuture<'a>> {
+    if args.selection.global {
+        let config = (ctx.loaders.global_packages_config)()?;
+        args.install.lockfile_dir.apply_to_global(config)?;
+        args.apply_cli_config(config);
+        return Ok(Box::pin(async move {
+            apply_global_update_config(config).await?;
+            Box::pin(args.run_global::<CliReporter>(config)).await
+        }));
+    }
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = selected_reporter();
+    Ok(Box::pin(async move {
+        let recursive_sort = cfg.sort;
+        args.install.lockfile_dir.apply_to(cfg, dir);
+        args.apply_cli_config(cfg);
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
+            .wrap_err("derive workspace root and package manager policy")?;
+        let pipeline = UpdatePipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+        };
+        Box::pin(pipeline.run::<CliReporter>()).await?;
+        Ok(())
+    }))
+}
+
+pub(super) fn remove<'a>(ctx: &RunCtx<'a>, args: RemoveArgs) -> miette::Result<CommandFuture<'a>> {
+    if args.global {
+        remove_global(ctx, &args)?;
+        return Ok(Box::pin(std::future::ready(Ok(()))));
+    }
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    let cfg = (ctx.loaders.config)()?;
+    let reporter = selected_reporter();
+    Ok(Box::pin(async move {
+        let recursive_sort = cfg.sort;
+        args.lockfile_dir.apply_to(cfg, dir);
+        args.apply_cli_config(cfg);
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
+            .wrap_err("derive workspace root and package manager policy")?;
+        let pipeline = RemovePipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+        };
+        Box::pin(pipeline.run::<CliReporter>()).await?;
+        Ok(())
+    }))
+}
+
+/// Whether the command driving the install pipeline is one pnpm checks for
+/// a newer pnpm on. `pnpm ci` and `pnpm install-test` run the same pipeline
+/// but are their own commands, and pnpm only checks on `install` and `add`.
+#[derive(Debug, Clone, Copy)]
+enum UpdateCheckPolicy {
+    Run,
+    Skip,
+}
+
+pub(super) fn install<'a>(
+    ctx: &RunCtx<'a>,
+    args: InstallArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    install_with_update_check(ctx, args, UpdateCheckPolicy::Run)
+}
+
+fn install_with_update_check<'a>(
+    ctx: &RunCtx<'a>,
+    args: InstallArgs,
+    update_check_policy: UpdateCheckPolicy,
+) -> miette::Result<CommandFuture<'a>> {
+    let install = install_with_config(ctx, args, update_check_policy)?;
+    Ok(Box::pin(async move { install.await.map(|_| ()) }))
+}
+
+fn install_with_config<'a>(
+    ctx: &RunCtx<'a>,
+    args: InstallArgs,
+    update_check_policy: UpdateCheckPolicy,
+) -> miette::Result<CommandFuture<'a, &'static Config>> {
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    let cfg = (ctx.loaders.config)()?;
+    ensure_project_manifest(cfg, manifest_path)?;
+    let reporter = selected_reporter();
+    Ok(Box::pin(async move {
+        // Applied between `config()` and `State::init`, while
+        // the loaded `Config` is still mutable through
+        // `Config::leak`'s `&'static mut Config` return. How
+        // each `--flag` / `--no-flag` pair beats the configured
+        // value is `resolve_bool_override`'s contract.
+        let recursive_sort = cfg.sort;
+        args.lockfile.directory.apply_to(cfg, dir);
+        apply_install_cli_config(cfg, &args);
+        let frozen_lockfile = args.effective_frozen_lockfile(cfg);
+        let require_lockfile = frozen_lockfile;
+        // Config dependencies are workspace-level state: their
+        // `.pnpm-config` and env lockfile live at the lockfile /
+        // workspace root, not the CLI cwd. Use the same root
+        // `State::init` uses (`config.workspace_dir`, set when a
+        // `pnpm-workspace.yaml` is found), falling back to `--dir`
+        // for a single-package repo. Owned so it doesn't hold a
+        // borrow of `cfg` across the `&mut` `updateConfig` pass.
+        let config_root = derive_config_root(&mut *cfg, dir, reporter)
+            .wrap_err("derive workspace root and package manager policy")?;
+        let allow_build_root = cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone());
+        apply_allow_build(cfg, args.allow_build(), ApprovalStore::Workspace(&allow_build_root))?;
+        let update_check = match update_check_policy {
+            UpdateCheckPolicy::Run => update_notifier::spawn(cfg, reporter_emit(reporter)),
+            UpdateCheckPolicy::Skip => None,
+        };
+        // Resolve + install configurational dependencies, then
+        // run their `updateConfig` plugin hooks, before the main
+        // install. The env lockfile must land at the top of
+        // `pnpm-lock.yaml` before `State::init` loads the wanted
+        // lockfile, and `updateConfig` must mutate `cfg` (still
+        // `&'static mut`) before it's frozen and the install
+        // reads it. Mirrors pnpm running both at
+        // config-finalization.
+        let pipeline = InstallPipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+            require_lockfile,
+            frozen_lockfile,
+        };
+        let installed = Box::pin(pipeline.run_with_config::<CliReporter>()).await;
+        update_notifier::settle(update_check);
+        installed
+    }))
+}
+
+pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {
+    let mut install_args = args.install_args;
+    install_args.lockfile.frozen = true;
+    install_args.lockfile.no_frozen = false;
+    install_args.materialization.entry_mode =
+        crate::cli_args::install::InstallEntryMode::CleanInstall;
+
+    install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)
+}
+
+pub(super) fn dlx<'a>(ctx: &RunCtx<'a>, args: DlxArgs) -> miette::Result<CommandFuture<'a>> {
+    let dir = ctx.locations.cli_dir;
+    let config = (ctx.loaders.dlx_config)()?;
+    Ok(Box::pin(args.run::<CliReporter>(dir, config)))
+}
+
+pub(super) fn create<'a>(ctx: &RunCtx<'a>, args: CreateArgs) -> miette::Result<CommandFuture<'a>> {
+    let dir = ctx.locations.cli_dir;
+    let config = (ctx.loaders.dlx_config)()?;
+    Ok(Box::pin(args.run::<CliReporter>(dir, config)))
+}
+
+fn remove_global(ctx: &RunCtx<'_>, args: &RemoveArgs) -> miette::Result<()> {
+    let config = (ctx.loaders.global_packages_config)()?;
+    args.lockfile_dir.apply_to_global(config)?;
+    global::handle_global_remove::<CliReporter>(config, &args.package_names)?;
+    Ok(())
+}
+
+mod maintenance;
+
+mod pipeline;
+
+mod patches;

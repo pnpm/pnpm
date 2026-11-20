@@ -1,0 +1,15 @@
+{
+  "name": "@pnpm.e2e/recursive-with-optional-peer",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/dep-of-recursive-with-optional-peer": "1.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm.e2e/peer-a": "*"
+  },
+  "peerDependenciesMeta": {
+    "@pnpm.e2e/peer-a": {
+      "optional": true
+    }
+  }
+}

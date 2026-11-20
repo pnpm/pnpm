@@ -1,0 +1,28 @@
+[package]
+name = "pnpm-release-notes"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-text-sanitize = { workspace = true }
+
+base64 = { workspace = true }
+derive_more = { workspace = true }
+miette = { workspace = true }
+node-semver = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

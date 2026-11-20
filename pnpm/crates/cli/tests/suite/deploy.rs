@@ -1,0 +1,1181 @@
+use crate::_utils::append_workspace_yaml_key;
+
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+};
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::is_symlink_or_junction,
+};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
+};
+
+#[test]
+fn deploy_from_shared_lockfile_installs_selected_project() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    let deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(deploy_manifest["name"], "app");
+    assert!(
+        deploy_manifest["dependencies"]["lib"]
+            .as_str()
+            .is_some_and(|version| version.starts_with("lib@file://")),
+        "deployed manifest should point workspace dependencies at file URLs: {deploy_manifest:#}",
+    );
+    assert!(deploy_dir.join("index.js").exists());
+    assert!(
+        !deploy_dir.join("test.js").exists(),
+        "deploy should copy the package packlist by default",
+    );
+    assert!(deploy_dir.join("pnpm-lock.yaml").exists());
+    let lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        !lockfile.contains("injectWorkspacePackages: true"),
+        "deploy lockfile should not preserve injectWorkspacePackages: true:\n{lockfile}",
+    );
+
+    let lib_link = deploy_dir.join("node_modules/lib");
+    assert!(
+        is_symlink_or_junction(&lib_link).unwrap(),
+        "prod workspace dependency should be linked into the deploy dir",
+    );
+    assert!(
+        !deploy_dir.join("node_modules/dev-only").exists(),
+        "dev-only workspace dependency should not be linked with --prod",
+    );
+
+    let graph_keys = deploy_graph_keys(&deploy_dir);
+    assert!(
+        graph_keys
+            .iter()
+            .any(|key| key.contains("@pnpm.e2e/pkg-with-1-dep@100.0.0")),
+        "production dependency should remain in the deploy lock graph: {graph_keys:#?}",
+    );
+    assert!(
+        graph_keys
+            .iter()
+            .any(|key| key.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@")),
+        "transitive production dependency should remain in the deploy lock graph: {graph_keys:#?}",
+    );
+    for excluded in
+        ["dev-only@file:", "@pnpm.e2e/bar@100.0.0", "unused@file:", "@pnpm.e2e/qar@100.0.0"]
+    {
+        assert!(
+            !graph_keys
+                .iter()
+                .any(|key| key.contains(excluded)),
+            "production deploy lock graph should exclude {excluded}: {graph_keys:#?}",
+        );
+    }
+
+    let virtual_store_entries = virtual_store_entries(&deploy_dir);
+    assert!(
+        virtual_store_entries
+            .iter()
+            .any(|entry| entry.contains("@pnpm.e2e+dep-of-pkg-with-1-dep@")),
+        "transitive production dependency should be materialized: {virtual_store_entries:#?}",
+    );
+    for excluded in
+        ["dev-only@file+", "@pnpm.e2e+bar@100.0.0", "unused@file+", "@pnpm.e2e+qar@100.0.0"]
+    {
+        assert!(
+            !virtual_store_entries
+                .iter()
+                .any(|entry| entry.contains(excluded)),
+            "production deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
+        );
+    }
+    assert!(
+        !virtual_store_entries
+            .iter()
+            .filter(|entry| entry.starts_with('@'))
+            .any(|entry| !entry.contains('+')),
+        "deploy virtual store should hold one copy of each package: {virtual_store_entries:#?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deployed_project_passes_dependency_verification() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
+    workspace_manifest.push_str(concat!(
+        "autoInstallPeers: false\n",
+        "dedupePeers: true\n",
+        "excludeLinksFromLockfile: true\n",
+        "ignoredOptionalDependencies:\n  - never-matches\n",
+        "peersSuffixMaxLength: 42\n",
+    ));
+    fs::write(workspace_manifest_path, workspace_manifest).unwrap();
+    let app_manifest_path = workspace.join("packages/app/package.json");
+    let mut app_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&app_manifest_path).unwrap()).unwrap();
+    app_manifest["scripts"] = serde_json::json!({ "start": "node index.js" });
+    fs::write(app_manifest_path, app_manifest.to_string()).unwrap();
+    let deploy_dir = dunce::canonicalize(root.path()).unwrap().join("deployment");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", deploy_dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        workspace_manifest,
+        serde_json::json!({
+            "autoInstallPeers": false,
+            "dedupeInjectedDeps": false,
+            "dedupePeerDependents": false,
+            "dedupePeers": true,
+            "excludeLinksFromLockfile": true,
+            "ignorePnpmfile": true,
+            "ignoredOptionalDependencies": ["never-matches"],
+            "injectWorkspacePackages": false,
+            "packages": ["."],
+            "peersSuffixMaxLength": 42,
+            "virtualStoreType": "project",
+            "allowBuilds": { workspace_project_key(&workspace, "lib"): true },
+        }),
+    );
+    pacquet_cmd(&deploy_dir)
+        .with_args(["--config.verify-deps-before-run=error", "run", "start"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
+/// The deploy install normalizes `dedupeInjectedDeps`, `dedupePeerDependents`,
+/// `autoDedupe`, and `linkWorkspacePackages`, and writes
+/// `lockfile.includeResolutionSettings` to `pnpm-workspace.yaml` when the
+/// source lockfile records its resolution settings.
+#[test]
+fn deploy_records_its_own_resolution_settings() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
+    workspace_manifest.push_str(concat!(
+        "autoDedupe: true\n",
+        "dedupeInjectedDeps: true\n",
+        "dedupePeerDependents: true\n",
+        "linkWorkspacePackages: deep\n",
+        "lockfile:\n  includeResolutionSettings: true\n",
+    ));
+    fs::write(workspace_manifest_path, workspace_manifest).unwrap();
+    let deploy_dir = dunce::canonicalize(root.path()).unwrap().join("deployment");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let source_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(source_lockfile.contains("autoDedupe: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("dedupeInjectedDeps: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("dedupePeerDependents: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("linkWorkspacePackages: deep"), "{source_lockfile}");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", deploy_dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let deployed_lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(deployed_lockfile.contains("autoDedupe: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("dedupeInjectedDeps: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("dedupePeerDependents: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("linkWorkspacePackages: false"), "{deployed_lockfile}");
+    let deployed_workspace_manifest =
+        fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap();
+    assert!(
+        deployed_workspace_manifest.contains("autoDedupe: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
+        deployed_workspace_manifest.contains("linkWorkspacePackages: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
+        deployed_workspace_manifest.contains("includeResolutionSettings: true"),
+        "{deployed_workspace_manifest}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deploy_writes_dependencies_and_allow_builds_sorted_by_name() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let lib_names = ["lib-a", "lib-b", "lib-c", "lib-d", "lib-e", "lib-f", "lib-g", "lib-h"];
+    let dependencies = lib_names
+        .iter()
+        .rev()
+        .map(|name| (name.to_string(), serde_json::json!("workspace:*")))
+        .collect::<serde_json::Map<_, _>>();
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({ "name": "app", "version": "1.0.0", "dependencies": dependencies }),
+    );
+    for name in lib_names {
+        write_project(&workspace, name, &serde_json::json!({ "name": name, "version": "1.0.0" }));
+    }
+    let allow_builds = lib_names
+        .iter()
+        .rev()
+        .map(|name| format!("{name}: true"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    append_workspace_yaml_key(&workspace, "allowBuilds", format!("{{ {allow_builds} }}"));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    let deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    let deployed_names = deploy_manifest["dependencies"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(deployed_names, lib_names);
+
+    let deployed_workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+    )
+    .unwrap();
+    let allowed_names = deployed_workspace_manifest["allowBuilds"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    let expected_names = lib_names
+        .iter()
+        .flat_map(|name| [name.to_string(), workspace_project_key(&workspace, name)])
+        .collect::<Vec<_>>();
+    assert_eq!(allowed_names, expected_names);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deploy_links_workspace_dependency_bins() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js", "bin.js"],
+            "bin": { "lib-cli": "bin.js" },
+            "dependencies": { "binless": "workspace:*" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "binless",
+        &serde_json::json!({
+            "name": "binless",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+    fs::write(workspace.join("packages/lib/bin.js"), "#!/usr/bin/env node\n").unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    for (deploy_dir, extra_args) in
+        [("deploy", [].as_slice()), ("legacy-deploy", ["--legacy"].as_slice())]
+    {
+        pacquet_cmd(&workspace)
+            .with_args(["--filter", "app", "deploy", "--prod"])
+            .with_args(extra_args)
+            .with_arg(deploy_dir)
+            .assert()
+            .success();
+        assert!(
+            workspace
+                .join(deploy_dir)
+                .join("node_modules/.bin/lib-cli")
+                .exists(),
+            "{deploy_dir} must link the workspace dependency's bin",
+        );
+        if deploy_dir == "deploy" {
+            let lockfile =
+                Lockfile::load_wanted_from_dir(&workspace.join(deploy_dir)).unwrap().unwrap();
+            assert_eq!(package_has_bin(&lockfile, "lib"), Some(Some(true)));
+            assert_eq!(package_has_bin(&lockfile, "binless"), Some(Some(false)));
+        }
+    }
+
+    drop((root, mock_instance));
+}
+
+fn package_has_bin(lockfile: &Lockfile, name: &str) -> Option<Option<bool>> {
+    lockfile.packages
+        .as_ref()?
+        .iter()
+        .find(|(key, _)| key.name.to_string() == name)
+        .map(|(_, metadata)| metadata.has_bin)
+}
+
+/// A pinned `lockfileDir` moves the shared lockfile `deploy` reads and
+/// the importer id naming the selected project in it. Reading either from
+/// the workspace root instead drops the deploy to its "shared lockfile not
+/// found" fallback, which installs the project without a lockfile and can
+/// resolve versions the workspace never pinned.
+#[test]
+fn deploy_from_shared_lockfile_follows_a_pinned_lockfile_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        root.path()
+            .join("pnpm-lock.yaml")
+            .is_file(),
+        "the install must have written the lockfile at the pin",
+    );
+
+    let output = pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .output()
+        .expect("spawn pacquet deploy");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "deploy must succeed:\n{stdout}");
+    assert!(
+        !stdout.contains("Shared lockfile not found"),
+        "deploy must find the lockfile at the pin:\n{stdout}",
+    );
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(
+        deploy_dir.join("pnpm-lock.yaml").is_file(),
+        "the deployed project gets its own lockfile, not the pinned one",
+    );
+    assert!(
+        is_symlink_or_junction(&deploy_dir.join("node_modules/lib")).unwrap(),
+        "the prod workspace dependency must be linked into the deploy dir",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A pin that does not contain the workspace gives every project an
+/// importer id that climbs out of the lockfile dir, and deploy resolves
+/// each of them by joining onto that dir, paths it refuses on principle.
+/// The shared path cannot describe the layout, so it hands over to the
+/// legacy installer rather than failing the command.
+#[test]
+fn deploy_falls_back_when_the_pinned_lockfile_dir_does_not_contain_the_workspace() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    fs::create_dir_all(root.path().join("side")).unwrap();
+    append_workspace_yaml_key(&workspace, "lockfileDir", "../side");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let output = pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .output()
+        .expect("spawn pacquet deploy");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "deploy must fall back, not fail:\n{stdout}\n{stderr}");
+    assert!(
+        stdout.contains("does not contain the workspace, so its importer paths cannot be deployed"),
+        "the fallback must say why the shared lockfile was unusable:\n{stdout}",
+    );
+    assert!(
+        is_symlink_or_junction(&workspace.join("deploy/node_modules/lib")).unwrap(),
+        "the legacy deploy still links the prod workspace dependency",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deploy_from_shared_lockfile_supports_catalog_dependencies() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml = fs::read_to_string(&workspace_yaml_path).unwrap();
+    workspace_yaml.push_str("catalog:\n  '@pnpm.e2e/foo': 100.0.0\n");
+    fs::write(workspace_yaml_path, workspace_yaml).unwrap();
+    let manifest_path = workspace.join("packages/app/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["dependencies"]["@pnpm.e2e/foo"] = serde_json::Value::String("catalog:".to_string());
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(deploy_dir.join("node_modules/@pnpm.e2e/foo").exists());
+    let lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(!lockfile.contains("catalogs:"), "unexpected catalog snapshot:\n{lockfile}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn shared_lockfile_deploy_supports_non_injected_workspace() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "nested": "workspace:*", "@pnpm.e2e/foo": "100.0.0" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "nested",
+        &serde_json::json!({
+            "name": "nested",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let deploy_dir = root.path().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+    let deploy_dir = fs::canonicalize(&deploy_dir).unwrap();
+
+    let lib_link = deploy_dir.join("node_modules/lib");
+    assert!(
+        is_symlink_or_junction(&lib_link).unwrap(),
+        "the linked workspace dependency should be materialized in the deploy directory",
+    );
+
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();
+    let dependencies = importer.dependencies.as_ref().expect("deploy importer dependencies");
+    let lib_name: PkgName = "lib".parse().unwrap();
+    let lib_version = dependencies
+        .get(&lib_name)
+        .expect("deployed lib dependency")
+        .version
+        .to_string();
+    assert!(
+        lib_version.starts_with("lib@file:"),
+        "the dedicated deploy lockfile should rewrite the linked workspace dependency: {lib_version}",
+    );
+
+    let lib_real = fs::canonicalize(&lib_link).unwrap();
+    assert!(
+        lib_real.starts_with(&deploy_dir),
+        "the deployed workspace dependency should stay inside {}: {}",
+        deploy_dir.display(),
+        lib_real.display(),
+    );
+
+    let lib_modules = lib_real.parent().expect("the deployed lib's node_modules");
+    assert!(lib_modules.join("@pnpm.e2e/foo").exists());
+    let nested_real = fs::canonicalize(lib_modules.join("nested")).unwrap();
+    assert!(
+        nested_real.starts_with(&deploy_dir),
+        "a transitively linked workspace dependency should stay inside {}: {}",
+        deploy_dir.display(),
+        nested_real.display(),
+    );
+
+    fs::copy(&npmrc_path, deploy_dir.join(".npmrc")).unwrap();
+    fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
+    pacquet_cmd(&deploy_dir)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(deploy_dir.join("node_modules/lib/index.js").is_file());
+    let dangling = dangling_links(&deploy_dir.join("node_modules"));
+    assert!(
+        dangling.is_empty(),
+        "installing the deployed lockfile must not create dangling symlinks: {dangling:#?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Adds a second workspace project that pulls in a different version of the
+/// peer, so the deployed graph offers two candidates for `lib`'s binding.
+fn write_ambiguous_peer_workspace(workspace: &Path) {
+    write_peer_workspace(workspace);
+    write_project(
+        workspace,
+        "other",
+        &serde_json::json!({
+            "name": "other",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/peer-a": "1.0.1" },
+        }),
+    );
+    write_project(
+        workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": {
+                "lib": "workspace:*",
+                "other": "workspace:*",
+                "@pnpm.e2e/peer-a": "1.0.0",
+            },
+        }),
+    );
+}
+
+/// `lib`'s peer is satisfied in the workspace by its own devDependencies, which
+/// a production deploy leaves behind, so the deployed snapshot reaches the
+/// binding step with that peer still unresolved.
+fn write_peer_workspace(workspace: &Path) {
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\nautoInstallPeers: false\n");
+    workspace_yaml.push_str("injectWorkspacePackages: false\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0", "private": true }).to_string(),
+    )
+    .unwrap();
+    write_project(
+        workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "lib": "workspace:*", "@pnpm.e2e/peer-a": "1.0.0" },
+        }),
+    );
+    write_project(
+        workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "peerDependencies": { "@pnpm.e2e/peer-a": "*" },
+            "devDependencies": { "@pnpm.e2e/peer-a": "1.0.1" },
+        }),
+    );
+}
+
+#[test]
+fn deploy_from_shared_lockfile_installs_the_workspace_root_without_its_nested_projects() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_root_project_depending_on_lib(&workspace);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let workspace_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", ".", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(deploy_dir.join("node_modules/lib").exists());
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    assert_eq!(
+        deploy_lockfile.importers.keys().collect::<Vec<_>>(),
+        vec![Lockfile::ROOT_IMPORTER_KEY],
+    );
+    assert_workspace_lockfile_untouched(&workspace, &workspace_lockfile);
+
+    drop((root, mock_instance));
+}
+
+/// Undo miette's report wrapping so phrase assertions don't depend on
+/// where the temp-path length lands the wrap point: drop the box-gutter
+/// glyphs and collapse the message back onto one line.
+fn flatten_miette_report(stderr: &str) -> String {
+    stderr
+        .split_whitespace()
+        .filter(|token| !matches!(*token, "│" | "×" | "╰─▶"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn write_root_project_depending_on_lib(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "private": true,
+            "dependencies": { "lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+}
+
+fn set_app_foo_dependency(workspace: &Path, specifier: &str) {
+    let manifest_path = workspace.join("packages/app/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).expect("read app manifest"))
+            .expect("parse app manifest");
+    manifest["dependencies"]["@pnpm.e2e/foo"] = specifier.into();
+    fs::write(manifest_path, manifest.to_string()).expect("write app manifest");
+}
+
+fn deployed_package_version(deploy_dir: &Path, package_name: &str) -> String {
+    let package_manifest: serde_json::Value = serde_json::from_slice(
+        &fs::read(
+            deploy_dir
+                .join("node_modules")
+                .join(package_name)
+                .join("package.json"),
+        )
+        .expect("read deployed package manifest"),
+    )
+    .expect("parse deployed package manifest");
+    package_manifest["version"]
+        .as_str()
+        .expect("deployed package has a version")
+        .to_string()
+}
+
+fn assert_ignored_broken_source_lockfile(output: &Output, lockfile_dir: &Path) {
+    let combined = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(
+        output.status.success(),
+        "legacy deploy should ignore the malformed source lockfile:\n{combined}",
+    );
+    let prefix = dunce::canonicalize(lockfile_dir).expect("canonicalize the source lockfile dir");
+    assert!(
+        combined
+            .lines()
+            .map(serde_json::from_str::<serde_json::Value>)
+            .filter_map(Result::ok)
+            .any(|event| {
+                event["name"] == "pnpm"
+                    && event["level"] == "warn"
+                    && event["prefix"] == prefix.to_string_lossy().as_ref()
+                    && event["message"]
+                        .as_str()
+                        .is_some_and(|message| message.starts_with("Ignoring broken lockfile at "))
+            }),
+        "expected a warning for the ignored source lockfile; got:\n{combined}",
+    );
+}
+
+fn assert_workspace_lockfile_untouched(workspace: &Path, before: &str) {
+    let after = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert_eq!(after, before, "deploy must not rewrite the workspace lockfile");
+}
+
+/// The `allowBuilds` key a shared-lockfile deploy writes for the workspace
+/// project in `packages/<dirname>`.
+fn workspace_project_key(workspace: &Path, dirname: &str) -> String {
+    let workspace = dunce::canonicalize(workspace).unwrap();
+    let url = url::Url::from_file_path(workspace.join("packages").join(dirname)).unwrap();
+    format!("{dirname}@{url}")
+}
+
+fn pacquet_cmd(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+}
+
+/// Every link under `dir`, at any depth, whose target does not exist.
+fn dangling_links(dir: &Path) -> Vec<PathBuf> {
+    let mut dangling = Vec::new();
+    let mut queue = vec![dir.to_path_buf()];
+    while let Some(current) = queue.pop() {
+        for entry in fs::read_dir(&current).expect("read a deployed directory") {
+            let path = entry.expect("read a deployed entry").path();
+            visit_deployed_entry(path, &mut dangling, &mut queue);
+        }
+    }
+    dangling
+}
+
+/// Record a dangling link, or queue a real directory for the walk. A link
+/// is never descended, whatever its target is.
+fn visit_deployed_entry(path: PathBuf, dangling: &mut Vec<PathBuf>, queue: &mut Vec<PathBuf>) {
+    if is_symlink_or_junction(&path).expect("stat a deployed entry") {
+        if !path.exists() {
+            dangling.push(path);
+        }
+    } else if path.is_dir() {
+        queue.push(path);
+    }
+}
+
+fn deploy_graph_keys(deploy_dir: &Path) -> Vec<String> {
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(deploy_dir).unwrap().unwrap();
+    deploy_lockfile.packages
+        .iter()
+        .flatten()
+        .map(|(key, _)| key.to_string())
+        .chain(
+            deploy_lockfile.snapshots
+                .iter()
+                .flatten()
+                .map(|(key, _)| key.to_string()),
+        )
+        .collect()
+}
+
+/// Every snapshot of the deployed lockfile that still carries optional edges,
+/// as `(snapshot key, optional dependency names)`.
+fn deploy_optional_edges(deploy_dir: &Path) -> Vec<(String, Vec<String>)> {
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(deploy_dir).unwrap().unwrap();
+    deploy_lockfile.snapshots
+        .iter()
+        .flatten()
+        .filter_map(|(key, snapshot)| {
+            let names = snapshot.optional_dependencies
+                .as_ref()?
+                .keys()
+                .map(ToString::to_string)
+                .collect();
+            Some((key.to_string(), names))
+        })
+        .collect()
+}
+
+fn virtual_store_entries(deploy_dir: &Path) -> Vec<String> {
+    fs::read_dir(deploy_dir.join("node_modules/.pnpm"))
+        .expect("read the deploy virtual store")
+        .map(|entry| {
+            entry
+                .expect("read a virtual store entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect()
+}
+
+/// `copy_project` copies the deployed project's packlist, a `.pnpmfile.mjs`
+/// among it, so the deploy directory ends up holding a pnpmfile of its own.
+#[test]
+fn shared_lockfile_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let project_dir = workspace.join("packages/app");
+    write_recording_pnpmfile(&project_dir);
+    pack_pnpmfile_with_project(&project_dir);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(
+        deploy_dir.join(".pnpmfile.mjs").exists(),
+        "the deployed packlist should have carried the project's pnpmfile over",
+    );
+    assert!(
+        !deploy_dir.join(PNPMFILE_SENTINEL).exists(),
+        "the deploy install must not load the pnpmfile it just copied",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Parity with pnpm 11, which hands the deploy install the hooks it
+/// loaded for the source workspace.
+#[test]
+fn shared_lockfile_deploy_runs_the_source_workspace_pnpmfile() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_recording_pnpmfile(&workspace);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(workspace.join(PNPMFILE_SENTINEL)).expect("the install ran the pnpmfile");
+
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "deploy"])
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join(PNPMFILE_SENTINEL).exists(),
+        "the deploy install should run the source workspace's pnpmfile",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Written next to whichever copy of [`write_recording_pnpmfile`]'s
+/// pnpmfile an install loads, so a test can tell the copies apart.
+const PNPMFILE_SENTINEL: &str = "pnpmfile-ran.txt";
+
+/// Ship the project's `.pnpmfile.mjs` in its packlist, so a default deploy
+/// copies it into the deploy directory.
+fn pack_pnpmfile_with_project(project_dir: &Path) {
+    let manifest_path = project_dir.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["files"]
+        .as_array_mut()
+        .expect("a project packlist")
+        .push(serde_json::Value::from(".pnpmfile.mjs"));
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+}
+
+fn write_recording_pnpmfile(dir: &Path) {
+    fs::write(
+        dir.join(".pnpmfile.mjs"),
+        format!(
+            "import {{ writeFileSync }} from 'node:fs'
+
+export const hooks = {{
+  readPackage (pkg) {{
+    writeFileSync(new URL('./{PNPMFILE_SENTINEL}', import.meta.url), 'ran')
+    return pkg
+  }},
+}}
+",
+        ),
+    )
+    .unwrap();
+}
+
+fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
+    writeln!(
+        workspace_yaml,
+        "injectWorkspacePackages: {}",
+        if inject_workspace_packages { "true" } else { "false" },
+    )
+    .unwrap();
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "1.0.0", "private": true }).to_string(),
+    )
+    .unwrap();
+
+    write_project(
+        workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "lib": "workspace:*" },
+            "devDependencies": { "dev-only": "workspace:*" },
+        }),
+    );
+    write_project(
+        workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+    write_project(
+        workspace,
+        "dev-only",
+        &serde_json::json!({
+            "name": "dev-only",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+}
+
+fn write_reachability_workspace(workspace: &Path) {
+    write_workspace(workspace, true);
+    write_project(
+        workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        }),
+    );
+    write_project(
+        workspace,
+        "dev-only",
+        &serde_json::json!({
+            "name": "dev-only",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/bar": "100.0.0" },
+        }),
+    );
+    write_project(
+        workspace,
+        "unused",
+        &serde_json::json!({
+            "name": "unused",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/qar": "100.0.0" },
+        }),
+    );
+}
+
+fn write_project(workspace: &Path, dirname: &str, manifest: &serde_json::Value) {
+    let dir = workspace.join("packages").join(dirname);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("package.json"), manifest.to_string()).unwrap();
+    fs::write(dir.join("index.js"), "").unwrap();
+    fs::write(dir.join("test.js"), "").unwrap();
+}
+
+#[test]
+fn deploy_does_not_run_prepare_scripts() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: AddMockedRegistry { mock_instance, .. },
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    write_reachability_workspace(&workspace);
+    let app_pkg_json = workspace.join("packages/app/package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&app_pkg_json).unwrap()).unwrap();
+    manifest["scripts"] = serde_json::json!({
+        "preinstall": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'preinstall\n')""#,
+        "install": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'install\n')""#,
+        "postinstall": r#"node -e "require('fs').appendFileSync('ran-stages.txt', 'postinstall\n')""#,
+        "prepublish": r#"node -e "process.exit(1)""#,
+        "preprepare": r#"node -e "process.exit(1)""#,
+        "prepare": r#"node -e "process.exit(1)""#,
+        "postprepare": r#"node -e "process.exit(1)""#,
+    });
+    fs::write(&app_pkg_json, manifest.to_string()).unwrap();
+
+    pacquet
+        .with_arg("install")
+        .with_arg("--ignore-scripts")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy-prod"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("deploy-prod/ran-stages.txt")).unwrap(),
+        "preinstall\ninstall\npostinstall\n",
+    );
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "deploy-dev"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("deploy-dev/ran-stages.txt")).unwrap(),
+        "preinstall\ninstall\npostinstall\n",
+    );
+
+    drop((root, mock_instance));
+}
+
+mod legacy;
+
+mod legacy_lockfile_verification;
+
+mod package_manager;
+
+mod peers;
+
+mod target;
+
+mod dependency_groups;
+
+mod virtual_store;
+
+mod source_isolation;
+
+mod local_dependencies;
+
+mod self_containment;
+
+mod reproducible;
+
+mod workspace_project_builds;
+
+mod offline;

@@ -1,0 +1,65 @@
+import { initDefaultReporter } from '@pnpm/cli.default-reporter'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
+import type { Log } from '@pnpm/core-loggers'
+import { type LogLevel, type StreamParser, streamParser, writeToConsole } from '@pnpm/logger'
+
+import { silentReporter } from './silentReporter.js'
+
+export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
+
+export interface InitReporterOptions {
+  cmd: string | null
+  config: Config & ConfigContext
+  hideProgressPrefix?: boolean
+}
+
+export function initReporter (
+  reporterType: ReporterType,
+  opts: InitReporterOptions
+): void {
+  switch (reporterType) {
+    case 'default':
+      initDefaultReporter({
+        ...sharedDefaultReporterOptions(opts),
+        reportingOptions: {
+          appendOnly: false,
+          logLevel: opts.config.loglevel as LogLevel,
+          streamLifecycleOutput: opts.config.stream,
+          throttleProgress: 200,
+          hideAddedPkgsProgress: opts.config.lockfileOnly,
+          hideLifecyclePrefix: opts.config.reporterHidePrefix,
+          hideProgressPrefix: opts.hideProgressPrefix,
+        },
+      })
+      return
+    case 'append-only':
+      initDefaultReporter({
+        ...sharedDefaultReporterOptions(opts),
+        reportingOptions: {
+          appendOnly: true,
+          aggregateOutput: opts.config.aggregateOutput,
+          logLevel: opts.config.loglevel as LogLevel,
+          throttleProgress: 1000,
+          hideLifecyclePrefix: opts.config.reporterHidePrefix,
+          hideProgressPrefix: opts.hideProgressPrefix,
+        },
+      })
+      return
+    case 'ndjson':
+      writeToConsole()
+      return
+    case 'silent':
+      silentReporter(streamParser)
+  }
+}
+
+function sharedDefaultReporterOptions (opts: InitReporterOptions) {
+  return {
+    useStderr: opts.config.useStderr,
+    context: {
+      argv: opts.cmd ? [opts.cmd] : [],
+      config: opts.config,
+    },
+    streamParser: streamParser as StreamParser<Log>,
+  }
+}

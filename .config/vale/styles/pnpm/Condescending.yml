@@ -1,0 +1,13 @@
+extends: existence
+message: "Remove '%s'. What is easy for the writer can be hard for the reader."
+link: https://developers.google.com/style/word-list#easy
+level: error
+ignorecase: true
+tokens:
+  - obviously
+  - of course
+  - simply
+  - trivially
+  - it's easy to
+  - it is easy to
+  - just (?:add|run|use|set|call|pass|type|install)

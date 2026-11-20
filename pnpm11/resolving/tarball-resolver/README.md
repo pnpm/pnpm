@@ -1,0 +1,37 @@
+# @pnpm/resolving.tarball-resolver
+
+> Resolver for tarball dependencies
+
+<!--@shields('npm')-->
+[![npm version](https://img.shields.io/npm/v/@pnpm/resolving.tarball-resolver.svg)](https://npmx.dev/package/@pnpm/resolving.tarball-resolver)
+<!--/@-->
+
+## Installation
+
+```sh
+pnpm add @pnpm/resolving.tarball-resolver
+```
+
+## Usage
+
+<!--@example('./example.js')-->
+```js
+'use strict'
+const resolveFromTarball = require('@pnpm/resolving.tarball-resolver').default
+
+resolveFromTarball({bareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'})
+  .then(resolveResult => console.log(JSON.stringify(resolveResult, null, 2)))
+  //> {
+  //    "id": "registry.npmjs.org/is-array/-/is-array-1.0.1",
+  //    "normalizedBareSpecifier": "http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz",
+  //    "resolution": {
+  //      "tarball": "http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz"
+  //    },
+  //    "resolvedVia": "url"
+  //  }
+```
+<!--/@-->
+
+## License
+
+MIT

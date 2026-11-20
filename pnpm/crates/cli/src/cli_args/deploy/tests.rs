@@ -1,0 +1,496 @@
+use std::{
+    collections::HashMap,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+#[cfg(unix)]
+use std::{
+    ffi::OsStr,
+    os::unix::{
+        ffi::OsStrExt,
+        fs::symlink,
+    },
+};
+
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    IntegrityTarget,
+    Lockfile,
+    LockfileFormat,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    TarballResolution,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_workspace::Project;
+use serde_json::json;
+
+use super::{
+    ConvertCtx,
+    DeployWorkspaceSettings,
+    ProjectInfo,
+    ProjectPathKey,
+    SelectedProject,
+    apply_deploy_hook,
+    convert_package_key,
+    convert_package_metadata,
+    create_deploy_files,
+    create_file_url_key,
+    index_projects,
+};
+#[cfg(unix)]
+use super::{
+    DeployFiles,
+    write_deploy_files,
+};
+#[cfg(windows)]
+use super::{
+    is_ancestor_path,
+    is_child_path,
+    same_path,
+    validate_deploy_target,
+};
+use crate::cli_args::deploy::{
+    install::create_deploy_install_config,
+    resolution::split_local_payload,
+};
+
+#[test]
+fn split_local_payload_preserves_parentheses_in_path_before_peer_suffix() {
+    assert_eq!(
+        split_local_payload("../local(foo)/pkg(peer@1.0.0)"),
+        ("../local(foo)/pkg", "(peer@1.0.0)"),
+    );
+}
+
+#[test]
+fn split_local_payload_preserves_parentheses_in_path_before_patch_suffix() {
+    assert_eq!(
+        split_local_payload("../local(foo)/pkg(patch_hash=abc)(peer@1.0.0)"),
+        ("../local(foo)/pkg", "(patch_hash=abc)(peer@1.0.0)"),
+    );
+}
+
+#[test]
+fn hoisted_deploy_install_config_preserves_lockfile_setting() {
+    let deploy_dir = Path::new("deploy");
+    let mut base_config = Config::new();
+    base_config.lockfile = true;
+
+    let deploy_config = create_deploy_install_config(&base_config, deploy_dir, NodeLinker::Hoisted);
+    assert!(deploy_config.lockfile);
+    assert_eq!(deploy_config.node_linker, NodeLinker::Hoisted);
+
+    base_config.lockfile = false;
+    let deploy_config = create_deploy_install_config(&base_config, deploy_dir, NodeLinker::Hoisted);
+    assert!(!deploy_config.lockfile);
+}
+
+#[test]
+fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path().join("workspace");
+    let deploy_dir = lockfile_dir.join("deploy");
+    let deployed_project_root = lockfile_dir.join("packages/app");
+    let projects_by_path = HashMap::new();
+    let metadata = PackageMetadata {
+        specifiers: None,
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "file:vendor/pkg.tgz".to_string(),
+            integrity: Some(
+                "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+                    .parse()
+                    .expect("parse integrity"),
+            ),
+            revision: None,
+            git_hosted: None,
+            path: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    };
+    let ctx = ConvertCtx {
+        projects_by_path: &projects_by_path,
+        deploy_dir: &deploy_dir,
+        lockfile_dir: &lockfile_dir,
+        deployed_project_root: &deployed_project_root,
+        references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
+    };
+
+    let converted = convert_package_metadata(&metadata, &ctx).expect("convert metadata");
+
+    match converted.resolution {
+        LockfileResolution::Tarball(resolution) => {
+            assert_eq!(resolution.tarball, "file:../vendor/pkg.tgz");
+        }
+        other => panic!("expected tarball resolution, got {other:?}"),
+    }
+}
+
+#[test]
+fn convert_package_key_preserves_local_tarball_name() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path().join("workspace");
+    let deploy_dir = lockfile_dir.join("deploy");
+    let deployed_project_root = lockfile_dir.join("packages/app");
+    let projects_by_path = HashMap::new();
+    let ctx = ConvertCtx {
+        projects_by_path: &projects_by_path,
+        deploy_dir: &deploy_dir,
+        lockfile_dir: &lockfile_dir,
+        deployed_project_root: &deployed_project_root,
+        references: crate::cli_args::deploy::lockfile::ReferenceLocation::Workspace,
+    };
+    let key: PackageKey =
+        "tar-pkg@file:vendor/tar-pkg-1.0.0.tgz".parse().expect("parse package key");
+
+    let converted = convert_package_key(&key, &ctx).expect("convert package key");
+
+    assert_eq!(
+        converted.name.to_string(),
+        "tar-pkg",
+        "the tarball's package name must be kept, not the tarball filename",
+    );
+}
+
+#[test]
+fn create_file_url_key_prefers_workspace_project_name() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let project_root = tmp.path().join("workspace/packages/local-pkg");
+    let resolved_path = project_root.join("../local-pkg");
+    let mut projects_by_path = HashMap::new();
+    projects_by_path.insert(
+        ProjectPathKey::new(&project_root),
+        ProjectInfo {
+            root_dir: project_root.clone(),
+            linked_publish_dir: None,
+            name: Some("workspace-name".to_string()),
+            has_bin: false,
+            peer_set: pnpm_resolving_deps_resolver::PeerSet::default(),
+        },
+    );
+    let lockfile_name = "lockfile-name".parse().expect("parse package name");
+
+    let key = create_file_url_key(&resolved_path, "", &projects_by_path, Some(&lockfile_name))
+        .expect("create file URL key");
+
+    assert_eq!(key.name.to_string(), "workspace-name");
+}
+
+#[cfg(unix)]
+#[test]
+fn index_projects_keeps_the_first_project_per_lossy_root() {
+    // Both roots print as `a\u{FFFD}`, so they share a comparison key while
+    // staying distinct paths.
+    assert_first_project_wins(&[
+        workspace_project("first", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xff"))),
+        workspace_project("second", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xfe"))),
+    ]);
+}
+
+#[cfg(windows)]
+#[test]
+fn index_projects_keeps_the_first_project_per_case_variant_root() {
+    assert_first_project_wins(&[
+        workspace_project("first", PathBuf::from(r"C:\Workspace\Packages\Lib")),
+        workspace_project("second", PathBuf::from(r"c:\workspace\packages\lib")),
+    ]);
+}
+
+fn workspace_project(name: &str, root_dir: PathBuf) -> Project {
+    let manifest =
+        PackageManifest::from_value(root_dir.join("package.json"), json!({ "name": name }));
+    Project { root_dir, manifest, dependency_manifest: None }
+}
+
+/// The two projects must have distinct roots that share one comparison key.
+fn assert_first_project_wins(projects: &[Project; 2]) {
+    assert_ne!(projects[0].root_dir, projects[1].root_dir, "the roots must be distinct paths");
+
+    let index = index_projects(projects);
+
+    assert_eq!(index.len(), 1, "comparison-equal roots share one entry");
+    let project = index
+        .get(&ProjectPathKey::new(&projects[1].root_dir))
+        .expect("indexed project");
+    assert_eq!(project.name.as_deref(), Some("first"), "the first discovered project wins");
+}
+
+#[cfg(unix)]
+#[test]
+fn write_deploy_files_replaces_lockfile_symlink() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let deploy_dir = tmp.path().join("deploy");
+    std::fs::create_dir(&deploy_dir).expect("create deploy dir");
+    let outside = tmp.path().join("outside-lockfile-target");
+    std::fs::write(&outside, "do not overwrite\n").expect("write outside target");
+    let lockfile_path = deploy_dir.join(Lockfile::FILE_NAME);
+    symlink(&outside, &lockfile_path).expect("seed lockfile symlink");
+
+    let lockfile: Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse lockfile");
+    let deploy_files = DeployFiles {
+        manifest: json!({ "name": "app" }),
+        lockfile,
+        workspace_manifest: None,
+        workspace_config: DeployWorkspaceSettings::from_config(&Config::default()),
+    };
+
+    write_deploy_files(&deploy_dir, &deploy_files).expect("write deploy files");
+
+    assert_eq!(
+        std::fs::read_to_string(&outside).expect("read outside target"),
+        "do not overwrite\n",
+    );
+    let metadata = std::fs::symlink_metadata(&lockfile_path).expect("read lockfile metadata");
+    assert!(!metadata.file_type().is_symlink(), "lockfile symlink should be replaced");
+    assert_eq!(
+        std::fs::read_to_string(&lockfile_path).expect("read deployed lockfile"),
+        "lockfileVersion: '9.0'\n",
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_path_comparison_matches_case_variants() {
+    assert!(same_path(Path::new(r"C:\Workspace"), Path::new(r"c:\workspace")));
+    assert!(is_child_path(Path::new(r"c:\workspace\out"), Path::new(r"C:\Workspace"),));
+    assert!(is_ancestor_path(Path::new(r"c:\workspace"), Path::new(r"C:\Workspace\packages\app"),));
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_case_variant_workspace_root_is_rejected_as_deploy_target() {
+    let err = validate_deploy_target(
+        Path::new(r"c:\workspace"),
+        Path::new(r"C:\Workspace"),
+        Path::new(r"C:\Workspace\packages\app"),
+        Path::new(r"C:\Workspace"),
+        true,
+    )
+    .expect_err("case-variant workspace root must be rejected");
+    assert!(err.to_string().contains("target is the workspace root"));
+}
+
+#[test]
+fn deploy_normalizes_registry_specifiers_and_preserves_snapshot_references() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let references = json!({
+        "plain": "1.0.0",
+        "peer": "1.0.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)",
+        "patched": "1.0.0(patch_hash=abc)(react@19.0.0)",
+        "alias": "@scope/pkg@1.0.0(react@19.0.0)",
+        "tarball": "https://example.com/pkg.tgz",
+        "opaque": "https://example.com/pkg.tgz(peer@1.0.0)",
+        "registry": "private:1.0.0(react@19.0.0)",
+        "runtime": "runtime:24.0.0",
+    });
+    let specifiers = json!({
+        "plain": "1.0.0",
+        "peer": "1.0.0",
+        "patched": "1.0.0",
+        "alias": "npm:@scope/pkg@1.0.0",
+        "tarball": "https://example.com/pkg.tgz",
+        "opaque": "https://example.com/pkg.tgz(peer@1.0.0)",
+        "registry": "private:1.0.0(react@19.0.0)",
+        "runtime": "runtime:24.0.0",
+    });
+    for field in ["dependencies", "devDependencies", "optionalDependencies"] {
+        let dependencies = references
+            .as_object()
+            .unwrap()
+            .iter()
+            .map(|(name, version)| (name.clone(), json!({ "specifier": "*", "version": version })))
+            .collect::<serde_json::Map<_, _>>();
+        let lockfile: Lockfile = serde_json::from_value(json!({
+            "lockfileVersion": "9.0",
+            "importers": { ".": { field: dependencies } },
+            "snapshots": { "peer@1.0.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)": {} },
+        }))
+        .unwrap();
+        let selected = SelectedProject {
+            project: Project {
+                root_dir: tmp.path().to_path_buf(),
+                manifest: PackageManifest::from_value(
+                    tmp.path().join("package.json"),
+                    json!({ "name": "app", field: references }),
+                ),
+                dependency_manifest: None,
+            },
+            projects_by_path: HashMap::new(),
+            workspace_projects: Vec::new(),
+        };
+        let result = create_deploy_files(
+            &lockfile,
+            &selected,
+            ".",
+            tmp.path(),
+            &tmp.path().join("out"),
+            &Config::default(),
+            &[DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        )
+        .unwrap();
+        assert_eq!(result.manifest[field], specifiers);
+        let importer = serde_json::to_value(&result.lockfile.importers["."]).unwrap();
+        for (name, reference) in references.as_object().unwrap() {
+            assert_eq!(importer[field][name]["version"], *reference);
+            assert_eq!(importer[field][name]["specifier"], specifiers[name]);
+        }
+        assert_eq!(result.lockfile.snapshots, lockfile.snapshots);
+    }
+}
+
+fn deploy_copied_dependency(
+    dependencies: &serde_json::Value,
+) -> (tempfile::TempDir, serde_json::Value) {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let deploy_dir = tmp.path().join("deployed");
+    std::fs::create_dir_all(deploy_dir.join("copied")).expect("create deployed copy");
+    std::fs::write(
+        deploy_dir.join("package.json"),
+        json!({ "name": "app", "dependencies": dependencies }).to_string(),
+    )
+    .expect("write deployed manifest");
+
+    apply_deploy_hook(&deploy_dir, &tmp.path().join("packages/app")).expect("apply deploy hook");
+
+    let manifest = std::fs::read_to_string(deploy_dir.join("package.json")).expect("read manifest");
+    (tmp, serde_json::from_str::<serde_json::Value>(&manifest).expect("parse manifest")["dependencies"].clone())
+}
+
+#[test]
+fn legacy_deploy_hook_keeps_a_specifier_that_already_names_the_copy() {
+    let (_tmp, dependencies) = deploy_copied_dependency(&json!({
+        "kept": "file:./copied",
+        "detour": "file:../app/copied",
+        "outside": "file:../../local/dep",
+    }));
+    assert_eq!(
+        dependencies,
+        json!({ "kept": "file:./copied", "detour": "file:copied", "outside": "file:../local/dep" }),
+    );
+}
+
+#[test]
+fn legacy_deploy_hook_rebases_workspace_paths() {
+    let (_tmp, dependencies) = deploy_copied_dependency(&json!({
+        "kept": "workspace:./copied",
+        "outside": "workspace:../lib",
+        "range": "workspace:*",
+    }));
+    dbg!(&dependencies);
+    assert_eq!(
+        dependencies,
+        json!({ "kept": "workspace:./copied", "outside": "workspace:../packages/lib", "range": "workspace:*" }),
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn legacy_deploy_hook_keeps_naming_the_copy_through_a_case_variant_project_dir() {
+    let (_tmp, dependencies) = deploy_copied_dependency(&json!({ "detour": "file:../APP/copied" }));
+    assert_eq!(dependencies, json!({ "detour": "file:copied" }));
+}
+
+#[test]
+fn deploy_preserves_metadata_only_peers_in_an_excluded_group() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lockfile: Lockfile = serde_json::from_value(json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": {
+            "dependencies": { "peer": { "specifier": "1.0.0", "version": "1.0.0" } },
+        } },
+        "snapshots": { "peer@1.0.0": {} },
+    }))
+    .unwrap();
+    let selected = SelectedProject {
+        project: Project {
+            root_dir: tmp.path().to_path_buf(),
+            manifest: PackageManifest::from_value(
+                tmp.path().join("package.json"),
+                json!({
+                    "name": "app", "peerDependenciesMeta": { "peer": { "optional": true } },
+                }),
+            ),
+            dependency_manifest: None,
+        },
+        projects_by_path: HashMap::new(),
+        workspace_projects: Vec::new(),
+    };
+    let result = create_deploy_files(
+        &lockfile,
+        &selected,
+        ".",
+        tmp.path(),
+        &tmp.path().join("out"),
+        &Config::default(),
+        &[DependencyGroup::Dev],
+    )
+    .unwrap();
+    assert_eq!(result.manifest["dependencies"], json!({"peer": "1.0.0"}));
+    assert!(
+        result.lockfile.snapshots
+            .unwrap()
+            .contains_key(&"peer@1.0.0".parse().unwrap()),
+    );
+}
+
+#[test]
+fn deploy_workspace_settings_omits_default_lockfile_format_and_tarball_url() {
+    let settings = DeployWorkspaceSettings::from_config(&Config::default());
+    let manifest = settings.to_workspace_manifest().expect("build workspace manifest");
+
+    assert!(!manifest.contains_key("lockfile"));
+    assert!(!manifest.contains_key("lockfileIncludeTarballUrl"));
+}
+
+#[test]
+fn deploy_workspace_settings_preserves_v13_lockfile_format_and_tarball_url() {
+    let source_config = Config {
+        lockfile_format: LockfileFormat::V13,
+        lockfile_include_tarball_url: true,
+        lockfile_integrity_target: IntegrityTarget::Tar,
+        ..Default::default()
+    };
+
+    let settings = DeployWorkspaceSettings::from_config(&source_config);
+    let manifest = settings.to_workspace_manifest().expect("build workspace manifest");
+
+    assert_eq!(
+        manifest.get("lockfile"),
+        Some(&json!({
+            "format": "v13",
+            "integrityTarget": "tar",
+        })),
+    );
+    assert_eq!(manifest.get("lockfileIncludeTarballUrl"), Some(&json!(true)));
+
+    let mut target_config = Config::default();
+    settings.apply_to_config(&mut target_config, Path::new("deploy"));
+    assert_eq!(target_config.lockfile_format, LockfileFormat::V13);
+    assert!(target_config.lockfile_include_tarball_url);
+    assert_eq!(target_config.lockfile_integrity_target, IntegrityTarget::Tar);
+
+    let mut deploy_lockfile: Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse lockfile");
+    settings.apply_to_lockfile(&mut deploy_lockfile);
+    assert_eq!(deploy_lockfile.lockfile_version, LockfileFormat::V13.version());
+}

@@ -1,0 +1,201 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "lib",
+    "rootDir": "src",
+    "ignoreDeprecations": "5.0"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../__utils__/assert-project"
+    },
+    {
+      "path": "../__utils__/prepare"
+    },
+    {
+      "path": "../__utils__/test-fixtures"
+    },
+    {
+      "path": "../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../auth/commands"
+    },
+    {
+      "path": "../building/commands"
+    },
+    {
+      "path": "../cache/commands"
+    },
+    {
+      "path": "../cli/command"
+    },
+    {
+      "path": "../cli/commands"
+    },
+    {
+      "path": "../cli/common-cli-options-help"
+    },
+    {
+      "path": "../cli/default-reporter"
+    },
+    {
+      "path": "../cli/meta"
+    },
+    {
+      "path": "../cli/parse-cli-args"
+    },
+    {
+      "path": "../cli/utils"
+    },
+    {
+      "path": "../config/commands"
+    },
+    {
+      "path": "../config/normalize-registries"
+    },
+    {
+      "path": "../config/reader"
+    },
+    {
+      "path": "../config/version-policy"
+    },
+    {
+      "path": "../core/constants"
+    },
+    {
+      "path": "../core/core-loggers"
+    },
+    {
+      "path": "../core/error"
+    },
+    {
+      "path": "../core/logger"
+    },
+    {
+      "path": "../core/types"
+    },
+    {
+      "path": "../crypto/hash"
+    },
+    {
+      "path": "../deps/compliance/commands"
+    },
+    {
+      "path": "../deps/inspection/commands"
+    },
+    {
+      "path": "../deps/path"
+    },
+    {
+      "path": "../engine/pm/commands"
+    },
+    {
+      "path": "../engine/runtime/commands"
+    },
+    {
+      "path": "../engine/runtime/system-version"
+    },
+    {
+      "path": "../exec/commands"
+    },
+    {
+      "path": "../exec/lifecycle"
+    },
+    {
+      "path": "../hooks/pnpmfile"
+    },
+    {
+      "path": "../installing/client"
+    },
+    {
+      "path": "../installing/commands"
+    },
+    {
+      "path": "../installing/env-installer"
+    },
+    {
+      "path": "../installing/modules-yaml"
+    },
+    {
+      "path": "../lockfile/fs"
+    },
+    {
+      "path": "../lockfile/types"
+    },
+    {
+      "path": "../network/fetch"
+    },
+    {
+      "path": "../network/web-auth"
+    },
+    {
+      "path": "../patching/commands"
+    },
+    {
+      "path": "../pkg-manifest/commands"
+    },
+    {
+      "path": "../pkg-manifest/reader"
+    },
+    {
+      "path": "../registry-access/commands"
+    },
+    {
+      "path": "../releasing/commands"
+    },
+    {
+      "path": "../store/cafs"
+    },
+    {
+      "path": "../store/commands"
+    },
+    {
+      "path": "../store/connection-manager"
+    },
+    {
+      "path": "../store/index"
+    },
+    {
+      "path": "../testing/registry-mock"
+    },
+    {
+      "path": "../text/ordinal-comparator"
+    },
+    {
+      "path": "../worker"
+    },
+    {
+      "path": "../workspace/commands"
+    },
+    {
+      "path": "../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../workspace/project-manifest-writer"
+    },
+    {
+      "path": "../workspace/projects-filter"
+    },
+    {
+      "path": "../workspace/projects-graph"
+    },
+    {
+      "path": "../workspace/projects-reader"
+    },
+    {
+      "path": "../workspace/root-finder"
+    },
+    {
+      "path": "../workspace/state"
+    },
+    {
+      "path": "../workspace/workspace-manifest-reader"
+    }
+  ]
+}

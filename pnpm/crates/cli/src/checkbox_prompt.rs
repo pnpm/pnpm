@@ -1,0 +1,481 @@
+//! A checkbox prompt shaped like `@inquirer/checkbox`, the prompt behind
+//! pnpm's interactive commands, with its keys and vim bindings.
+//!
+//! The list can hold separators (a group heading, a table's column
+//! header) that are drawn but never selected: the cursor skips them and
+//! they take no part in the answer.
+
+#[cfg(any(target_family = "wasm", test))]
+mod wasm;
+#[cfg(target_family = "wasm")]
+use crate::checkbox_terminal_wasm::Term;
+#[cfg(not(target_family = "wasm"))]
+use console::Term;
+use console::{
+    Key,
+    measure_text_width,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
+use std::io;
+
+/// One line of a [`CheckboxPrompt`].
+pub(crate) enum CheckboxItem<Value> {
+    /// Drawn as is, skipped by the cursor.
+    Separator(String),
+    Choice(CheckboxChoice<Value>),
+}
+
+pub(crate) struct CheckboxChoice<Value> {
+    /// The line shown while choosing.
+    pub name: String,
+    /// How the confirmed answer names the choice.
+    pub short: String,
+    pub value: Value,
+    /// Shown below the list while the cursor is on the choice, like
+    /// `@inquirer/checkbox`'s choice `description`.
+    pub description: Option<String>,
+}
+
+/// The glyphs and highlighting of a [`CheckboxPrompt`].
+///
+/// The default is `@inquirer/checkbox`'s own theme: a filled circle for a
+/// checked choice, a hollow one otherwise, and the active row in cyan.
+pub(crate) struct CheckboxTheme {
+    pub checked: String,
+    pub unchecked: String,
+}
+
+impl Default for CheckboxTheme {
+    fn default() -> Self {
+        Self {
+            checked: stdout_styled("◉", |text| text.green().to_string()),
+            unchecked: "◯".to_string(),
+        }
+    }
+}
+
+/// What the answer to a [`CheckboxPrompt`] was.
+#[derive(Debug)]
+pub(crate) enum CheckboxAnswer<Value> {
+    /// Enter confirmed these choices, in list order.
+    Selected(Vec<Value>),
+    /// Ctrl-C.
+    Cancelled,
+}
+
+pub(crate) struct CheckboxPrompt<Value> {
+    message: String,
+    items: Vec<CheckboxItem<Value>>,
+    checked: Vec<bool>,
+    required: bool,
+    theme: CheckboxTheme,
+    error: Option<&'static str>,
+    viewport: PromptViewport,
+    #[cfg(any(target_family = "wasm", test))]
+    mode: wasm::Mode,
+}
+
+struct PromptViewport {
+    active: usize,
+    /// The first item on screen.
+    top: usize,
+    /// Lines of the list shown at once; `0` until the terminal is measured,
+    /// which shows the whole list.
+    page_size: usize,
+    /// Lines of the active item's description shown at once.
+    description_lines: usize,
+}
+
+/// What a key did, beyond changing the screen.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum KeyOutcome {
+    Redraw,
+    Submit,
+    Cancel,
+}
+
+/// The [`PromptViewport::page_size`] `@inquirer/checkbox` is given when the
+/// terminal height is unknown, and the least it is given otherwise.
+const MIN_PAGE_SIZE: usize = 7;
+/// The lines of a frame that are not the list: the message and the
+/// help line, with room for a wrapped message and the error line.
+const FRAME_OVERHEAD: usize = 6;
+/// The most lines of an item's description a frame shows.
+const MAX_DESCRIPTION_LINES: usize = 12;
+
+impl<Value> CheckboxPrompt<Value> {
+    pub(crate) fn new(message: impl Into<String>, items: Vec<CheckboxItem<Value>>) -> Self {
+        let checked = vec![false; items.len()];
+        let active = items
+            .iter()
+            .position(is_choice)
+            .unwrap_or_default();
+        Self {
+            message: message.into(),
+            items,
+            checked,
+            required: false,
+            theme: CheckboxTheme::default(),
+            error: None,
+            viewport: PromptViewport {
+                active,
+                top: 0,
+                page_size: 0,
+                description_lines: MAX_DESCRIPTION_LINES,
+            },
+            #[cfg(any(target_family = "wasm", test))]
+            mode: wasm::Mode::Checkbox,
+        }
+    }
+
+    /// Refuse to confirm an empty selection.
+    pub(crate) fn required(mut self, required: bool) -> Self {
+        self.required = required;
+        self
+    }
+
+    pub(crate) fn theme(mut self, theme: CheckboxTheme) -> Self {
+        self.theme = theme;
+        self
+    }
+
+    /// Run the prompt on the terminal behind stdout, where pnpm draws it,
+    /// or behind stderr when stdout is redirected.
+    ///
+    /// Fails when neither is a terminal or the list has no choice to make.
+    pub(crate) fn interact(mut self) -> io::Result<CheckboxAnswer<Value>> {
+        if !self.items.iter().any(is_choice) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "the checkbox prompt was given no choice to make",
+            ));
+        }
+        #[cfg(target_family = "wasm")]
+        let term = Term::open()?;
+        #[cfg(not(target_family = "wasm"))]
+        let term = [Term::stdout(), Term::stderr()]
+            .into_iter()
+            .find(Term::is_term)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    "the checkbox prompt needs a terminal on stdout or stderr",
+                )
+            })?;
+        if self.viewport.page_size == 0 {
+            let has_descriptions = self.items
+                .iter()
+                .any(|item| matches!(item, CheckboxItem::Choice(choice) if choice.description.is_some()));
+            let rows = term.size_checked().map(|(rows, _)| usize::from(rows));
+            (self.viewport.page_size, self.viewport.description_lines) =
+                layout_for(rows, has_descriptions);
+        }
+        term.hide_cursor()?;
+        let answer = self.interact_on(&term);
+        term.show_cursor()?;
+        term.flush()?;
+        answer
+    }
+
+    fn interact_on(&mut self, term: &Term) -> io::Result<CheckboxAnswer<Value>> {
+        let columns = usize::from(term.size().1);
+        let mut drawn_rows = 0;
+        loop {
+            let frame = self.render_frame();
+            term.clear_last_lines(drawn_rows)?;
+            term.write_line(&frame)?;
+            term.flush()?;
+            drawn_rows = terminal_rows(&frame, columns);
+            match self.handle_key(&term.read_key_raw()?) {
+                KeyOutcome::Redraw => {}
+                KeyOutcome::Submit => {
+                    term.clear_last_lines(drawn_rows)?;
+                    term.write_line(&self.render_answer())?;
+                    return Ok(CheckboxAnswer::Selected(self.take_selected()));
+                }
+                KeyOutcome::Cancel => return Ok(CheckboxAnswer::Cancelled),
+            }
+        }
+    }
+
+    pub(crate) fn handle_key(&mut self, key: &Key) -> KeyOutcome {
+        #[cfg(any(target_family = "wasm", test))]
+        if let Some(outcome) = self.handle_dialoguer_key(key) {
+            return outcome;
+        }
+        // A refused Enter is answered by whatever the user does next.
+        if *key != Key::Enter {
+            self.error = None;
+        }
+        match key {
+            Key::Enter => {
+                if self.required && !self.checked.iter().any(|&checked| checked) {
+                    self.error = Some("At least one choice must be selected");
+                    return KeyOutcome::Redraw;
+                }
+                return KeyOutcome::Submit;
+            }
+            Key::CtrlC => return KeyOutcome::Cancel,
+            Key::ArrowUp | Key::Char('k') => self.move_active(-1),
+            Key::ArrowDown | Key::Char('j') => self.move_active(1),
+            Key::Char(' ') => {
+                self.checked[self.viewport.active] = !self.checked[self.viewport.active];
+            }
+            Key::Char('a') => {
+                let select_all = self.items
+                    .iter()
+                    .zip(&self.checked)
+                    .any(|(item, &checked)| is_choice(item) && !checked);
+                self.check_every_choice(|_| select_all);
+            }
+            Key::Char('i') => self.check_every_choice(|checked| !checked),
+            Key::Char(digit @ '1'..='9') => {
+                self.toggle_numbered_choice(*digit);
+            }
+            _ => {}
+        }
+        self.scroll_into_view();
+        KeyOutcome::Redraw
+    }
+
+    fn toggle_numbered_choice(&mut self, digit: char) {
+        let nth = usize::from(digit as u8 - b'1');
+        if let Some(index) = self.items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| is_choice(item))
+            .nth(nth)
+            .map(|(index, _)| index)
+        {
+            self.viewport.active = index;
+            self.checked[index] = !self.checked[index];
+        }
+    }
+
+    /// Move the cursor `offset` choices, wrapping around the list and
+    /// stepping over separators.
+    fn move_active(&mut self, offset: isize) {
+        let len = self.items.len();
+        let mut next = self.viewport.active;
+        loop {
+            next = (next as isize + offset).rem_euclid(len as isize) as usize;
+            if is_choice(&self.items[next]) {
+                break;
+            }
+        }
+        self.viewport.active = next;
+    }
+
+    fn check_every_choice(&mut self, checked: impl Fn(bool) -> bool) {
+        for (item, slot) in self.items.iter().zip(&mut self.checked) {
+            if is_choice(item) {
+                *slot = checked(*slot);
+            }
+        }
+    }
+
+    /// Keep the active row on the page, and with it the separators
+    /// directly above it (a group's heading and column header) when
+    /// they fit.
+    fn scroll_into_view(&mut self) {
+        if self.viewport.page_size == 0 {
+            return;
+        }
+        if self.viewport.active < self.viewport.top {
+            self.viewport.top = self.viewport.active;
+        } else if self.viewport.active >= self.viewport.top + self.viewport.page_size {
+            self.viewport.top = self.viewport.active + 1 - self.viewport.page_size;
+        }
+        while self.viewport.top > 0
+            && !is_choice(&self.items[self.viewport.top - 1])
+            && self.viewport.active + 1 - (self.viewport.top - 1)
+                <= self.viewport.page_size
+        {
+            self.viewport.top -= 1;
+        }
+    }
+
+    /// The screen while choosing: the message, the visible page of the
+    /// list, an error if the last Enter was refused, and the key help.
+    pub(crate) fn render_frame(&self) -> String {
+        let prefix = stdout_styled("?", |text| text.blue().to_string());
+        let message = stdout_styled(&self.message, |text| text.bold().to_string());
+        let mut lines = vec![format!("{prefix} {message}")];
+        lines.extend(self.render_page());
+        lines.extend(self.render_description());
+        lines.push(" ".to_string());
+        if let Some(error) = self.error {
+            let error = format!("> {error}");
+            lines.push(stdout_styled(&error, |text| text.red().to_string()));
+        }
+        #[cfg(not(any(target_family = "wasm", test)))]
+        lines.push(render_help_line());
+        #[cfg(any(target_family = "wasm", test))]
+        lines.push(self.render_host_help_line());
+        lines.join("\n").trim_end().to_string()
+    }
+
+    /// The active item's description, cut to the lines the terminal has
+    /// room for so the frame stays on screen.
+    fn render_description(&self) -> Vec<String> {
+        let Some(CheckboxItem::Choice(CheckboxChoice { description: Some(description), .. })) =
+            self.items.get(self.viewport.active)
+        else {
+            return Vec::new();
+        };
+        let shown = self.viewport.description_lines;
+        let lines: Vec<&str> = description.lines().collect();
+        let mut rendered = vec![String::new()];
+        rendered.extend(
+            lines
+                .iter()
+                .take(shown)
+                .map(|line| format!(" {line}")),
+        );
+        if lines.len() > shown {
+            let more = lines.len() - shown;
+            rendered.push(stdout_styled(&format!(" … {more} more lines"), |text| {
+                text.dimmed().to_string()
+            }));
+        }
+        rendered
+    }
+
+    fn render_page(&self) -> Vec<String> {
+        let end = if self.viewport.page_size == 0 {
+            self.items.len()
+        } else {
+            (self.viewport.top + self.viewport.page_size).min(self.items.len())
+        };
+        (self.viewport.top..end)
+            .map(|index| self.render_item(index))
+            .collect()
+    }
+
+    fn render_item(&self, index: usize) -> String {
+        match &self.items[index] {
+            CheckboxItem::Separator(text) => format!(" {text}"),
+            CheckboxItem::Choice(choice) => self.render_choice(index, choice),
+        }
+    }
+
+    fn render_choice(&self, index: usize, choice: &CheckboxChoice<Value>) -> String {
+        let active = index == self.viewport.active;
+        let cursor = if active { "❯" } else { " " };
+        let checkbox =
+            if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
+        let line = format!("{cursor}{checkbox} {}", choice.name);
+        if active { stdout_styled(&line, in_active_cyan) } else { line }
+    }
+
+    /// The line left behind once Enter confirmed the selection.
+    pub(crate) fn render_answer(&self) -> String {
+        let prefix = stdout_styled("✔", |text| text.green().to_string());
+        let message = stdout_styled(&self.message, |text| text.bold().to_string());
+        let shorts = self
+            .selected_choices()
+            .map(|choice| choice.short.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let answer = stdout_styled(&shorts, |text| text.cyan().to_string());
+        format!("{prefix} {message} {answer}")
+    }
+
+    pub(crate) fn selected_choices(&self) -> impl Iterator<Item = &CheckboxChoice<Value>> {
+        self.items
+            .iter()
+            .zip(&self.checked)
+            .filter_map(|(item, &checked)| match item {
+                CheckboxItem::Choice(choice) if checked => Some(choice),
+                _ => None,
+            })
+    }
+
+    fn take_selected(&mut self) -> Vec<Value> {
+        let checked = std::mem::take(&mut self.checked);
+        std::mem::take(&mut self.items)
+            .into_iter()
+            .zip(checked)
+            .filter_map(|(item, checked)| match item {
+                CheckboxItem::Choice(choice) if checked => Some(choice.value),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+fn is_choice<Value>(item: &CheckboxItem<Value>) -> bool {
+    matches!(item, CheckboxItem::Choice(_))
+}
+
+/// `↑↓ navigate • space select • a all • i invert • ⏎ submit`, with the
+/// keys in bold and the rest dimmed.
+fn render_help_line() -> String {
+    [("↑↓", "navigate"), ("space", "select"), ("a", "all"), ("i", "invert"), ("⏎", "submit")]
+        .into_iter()
+        .map(|(key, action)| {
+            let key = stdout_styled(key, |text| text.bold().to_string());
+            let action = stdout_styled(action, |text| text.dimmed().to_string());
+            format!("{key} {action}")
+        })
+        .collect::<Vec<_>>()
+        .join(&stdout_styled(" • ", |text| text.dimmed().to_string()))
+}
+
+/// The list's page size and the description lines shown on a terminal of
+/// `rows`. Without descriptions the page size is pnpm's
+/// `interactivePromptPageSize()`: the terminal height less the frame around
+/// the list. With them, the description gets up to half of the rest, with
+/// a line above it and one for what it leaves out, so the frame still fits.
+fn layout_for(rows: Option<usize>, has_descriptions: bool) -> (usize, usize) {
+    let Some(rows) = rows else {
+        return (MIN_PAGE_SIZE, MAX_DESCRIPTION_LINES);
+    };
+    let available = rows.saturating_sub(FRAME_OVERHEAD);
+    if !has_descriptions {
+        return (available.max(MIN_PAGE_SIZE), 0);
+    }
+    let reserved = (MAX_DESCRIPTION_LINES + 2).min(available / 2);
+    ((available - reserved).max(1), reserved.saturating_sub(2))
+}
+
+/// The terminal rows `frame` occupies once lines wider than the terminal
+/// wrap, which is how many rows clearing it has to reach back over.
+fn terminal_rows(frame: &str, columns: usize) -> usize {
+    frame
+        .split('\n')
+        .map(|line| {
+            if columns == 0 {
+                return 1;
+            }
+            measure_text_width(line).div_ceil(columns).max(1)
+        })
+        .sum()
+}
+
+/// `line` painted in [`ACTIVE_FOREGROUND`], keeping any colors of its own.
+///
+/// A choice's name can carry foreground colors of its own, such as the
+/// changed part of a version, and their resets would end a cyan foreground
+/// painted once around the line. So cyan is painted again after every reset.
+fn in_active_cyan(line: &str) -> String {
+    let mut painted = format!("{ACTIVE_FOREGROUND}{line}");
+    for reset in [RESET_ALL, RESET_FOREGROUND] {
+        painted = painted.replace(reset, &format!("{reset}{ACTIVE_FOREGROUND}"));
+    }
+    format!("{painted}{RESET_FOREGROUND}")
+}
+
+const ACTIVE_FOREGROUND: &str = <owo_colors::colors::Cyan as owo_colors::Color>::ANSI_FG;
+const RESET_ALL: &str = "\u{1b}[0m";
+const RESET_FOREGROUND: &str = "\u{1b}[39m";
+
+fn stdout_styled(text: &str, style: impl Fn(&str) -> String) -> String {
+    text.if_supports_color(Stream::Stdout, |text| style(text)).to_string()
+}
+
+#[cfg(test)]
+mod tests;

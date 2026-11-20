@@ -1,0 +1,45 @@
+extends: existence
+message: "'%s' may be passive. Name the actor: 'pnpm reads the file', not 'the file is read'."
+link: https://developers.google.com/style/voice
+level: suggestion
+ignorecase: true
+raw:
+  - \b(am|are|were|being|is|been|was|be)\b\s*
+tokens:
+  - '[\w]+ed'
+  - become
+  - been
+  - begun
+  - built
+  - chosen
+  - done
+  - found
+  - given
+  - gone
+  - held
+  - hidden
+  - kept
+  - known
+  - left
+  - made
+  - meant
+  - read
+  - run
+  - seen
+  - sent
+  - set
+  - shown
+  - taken
+  - thrown
+  - written
+exceptions:
+  - is needed
+  - are needed
+  - is required
+  - are required
+  - is installed
+  - are installed
+  - is enabled
+  - is disabled
+  - is set
+  - are set

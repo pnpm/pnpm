@@ -1,0 +1,90 @@
+#![cfg_attr(target_os = "wasi", feature(wasi_ext))]
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
+pub use install_v2::{
+    parse_install_v2,
+    parse_release_record,
+};
+pub use package::{
+    DerivedPackuments,
+    Package,
+};
+pub use package_distribution::{
+    AttestationsDist,
+    InstallV2Entry,
+    PackageDistribution,
+    PnprDistribution,
+    ProvenanceMeta,
+};
+pub use package_tag::PackageTag;
+pub use package_version::{
+    Approver,
+    NpmUser,
+    PackageVersion,
+    TrustedPublisher,
+    VersionPolicyFields,
+    VersionTrustDist,
+    VersionTrustMetadata,
+};
+pub use package_versions::{
+    MirrorFile,
+    PackageVersions,
+    read_exact_at,
+};
+pub use range_spec_style::{
+    RangeSpecGranularity,
+    RangeSpecStyle,
+};
+
+mod install_v2;
+mod package;
+mod package_distribution;
+mod package_tag;
+mod package_version;
+mod package_versions;
+mod range_spec_style;
+mod wire_tolerance;
+
+use derive_more::{
+    Display,
+    Error,
+    From,
+};
+use miette::Diagnostic;
+
+#[derive(Debug, Display, Error)]
+#[display("Failed to request {url}: {error}")]
+pub struct NetworkError {
+    pub url: String,
+    #[error(source)]
+    pub error: reqwest::Error,
+}
+
+#[derive(Debug, Display, Error, Diagnostic, From)]
+#[non_exhaustive]
+pub enum RegistryError {
+    #[from(ignore)] // TODO: remove this after derive(From) has been removed
+    #[display("Missing latest tag on {_0}")]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_MISSING_LATEST_TAG))]
+    MissingLatestTag(#[error(not(source))] String),
+
+    #[from(ignore)] // TODO: remove this after derive(From) has been removed
+    #[display("Missing version {_0} on package {_1}")]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_MISSING_VERSION_RELEASE))]
+    MissingVersionRelease(String, String),
+
+    #[diagnostic(code(ERR_PNPM_REGISTRY_NETWORK_ERROR))]
+    Network(NetworkError), // TODO: remove derive(Error), split this variant
+
+    #[diagnostic(code(ERR_PNPM_REGISTRY_IO_ERROR))]
+    Io(std::io::Error), // TODO: remove derive(Error), split this variant
+
+    #[from(ignore)] // TODO: remove this after derive(From) has been removed
+    #[display("Serialization failed: {_0}")]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_SERIALIZATION_ERROR))]
+    Serialization(#[error(not(source))] String),
+}

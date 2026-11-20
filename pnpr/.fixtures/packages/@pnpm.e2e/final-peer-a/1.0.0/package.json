@@ -1,0 +1,11 @@
+{
+  "name": "@pnpm.e2e/final-peer-a",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/final-peer-b": "1.0.0",
+    "@pnpm.e2e/final-peer-x": "1.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm.e2e/final-peer-c": "*"
+  }
+}

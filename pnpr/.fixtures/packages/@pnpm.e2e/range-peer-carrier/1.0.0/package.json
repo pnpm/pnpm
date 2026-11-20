@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/range-peer-carrier",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/range-peer-user": "^2.0.0"
+  }
+}

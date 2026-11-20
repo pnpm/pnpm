@@ -1,0 +1,78 @@
+import type { PackageManifest } from '@pnpm/types'
+
+export type PackageMetadata = PackageMeta
+
+export type PackageMetadataWithTime = PackageMetaWithTime
+
+export interface PackageMeta {
+  name: string
+  'dist-tags': Record<string, string>
+  versions: Record<string, PackageInRegistry>
+  time?: PackageMetaTime
+  modified?: string
+  etag?: string
+  /**
+   * The ETag of a full document stored in the abbreviated metadata mirror by
+   * a `minimumReleaseAge` upgrade. Not part of the registry document. The
+   * metadata mirror stores it on the cache-headers line and reattaches it on
+   * read.
+   */
+  fullEtag?: string
+  /**
+   * Set when the registry response forbade caching this document.
+   * Not part of the registry document. The metadata mirror stores it
+   * on the cache-headers line and reattaches it on read.
+   */
+  uncacheable?: boolean
+}
+
+export interface PackageMetaWithTime extends PackageMeta {
+  time: PackageMetaTime
+}
+
+export type PackageMetaTime = Record<string, string> & {
+  unpublished?: {
+    time: string
+    versions: string[]
+  }
+}
+
+export interface PackageInRegistry extends PackageManifest {
+  hasInstallScript?: boolean
+  _npmUser?: {
+    name?: string
+    email?: string
+    approver?: {
+      name?: string
+      email?: string
+    }
+    trustedPublisher?: {
+      id: string
+      oidcConfigId: string
+    }
+  }
+  maintainers?: Array<{
+    name: string
+    email?: string
+    url?: string
+  }>
+  contributors?: Array<{
+    name: string
+    email?: string
+    url?: string
+  }>
+  dist: {
+    integrity?: string
+    /** Registry revision metadata, which this pnpm rejects. */
+    revision?: unknown
+    revisions?: unknown
+    shasum: string
+    tarball: string
+    unpackedSize?: number
+    attestations?: {
+      provenance?: {
+        predicateType: string
+      }
+    }
+  }
+}

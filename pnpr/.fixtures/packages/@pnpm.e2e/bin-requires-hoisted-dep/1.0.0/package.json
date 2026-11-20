@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/bin-requires-hoisted-dep",
+  "version": "1.0.0",
+  "bin": {
+    "bin-requires-hoisted-dep": "cli.js"
+  },
+  "dependencies": {
+    "@pnpm.e2e/pkg-with-1-dep": "100.0.0"
+  }
+}

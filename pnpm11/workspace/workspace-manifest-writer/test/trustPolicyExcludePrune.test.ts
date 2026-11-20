@@ -1,0 +1,225 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { tempDir } from '@pnpm/prepare-temp-dir'
+import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+function resolvedPackageVersions (entries: Record<string, string[]>): Map<string, Set<string>> {
+  return new Map(Object.entries(entries).map(([name, versions]) => [name, new Set(versions)]))
+}
+
+test('remove a versioned entry whose version is not resolved', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo@1.0.0', 'bar@2.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['foo@1.0.0'],
+  })
+})
+
+test('keep entries that are resolved', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo@1.0.0', '@foo/bar@2.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'], '@foo/bar': ['2.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['foo@1.0.0', '@foo/bar@2.0.0'],
+  })
+})
+
+test('rewrite a multi-version entry keeping only the resolved versions', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo@1.0.0 || 2.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['2.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['foo@2.0.0'],
+  })
+})
+
+test('rewrite a narrowed union in canonical semver order', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo@3.0.0 || 1.0.0 || 2.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['3.0.0', '1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['foo@1.0.0 || 3.0.0'],
+  })
+})
+
+test('remove a bare-name entry whose package is absent, keep one whose package is present', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo', 'bar@1.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ bar: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['bar@1.0.0'],
+  })
+})
+
+test('keep glob entries even when nothing matches them', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['@babel/*'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['@babel/*'],
+  })
+})
+
+test('remove the field when no entry survives', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    onlyBuiltDependencies: ['fsevents'],
+    trustPolicyExclude: ['foo@1.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    onlyBuiltDependencies: ['fsevents'],
+  })
+})
+
+test('no cleanup when resolvedPackageVersions is absent', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo@1.0.0', 'bar'],
+  })
+  await updateWorkspaceManifest(dir, {})
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['foo@1.0.0', 'bar'],
+  })
+})
+
+test('no cleanup when the setting is off', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo@1.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['foo@1.0.0'],
+  })
+})
+
+test('keep entries that fail to parse', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: ['foo@not-a-version', 'bar@1.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: ['foo@not-a-version'],
+  })
+})
+
+test('keep an empty list untouched', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    trustPolicyExclude: [],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({}),
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    trustPolicyExclude: [],
+  })
+})
+
+test('prune both exclude lists in one write when both settings are on', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, {
+    minimumReleaseAgeExclude: ['foo@1.0.0'],
+    trustPolicyExclude: ['foo@2.0.0'],
+  })
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
+    minimumReleaseAgeExcludePrune: true,
+    trustPolicyExcludePrune: true,
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    minimumReleaseAgeExclude: ['foo@1.0.0'],
+  })
+})
+
+test('keep a surviving entry\'s trailing comment when another entry is pruned', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n  - bar@2.0.0\n')
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('trustPolicyExclude:\n  - foo@1.0.0 # trusted fork\n')
+})
+
+test('keep a surviving entry\'s comment when a narrowed entry is rewritten', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'trustPolicyExclude:\n  - foo@1.0.0 || 2.0.0 # both audited\n  - bar@1.0.0 # pinned\n')
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['2.0.0'], bar: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('trustPolicyExclude:\n  - foo@2.0.0\n  - bar@1.0.0 # pinned\n')
+})
+
+test('keep a standalone comment above the list', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  fs.writeFileSync(filePath, 'trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n  - bar@2.0.0\n')
+  await updateWorkspaceManifest(dir, {
+    resolvedPackageVersions: resolvedPackageVersions({ foo: ['1.0.0'] }),
+    trustPolicyExcludePrune: true,
+  })
+  expect(fs.readFileSync(filePath, 'utf8')).toBe('trustPolicyExclude:\n  # pinned after the audit\n  - foo@1.0.0\n')
+})

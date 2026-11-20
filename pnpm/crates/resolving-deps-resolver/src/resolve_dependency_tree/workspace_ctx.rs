@@ -1,0 +1,746 @@
+//! The workspace-shared half of the walk: [`WorkspaceTreeCtx`], the
+//! per-`pkgIdWithPatchHash` dedup maps every importer's walk
+//! contributes to, and the children-ownership bookkeeping that settles
+//! which occurrence of a package records its children.
+
+pub(super) use children_ownership::{
+    ChildrenOwner,
+    ChildrenOwnerClaim,
+    ChildrenRecording,
+    RecordedChildren,
+    RecordedChildrenContext,
+    children_warmup_claimed,
+    claim_children_owner,
+    claim_children_warmup,
+    insert_tree_node,
+    is_current_children_owner,
+    make_non_owner_nodes_lazy,
+    record_children,
+    register_peer_dep_names,
+    register_shadowable_dep_names,
+};
+pub(super) use subtree_split::{
+    claim_recorded_subtree_owners,
+    recorded_children_match,
+    recorded_prior_key,
+};
+
+pub(super) use cache_keys::{
+    PathKey,
+    SharedWorkspaceWantedKey,
+    WantedKey,
+    WorkspaceFinalWantedKey,
+    WorkspaceResolutionOptionsKey,
+};
+
+mod reachable_nodes;
+use reachable_nodes::{
+    collect_newly_visited,
+    fold_version,
+    fold_visited_versions,
+    merge_synced_child_spec,
+    walk_reachable_children,
+    walk_reachable_nodes,
+};
+
+mod version_snapshot;
+
+mod tree_sync;
+
+mod children_ownership;
+use children_ownership::ChildrenOwnerEntry;
+
+mod subtree_split;
+
+mod cache_keys;
+
+mod update_scopes;
+
+use jiff::Timestamp;
+use pnpm_hooks::PnpmfileHooks;
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    RegistryContext,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveOptions,
+    WorkspacePackages,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    hash::{
+        Hash,
+        Hasher,
+    },
+    path::PathBuf,
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        OnceLock,
+        RwLock,
+    },
+};
+
+use crate::{
+    node_id::NodeId,
+    parent_pkg_aliases::ParentPkgAliases,
+    resolve_peers::MissingNames,
+    resolved_tree::{
+        AncestorPkgIds,
+        DependenciesTreeNode,
+        DirectDep,
+        PeerDep,
+        ResolvedPackage,
+        ResolvedTree,
+        TreeChildren,
+    },
+};
+
+use super::{
+    DependencySpec,
+    DeprecationLogFn,
+    FinalizedPackageFn,
+    ManifestHook,
+    SkippedOptionalLogFn,
+    UpdateDepth,
+    UpdateReuseScope,
+    lock_recoverable,
+    reuse::LockfileReuseCache,
+    tree_ctx::TreeCtx,
+};
+
+/// An importer's resolved direct-dependency versions, keyed by package
+/// name. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
+pub(super) type DirectDepVersions = HashMap<String, Vec<DirectDepVersion>>;
+
+/// A resolved direct-dependency version and the registry it came from, as
+/// [`pnpm_lockfile::normalized_registry_key`], or as written when it does
+/// not parse (see [`pnpm_lockfile::same_registry`]). A locked version is compared
+/// only with entries from its own registry, so a plain key and a key
+/// qualified by that registry's prefix match.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DirectDepVersion {
+    pub(super) registry: String,
+    pub(super) version: node_semver::Version,
+}
+
+impl DirectDepVersion {
+    /// The version `ver_peer` records for `name`, with the registry its key
+    /// names (see [`pnpm_lockfile::RegistryContext::registry_of_locked`]).
+    /// `None` for a key that is not a registry version, or whose prefix
+    /// nothing declares.
+    pub(super) fn of(
+        name: &str,
+        ver_peer: &pnpm_lockfile::PkgVerPeer,
+        registries: &pnpm_lockfile::RegistryContext,
+    ) -> Option<Self> {
+        let registry = registries.registry_of_locked(name, ver_peer.registry_qualified())?;
+        Some(Self {
+            registry: pnpm_lockfile::normalized_registry_key(registry)
+                .unwrap_or_else(|| registry.to_string()),
+            version: ver_peer.registry_version()?.clone(),
+        })
+    }
+}
+
+/// What registering a package in the workspace's package table found, with
+/// the table's shared id either way.
+pub(super) enum PackageRegistration {
+    /// This occurrence created the entry.
+    Created(Arc<str>),
+    /// Another occurrence created it first.
+    Existing(Arc<str>),
+}
+
+/// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
+/// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
+/// resolver's per-`pkgIdWithPatchHash` dedup (`packages`,
+/// `children_specs_by_id`, `children_by_id`, `resolved_by_wanted`) and
+/// the peer-walker's seed sets (`all_peer_dep_names`,
+/// `applied_patches`, `policy_violations`) carry across importers. One
+/// shared context is handed to every importer's hoist loop.
+///
+/// `dependencies_tree` (`NodeId → DependenciesTreeNode`) is keyed by
+/// per-occurrence `NodeIds`, which are unique even across importers, so
+/// every importer's walk contributes entries to one combined tree
+/// without colliding.
+#[derive(smart_default::SmartDefault)]
+pub struct WorkspaceTreeCtx {
+    pub(super) hooks: crate::WorkspaceResolveHooks,
+    pub(super) reuse: crate::WorkspaceLockfileReuse,
+    pub(crate) tree: WorkspaceTreeStorage,
+    pub(crate) children: WorkspaceChildrenState,
+    pub(super) cache: WorkspaceResolutionCache,
+    pub(crate) versions: WorkspacePreferredVersions,
+    pub(super) finalization: WorkspaceFinalizationState,
+    pub(super) policy: WorkspaceResolutionPolicy,
+}
+
+#[derive(Default)]
+pub(crate) struct WorkspaceTreeStorage {
+    /// Bumped whenever an [`fn@extend_tree`] call may mutate the shared
+    /// maps. The peer-hoist discovery engine compares it against the
+    /// revision of its last sync to skip re-syncing an unchanged
+    /// context.
+    ///
+    /// [`fn@extend_tree`]: super::extend_tree
+    revision: std::sync::atomic::AtomicU64,
+    /// Bumped whenever a children-ownership change rewrites an existing
+    /// occurrence node's children in `dependencies_tree` (see
+    /// [`fn@make_non_owner_nodes_lazy`]). Such a rewrite invalidates
+    /// walk state derived from the previous children, so the discovery
+    /// engine rebuilds its view instead of merging when this advanced
+    /// since its last sync.
+    children_rewrites: std::sync::atomic::AtomicU64,
+    pub(super) packages: Mutex<HashMap<Arc<str>, ResolvedPackage>>,
+    dependencies_tree: Mutex<HashMap<NodeId, DependenciesTreeNode>>,
+    pub(super) all_peer_dep_names: Mutex<HashSet<String>>,
+    /// Reverse index over `dependencies_tree`: every occurrence node
+    /// recorded for a `pkgIdWithPatchHash`. Keeps
+    /// [`fn@make_non_owner_nodes_lazy`] proportional to the package's
+    /// own occurrences, scanning the whole tree per recorded package
+    /// made lockfile-reuse walks quadratic in workspace size.
+    nodes_by_pkg_id: Mutex<HashMap<Arc<str>, Vec<NodeId>>>,
+    /// See [`SyncLog`].
+    sync_log: Mutex<SyncLog>,
+    /// Packages whose regular dependency failed to resolve inside an
+    /// optional subtree, each with the failure of the alphabetically first
+    /// such dependency, so the reported error does not depend on which
+    /// failure arrived first.
+    broken_packages: Mutex<HashMap<Arc<str>, (String, super::ResolveDependencyTreeError)>>,
+}
+
+#[derive(Default)]
+pub(crate) struct WorkspaceChildrenState {
+    pub(super) specs_by_id: RwLock<HashMap<Arc<str>, Arc<Vec<DependencySpec>>>>,
+    /// Package ids whose children have already been speculatively
+    /// resolved. A package is warmed once, however many occurrences of
+    /// it a level seeds; see [`fn@warm_children_resolutions`].
+    ///
+    /// [`fn@warm_children_resolutions`]: super::walk::warm_children_resolutions
+    warmed_by_id: Mutex<HashSet<Arc<str>>>,
+    pub(super) by_id: Mutex<HashMap<Arc<str>, RecordedChildren>>,
+    /// Every name a seeded package lists both in `dependencies` and in
+    /// `peerDependencies`. Only these names can change which children a
+    /// walk resolves under a different scope; see
+    /// [`fn@recorded_children_match`].
+    shadowable_dep_names: Mutex<HashSet<String>>,
+    owner_by_id: Mutex<HashMap<Arc<str>, ChildrenOwnerEntry>>,
+    /// `pkg id → importer id` of the importer whose occurrence owns
+    /// that package's shared children context. Ownership is chosen by
+    /// update-active status followed by `(depth, importer order, parent path)`:
+    /// a package's subtree is recorded once per id, and a non-owner occurrence
+    /// reuses the owner occurrence's children and missing-peer report. Consumed via
+    /// [`crate::HoistMissingScope`].
+    first_importer_by_pkg: Mutex<SnapshotCell<HashMap<String, String>, HashMap<String, String>>>,
+    /// Per package: the missing-peer names reported by the *initial*
+    /// peer walk of the current children-owner generation, plus the
+    /// owner that recorded them (`None` while only a non-owner's
+    /// provisional walk has been seen). The record is written once per
+    /// generation: later hoist waves of the same owner never refresh it,
+    /// so a peer the owner only satisfied by hoisting stays visible to
+    /// every other importer's hoist. Consumed via
+    /// [`crate::HoistMissingScope`].
+    first_walk_missing_by_pkg: Mutex<FirstWalkMissingCell>,
+}
+
+/// The completed per-wanted result, when another caller has already
+/// finished this edge.
+pub(in crate::resolve_dependency_tree) fn completed_resolved_wanted(
+    ctx: &TreeCtx,
+    cache_key: &WantedKey,
+) -> Option<Arc<pnpm_resolving_resolver_base::ResolveResult>> {
+    lock_recoverable(&ctx.workspace.cache.resolved_by_wanted).get(cache_key).map(Arc::clone)
+}
+
+/// Acquire the wanted key's admission lock so concurrent first callers
+/// of `resolve_wanted_cached` run the resolver chain and manifest
+/// hooks once; the waiter re-checks the completed cache after the
+/// holder finishes. Never held across the cache map's own lock, and a
+/// cancelled holder releases it on drop so the next caller retries.
+pub(in crate::resolve_dependency_tree) async fn wanted_key_admission(
+    ctx: &TreeCtx,
+    cache_key: &WantedKey,
+) -> tokio::sync::OwnedMutexGuard<()> {
+    let key_lock = {
+        let mut in_flight = lock_recoverable(&ctx.workspace.cache.in_flight_by_wanted);
+        std::sync::Arc::clone(in_flight.entry(cache_key.clone()).or_default())
+    };
+    key_lock.lock_owned().await
+}
+
+/// The hook-processed workspace result for this canonical target and
+/// rendered link, when another importer already finished it.
+pub(in crate::resolve_dependency_tree) fn cached_workspace_final(
+    ctx: &TreeCtx,
+    workspace_final_key: Option<&WorkspaceFinalWantedKey>,
+) -> Option<Arc<pnpm_resolving_resolver_base::ResolveResult>> {
+    lock_recoverable(&ctx.workspace.cache.resolved_workspace_final_by_wanted)
+        .get(workspace_final_key?)
+        .map(Arc::clone)
+}
+
+#[derive(Default)]
+pub(super) struct WorkspaceResolutionCache {
+    pub(super) has_read_package: tokio::sync::OnceCell<bool>,
+    pub(super) resolved_by_wanted:
+        Mutex<HashMap<WantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Resolver output for workspace directory resolutions before manifest
+    /// hooks run. `link:` paths are canonicalised relative to the lockfile
+    /// root, so one entry can be rendered for every consuming importer.
+    pub(super) resolved_workspace_by_wanted:
+        Mutex<HashMap<SharedWorkspaceWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Hook-processed workspace results indexed by their canonical target and
+    /// rendered consumer link, so importers that render the same `link:` reuse
+    /// one hook pass. `resolved_by_wanted` keeps its project-scoped entry for
+    /// these too; this map is what a *different* importer hits.
+    pub(super) resolved_workspace_final_by_wanted:
+        Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Per-key admission locks for concurrent first callers of
+    /// `resolve_wanted_cached` (the walk's wanted-edge cache). The
+    /// resolver's fetch locker already
+    /// coalesces the network work; without this map those callers also
+    /// each repeat the resolver chain's remaining work and the manifest
+    /// hook pipeline (including pnpmfile, a JS bridge) for the same
+    /// key. The guard is never held across the map's own lock, and a
+    /// cancelled first caller releases it on drop so the next caller
+    /// retries cleanly.
+    pub(super) in_flight_by_wanted: Mutex<HashMap<WantedKey, Arc<tokio::sync::Mutex<()>>>>,
+    /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
+    pub(super) share_workspace_resolutions: bool,
+    /// See [`LockfileReuseCache`].
+    pub(super) lockfile_reuse: LockfileReuseCache,
+
+    /// Resolved registry map (`"default"` + per-scope) used to
+    /// materialize a prior `Registry` lockfile resolution back into its
+    /// tarball URL for the `currentPkg` payload. Empty when the entry
+    /// point doesn't thread registries (then `currentPkg` is withheld
+    /// for `Registry`-shaped entries rather than sent without a URL).
+    /// Alias → URL map of named registries (built-ins merged with the
+    /// user's setting), for materializing a prior registry-qualified
+    /// `Registry` lockfile resolution back into its tarball URL.
+    pub(super) registry_context: RegistryContext,
+}
+
+#[derive(Default)]
+pub(crate) struct WorkspacePreferredVersions {
+    /// `pkgIdWithPatchHash` of every importer-level direct dependency
+    /// recorded so far (initial waves plus hoisted peers), across all
+    /// importers. These are the roots [`WorkspaceTreeCtx::run_preferred_versions`]
+    /// derives the run-resolved preferred versions from.
+    preferred_version_roots: Mutex<HashSet<String>>,
+    /// `pkgIdWithPatchHash → (name, version)` for packages whose
+    /// resolution carries no `name_ver` but was wanted through a
+    /// non-path `workspace:` specifier, the workspace-project versions
+    /// [`WorkspaceTreeCtx::run_preferred_versions`] folds for such packages. Keyed
+    /// by package id so the fold stays reachability-gated.
+    workspace_manifest_identities: Mutex<HashMap<String, (String, String)>>,
+    /// Memoised result of [`WorkspaceTreeCtx::run_preferred_versions`], keyed by the
+    /// `(revision, children_rewrites)` pair it was computed at.
+    run_versions_cache: Mutex<RunVersionsCache>,
+    /// Per importer: direct-dep aliases whose manifest specifier differs
+    /// from the prior lockfile (new deps included). Gates the stale-pin
+    /// refresh's reuse-decline within that importer; cross-importer
+    /// direct-dep version changes decline reuse via
+    /// [`Self::changed_direct_dep_versions`] when a resolved version
+    /// differs from the pinned version.
+    pub(super) changed_direct_deps: Mutex<HashMap<String, Arc<HashSet<PkgName>>>>,
+    /// The parsed resolved versions of direct dependencies that changed
+    /// in this install across the workspace, pre-seeded before any
+    /// importer walks its transitive subtrees. Merged into each
+    /// importer's [`Self::direct_dep_versions`] for package names the
+    /// importer does not declare directly.
+    pub(super) changed_direct_dep_versions: Mutex<Arc<DirectDepVersions>>,
+    /// Per importer: the parsed resolved versions of its own direct
+    /// dependencies, plus [`Self::changed_direct_dep_versions`] for
+    /// names the importer does not declare directly. Consulted by
+    /// [`fn@higher_direct_dep_version`]. `Arc` so the hot child walk
+    /// snapshots the importer's map with one lock + refcount bump
+    /// instead of locking per edge.
+    ///
+    /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
+    pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
+    /// Per importer: the auto-installed peers whose lockfile pin is not
+    /// reused. See `find_stale_peer_pins`.
+    stale_peer_pins: HashMap<String, HashSet<String>>,
+    /// Every peer version the wanted lockfile pins, shared by the
+    /// importers the lockfile does not list. See
+    /// [`WorkspaceTreeCtx::unlisted_importer_locked_peers`].
+    unlisted_importer_locked_peers: OnceLock<Arc<HashMap<String, HashSet<String>>>>,
+}
+
+#[derive(Default)]
+pub(super) struct WorkspaceFinalizationState {
+    /// The package ids already handed to `finalized_package`, so every
+    /// package is announced once across importers and hoist rounds.
+    pub(super) finalized_ids: Mutex<HashSet<Arc<str>>>,
+    /// Packages written or re-recorded since the last finalization
+    /// sweep: the only ones whose verdict can have changed on their own.
+    /// Maintained only while `finalized_package` is set.
+    pub(super) finalization_pending: Mutex<Vec<Arc<str>>>,
+    /// Every package whose recorded children include the key, so a
+    /// package's finalization can be propagated to the packages
+    /// depending on it. Maintained only while `finalized_package` is
+    /// set; see [`update_parent_index`](children_ownership::update_parent_index).
+    pub(super) parents_by_id: Mutex<HashMap<Arc<str>, HashSet<Arc<str>>>>,
+}
+
+#[derive(Default)]
+pub(super) struct WorkspaceResolutionPolicy {
+    pub(super) policy_violations:
+        Mutex<Vec<pnpm_resolving_resolver_base::ResolutionPolicyViolation>>,
+    pub(super) applied_patches: Mutex<HashSet<String>>,
+    /// The `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
+    /// The install's `autoInstallPeers` setting. It widens which of a
+    /// resolved package's `dependencies` its own `peerDependencies`
+    /// shadow; see [`peer_shadowed_dependencies`].
+    ///
+    /// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
+    pub(super) auto_install_peers: bool,
+    /// The `overrides` entries, used to attribute an
+    /// `ERR_PNPM_NO_MATCHING_VERSION` to the entry that forced the missing
+    /// version.
+    pub(super) parsed_overrides: Option<Arc<[crate::OverrideEntry]>>,
+}
+
+/// The per-package missing-peer names
+/// [`crate::resolve_dependency_tree::workspace_ctx::WorkspaceChildrenState::first_walk_missing_by_pkg`] projects out of its
+/// [`OwnerMissingRecord`] entries.
+type FirstWalkMissing = HashMap<String, HashSet<String>>;
+
+type FirstWalkMissingCell = SnapshotCell<HashMap<String, OwnerMissingRecord>, FirstWalkMissing>;
+
+/// One [`crate::resolve_dependency_tree::workspace_ctx::WorkspaceChildrenState::first_walk_missing_by_pkg`] entry: the
+/// missing-peer names plus the owner generation that recorded them
+/// (`None` for a non-owner's provisional report).
+struct OwnerMissingRecord {
+    recorded_by: Option<ChildrenOwner>,
+    names: HashSet<String>,
+}
+
+/// A map whose readers want a whole-map snapshot rather than a lookup,
+/// paired with the last snapshot handed out. Every hoist round of every
+/// importer takes one of these, so rebuilding per read is quadratic in
+/// workspace size, the cached `Arc` collapses a round of reads that
+/// changed nothing into one projection.
+///
+/// Writers reach the map through [`Self::map_mut`], which drops the
+/// snapshot; a writer that finds nothing to change must keep to
+/// [`Self::map`] so the cache survives.
+struct SnapshotCell<Map, Snapshot> {
+    map: Map,
+    snapshot: Option<Arc<Snapshot>>,
+}
+
+impl<Map: Default, Snapshot> Default for SnapshotCell<Map, Snapshot> {
+    fn default() -> Self {
+        SnapshotCell { map: Map::default(), snapshot: None }
+    }
+}
+
+impl<Map, Snapshot> SnapshotCell<Map, Snapshot> {
+    fn map(&self) -> &Map {
+        &self.map
+    }
+
+    fn map_mut(&mut self) -> &mut Map {
+        self.snapshot = None;
+        &mut self.map
+    }
+
+    /// The current snapshot, projected through `project` when a write
+    /// invalidated the last one. Snapshots already handed out keep the
+    /// contents they were built from.
+    fn snapshot(&mut self, project: impl FnOnce(&Map) -> Snapshot) -> Arc<Snapshot> {
+        Arc::clone(self.snapshot.get_or_insert_with(|| Arc::new(project(&self.map))))
+    }
+}
+
+/// State behind [`WorkspaceTreeCtx::run_preferred_versions`]: the
+/// package ids already traversed and the `name → version` entries
+/// their identities folded into, valid as of the recorded
+/// `(revision, children_rewrites)` pair.
+#[derive(Default)]
+pub(super) struct RunVersionsCache {
+    revision: u64,
+    children_rewrites: u64,
+    visited: HashSet<String>,
+    /// Visited packages that carry no `name_ver` and whose
+    /// workspace-manifest identity hasn't been recorded yet. Re-checked
+    /// on every refresh: the identity is recorded per `workspace:` edge,
+    /// and a later wave can add such an edge to an already-visited
+    /// package.
+    awaiting_identity: HashSet<String>,
+    pub(super) versions: pnpm_resolving_resolver_base::PreferredVersions,
+}
+
+/// Append-only record of which keys of the shared maps have been
+/// written since the context was created, so
+/// [`WorkspaceTreeCtx::sync_discovery_tree`] can refresh a view by
+/// visiting the writes instead of rescanning every map.
+///
+/// Keys only: the sync reads each key's current value, so logging one
+/// twice, or in either order, converges on the same view.
+#[derive(Default)]
+struct SyncLog {
+    packages: Vec<String>,
+    children_by_id: Vec<String>,
+    dependencies_tree: Vec<NodeId>,
+    peer_dep_names: Vec<String>,
+}
+
+/// How much of a [`SyncLog`] a [`ResolvedTree`] view has already
+/// absorbed. [`WorkspaceTreeCtx::rebuild_discovery_tree`] sets it for a
+/// view built from scratch.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct SyncCursor {
+    packages: usize,
+    children_by_id: usize,
+    dependencies_tree: usize,
+    peer_dep_names: usize,
+}
+
+impl WorkspaceTreeCtx {
+    pub(super) fn record_broken_package(
+        &self,
+        pkg_id: &Arc<str>,
+        failed_alias: &str,
+        err: super::ResolveDependencyTreeError,
+    ) {
+        let mut broken = lock_recoverable(&self.tree.broken_packages);
+        match broken.get(pkg_id) {
+            Some((recorded_alias, _)) if recorded_alias.as_str() <= failed_alias => {}
+            _ => {
+                broken.insert(Arc::clone(pkg_id), (failed_alias.to_string(), err));
+            }
+        }
+    }
+
+    /// Drain the recorded broken packages, leaving none behind.
+    pub(crate) fn take_broken_packages(
+        &self,
+    ) -> HashMap<Arc<str>, super::ResolveDependencyTreeError> {
+        std::mem::take(&mut *lock_recoverable(&self.tree.broken_packages))
+            .into_iter()
+            .map(|(pkg_id, (_, err))| (pkg_id, err))
+            .collect()
+    }
+
+    pub(crate) fn skipped_optional_log(&self) -> Option<SkippedOptionalLogFn> {
+        self.hooks.skipped_optional_log.clone()
+    }
+
+    pub(crate) fn with_hooks(mut self, hooks: crate::WorkspaceResolveHooks) -> Self {
+        self.hooks = hooks;
+        self
+    }
+
+    pub(crate) fn with_lockfile_reuse(mut self, reuse: crate::WorkspaceLockfileReuse) -> Self {
+        self.reuse = reuse;
+        self
+    }
+
+    pub(crate) fn set_stale_peer_pins(
+        &mut self,
+        stale_peer_pins: HashMap<String, HashSet<String>>,
+    ) {
+        self.versions.stale_peer_pins = stale_peer_pins;
+    }
+
+    pub(super) fn is_stale_peer_pin(&self, importer_id: &str, alias: &str) -> bool {
+        self.versions.stale_peer_pins
+            .get(importer_id)
+            .is_some_and(|aliases| aliases.contains(alias))
+    }
+
+    /// Sets [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
+    #[must_use]
+    pub fn with_shared_workspace_resolutions(mut self, share_workspace_resolutions: bool) -> Self {
+        self.cache.share_workspace_resolutions = share_workspace_resolutions;
+        self
+    }
+
+    /// Attach a `readPackageHook` applied to every resolved manifest
+    /// before it enters the wanted-dep cache. See [`ManifestHook`] for
+    /// the signature.
+    #[must_use]
+    pub fn with_manifest_hook(mut self, manifest_hook: Option<ManifestHook>) -> Self {
+        self.hooks.manifests.manifest_hook = manifest_hook;
+        self
+    }
+
+    /// Attach the post-pnpmfile [`ManifestHook`] (overrides). See the
+    /// `overrides_hook` field for the ordering contract.
+    #[must_use]
+    pub fn with_overrides_hook(mut self, overrides_hook: Option<ManifestHook>) -> Self {
+        self.hooks.manifests.overrides_hook = overrides_hook;
+        self
+    }
+
+    /// Attach the `overrides` entries. See the `parsed_overrides` field.
+    #[must_use]
+    pub fn with_parsed_overrides(
+        mut self,
+        parsed_overrides: Option<Arc<[crate::OverrideEntry]>>,
+    ) -> Self {
+        self.policy.parsed_overrides = parsed_overrides;
+        self
+    }
+
+    /// Attach the prior `pnpm-lock.yaml` so `resolve_node` can reuse
+    /// already-resolved dependencies instead of re-resolving them. See
+    /// the `wanted_lockfile` field.
+    #[must_use]
+    pub fn with_wanted_lockfile(
+        mut self,
+        wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
+    ) -> Self {
+        self.reuse.lockfile = wanted_lockfile;
+        self
+    }
+
+    /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
+    pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
+        self.reuse.lockfile.as_ref()
+    }
+
+    /// The locked peer versions of an importer the wanted lockfile does not
+    /// list. They do not depend on the importer, so `scan` runs once per
+    /// workspace and every such importer shares its result.
+    pub(crate) fn unlisted_importer_locked_peers(
+        &self,
+        scan: impl FnOnce() -> HashMap<String, HashSet<String>>,
+    ) -> Arc<HashMap<String, HashSet<String>>> {
+        Arc::clone(self.versions.unlisted_importer_locked_peers.get_or_init(|| Arc::new(scan())))
+    }
+
+    /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
+    /// See the `reuse_lockfile_subtrees` field.
+    #[must_use]
+    pub fn with_reuse_lockfile_subtrees(mut self, reuse_lockfile_subtrees: bool) -> Self {
+        self.reuse.subtrees = reuse_lockfile_subtrees;
+        self
+    }
+
+    /// Snapshot of `pkg id → children-owner importer id`. See the field doc.
+    #[must_use]
+    pub fn first_importer_by_pkg(&self) -> Arc<HashMap<String, String>> {
+        lock_recoverable(&self.children.first_importer_by_pkg).snapshot(Clone::clone)
+    }
+
+    /// Set which dependencies `pacquet update` excludes from reuse. See
+    /// [`UpdateReuseScope`].
+    #[must_use]
+    pub fn with_update_reuse_scope(mut self, scope: UpdateReuseScope) -> Self {
+        self.reuse.scope = scope;
+        self
+    }
+
+    #[must_use]
+    pub fn with_update_reuse_scopes_by_importer(
+        mut self,
+        scopes: BTreeMap<String, UpdateReuseScope>,
+    ) -> Self {
+        self.reuse.scopes_by_importer = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
+        self.reuse.depth = update_depth;
+        self
+    }
+
+    #[must_use]
+    pub fn with_pnpmfile_hook(mut self, pnpmfile_hook: Option<Arc<dyn PnpmfileHooks>>) -> Self {
+        self.hooks.manifests.pnpmfile_hook = pnpmfile_hook;
+        self
+    }
+
+    /// Attach the `context.log(...)` sink the `pnpmfile_hook`'s
+    /// `readPackage` calls forward to. The install layer pre-binds the
+    /// reporter, project prefix, and pnpmfile path into the closure so the
+    /// resolver stays reporter-agnostic.
+    #[must_use]
+    pub fn with_read_package_log(mut self, read_package_log: Option<pnpm_hooks::LogFn>) -> Self {
+        self.hooks.read_package_log = read_package_log;
+        self
+    }
+
+    /// Attach the sink skipped-optional-dependency notifications are
+    /// forwarded to. See [`SkippedOptionalLogFn`].
+    #[must_use]
+    pub fn with_skipped_optional_log(
+        mut self,
+        skipped_optional_log: Option<SkippedOptionalLogFn>,
+    ) -> Self {
+        self.hooks.skipped_optional_log = skipped_optional_log;
+        self
+    }
+
+    /// Attach the finalized-package sink. See [`FinalizedPackageFn`].
+    #[must_use]
+    pub fn with_finalized_package(mut self, finalized_package: Option<FinalizedPackageFn>) -> Self {
+        self.hooks.finalized_package = finalized_package;
+        self
+    }
+
+    /// Attach the `pnpm.allowedDeprecatedVersions` map. See
+    /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
+    #[must_use]
+    pub fn with_allowed_deprecated_versions(
+        mut self,
+        allowed_deprecated_versions: BTreeMap<String, String>,
+    ) -> Self {
+        self.policy.allowed_deprecated_versions = allowed_deprecated_versions;
+        self
+    }
+
+    /// Attach the sink deprecation notifications are forwarded to.
+    /// See [`DeprecationLogFn`].
+    #[must_use]
+    pub fn with_deprecation_log(mut self, deprecation_log: Option<DeprecationLogFn>) -> Self {
+        self.hooks.deprecation_log = deprecation_log;
+        self
+    }
+
+    /// Set the install's `autoInstallPeers` flag. See the field doc.
+    #[must_use]
+    pub fn with_auto_install_peers(mut self, auto_install_peers: bool) -> Self {
+        self.policy.auto_install_peers = auto_install_peers;
+        self
+    }
+
+    /// Attach the registry facts. See the `registry_context` field.
+    #[must_use]
+    pub fn with_registry_context(mut self, registry_context: RegistryContext) -> Self {
+        self.cache.registry_context = registry_context;
+        self
+    }
+}
+
+/// Take a mutex-held map out of a context this thread solely owns,
+/// recovering from poisoning like every other read of these maps.
+fn take_locked<Value: Default>(cell: &mut Mutex<Value>) -> Value {
+    std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
+}
+
+/// [`fn@take_locked`] for a [`RwLock`].
+fn take_write_locked<Value: Default>(cell: &mut RwLock<Value>) -> Value {
+    std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
+}
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod parent_index_tests;

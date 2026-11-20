@@ -1,0 +1,584 @@
+import { describe, test, before, snapshot } from 'node:test'
+import assert from 'node:assert/strict'
+
+snapshot.setDefaultSnapshotSerializers([
+  (value) => typeof value === 'string' ? `\n${value.replaceAll('\r', '')}` : JSON.stringify(value),
+])
+import path from 'node:path'
+import { cmdExtension } from 'cmd-extension'
+import { fixtures, fixtures2, fs, setupFixtures } from './setup.js'
+import {
+  cmdShim,
+  cmdShimIfExists,
+  isShimBasedirAnchorCurrent,
+  isShimForMissingTarget,
+  isShimMsysCmdSwitchDoubled,
+  isShimNodePath,
+  isShimPointingAt,
+  readShNodePath,
+  readShRelativeTarget,
+} from '@pnpm/bins.cmd-shim'
+
+/**
+ * @param {import('node:test').TestContext} t
+ * @param {string} fileName
+ * @param {'\n' | '\r\n'} lineEnding
+ * @param {string} name The subtest name, which keys the snapshot.
+ */
+async function testFile (t, fileName, lineEnding = '\n', name = path.basename(fileName).toLowerCase()) {
+  await t.test(name, async (t) => {
+    const invalidLineEnding = lineEnding === '\r\n' ? /$(?<!\r)\n/ugm : /$\r\n/ugm
+    let content = await fs.promises.readFile(fileName, 'utf8')
+
+    assert.equal(invalidLineEnding.test(content), false, 'unexpected line ending')
+    // Normalize cmd extension casing for cross-platform snapshot consistency
+    if (cmdExtension !== '.cmd') {
+      content = content.replaceAll(cmdExtension, '.cmd')
+    }
+    // Strip the target marker line — it contains a platform-dependent absolute path.
+    // The marker is tested directly by the isShimPointingAt tests.
+    content = content.replace(/# cmd-shim-target=.*\n/, '')
+    t.assert.snapshot(content)
+  })
+}
+
+describe('isShimPointingAt', () => {
+  const src = path.resolve(fixtures, 'src.exe')
+  const to = path.resolve(fixtures, 'exe.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: false, fs })
+  })
+
+  test('returns true for the correct target', async () => {
+    const content = await fs.promises.readFile(to, 'utf8')
+    assert.equal(isShimPointingAt(content, src), true)
+  })
+
+  test('returns false for a different target', async () => {
+    const content = await fs.promises.readFile(to, 'utf8')
+    assert.equal(isShimPointingAt(content, '/wrong/path.exe'), false)
+  })
+
+  test('returns false for a subdirectory prefix of the target', async () => {
+    const content = await fs.promises.readFile(to, 'utf8')
+    // src without the last path segment — must not match
+    assert.equal(isShimPointingAt(content, path.dirname(src)), false)
+  })
+})
+
+describe('missing source', () => {
+  const to = path.resolve(fixtures, 'missing.shim')
+  before(setupFixtures)
+
+  test('infers the runtime from the extension', async () => {
+    const src = path.resolve(fixtures, 'dist', 'missing.js')
+    await cmdShim(src, to, { createCmdFile: true, fs })
+    assert.match(fs.readFileSync(to, 'utf8'), /\n +exec node +"\$basedir_abs"\/'dist\/missing\.js' "\$@"\n/)
+    assert.match(fs.readFileSync(`${to}${cmdExtension}`, 'utf8'), /\n +node +"%~dp0\\dist\\missing\.js" %\*/)
+  })
+
+  test('runs a source without a known extension directly', async () => {
+    const src = path.resolve(fixtures, 'missing')
+    await cmdShim(src, to, { createCmdFile: false, fs })
+    const content = fs.readFileSync(to, 'utf8')
+    assert.match(content, /\nexec "\$basedir_abs"\/'missing' +"\$@"\n/)
+    assert.doesNotMatch(content, /exec node/)
+  })
+
+  test('cmdShimIfExists writes no shim', async () => {
+    const skipped = path.resolve(fixtures, 'if-exists.shim')
+    await cmdShimIfExists(path.resolve(fixtures, 'missing'), skipped, { createCmdFile: true, fs })
+    assert.equal(fs.existsSync(skipped), false)
+    assert.equal(fs.existsSync(`${skipped}${cmdExtension}`), false)
+  })
+
+  test('marks the shim as written for a missing target', async () => {
+    await cmdShim(path.resolve(fixtures, 'missing'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), true)
+
+    await cmdShim(path.resolve(fixtures, 'src.env'), to, { createCmdFile: false, fs })
+    assert.equal(isShimForMissingTarget(fs.readFileSync(to, 'utf8')), false)
+  })
+})
+
+describe('no cmd file', () => {
+  const src = path.resolve(fixtures, 'src.exe')
+  const to = path.resolve(fixtures, 'exe.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: false, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    assert.throws(() => fs.readFileSync(`${to}.cmd`, 'utf8'), /no such file or directory/)
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('no shebang', () => {
+  const src = path.resolve(fixtures, 'src.exe')
+  const to = path.resolve(fixtures, 'exe.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('env shebang', () => {
+  const src = path.resolve(fixtures, 'src.env')
+  const to = path.resolve(fixtures, 'env.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('env shebang with PATH extending', () => {
+  const src = path.resolve(fixtures, 'src.env')
+  const to = path.resolve(fixtures, 'env.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { prependToPath: '/add-to-path', createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('env shebang with NODE_PATH', () => {
+  const src = path.resolve(fixtures, 'src.env')
+  const to = path.resolve(fixtures, 'env.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { nodePath: ['/john/src/node_modules', '/bin/node/node_modules'], createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    // A shim written on Windows picks the NODE_PATH form when it runs.
+    await testFile(t, to, '\n', process.platform === 'win32' ? 'env.shim (windows)' : 'env.shim')
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('paths containing %', () => {
+  const src = path.resolve(fixtures, '50% off', 'src.env')
+  const to = path.resolve(fixtures, 'percent.shim')
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.mkdir(path.dirname(src), { recursive: true })
+    await fs.promises.writeFile(src, '#!/usr/bin/env node\nconsole.log(/hi/)\n')
+    return cmdShim(src, to, {
+      nodePath: ['/50% off/node_modules'],
+      prependToPath: '/50% off/bin',
+      nodeExecPath: '/50% off/node',
+      createCmdFile: true,
+      fs,
+    })
+  })
+
+  test('are escaped in the cmd shim', async () => {
+    const content = await fs.promises.readFile(`${to}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@SET "NODE_PATH=\\50%% off\\node_modules;%NODE_PATH%"'), content)
+    assert.ok(content.includes('"%~dp0\\50%% off\\src.env"'), content)
+    assert.ok(content.includes('@SET "PATH=\\50%% off\\bin;%PATH%"'), content)
+    assert.ok(content.includes('"/50%% off/node"'), content)
+  })
+
+  test('are escaped in the shebang program of the cmd shim', async () => {
+    const shebangSrc = path.resolve(fixtures, 'percent-prog.sh')
+    const shebangTo = path.resolve(fixtures, 'percent-prog.shim')
+    await fs.promises.writeFile(shebangSrc, '#!/50%OS%bin/sh -x %OS%\necho hi\n')
+    await cmdShim(shebangSrc, shebangTo, { createCmdFile: true, fs })
+    const content = await fs.promises.readFile(`${shebangTo}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@IF EXIST "%~dp0\\/50%%OS%%bin/sh.exe"'), content)
+    assert.ok(content.includes('  /50%%OS%%bin/sh  -x %%OS%% '), content)
+  })
+})
+
+describe('paths containing non-ASCII characters', () => {
+  const src = path.resolve(fixtures, '工具', 'src.env')
+  const to = path.resolve(fixtures, 'unicode.shim')
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.mkdir(path.dirname(src), { recursive: true })
+    await fs.promises.writeFile(src, '#!/usr/bin/env node\n')
+    return cmdShim(src, to, {
+      nodePath: ['/工具/node_modules'],
+      createCmdFile: true,
+      fs,
+    })
+  })
+
+  test('switch the code page without `chcp`', async () => {
+    const content = await fs.promises.readFile(`${to}${cmdExtension}`, 'utf8')
+    assert.ok(content.includes('@SET "NODE_PATH=\\工具\\node_modules;%NODE_PATH%"'), content)
+    assert.ok(content.includes('@"%SystemRoot%\\System32\\mode.com" con cp select=65001 >NUL'), content)
+    assert.ok(!content.includes('chcp'), content)
+  })
+})
+
+describe('env shebang with no NODE_PATH', () => {
+  const src = path.resolve(fixtures, 'src.env')
+  const to = path.resolve(fixtures, 'env.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { nodePath: [], createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('env shebang with default args', () => {
+  const src = path.resolve(fixtures, 'src.env')
+  const to = path.resolve(fixtures, 'env.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { preserveSymlinks: true, createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('env shebang with args', () => {
+  const src = path.resolve(fixtures, 'src.env.args')
+  const to = path.resolve(fixtures, 'env.args.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('explicit shebang', () => {
+  const src = path.resolve(fixtures, 'src.sh')
+  const to = path.resolve(fixtures, 'sh.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('explicit shebang with args', () => {
+  const src = path.resolve(fixtures, 'src.sh.args')
+  const to = path.resolve(fixtures, 'sh.args.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('explicit shebang with prog args', () => {
+  const src = path.resolve(fixtures, 'src.sh.args')
+  const to = path.resolve(fixtures, 'sh.args.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, progArgs: ['hello'], fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('custom node executable', () => {
+  const src = path.resolve(fixtures, 'src.env')
+  const to = path.resolve(fixtures, 'env.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, nodeExecPath: '/.pnpm/nodejs/16.0.0/node', fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+const describeOnWindows = process.platform === 'win32' ? describe : describe.skip
+
+describeOnWindows('explicit shebang with args, linking to another drive on Windows', () => {
+  const src = path.resolve(fixtures2, 'src.sh.args')
+  const to = path.resolve(fixtures, 'sh.args.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+    const shContent = await fs.promises.readFile(to, 'utf8')
+    assert.equal(isShimBasedirAnchorCurrent(shContent, path.relative(path.dirname(to), src)), true)
+  })
+})
+
+describe('shebang with -S', () => {
+  const src = path.resolve(fixtures, 'from.env.S')
+  const to = path.resolve(fixtures, 'from.env.S.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+})
+
+describe('large bin target', () => {
+  const src = path.resolve(fixtures, 'src.large')
+  const to = path.resolve(fixtures, 'large.shim')
+  /** @type {number} */
+  let bytesReadFromSrc = 0
+  /** @type {Set<number>} */
+  const srcFds = new Set()
+  const countingFs = {
+    ...fs,
+    open (file, ...rest) {
+      const callback = rest.pop()
+      fs.open(file, ...rest, (err, fd) => {
+        if (!err && file === src) srcFds.add(fd)
+        callback(err, fd)
+      })
+    },
+    read (fd, ...rest) {
+      const callback = rest.pop()
+      fs.read(fd, ...rest, (err, bytesRead, buffer) => {
+        if (!err && srcFds.has(fd)) bytesReadFromSrc += bytesRead
+        callback(err, bytesRead, buffer)
+      })
+    },
+    promises: {
+      ...fs.promises,
+      async readFile (file, ...rest) {
+        const content = await fs.promises.readFile(file, ...rest)
+        if (file === src) bytesReadFromSrc += Buffer.byteLength(content)
+        return content
+      },
+    },
+  }
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.writeFile(src, `#!/usr/bin/env node\n${'x'.repeat(4 * 1024 * 1024)}`)
+    return cmdShim(src, to, { createCmdFile: false, fs: countingFs })
+  })
+
+  test('reads only the start of the target to find the shebang', async () => {
+    assert.match(fs.readFileSync(to, 'utf8'), /"\$basedir\/node"/)
+    assert.ok(bytesReadFromSrc <= 1024, `read ${bytesReadFromSrc} bytes of the bin target`)
+  })
+})
+
+describe('bin target returned in short reads', () => {
+  const src = path.resolve(fixtures, 'src.short-reads')
+  const to = path.resolve(fixtures, 'short-reads.shim')
+  const shortReadFs = {
+    ...fs,
+    read (fd, buffer, offset, length, position, callback) {
+      fs.read(fd, buffer, offset, Math.min(length, 3), position, callback)
+    },
+  }
+  before(async () => {
+    await setupFixtures()
+    await fs.promises.writeFile(src, '#!/usr/bin/env node --expose-gc\nconsole.log(1)\n')
+    return cmdShim(src, to, { createCmdFile: false, fs: shortReadFs })
+  })
+
+  test('keeps reading until the shebang line is complete', async () => {
+    assert.match(fs.readFileSync(to, 'utf8'), /exec "\$basedir\/node"  --expose-gc "\$basedir_abs"\/'src\.short-reads'/)
+  })
+})
+
+describe('batch script', () => {
+  const src = path.resolve(fixtures, 'src.bat')
+  const to = path.resolve(fixtures, 'bat.shim')
+  before(async () => {
+    await setupFixtures()
+    return cmdShim(src, to, { createCmdFile: true, fs })
+  })
+
+  test('shim files', async (t) => {
+    await testFile(t, to)
+    await testFile(t, `${to}${cmdExtension}`, '\r\n')
+    await testFile(t, `${to}.ps1`)
+  })
+
+  test('isShimMsysCmdSwitchDoubled detects a shim that doubles the cmd switch', async () => {
+    const content = await fs.promises.readFile(to, 'utf8')
+    assert.equal(isShimMsysCmdSwitchDoubled(content), false)
+    assert.equal(isShimMsysCmdSwitchDoubled(content.replace('exec cmd /C ', 'exec cmd //C ')), true)
+  })
+
+  // A `/c` entry in MSYS2_ARG_CONV_EXCL would keep a drive path such as
+  // `/c/Users` from being converted. The `/c` after the switch is part of the
+  // command cmd.exe runs.
+  test('excludes only the upper-cased switch from MSYS conversion', async () => {
+    const lowerCaseSrc = path.resolve(fixtures, 'lower-case-switch.bat')
+    const lowerCaseTo = path.resolve(fixtures, 'lower-case-switch.shim')
+    await fs.promises.writeFile(lowerCaseSrc, '#!/usr/bin/env cmd /c echo /c\n')
+    await cmdShim(lowerCaseSrc, lowerCaseTo, { createCmdFile: false, fs })
+    const content = await fs.promises.readFile(lowerCaseTo, 'utf8')
+    assert.ok(content.includes('  export MSYS2_ARG_CONV_EXCL="/C${MSYS2_ARG_CONV_EXCL:+;$MSYS2_ARG_CONV_EXCL}"\n'), content)
+    assert.match(content, /exec cmd +\/C echo \/c "/, content)
+  })
+})
+
+describe('readShNodePath & isShimNodePath', () => {
+  test('extracts a multiline single-quoted POSIX path with embedded quotes', () => {
+    const shim = `
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH='/tmp/a'\\''b
+c'
+else
+  export NODE_PATH='/tmp/a'\\''b
+c':"$NODE_PATH"
+fi
+`
+    assert.equal(readShNodePath(shim), "/tmp/a'b\nc")
+  })
+
+  test('extracts posix new_node_path with single quote escapes from Windows shim', () => {
+    const shim = `
+case \`command -p uname -a\` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    exe=".exe"
+    msys="true"
+  ;;
+esac
+
+if [ -n "$msys" ]; then
+  new_node_path='C:\\foo\\bar'
+  node_path_sep=';'
+else
+  new_node_path='/mnt/c/it'\\''s/path'
+  node_path_sep=':'
+fi
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH="$new_node_path"
+fi
+`
+    assert.equal(readShNodePath(shim), "/mnt/c/it's/path")
+    assert.equal(isShimNodePath(shim, { first: "/mnt/c/it's/path" }), true)
+  })
+
+  test('matches a NODE_PATH made only of the middle entries', () => {
+    const shim = `
+if [ -z "$NODE_PATH" ]; then
+  export NODE_PATH='/slot/node_modules/pkg/node_modules:/slot/node_modules'
+else
+  export NODE_PATH='/slot/node_modules/pkg/node_modules:/slot/node_modules':"$NODE_PATH"
+fi
+`
+    const middle = ['/slot/node_modules/pkg/node_modules', '/slot/node_modules']
+    assert.equal(isShimNodePath(shim, { middle, last: [] }), true)
+    assert.equal(isShimNodePath(shim, { middle: ['/other/node_modules'], last: [] }), false)
+    assert.equal(isShimNodePath('#!/bin/sh\n', { middle, last: [] }), false)
+  })
+})
+
+describe('readShRelativeTarget', () => {
+  test('extracts relative target anchored on basedir_abs', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+basedir_win="$basedir"
+exec "$basedir/node" "$basedir_abs/../foo/bin/cli.js" "$@"
+`
+    assert.equal(readShRelativeTarget(shim), '../foo/bin/cli.js')
+  })
+
+  test('extracts a single-quoted relative target anchored on basedir_abs', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+exec "$basedir_abs"/'../$(touch marker)/cli.js' "$@"
+`
+    assert.equal(readShRelativeTarget(shim), '../$(touch marker)/cli.js')
+  })
+
+  test('returns undefined when shim has no basedir_abs anchor', () => {
+    const shim = `
+exec "$basedir/node" "/abs/path/cli.js" "$@"
+`
+    assert.equal(readShRelativeTarget(shim), undefined)
+  })
+})
+
+describe('isShimBasedirAnchorCurrent', () => {
+  const absTarget = path.resolve('/store/cli.js')
+
+  test('returns true for relative target with basedir_abs prelude', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+exec "$basedir/node" "$basedir_abs/../foo/bin/cli.js" "$@"
+`
+    assert.equal(isShimBasedirAnchorCurrent(shim, '../foo/bin/cli.js'), true)
+  })
+
+  test('returns true for absolute target without basedir_abs prelude', () => {
+    const shim = `
+exec "$basedir/node" "${absTarget}" "$@"
+`
+    assert.equal(isShimBasedirAnchorCurrent(shim, absTarget), true)
+  })
+
+  test('returns false when absolute target unexpectedly has basedir_abs prelude', () => {
+    const shim = `
+basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?
+basedir="$basedir_abs"
+exec "$basedir/node" "${absTarget}" "$@"
+`
+    assert.equal(isShimBasedirAnchorCurrent(shim, absTarget), false)
+  })
+})
+
+

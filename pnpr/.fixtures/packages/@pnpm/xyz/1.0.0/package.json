@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm/xyz",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm/x": "^1.0.0",
+    "@pnpm/y": "^1.0.0",
+    "@pnpm/z": "^1.0.0"
+  }
+}

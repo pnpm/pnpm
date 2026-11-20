@@ -1,0 +1,89 @@
+---
+id: exec
+title: pnpm exec
+---
+
+Execute a shell command in scope of a project.
+
+`node_modules/.bin` is added to the `PATH`, so `pnpm exec` allows executing commands of dependencies. The name of the current package is available through the environment variable `PNPM_PACKAGE_NAME`.
+
+## Examples
+
+If you have Jest as a dependency of your project, there is no need to install Jest globally. Run it with `pnpm exec`:
+
+```sh
+pnpm exec jest
+```
+
+The `exec` part is actually optional when the command is not in conflict with a builtin pnpm command, so you may also run:
+
+```sh
+pnpm jest
+```
+
+## Options
+
+pnpm reads its own options up to the command name, before or after the `exec` keyword. Everything after the command name is passed to the executed command.
+
+Both of these run `jest` in every project of the workspace:
+
+```sh
+pnpm -r exec jest
+pnpm exec -r jest
+```
+
+This one runs `jest` in the current project only, with `-r` as an argument of `jest`:
+
+```sh
+pnpm exec jest -r
+```
+
+### --recursive, -r
+
+Execute the shell command in every project of the workspace. The [recursive options](./recursive.md#options), such as `--workspace-concurrency`, `--[no-]sort`, and `--reverse`, apply.
+
+#### Examples
+
+Prune `node_modules` installations for all packages:
+
+```sh
+pnpm -r exec rm -rf node_modules
+```
+
+View package information for all packages. This should be used with the `--shell-mode` (or `-c`) option for the environment variable to work.
+
+```sh
+pnpm -rc exec pnpm view \$PNPM_PACKAGE_NAME
+```
+
+### --no-reporter-hide-prefix
+
+Do not hide prefix when running commands in parallel.
+
+### --resume-from &lt;package_name\>
+
+Resume execution at a particular project. pnpm skips the projects a matching
+record of the previous recursive `exec` says already passed. Without such a
+record, it omits the named project's transitive dependencies, but still runs
+the named project, its dependents, and unrelated projects in the selected
+graph. See [Workspace task
+orchestration](../workspace-task-orchestration.md#--resume-from-package_name).
+
+### --parallel
+
+Completely disregard concurrency and topological sorting, running a given script
+immediately in all matching packages. This is the
+preferred flag for long-running processes over many packages, for instance, a
+lengthy build process.
+
+### --shell-mode, -c
+
+Runs the command inside a shell. Uses `/bin/sh` on UNIX and `cmd.exe` on Windows.
+
+### --report-summary
+
+[Read about this option in the run command docs](./run.md#--report-summary)
+
+### --filter &lt;package_selector\>
+
+[Read more about filtering.](../filtering.md)

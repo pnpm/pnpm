@@ -1,0 +1,84 @@
+use super::super::{
+    cas_paths_key,
+    cold::{
+        ColdCapture,
+        add_cold_cas_paths,
+    },
+    warm::warm_cas_paths_by_pkg_id,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use pretty_assertions::assert_eq;
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
+
+#[test]
+fn warm_cas_paths_share_prefetch_maps_and_deduplicate_peer_variants() {
+    let plain: PackageKey = "a@1.0.0".parse().unwrap();
+    let peered: PackageKey = "a@1.0.0(peer@1.0.0)".parse().unwrap();
+    let patched: PackageKey = "a@1.0.0(patch_hash=abc)".parse().unwrap();
+    let snapshot = SnapshotEntry::default();
+    let paths =
+        Arc::new(HashMap::from([("index.js".to_string(), PathBuf::from("cas/plain").into())]));
+    let patched_paths =
+        Arc::new(HashMap::from([("index.js".to_string(), PathBuf::from("cas/patched").into())]));
+    let warm = [
+        (&plain, &snapshot, &paths, "plain", false),
+        (&peered, &snapshot, &paths, "plain", false),
+        (&patched, &snapshot, &patched_paths, "patched", true),
+    ];
+
+    let map = warm_cas_paths_by_pkg_id(&warm);
+
+    dbg!(&map);
+    assert_eq!(map.len(), 2);
+    assert!(Arc::ptr_eq(&map[&cas_paths_key(&plain)].cas_paths, &paths));
+    assert!(Arc::ptr_eq(&map[&cas_paths_key(&patched)].cas_paths, &patched_paths));
+    assert!(!map[&cas_paths_key(&plain)].needs_build);
+    assert!(map[&cas_paths_key(&patched)].needs_build);
+}
+
+#[test]
+fn cold_cas_paths_preserve_warm_entries_and_add_missing_packages() {
+    let warm_key: PackageKey = "a@1.0.0".parse().unwrap();
+    let duplicate: PackageKey = "a@1.0.0(peer@1.0.0)".parse().unwrap();
+    let cold_key: PackageKey = "b@1.0.0".parse().unwrap();
+    let snapshot = SnapshotEntry::default();
+    let warm_paths =
+        Arc::new(HashMap::from([("index.js".to_string(), PathBuf::from("cas/warm").into())]));
+    let mut map = warm_cas_paths_by_pkg_id(&[(&warm_key, &snapshot, &warm_paths, "warm", false)]);
+    let cold = [&duplicate, &cold_key]
+        .into_iter()
+        .map(|snapshot_key| ColdCapture {
+            snapshot_key,
+            snapshot: &snapshot,
+            installed: crate::InstalledPackage {
+                cas_paths: std::sync::Arc::new(HashMap::from([(
+                    "index.js".to_string(),
+                    PathBuf::from("cas/cold").into(),
+                )])),
+                manifest: None,
+                requires_build: Some(false),
+                bins: None,
+                source_is_mutable: false,
+                source_exists: true,
+            },
+            requires_build: snapshot_key == &cold_key,
+            force_import: false,
+        })
+        .collect();
+
+    add_cold_cas_paths(&mut map, cold);
+
+    dbg!(&map);
+    assert_eq!(map.len(), 2);
+    assert!(Arc::ptr_eq(&map[&cas_paths_key(&warm_key)].cas_paths, &warm_paths));
+    assert_eq!(map[&cas_paths_key(&cold_key)].cas_paths["index.js"].to_str(), Some("cas/cold"));
+    assert!(!map[&cas_paths_key(&warm_key)].needs_build);
+    assert!(map[&cas_paths_key(&cold_key)].needs_build);
+}

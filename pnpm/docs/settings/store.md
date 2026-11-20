@@ -1,0 +1,326 @@
+---
+id: store
+title: "Store & Lockfile Settings"
+sidebar_label: "Store & lockfile"
+---
+
+## Store settings
+
+### storeDir
+
+* Default:
+  * If the **$PNPM_HOME** env variable is set, then **$PNPM_HOME/store**
+  * If the **$XDG_DATA_HOME** env variable is set, then **$XDG_DATA_HOME/pnpm/store**
+  * On Windows: **~/AppData/Local/pnpm/store**
+  * On macOS: **~/Library/pnpm/store**
+  * On Linux: **~/.local/share/pnpm/store**
+* Type: **path**
+
+The location where all the packages are saved on the disk.
+
+The store should be always on the same disk on which installation is happening,
+so there will be one store per disk. If there is a home directory on the current
+disk, then the store is created inside it. If there is no home on the disk,
+then the store is created at the root of the filesystem. For
+example, if installation is happening on a filesystem mounted at `/mnt`,
+then the store will be created at `/mnt/.pnpm-store`. The same goes for Windows
+systems.
+
+It is possible to set a store from a different disk but in that case pnpm will
+copy packages from the store instead of hard-linking them, as hard links are
+only possible on the same filesystem.
+
+If no directory above the project accepts a hard link at all (an agent sandbox
+that grants write access only to the project, or a container with just the
+project bind-mounted writable), the store is created inside the project instead:
+at `node_modules/.pnpm-store`. In a workspace, that is the workspace root's `node_modules/.pnpm-store`.
+Putting it in the home directory there would either fail on a read-only home or
+land on another volume, which copies every package instead of hard-linking it
+([#13525](https://github.com/pnpm/pnpm/issues/13525)).
+
+pnpm keeps the locks that coordinate processes sharing a store outside the
+store, in a per-user directory. On Linux and macOS that directory is
+**$XDG_RUNTIME_DIR** when it is an absolute path to a directory the user owns
+and can create files in (write and search permission), and other users cannot
+write to. Otherwise the directory is **/tmp**. On Windows it is **~/AppData/Local**. A sandbox that blocks writes to
+`/tmp` can set `XDG_RUNTIME_DIR` to a directory it allows. Processes that use
+the same store should see the same `XDG_RUNTIME_DIR`, since pnpm processes only
+wait for each other when they share the lock directory.
+
+:::important
+
+The pnpm store is intended to be shared only between mutually trusted users, jobs, and processes. If you configure a shared `storeDir`, protect it with filesystem permissions so untrusted users cannot write to it. The store is part of pnpm's trust domain: packages may be hard linked from it, and the store index (`index.db`) records the hashes used to verify cached files.
+
+:::
+
+### verifyStoreIntegrity
+
+* Default: **true**
+* Type: **Boolean**
+
+By default, if a file in the store has been modified, the content of this file is checked before linking it to a project's `node_modules`. If `verifyStoreIntegrity` is set to `false`, files in the content-addressable store will not be checked during installation.
+
+This setting helps detect accidental store corruption. It does not make a store that is writable by untrusted users safe, because an attacker who can write to the store can alter both cached package contents and the metadata used to verify them.
+
+### strictStorePkgContentCheck
+
+* Default: **true**
+* Type: **Boolean**
+
+Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may set the `strictStorePkgContentCheck` setting to `false`.
+
+### frozenStore
+
+* Default: **false**
+* Type: **Boolean**
+
+Lets `pnpm install` run against a package store that lives on a read-only filesystem, for example a [Nix](https://nixos.org/) store, a read-only bind mount, or an OCI image layer. When enabled, pnpm opens the store's SQLite `index.db` in immutable mode (bypassing the WAL/`-shm` sidecar files that otherwise can't be created on a read-only directory) and suppresses every code path that would write to the store.
+
+Ordinary installs can run in parallel and populate the same store on a local filesystem on the same machine. Leave `frozenStore` disabled for that use case.
+
+With `frozenStore` enabled, no other process may modify the store during the install. Immutable reads bypass SQLite locking and can report "database disk image is malformed" if another job changes the database. This restriction does not apply to `--frozen-lockfile`, which still allows writes to the store.
+
+Pair it with `--offline` and `--frozen-lockfile` against a fully-populated store:
+
+```sh
+pnpm install --frozen-store --offline --frozen-lockfile
+```
+
+The store must already contain everything the install needs, including the build output of any package whose lifecycle scripts are approved (or that has a patch applied). Under the [global virtual store](./node-modules.md#enableglobalvirtualstore), those package directories live inside the store, so if a required build is missing the install fails up front with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`. Seed the store with those builds first.
+
+`frozenStore` is incompatible with `--force` and with a configured pnpr server, since both write into the store. The [side effects cache](./build.md#sideeffectscache) is not written either.
+
+### storeIndexFormat
+
+Added in: v12.13.0
+
+* Default: **sqlite**
+* Type: **sqlite**, **files**
+
+How the store records which files each package has.
+
+* `sqlite`: one SQLite database, `index.db`. SQLite's locking only works between processes on one machine, so this format is for a store on a local disk.
+* `files`: one file per package in the `index` directory of the store. Use it for a store on a network filesystem that several machines use at once, such as a store shared by CI jobs. Each entry is written to a temporary file and renamed into place, so concurrent jobs need no locks.
+
+The format belongs to the store. pnpm creates the `index` directory the first time it writes to a store with `storeIndexFormat: files`, and from then on every pnpm process uses that directory for the store, whatever its own `storeIndexFormat` says. The packages recorded in an existing `index.db` are not carried over, so the first installs after switching download them again. To switch a store back to `sqlite`, delete its `index` directory.
+
+```yaml title="~/.config/pnpm/config.yaml"
+storeDir: /mnt/shared/pnpm-store
+storeIndexFormat: files
+```
+
+pnpm v11 reads only `index.db`, so it does not see the packages of a store that uses `files`.
+
+## Lockfile settings
+
+### lockfile
+
+* Default: **true**
+* Type: **Boolean**
+
+When set to `false`, pnpm won't read or generate a `pnpm-lock.yaml` file.
+
+### lockfileDir
+
+* Default: the workspace root with a [shared lockfile](../workspaces.md#sharedworkspacelockfile), otherwise the project directory
+* Type: **path**
+
+The directory in which `pnpm-lock.yaml` is created. Several projects may share a
+single lockfile.
+
+Setting `lockfileDir` to the workspace root of a workspace with a shared
+lockfile, or to the project directory outside a workspace, has no effect. In a
+workspace with `sharedWorkspaceLockfile: false`, setting `lockfileDir` makes the
+projects share one lockfile in that directory.
+
+The `--lockfile-dir` CLI option sets it for a single command. It cannot be used
+with `--global`.
+
+### frozenLockfile
+
+* Default:
+  * For non-CI: **false**
+  * For CI: **true**, if a lockfile is present
+* Type: **Boolean**
+
+When set to `true`, pnpm fails the installation if the lockfile needs updating
+or is missing.
+
+In [CI environments](../cli/install.md#--frozen-lockfile), this setting defaults
+to `true` when a lockfile is present.
+
+### preferFrozenLockfile
+
+* Default: **true**
+* Type: **Boolean**
+
+When set to `true` and the available `pnpm-lock.yaml` satisfies the
+`package.json` dependencies directive, a headless installation is performed. A
+headless installation skips all dependency resolution as it does not need to
+modify the lockfile.
+
+### excludeLinksFromLockfile
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, dependencies declared with the `link:` protocol are left
+out of `pnpm-lock.yaml`. Dependencies that use the `workspace:` protocol are
+still recorded.
+
+### lockfileIncludeTarballUrl
+
+* Default: **false**
+* Type: **Boolean**
+
+Add the full URL to the package's tarball to every entry in `pnpm-lock.yaml`.
+
+### symlinkedLockfileTargetDirs
+
+Added in: v12.16.0
+
+* Default: **[]**
+* Type: **string[]**
+
+When `pnpm-lock.yaml` is a symlink, pnpm reads it through the link but refuses to write changes to it. List the directories that the lockfile may link into, and pnpm writes the updated lockfile to the file the symlink points to if that file is inside one of them. pnpm follows the whole chain of links, keeps every link in place, and keeps the target file's permissions. A lockfile that does not change is never written.
+
+```yaml title="config.yaml"
+symlinkedLockfileTargetDirs:
+  - ~/build/src
+```
+
+Each entry must be an absolute path or start with `~/`. pnpm ignores any other entry.
+
+Set it in the [global configuration file](../cli/config.md) or with `PNPM_CONFIG_SYMLINKED_LOCKFILE_TARGET_DIRS='["/path/to/src"]'`. pnpm ignores the setting in `pnpm-workspace.yaml`, because the repository that commits the symlink must not be the one that allows writing through it.
+
+### lockfile.includeResolutionSettings
+
+Added in: v12.10.0
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, pnpm records these settings in the `settings` section of `pnpm-lock.yaml`:
+
+* [autoDedupe](./dependency-resolution.md#autodedupe)
+* [dedupeInjectedDeps](../workspaces.md#dedupeinjecteddeps)
+* [dedupePeerDependents](./peer-dependencies.md#dedupepeerdependents)
+* [linkWorkspacePackages](../workspaces.md#linkworkspacepackages)
+
+```yaml title="pnpm-workspace.yaml"
+lockfile:
+  includeResolutionSettings: true
+```
+
+A lockfile that records other values than the current settings is outdated. `pnpm install` resolves it again, and `pnpm install --frozen-lockfile` fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`. Turning this setting on makes the next install resolve the lockfile once.
+
+With `autoDedupe`, an install reuses a lockfile that records `autoDedupe: true` when nothing else changed. This also holds on a machine that did not write the lockfile, such as a server that runs `pnpm install --frozen-lockfile` and then `pnpm run`.
+
+pnpm v11 and earlier v12 versions do not keep these settings and remove them when they rewrite the lockfile. pnpm v12 versions before v12.10.0 fail to read a `pnpm-workspace.yaml` that sets `lockfile` to an object. Turn this setting on when everyone working on the project uses v12.10.0 or later.
+
+This setting needs local dependency resolution, so an install that is not frozen fails when `pnprServer` is set.
+
+### lockfile.integrityTarget
+
+Added in: v12.15.0
+
+* Default: **resource**
+* Type: **resource**, **tar**
+
+Which hash the `integrity` of each package tarball in `pnpm-lock.yaml` pins.
+
+* `resource` pins the file at the tarball URL. That is the `.tgz` on most registries.
+* `tar` pins the uncompressed tar inside it, for registry packages, `tarball:` URLs, and `file:` tarballs alike.
+
+```yaml title="pnpm-workspace.yaml"
+lockfile:
+  integrityTarget: tar
+```
+
+With `tar`, the lockfile no longer changes when a registry recompresses its tarballs, starts serving [tar registries](../registries.md#tar-registries), or is replaced by a mirror that does either. pnpm checks every download by decoding it and hashing the tar. The hash it records comes from a `.tgz` that matched the registry's published integrity, so it is as trustworthy as that integrity. Git dependencies and [registry revisions](../registry-revisions.md) are unaffected: git dependencies pin a commit, and revisions always pin the tar.
+
+The lockfile records the setting as `integrityTarget: tar` in its `settings`. A lockfile resolved under the other value is outdated. `pnpm install` resolves it again and rewrites every hash, and `pnpm install --frozen-lockfile` fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+
+The store remembers the tar hash of every `.tgz` it extracts, whatever this setting says. A version already in the store therefore needs no download to learn its tar hash, and a frozen install finds its files under either hash. A version the store has not extracted is downloaded once to learn the hash, even by `pnpm install --lockfile-only`, and so is an optional dependency for another platform, which the lockfile records but no install on this machine extracts. Packages extracted by pnpm versions without this setting are downloaded once too.
+
+`pnpm audit signatures` checks the registry signature of the `.tgz` and ties it to the tar hash in the lockfile, through the store or by downloading the package.
+
+pnpm versions before v12.15.0 cannot install from a lockfile that pins tars. Turn this setting on when everyone working on the project uses v12.15.0 or later. A resolution by `pnprServer` cannot pin tars, so an install that is not frozen fails when `pnprServer` is set.
+
+### lockfile.format
+
+* Default: **v9**
+* Type: **v9**, **v13**
+
+The format pnpm writes `pnpm-lock.yaml` in. `v13` is the format planned for pnpm 13. It is experimental and may change before pnpm 13 is released.
+
+```yaml title="pnpm-workspace.yaml"
+lockfile:
+  format: v13
+```
+
+A lockfile in the `v13` format is JSON, indented with tabs, with a trailing comma after every entry. That is valid YAML, so `pnpm-lock.yaml` keeps its name and tools that read it as YAML still can. Its `lockfileVersion` is `13.0`, the pnpm major planned to write the format by default.
+
+The format differs from today's in these ways:
+
+- The workspace projects are listed under `projects`.
+- There is one `packages` entry per package version and no `snapshots` section. The entry holds the package's metadata, its resolved dependencies, and under `peerDependencies` each peer's declared range beside the version it resolved to.
+- An ordinary dependency on a peer's provider under another name stays in the dependency map for that name.
+- A peer that a dependency below the package needs, rather than the package itself, is recorded as `{version: 1.2.3, below: true}`. A peer the package marks optional is written as `{specifier: '*', optional: true}`. There is no `peerDependenciesMeta` field.
+- The tarball's `integrity` is a field of the entry. A registry package and an injected workspace package have no `resolution` field.
+- A local directory package records the dependencies its manifest declares, after hooks, in its `dependencies` and `optionalDependencies`. A dependency is its specifier alone when the specifier is also the version. Otherwise it is `{specifier: ^1.0.0, version: 1.2.3}`, without `version` when the package does not link the dependency in every snapshot. Frozen installs compare these specifiers with the current manifest. Changed ranges invalidate the lockfile even when the locked versions still satisfy them. A lockfile converted from the `v9` format records no specifiers and keeps the existing freshness checks.
+- A project or local directory package dependency marked `injected` in `dependenciesMeta` has `injected: true`. The format records no other `dependenciesMeta` field.
+- A package installed with different peer dependencies lists what differs under `snapshots` in its entry.
+- Transitive peers without an external provider are normally inferred from dependencies. When necessary, `unboundPeerDependencies` records their names explicitly, including an empty list.
+- A reference between packages is a version, with no peer or patch suffix. Where that version alone does not say which copy of a package is meant, the reference names the copy by the peer dependencies it was resolved with, under `with`, one per line. An empty `with` map keeps optional peers unbound when another copy binds them. A peer reference can carry its own `with` map when its provider has different peer bindings.
+- A project's dependency is its specifier alone when the version follows from it: an exact version, a `catalog:` entry, or a `workspace:` dependency on another workspace project. Otherwise it is `{specifier: ^1.0.0, version: 1.2.3}` on one line. A dependency with a `with` map leaves out a version that follows from its specifier too.
+- A project that a `workspace:` dependency links to records its `name`.
+- The hash of a patched package is recorded once, under `patchedDependencies`. A package's deprecation message is not recorded.
+- The `settings` section holds everything the lockfile records from `pnpm-workspace.yaml`: the resolution settings, `catalogs`, `overrides`, `patchedDependencies`, `ignoredOptionalDependencies` and the two checksums. A catalog entry is its specifier alone when the version follows from it.
+
+When a peer dependency is updated, only the lines that record it change.
+
+#### Reading and writing the format
+
+pnpm reads lockfiles in both formats whatever this setting is. It writes the format this setting names whenever it resolves dependencies, and when you run `pnpm install --lockfile-only`. Versions of pnpm without this setting cannot read a lockfile in the `v13` format. The format is still changing, so a lockfile written with this setting may need regenerating with a later pnpm.
+
+The boot document that records config dependencies and the pinned pnpm version follows the pinned pnpm, not this setting. While the project pins pnpm 13 or earlier, it keeps today's format, so that a pnpm from before this format can read the pinned version and switch to it. A project that pins pnpm 14 or later gets a boot document in the `v13` format.
+
+### gitBranchLockfile
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, the generated lockfile name after installation will be named
+based on the current branch name to completely avoid merge conflicts. For example,
+if the current branch name is `feature-foo`, the corresponding lockfile name will
+be `pnpm-lock.feature-foo.yaml` instead of `pnpm-lock.yaml`. It is typically used
+in conjunction with the command line argument `--merge-git-branch-lockfiles` or by
+setting `mergeGitBranchLockfilesBranchPattern` in the `pnpm-workspace.yaml` file.
+
+### mergeGitBranchLockfilesBranchPattern
+
+* Default: **null**
+* Type: **Array or null**
+
+This configuration matches the current branch name to determine whether to merge
+all git branch lockfile files. By default, you need to manually pass the
+`--merge-git-branch-lockfiles` command line parameter. This configuration allows
+this process to be automatically completed.
+
+For instance:
+
+```yaml title="pnpm-workspace.yaml"
+mergeGitBranchLockfilesBranchPattern:
+- main
+- release*
+```
+
+You may also exclude patterns using `!`.
+
+### peersSuffixMaxLength
+
+* Default: **1000**
+* Type: **number**
+
+Max length of the peer IDs suffix added to dependency keys in the lockfile. If the suffix is longer, it is replaced with a hash.

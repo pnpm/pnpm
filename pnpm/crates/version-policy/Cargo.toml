@@ -1,0 +1,25 @@
+[package]
+name = "pnpm-version-policy"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description = "Parse and match the package-and-version specs of pnpm's policy settings"
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-matcher = { workspace = true }
+
+derive_more = { workspace = true }
+indexmap = { workspace = true }
+miette = { workspace = true }
+node-semver = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+
+[lints]
+workspace = true

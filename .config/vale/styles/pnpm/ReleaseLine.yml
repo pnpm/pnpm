@@ -1,0 +1,8 @@
+extends: existence
+message: "Describe the behavior of the published pnpm command. Do not name '%s'."
+link: https://github.com/pnpm/pnpm/blob/main/AGENTS.md#changesets
+level: error
+ignorecase: true
+tokens:
+  - pnpm v1[12]
+  - pnpm 1[12](?![.\d])

@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/self-link-reference",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/self-link-reference": "link:."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "peer-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "1.0.0"
+  },
+  "peerDependencies": {
+    "@dedicated-lockfile-test/peer-lib": "workspace:^"
+  }
+}

@@ -1,0 +1,157 @@
+use std::borrow::Cow;
+
+use node_semver::Range;
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    Prefix,
+    RegistryContext,
+    VersionPart,
+    same_registry,
+};
+use pnpm_resolving_resolver_base::parse_strict_semver_range;
+
+/// Whether the version locked as `key` for the child `alias` still satisfies
+/// `bare_specifier`, from the registry the specifier resolves against. A
+/// plain range resolves against the registry `alias`'s scope routes, a
+/// `<prefix>:` specifier against the prefix's registry, and the key names
+/// its registry the same way (a plain key the route it was locked under,
+/// see [`RegistryContext::registry_of_key`]), so a locked entry never
+/// satisfies a specifier aimed at another registry, however either is
+/// spelled.
+///
+/// `None` when the reuse gate cannot judge the specifier: it is neither a
+/// semver range nor a named-registry specifier, and the resolver resolves it
+/// again.
+#[must_use]
+pub fn locked_child_admits(
+    alias: &PkgName,
+    key: &PkgNameVerPeer,
+    bare_specifier: &str,
+    registries: &RegistryContext,
+) -> Option<bool> {
+    WantedRegistryRange::parse(alias, bare_specifier, registries)?.admits(key, registries)
+}
+
+/// Whether any of `keys` passes [`locked_child_admits`]. `false` when the
+/// specifier cannot be judged, without visiting the keys.
+#[must_use]
+pub(crate) fn any_locked_key_admits<'key>(
+    alias: &PkgName,
+    keys: impl IntoIterator<Item = &'key PkgNameVerPeer>,
+    bare_specifier: &str,
+    registries: &RegistryContext,
+) -> bool {
+    let Some(wanted) = WantedRegistryRange::parse(alias, bare_specifier, registries) else {
+        return false;
+    };
+    keys.into_iter()
+        .any(|key| wanted.admits(key, registries).unwrap_or(false))
+}
+
+/// Whether `key` is the key a fresh resolve of `bare_specifier` for `alias`
+/// would mint, so a reused subtree records the identity the configuration
+/// writes today: a plain range names the prefix its registry declares, a
+/// `<prefix>:` specifier the prefix that registry's keys carry (a declared
+/// prefix, or a built-in alias as spelled). A specifier the gate cannot read
+/// falls back to [`RegistryContext::rekeyed`]. A key that is not a registry
+/// version (`file:`, `runtime:`, a URL) is left as it is.
+#[must_use]
+pub(crate) fn locked_key_is_current(
+    alias: &PkgName,
+    key: &PkgNameVerPeer,
+    bare_specifier: &str,
+    registries: &RegistryContext,
+) -> bool {
+    if key.suffix.prefix() != Prefix::None
+        || !matches!(
+            key.suffix.version(),
+            VersionPart::Semver(_) | VersionPart::RegistryQualified { .. },
+        )
+    {
+        return true;
+    }
+    match WantedRegistryRange::parse(alias, bare_specifier, registries) {
+        Some(wanted) => {
+            wanted.key_prefix == key.suffix.registry_qualified().map(|(prefix, _)| prefix)
+        }
+        None => registries.rekeyed(key).is_none(),
+    }
+}
+
+/// A specifier the reuse gate can judge: the package it names, the registry
+/// it resolves against, and the range it admits.
+struct WantedRegistryRange<'a> {
+    name: Cow<'a, PkgName>,
+    registry: &'a str,
+    /// The prefix a key minted for this specifier carries: the one the
+    /// registry's keys carry, or a built-in alias as spelled.
+    key_prefix: Option<&'a str>,
+    range: Range,
+}
+
+impl<'a> WantedRegistryRange<'a> {
+    fn admits(&self, key: &PkgNameVerPeer, registries: &RegistryContext) -> Option<bool> {
+        let locked_version = match key.suffix.registry_qualified() {
+            Some((_, version)) => version,
+            None => key.suffix.version_semver()?,
+        };
+        let locked_registry = registries.registry_of_key(key)?;
+        Some(
+            same_registry(locked_registry, self.registry)
+                && key.name == *self.name
+                && self.range.satisfies(locked_version),
+        )
+    }
+
+    /// `None` for a specifier that is not a semver range, an `npm:` alias,
+    /// or a named-registry specifier (`<prefix>:[<name>@]<range>`) of a declared prefix.
+    fn parse(
+        alias: &'a PkgName,
+        bare_specifier: &'a str,
+        registries: &'a RegistryContext,
+    ) -> Option<Self> {
+        if bare_specifier.starts_with("npm:") {
+            let alias_name = alias.to_string();
+            let (name, range) =
+                crate::unwrap_package_name::unwrap_package_name(&alias_name, bare_specifier);
+            let registry = registries.routed_registry(name);
+            return Some(Self {
+                name: Cow::Owned(name.parse().ok()?),
+                registry,
+                key_prefix: registries.key_prefix_for_registry(registry),
+                range: parse_strict_semver_range(range)?,
+            });
+        }
+        if let Some((prefix, body)) = bare_specifier.split_once(':')
+            && let Some(registry) = registries.registry_of_prefix(prefix)
+        {
+            // `@scope/name@range` splits at the last `@`; a bare `range` has
+            // none (or only the leading one of a scope, which never delimits
+            // a version). A spec that names no package names the alias.
+            let (name, range) = match body
+                .rfind('@')
+                .filter(|index| *index > 0)
+            {
+                Some(index) => {
+                    (Cow::Owned(body[..index].parse::<PkgName>().ok()?), &body[index + 1..])
+                }
+                None => (Cow::Borrowed(alias), body),
+            };
+            let key_prefix = registries.key_prefix_for_alias(prefix, &name.to_string());
+            return Some(Self {
+                name,
+                registry,
+                key_prefix,
+                range: parse_strict_semver_range(range)?,
+            });
+        }
+        let registry = registries.routed_registry(&alias.to_string());
+        Some(Self {
+            name: Cow::Borrowed(alias),
+            registry,
+            key_prefix: registries.key_prefix_for_registry(registry),
+            range: parse_strict_semver_range(bare_specifier)?,
+        })
+    }
+}

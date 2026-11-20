@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/pkg-that-depends-on-json-append",
+  "version": "1.0.0",
+  "dependencies": {
+    "json-append": "^1.1.1"
+  }
+}

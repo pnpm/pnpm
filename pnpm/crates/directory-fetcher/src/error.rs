@@ -1,0 +1,39 @@
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use std::path::PathBuf;
+
+/// Error type of [`crate::DirectoryFetcher`].
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum DirectoryFetcherError {
+    /// Failed to stat or read an entry under the source directory.
+    /// Broken symlinks are *not* surfaced here; they degrade to a
+    /// skipped entry inside the walker.
+    #[display("I/O error while walking directory {dir:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_DIRECTORY_FETCHER_IO))]
+    Io {
+        dir: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
+    #[display(
+        "path {} resolves outside source directory {}",
+        path.display(),
+        directory.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_DIRECTORY_FETCHER_PATH_ESCAPE))]
+    PathOutsideDirectory { path: PathBuf, directory: PathBuf },
+
+    #[diagnostic(transparent)]
+    Packlist(#[error(source)] pnpm_fs_packlist::PacklistError),
+
+    #[diagnostic(transparent)]
+    ReadManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
+}

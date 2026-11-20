@@ -1,0 +1,21 @@
+import fs from 'node:fs'
+
+import isWindows from 'is-windows'
+import { sync as isExeSync } from 'isexe'
+
+const IS_WINDOWS = isWindows()
+
+export function isExecutable (ok: (value: boolean, comment: string) => void, filePath: string): void {
+  if (IS_WINDOWS) {
+    if (fs.existsSync(`${filePath}.cmd`)) {
+      ok(isExeSync(`${filePath}.cmd`), `${filePath}.cmd is executable`)
+    } else {
+      ok(isExeSync(`${filePath}.exe`), `${filePath}.exe is executable`)
+    }
+    return
+  }
+
+  const stat = fs.statSync(filePath)
+  ok((stat.mode & 0o111) === 0o111, `${filePath} is executable`)
+  ok(stat.isFile(), `${filePath} refers to a file`)
+}

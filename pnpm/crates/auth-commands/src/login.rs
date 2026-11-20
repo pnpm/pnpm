@@ -1,0 +1,331 @@
+//! `pnpm login` / `pnpm adduser` authenticates with an npm registry and
+//! records the granted token in `auth.ini`.
+//!
+//! The command first tries the registry's web-based login (`POST -/v1/login`)
+//! and, when the registry doesn't support it (HTTP 404 / 405), falls back to
+//! classic username / password / email authentication (`PUT
+//! -/user/org.couchdb.user:<name>`). Either path may raise a two-factor (OTP)
+//! challenge, which is satisfied through [`pnpm_network_web_auth`], a
+//! browser round-trip when the registry offers web auth, or a prompted
+//! one-time password otherwise.
+//!
+//! # Dependency-injection seam
+//!
+//! pnpm injects every side effect the flow touches as a bag of closures on a
+//! `context` object. This port threads them through the project's capability
+//! seam instead, composed on the single `Sys` type parameter. The registry
+//! requests go over the shared [`ThrottledClient`] (a real fixture
+//! (`mockito`) in tests) so only the effects a fixture can't stage portably
+//! sit behind the `Sys` seam. See the "Dependency injection for tests" section
+//! of `pnpm/CODE_STYLE_GUIDE.md`.
+
+pub use classic_login::ClassicLoginOpError;
+pub use error::LoginError;
+pub use host::Host;
+pub use prompt::{
+    PromptInput,
+    PromptPassword,
+};
+
+use std::{
+    io,
+    path::Path,
+};
+
+use pnpm_config::{
+    is_json_auth_scope,
+    validate_json_auth_registry,
+};
+use pnpm_network::{
+    ThrottledClient,
+    nerf_dart,
+    redact_and_sanitize,
+};
+use pnpm_network_web_auth::{
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthRetryOptions,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_workspace_manifest_writer::{
+    ManifestEdit,
+    edit_manifest_field,
+};
+
+use crate::{
+    config_yaml::{
+        self,
+        GLOBAL_CONFIG_YAML_FILENAME,
+    },
+    ini::IniSettings,
+    logout::{
+        DEFAULT_REGISTRY,
+        FsReadToString,
+        FsWrite,
+    },
+    registry_url::normalize_registry_url,
+};
+
+mod classic_login;
+mod error;
+mod host;
+mod prompt;
+mod web_login;
+
+use classic_login::classic_login;
+use web_login::{
+    WebLoginFlowError,
+    web_login,
+};
+
+/// Inputs to [`login`]. The retry / timeout knobs come from pnpm's
+/// `fetchRetries` / `fetchTimeout` config and drive the web-auth poll.
+pub struct LoginOptions<'a> {
+    /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
+    pub registry: Option<&'a str>,
+    /// The scope to key the token to; a scope-to-registry mapping is
+    /// recorded alongside it. `None` records an unscoped token.
+    pub scope: Option<&'a str>,
+    /// pnpm's `configDir`, holding `auth.ini` and the global `config.yaml`.
+    pub config_dir: &'a Path,
+    pub fetch_retries: u32,
+    pub fetch_retry_factor: u32,
+    pub fetch_retry_mintimeout: u64,
+    pub fetch_retry_maxtimeout: u64,
+    pub fetch_timeout: u64,
+}
+
+/// The full capability set [`login`] requires from its host. The blanket impl
+/// covers every type that implements all of them, so the production [`Host`]
+/// and the test fakes satisfy it automatically. Bundling the bound lets a
+/// caller that re-dispatches into [`login`] (the CLI adapter) name one trait
+/// instead of restating the list.
+pub trait LoginHost:
+    Clock
+    + Sleep
+    + WebAuthFetch
+    + StdinIsTty
+    + StdoutIsTty
+    + EnterKeyListener
+    + OpenUrl
+    + PromptOtp
+    + PromptInput
+    + PromptPassword
+    + FsReadToString
+    + FsWrite
+    + 'static
+{
+}
+
+impl<Sys> LoginHost for Sys where
+    Sys: Clock
+        + Sleep
+        + WebAuthFetch
+        + StdinIsTty
+        + StdoutIsTty
+        + EnterKeyListener
+        + OpenUrl
+        + PromptOtp
+        + PromptInput
+        + PromptPassword
+        + FsReadToString
+        + FsWrite
+        + 'static
+{
+}
+
+/// Log in to `registry`, persist the granted token in `auth.ini`, and return the `Logged in on <registry>` success line.
+///
+/// Tries web-based login first, falling back to classic
+/// username / password / email login when the registry answers the web-login
+/// probe with HTTP 404 or 405. Either path may satisfy a two-factor challenge
+/// before returning.
+///
+/// The web-based flow runs without an interactive terminal; it prints the
+/// authentication URL and polls the registry until the browser approval
+/// completes. Only the classic flow's credential prompts require a TTY.
+pub async fn login<Sys, Reporter>(
+    http_client: &ThrottledClient,
+    opts: LoginOptions<'_>,
+) -> Result<String, LoginError>
+where
+    Sys: LoginHost,
+    Reporter: self::Reporter,
+{
+    let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
+    // Before the network, not after: a value the reader would refuse must not
+    // cost the user a round-trip, and must never be written. A `registries`
+    // route holding one fails to load for every later command.
+    let registry = validate_json_auth_registry(&registry)
+        .map_err(|reason| LoginError::UnrecordableLogin { reason })?;
+    if let Some(scope) = normalize_scope(opts.scope)
+        && !is_json_auth_scope(&scope)
+    {
+        return Err(LoginError::UnrecordableLogin {
+            reason: format!(r#"the scope {scope:?} is not a package scope like "@org""#),
+        });
+    }
+
+    let fetch_options = WebAuthFetchOptions {
+        timeout: Some(opts.fetch_timeout),
+        retry: Some(WebAuthRetryOptions {
+            factor: Some(f64::from(opts.fetch_retry_factor)),
+            max_timeout: Some(opts.fetch_retry_maxtimeout),
+            min_timeout: Some(opts.fetch_retry_mintimeout),
+            randomize: None,
+            retries: Some(opts.fetch_retries),
+        }),
+    };
+
+    let token = match web_login::<Sys, Reporter>(http_client, &registry, &fetch_options).await {
+        Ok(token) => token,
+        // Only a genuine web-login HTTP 404 / 405 means "web login unsupported";
+        // every other failure (invalid response, poll timeout, transport) is
+        // fatal and propagates.
+        Err(WebLoginFlowError::Http { status, .. }) if status == 404 || status == 405 => {
+            classic_login::<Sys, Reporter>(http_client, &registry, fetch_options).await?
+        }
+        Err(error) => return Err(error.into()),
+    };
+
+    record_login::<Sys>(&opts, &registry, &token)?;
+
+    // A registry from an untrusted `.npmrc` / `--registry` can embed
+    // `user:pass@` credentials or terminal escape sequences, so redact and
+    // sanitize before it reaches stdout. Matches `pnpm logout` / `ping`.
+    Ok(format!("Logged in on {}", redact_and_sanitize(&registry)))
+}
+
+/// Normalize a scope value the way pnpm does: trim it, treat an empty
+/// string or a bare `@` as "no scope", and prefix a missing leading `@`.
+fn normalize_scope(scope: Option<&str>) -> Option<String> {
+    let trimmed = scope?.trim();
+    if trimmed.is_empty() || trimmed == "@" {
+        return None;
+    }
+    Some(if trimmed.starts_with('@') { trimmed.to_owned() } else { format!("@{trimmed}") })
+}
+
+/// Record the granted `token` in `auth.ini`, and bring the global
+/// `config.yaml` in line with it (see [`config_yaml::login_fields`]).
+///
+/// Both files are read and edited before either is written, and `auth.ini` is
+/// restored when the `config.yaml` write fails, so a failed login leaves no
+/// token behind.
+fn record_login<Sys: FsReadToString + FsWrite>(
+    opts: &LoginOptions<'_>,
+    registry: &str,
+    token: &str,
+) -> Result<(), LoginError> {
+    let scope = normalize_scope(opts.scope);
+    let auth_ini_path = opts.config_dir.join("auth.ini");
+    let (original_auth_ini, auth_ini) =
+        auth_ini_with_token::<Sys>(&auth_ini_path, registry, scope.as_deref(), token)?;
+    let config_path = opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
+    let config_yaml = config_yaml_after_login::<Sys>(&config_path, registry, scope.as_deref())?;
+
+    Sys::write(&auth_ini_path, auth_ini.as_bytes())
+        .map_err(|error| LoginError::WriteAuthIni { path: auth_ini_path.clone(), error })?;
+    let Some(text) = config_yaml else {
+        return Ok(());
+    };
+    Sys::write(&config_path, text.as_bytes())
+        .map_err(|error| {
+            // Best effort: the error the user needs is the `config.yaml` one.
+            let _ = Sys::write(&auth_ini_path, original_auth_ini.as_bytes());
+            LoginError::WriteConfigYaml { path: config_path, error }
+        })
+}
+
+/// `auth.ini` as read (empty when missing), and with the `//host/:_authToken` key, or `//host/:<scope>:_authToken`
+/// for a scoped login, set to `token`.
+fn auth_ini_with_token<Sys: FsReadToString>(
+    path: &Path,
+    registry: &str,
+    scope: Option<&str>,
+    token: &str,
+) -> Result<(String, String), LoginError> {
+    let original = match Sys::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(LoginError::ReadAuthIni { path: path.to_path_buf(), error }),
+    };
+    let mut settings = IniSettings::parse(&original);
+    let registry_key = nerf_dart(registry);
+    let token_key = match scope {
+        Some(scope) => format!("{registry_key}:{scope}:_authToken"),
+        None => format!("{registry_key}:_authToken"),
+    };
+    settings.set(&token_key, token);
+    let updated = settings.serialize();
+    Ok((original, updated))
+}
+
+/// The global `config.yaml` after a login, or `None` when the login leaves it
+/// as it is.
+fn config_yaml_after_login<Sys: FsReadToString>(
+    path: &Path,
+    registry: &str,
+    scope: Option<&str>,
+) -> Result<Option<String>, LoginError> {
+    let original = read_config_yaml::<Sys>(path)?;
+    let fields = config_yaml::login_fields(original.as_deref(), registry, scope)
+        .map_err(LoginError::ParseConfigYaml)?;
+
+    let mut document = original.clone();
+    for (key, value) in fields {
+        match edit_manifest_field(document.as_deref(), key, &value)
+            .map_err(LoginError::EditConfigYaml)?
+        {
+            ManifestEdit::Write(text) => document = Some(text),
+            ManifestEdit::Unchanged => {}
+            // Blank rather than delete, as `pnpm logout` does.
+            ManifestEdit::Remove => document = Some(String::new()),
+        }
+    }
+    Ok(document.filter(|text| Some(text) != original.as_ref()))
+}
+
+/// Read the global `config.yaml`, treating a missing file as absent. Any
+/// other read error propagates.
+fn read_config_yaml<Sys: FsReadToString>(path: &Path) -> Result<Option<String>, LoginError> {
+    match Sys::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(LoginError::ReadConfigYaml { path: path.to_path_buf(), error }),
+    }
+}
+
+/// Resolve `path` against the registry the way `new URL(path, registry)` does.
+fn registry_join(registry: &str, path: &str) -> Result<String, url::ParseError> {
+    url::Url::parse(registry)?.join(path).map(String::from)
+}
+
+fn global_info<Reporter: self::Reporter>(message: String) {
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
+}
+
+#[cfg(test)]
+mod support;
+#[cfg(test)]
+mod test_classic_login;
+#[cfg(test)]
+mod test_non_interactive;
+#[cfg(test)]
+mod test_web_login;
+#[cfg(test)]
+mod test_web_login_errors;
+#[cfg(test)]
+mod test_web_login_scope;

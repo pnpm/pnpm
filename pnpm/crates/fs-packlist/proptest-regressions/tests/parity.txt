@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1a95fee16b31e0c2f2a19ac0a93d0a3bf47f3bd7e6f48039a0d8d6a43604755d # shrinks to files ["**", "!dist/index.js", "dist/**"] with dist/index.js

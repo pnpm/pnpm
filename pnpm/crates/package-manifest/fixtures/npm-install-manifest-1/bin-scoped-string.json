@@ -1,0 +1,34 @@
+{
+  "description": "A string `bin` of a scoped package names the command after the unscoped name.",
+  "archive": {
+    "packageJson": {
+      "name": "@example/tool",
+      "version": "1.0.0",
+      "bin": "cli.js"
+    },
+    "files": [
+      "package.json",
+      "cli.js"
+    ]
+  },
+  "submitted": {
+    "name": "@example/tool",
+    "version": "1.0.0",
+    "bin": {
+      "tool": "./cli.js"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "@example/tool",
+      "version": "1.0.0",
+      "bin": {
+        "tool": "cli.js"
+      },
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

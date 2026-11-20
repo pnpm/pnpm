@@ -1,0 +1,14 @@
+### scriptShell
+
+* Default: **null**
+* Type: **path**
+
+The shell to use for scripts run with the `pnpm run` command.
+
+For instance, to force usage of Git Bash on Windows:
+
+```sh
+pnpm config set scriptShell "C:\\Program Files\\git\\bin\\bash.exe"
+```
+
+Since v12.4.0, a relative path in `pnpm-workspace.yaml` resolves from the workspace root, including for scripts that run in a nested package. A bare command name such as `bash` is still looked up on `PATH`.

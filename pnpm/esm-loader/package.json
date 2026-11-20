@@ -1,0 +1,34 @@
+{
+  "name": "@pnpm/esm-loader",
+  "version": "0.1.1",
+  "description": "Experimental Node.js loader for pnpm content-addressable store files",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs",
+    "./register": "./register.mjs"
+  },
+  "files": [
+    "*.mjs"
+  ],
+  "engines": {
+    "node": "^24.18.0 || >=26.2.0"
+  },
+  "scripts": {
+    "prepare": "node scripts/bundle-runtime.mjs --check",
+    "build:runtime": "node scripts/bundle-runtime.mjs",
+    "test": "node --test test/*.test.mjs",
+    ".test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "enhanced-resolve": "catalog:"
+  },
+  "devDependencies": {
+    "esbuild": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm.git",
+    "directory": "pnpm/esm-loader"
+  }
+}

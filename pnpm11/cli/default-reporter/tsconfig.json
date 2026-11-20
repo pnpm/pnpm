@@ -1,0 +1,44 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src",
+    "ignoreDeprecations": "5.0"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../core/core-loggers"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/logger"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../deps/inspection/peers-issues-renderer"
+    },
+    {
+      "path": "../../installing/dedupe/issues-renderer"
+    },
+    {
+      "path": "../../installing/dedupe/types"
+    },
+    {
+      "path": "../../text/ordinal-comparator"
+    },
+    {
+      "path": "../../text/sanitize"
+    },
+    {
+      "path": "../meta"
+    }
+  ]
+}

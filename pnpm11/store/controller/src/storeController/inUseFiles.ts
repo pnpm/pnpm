@@ -1,0 +1,282 @@
+import path from 'node:path'
+
+import { envReplace } from '@pnpm/config.env-replace'
+import { type Config, createProjectModulesDirResolver } from '@pnpm/config.reader'
+import { LOCKFILE_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { isError, PnpmError } from '@pnpm/error'
+import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
+import { readCurrentLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
+import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
+import { globalWarn } from '@pnpm/logger'
+import { getFilePathByModeInCafs, type PackageFileInfo, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { gitHostedStoreIndexKey, pickStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
+import type { DepPath } from '@pnpm/types'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { readWorkspaceManifestKeys } from '@pnpm/workspace.workspace-manifest-reader'
+import * as find from 'empathic/find'
+
+import { getRegisteredProjects } from './projectRegistry.js'
+
+export interface InUse {
+  files: Set<string>
+  /**
+   * The modules directory of every project that an installed lockfile
+   * lists. A package linked from one not named `node_modules` is found
+   * only through it.
+   */
+  modulesDirs: string[]
+}
+
+/**
+ * For each registered project's installed lockfile:
+ * - every file of the store index rows of its packages, including the files
+ *   of every side-effects entry. A package imported by copy or clone, such
+ *   as a patched or built one, has no hard link to the store, so the prune
+ *   needs this list to keep it;
+ * - the modules directory of every project it lists.
+ *
+ * A project without an installed lockfile, a project whose lockfile version
+ * this pnpm does not support, and a package without a row add no files.
+ */
+export async function getInUse (storeDir: string, storeIndex: StoreIndex): Promise<InUse> {
+  const { keys, binaryKeys, modulesDirs } = await readRegisteredInstalls(storeDir)
+  for (const key of manifestIndexKeys(storeIndex, storeDir, binaryKeys)) keys.add(key)
+  const files = new Set<string>()
+  for (const key of keys) {
+    const row = readIndexRow(storeIndex, storeDir, key)
+    if (row == null) continue
+    for (const { digest, mode } of rowFiles(row)) {
+      files.add(path.normalize(getFilePathByModeInCafs(storeDir, digest, mode)))
+    }
+  }
+  return { files, modulesDirs: Array.from(modulesDirs) }
+}
+
+interface IndexKey {
+  key: string
+  binary: boolean
+}
+
+interface RegisteredInstalls {
+  keys: Set<string>
+  binaryKeys: Set<string>
+  modulesDirs: Set<string>
+}
+
+async function readRegisteredInstalls (storeDir: string): Promise<RegisteredInstalls> {
+  const keys = new Set<string>()
+  const binaryKeys = new Set<string>()
+  const modulesDirs = new Set<string>()
+  const resolveModulesDir = createModulesDirResolver()
+  for (const projectDir of await getRegisteredProjects(storeDir)) {
+    // eslint-disable-next-line no-await-in-loop -- hold one project's parsed lockfiles at a time
+    const lockfiles = await readInstalledLockfiles(projectDir, resolveModulesDir)
+    for (const { key, binary } of lockfiles.flatMap(lockfileIndexKeys)) {
+      keys.add(key)
+      if (binary) binaryKeys.add(key)
+    }
+    const importerDirs = new Set([projectDir, ...lockfiles.flatMap((lockfile) =>
+      Object.keys(lockfile.importers ?? {}).map((importerId) => path.resolve(projectDir, importerId))
+    )])
+    // eslint-disable-next-line no-await-in-loop -- one project at a time, as above
+    for (const modulesDir of await Promise.all(Array.from(importerDirs, resolveModulesDir))) {
+      modulesDirs.add(modulesDir)
+    }
+  }
+  return { keys, binaryKeys, modulesDirs }
+}
+
+type ModulesDirResolver = (projectDir: string) => Promise<string>
+
+/**
+ * Resolves the absolute modules directory of a project, reading each
+ * workspace's settings once.
+ */
+function createModulesDirResolver (): ModulesDirResolver {
+  const settingsByWorkspace = new Map<string, Promise<WorkspaceModulesDirs>>()
+  return async (projectDir) => {
+    let modulesDir: string
+    try {
+      modulesDir = await readConfiguredModulesDir(projectDir, settingsByWorkspace)
+    } catch (err: unknown) {
+      throw inUseFilesError(projectDir, err)
+    }
+    return path.resolve(projectDir, modulesDir)
+  }
+}
+
+function lockfileIndexKeys (lockfile: LockfileObject): IndexKey[] {
+  return Object.entries(lockfile.packages ?? {}).flatMap(([depPath, snapshot]) =>
+    packageIndexKeys(snapshot.resolution, packageIdFromSnapshot(depPath as DepPath, snapshot))
+  )
+}
+
+/**
+ * pnpm 12 shares this store and keys the row of a runtime as
+ * `package-manifest\t<manifest integrity>\t<binary key>`. The lockfile has
+ * no manifest integrity, so this scans the keys, but only when the
+ * lockfiles name a binary.
+ */
+function manifestIndexKeys (storeIndex: StoreIndex, storeDir: string, binaryKeys: Set<string>): string[] {
+  if (binaryKeys.size === 0) return []
+  const prefix = 'package-manifest\t'
+  const keys: string[] = []
+  try {
+    for (const key of storeIndex.keys()) {
+      if (!key.startsWith(prefix)) continue
+      const separator = key.indexOf('\t', prefix.length)
+      if (separator !== -1 && binaryKeys.has(key.slice(separator + 1))) keys.push(key)
+    }
+  } catch (err: unknown) {
+    throw inUseFilesError(storeDir, err)
+  }
+  return keys
+}
+
+function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): PackageFilesIndex | undefined {
+  try {
+    return storeIndex.get(key) as PackageFilesIndex | undefined
+  } catch (err: unknown) {
+    throw inUseFilesError(storeDir, err)
+  }
+}
+
+/**
+ * The lockfiles the last install wrote, which record what is installed in
+ * the project.
+ *
+ * The install writes the lockfile to `<modulesDir>/.pnpm`, or to the
+ * `virtualStoreDir` that `<modulesDir>/.modules.yaml` records when the
+ * project has no wanted lockfile. Under a global virtual store, that
+ * setting names the shared store. The manifest does not say which case
+ * applies, so the prune reads both.
+ */
+async function readInstalledLockfiles (projectDir: string, resolveModulesDir: ModulesDirResolver): Promise<LockfileObject[]> {
+  const modulesDir = await resolveModulesDir(projectDir)
+  const defaultDir = path.join(modulesDir, '.pnpm')
+  const modules = await readModulesManifestOfProject(modulesDir)
+  const installStateDirs = new Set([defaultDir, modules?.virtualStoreDir ?? defaultDir])
+  const lockfiles = await Promise.all(Array.from(installStateDirs, async (installStateDir) => readInstalledLockfile(projectDir, installStateDir)))
+  return lockfiles.filter((lockfile) => lockfile != null)
+}
+
+/**
+ * The `modulesDir` that an install of the project uses as configured in the
+ * nearest `pnpm-workspace.yaml` at or above the project, or `node_modules`.
+ * A `packageConfigs` entry naming the project applies when the workspace
+ * gives each project its own lockfile, as it does on install. A `modulesDir`
+ * set only on the command line, in the environment, or in the global config
+ * is not seen.
+ */
+async function readConfiguredModulesDir (projectDir: string, settingsByWorkspace: Map<string, Promise<WorkspaceModulesDirs>>): Promise<string> {
+  // `findWorkspaceDir` would also honor the workspace directory that the
+  // environment of the prune sets, which names no registered project's
+  // workspace.
+  const workspaceManifest = find.file(WORKSPACE_MANIFEST_FILENAME, { cwd: projectDir })
+  if (workspaceManifest == null) return 'node_modules'
+  const workspaceDir = path.dirname(workspaceManifest)
+  let workspaceModulesDirs = settingsByWorkspace.get(workspaceDir)
+  if (workspaceModulesDirs == null) {
+    workspaceModulesDirs = readWorkspaceModulesDirs(workspaceDir)
+    settingsByWorkspace.set(workspaceDir, workspaceModulesDirs)
+  }
+  const { resolveModulesDir, needsProjectName } = await workspaceModulesDirs
+  const projectName = needsProjectName ? (await safeReadProjectManifestOnly(projectDir))?.name : undefined
+  return resolveModulesDir(projectName) ?? 'node_modules'
+}
+
+interface WorkspaceModulesDirs {
+  resolveModulesDir: (projectName: string | undefined) => string | undefined
+  needsProjectName: boolean
+}
+
+async function readWorkspaceModulesDirs (workspaceDir: string): Promise<WorkspaceModulesDirs> {
+  // `PnpmSettings` does not declare these settings.
+  const settings = await readWorkspaceManifestKeys(workspaceDir, MODULES_DIR_SETTINGS) as Partial<Pick<Config, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'>> | undefined
+  const lockfileDir = settings?.sharedWorkspaceLockfile === false ? settings.lockfileDir : workspaceDir
+  return {
+    resolveModulesDir: createProjectModulesDirResolver({
+      lockfileDir,
+      modulesDir: typeof settings?.modulesDir === 'string' ? envReplace(settings.modulesDir, process.env) : undefined,
+      packageConfigs: settings?.packageConfigs,
+    }),
+    needsProjectName: lockfileDir == null && settings?.packageConfigs != null,
+  }
+}
+
+const MODULES_DIR_SETTINGS: ReadonlySet<string> = new Set(['lockfileDir', 'modulesDir', 'packageConfigs', 'sharedWorkspaceLockfile'])
+
+async function readModulesManifestOfProject (modulesDir: string): Promise<Modules | null> {
+  try {
+    return await readModulesManifest(modulesDir)
+  } catch (err: unknown) {
+    throw inUseFilesError(modulesDir, err)
+  }
+}
+
+/**
+ * A lockfile of a version this pnpm cannot read adds nothing, like a
+ * missing one, so one project installed by another pnpm does not stop the
+ * prune. The hard-link check then decides for that project's files.
+ */
+async function readInstalledLockfile (projectDir: string, installStateDir: string): Promise<LockfileObject | null> {
+  try {
+    return await readCurrentLockfile(installStateDir, { ignoreIncompatible: false, wantedVersions: [LOCKFILE_VERSION] })
+  } catch (err: unknown) {
+    const lockfileVersion = unsupportedLockfileVersion(err)
+    if (lockfileVersion != null) {
+      globalWarn(`Skipped ${projectDir} because it was installed with lockfileVersion ${lockfileVersion}, which this version of pnpm does not support`)
+      return null
+    }
+    throw inUseFilesError(installStateDir, err)
+  }
+}
+
+function unsupportedLockfileVersion (err: unknown): string | undefined {
+  if (!isError(err) || !('code' in err) || err.code !== 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE') return undefined
+  return (err as { lockfileVersion?: string }).lockfileVersion
+}
+
+function inUseFilesError (location: string, err: unknown): PnpmError {
+  return new PnpmError('STORE_DIR_PRUNE_IN_USE_FILES',
+    `Failed to read the store files that registered projects use: ${location}: ${isError(err) ? err.message : String(err)}`)
+}
+
+/**
+ * The lockfile does not say which key the install used for a git-hosted
+ * package, which has a key for its contents with and without a build, or for
+ * a variations resolution, whose variant depends on the installing host
+ * and its `supportedArchitectures`.
+ */
+function packageIndexKeys (resolution: LockfileResolution, pkgId: string): IndexKey[] {
+  if (!('type' in resolution) || resolution.type == null) {
+    if ('tarball' in resolution) {
+      return [true, false].map((built) => packageKey(pickStoreIndexKey(resolution, pkgId, { built })))
+    }
+    return [packageKey(storeIndexKey(resolution.integrity, pkgId))]
+  }
+  switch (resolution.type) {
+    case 'git':
+      return [true, false].map((built) => packageKey(gitHostedStoreIndexKey(pkgId, { built })))
+    case 'binary':
+      return [{ key: storeIndexKey(resolution.integrity, pkgId), binary: true }]
+    case 'variations':
+      return resolution.variants.flatMap((variant) => packageIndexKeys(variant.resolution, pkgId))
+    default:
+      // A directory has no row, and the content of a custom one is not
+      // known here.
+      return []
+  }
+}
+
+function packageKey (key: string): IndexKey {
+  return { key, binary: false }
+}
+
+function * rowFiles (row: PackageFilesIndex): Iterable<PackageFileInfo> {
+  yield * row.files.values()
+  for (const sideEffectsDiff of row.sideEffects?.values() ?? []) {
+    if (sideEffectsDiff.added != null) yield * sideEffectsDiff.added.values()
+  }
+}

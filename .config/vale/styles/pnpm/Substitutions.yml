@@ -1,0 +1,29 @@
+extends: substitution
+message: "Use '%s' instead of '%s'."
+link: https://developers.google.com/style/word-list
+level: error
+ignorecase: true
+action:
+  name: replace
+swap:
+  a large number of: many
+  a number of: several|some
+  as of yet: yet
+  at this point in time: now
+  due to the fact that: because
+  each and every: every
+  e\.g\.: for example
+  etc\.: and so on
+  facilitate: help
+  first and foremost: first
+  has the ability to: can
+  i\.e\.: that is
+  in order to: to
+  in the event that: if
+  is able to: can
+  leverag(?:e|es|ed|ing): use
+  make use of: use
+  numerous: many
+  prior to: before
+  utiliz(?:e|es|ed|ing): use
+  with regards? to: about

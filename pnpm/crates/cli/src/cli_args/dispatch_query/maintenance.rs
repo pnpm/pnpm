@@ -1,0 +1,293 @@
+use super::{
+    super::{
+        clean::{
+            LockfileRemoval,
+            run as clean_builtin,
+        },
+        dispatch_script,
+        script_override,
+    },
+    BinArgs,
+    BugsArgs,
+    CacheCommand,
+    CatFileArgs,
+    CatIndexArgs,
+    CleanArgs,
+    CommandFuture,
+    Config,
+    ConfigArgs,
+    ConfigGetAliasArgs,
+    ConfigSetAliasArgs,
+    ConfigSubcommand,
+    DocsArgs,
+    DoctorArgs,
+    DoctorOutcome,
+    FindHashArgs,
+    IgnoredBuildsArgs,
+    NotImplementedError,
+    PrefixArgs,
+    RepoArgs,
+    RootArgs,
+    RunCtx,
+    SelfUpdateArgs,
+    SetupArgs,
+    ShimArgs,
+    StoreCommand,
+    TasksArgs,
+    WithArgs,
+};
+use crate::cli_args::reporter::CliReporter;
+
+// `doctor` reports on the installation and its environment, so it needs config
+// resolved but no lockfile or install pipeline. It returns the rendered report
+// rather than printing it, mirroring pnpm's handler → CLI print split, and the
+// exit lives here because a failing check must fail the command, that is what
+// lets the release pipeline gate a promotion on it.
+pub(in super::super) fn doctor<'a>(
+    ctx: &RunCtx<'a>,
+    args: DoctorArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.loaders.config)()?;
+    Ok(Box::pin(async move {
+        let result = args.run(cfg).await?;
+        pnpm_diagnostics::println!("{}", result.output);
+        if result.outcome == DoctorOutcome::Unhealthy {
+            // `doctor` exits non-zero when a check fails, mirroring pnpm.
+            pnpm_executor::exit(1);
+        }
+        Ok(())
+    }))
+}
+
+pub(in super::super) fn bin<'a>(
+    ctx: &RunCtx<'a>,
+    args: BinArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn clean<'a>(
+    ctx: &RunCtx<'a>,
+    CleanArgs { lockfile, lockfile_dir }: CleanArgs,
+    command_name: &'a str,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.config)()?;
+    if let Some(run_args) = script_override::resolve(ctx, config, command_name, Vec::new())? {
+        return dispatch_script::run(ctx, run_args);
+    }
+    lockfile_dir.apply_to(config, ctx.locations.dir);
+    let removal = if lockfile { LockfileRemoval::Remove } else { LockfileRemoval::Keep };
+    clean_builtin(ctx, config, removal)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn root<'a>(
+    ctx: &RunCtx<'a>,
+    args: RootArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn prefix<'a>(
+    ctx: &RunCtx<'a>,
+    args: PrefixArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config =
+        if args.global { (ctx.loaders.global_packages_config)()? } else { (ctx.loaders.config)()? };
+    args.run(ctx.locations.dir, config)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn tasks<'a>(
+    ctx: &RunCtx<'a>,
+    args: TasksArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.config)()?;
+    if let Some(run_args) = script_override::resolve(ctx, config, "tasks", args.script_args())? {
+        return dispatch_script::run(ctx, run_args);
+    }
+    args.run(config)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn shim<'a>(
+    ctx: &RunCtx<'a>,
+    args: ShimArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    // Writes the global bin directory and the global `config.yaml`, so it
+    // reads the configuration anchored at the pnpm home, a project the
+    // command happens to run in does not get to steer either.
+    let config = (ctx.loaders.global_config)()?;
+    Ok(Box::pin(async move {
+        pnpm_diagnostics::print!("{}", args.run(config).await?);
+        Ok(())
+    }))
+}
+
+pub(in super::super) fn config<'a>(
+    ctx: &RunCtx<'a>,
+    args: ConfigArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = if args.reads_global_config() {
+        (ctx.loaders.global_config)()?
+    } else {
+        (ctx.loaders.config)()?
+    };
+    args.run(config, ctx.locations.dir)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+// `pnpm get` / `pnpm set` are the top-level spellings of the two most-used
+// `pnpm config` subcommands, and run the same code so the two spellings
+// cannot drift.
+pub(in super::super) fn config_get<'a>(
+    ctx: &RunCtx<'a>,
+    args: ConfigGetAliasArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Get(args.args) })
+}
+
+pub(in super::super) fn config_set<'a>(
+    ctx: &RunCtx<'a>,
+    args: ConfigSetAliasArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Set(args.args) })
+}
+
+pub(in super::super) fn not_implemented<'a>(
+    command: &'static str,
+) -> miette::Result<CommandFuture<'a>> {
+    Err(NotImplementedError { command }.into())
+}
+
+pub(in super::super) fn repo<'a>(
+    ctx: &RunCtx<'a>,
+    args: RepoArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    Ok(Box::pin(
+        async move { args.run::<pnpm_network_web_auth::Host, CliReporter>(cfg, dir).await },
+    ))
+}
+
+pub(in super::super) fn docs<'a>(
+    ctx: &RunCtx<'a>,
+    args: DocsArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg = (ctx.loaders.config)()?;
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg).await }))
+}
+
+pub(in super::super) fn with<'a>(
+    ctx: &RunCtx<'a>,
+    args: WithArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.config)()?;
+    Ok(Box::pin(args.run::<CliReporter>(config)))
+}
+
+pub(in super::super) fn self_update<'a>(
+    ctx: &RunCtx<'a>,
+    args: SelfUpdateArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let dir = ctx.locations.dir;
+    let external_manager = super::super::self_update::find_external_manager()?;
+    let config = (ctx.loaders.config_self_update)()?;
+    Ok(Box::pin(args.run::<CliReporter>(config, dir, external_manager)))
+}
+
+// `setup` makes pnpm available globally: it installs the CLI into the
+// global packages dir, writes the alias scripts, and persists `PNPM_HOME` /
+// PATH into the user's shell rc file (POSIX) or registry (Windows). It needs
+// a reporter for the "Installing pnpm CLI globally" log but no project
+// config or lockfile, so it dispatches off `ctx.locations.dir`.
+pub(in super::super) fn setup<'a>(
+    ctx: &RunCtx<'a>,
+    args: SetupArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    // The `pm` check is repeated ahead of `resolve` so that forcing the
+    // built-in needs no project configuration: `pnpm pm setup` has to
+    // install the CLI even where that configuration cannot be read.
+    if !ctx.builtin_command_forced
+        && let Some(run_args) =
+            script_override::resolve(ctx, (ctx.loaders.config)()?, "setup", Vec::new())?
+    {
+        return dispatch_script::run(ctx, run_args);
+    }
+    let dir = ctx.locations.dir;
+    Ok(Box::pin(args.run::<CliReporter>(dir)))
+}
+
+pub(in super::super) fn store<'a>(
+    ctx: &RunCtx<'a>,
+    command: StoreCommand,
+) -> miette::Result<CommandFuture<'a>> {
+    let config: &Config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    Ok(Box::pin(command.run::<CliReporter>(config, dir)))
+}
+
+pub(in super::super) fn cache<'a>(
+    ctx: &RunCtx<'a>,
+    command: CacheCommand,
+) -> miette::Result<CommandFuture<'a>> {
+    command.run((ctx.loaders.config)()?)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn cat_file<'a>(
+    ctx: &RunCtx<'a>,
+    args: CatFileArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    args.run(|| (ctx.loaders.config)().map(|m| &*m))?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn cat_index<'a>(
+    ctx: &RunCtx<'a>,
+    args: CatIndexArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let dir = ctx.locations.dir;
+    let config = ctx.loaders.config;
+    Ok(Box::pin(async move {
+        args.run(dir, || config().map(|m| &*m)).await?;
+        Ok(())
+    }))
+}
+
+pub(in super::super) fn ignored_builds<'a>(
+    ctx: &RunCtx<'a>,
+    _args: IgnoredBuildsArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = super::super::pipelines::installed_project_config(
+        (ctx.loaders.config)()?,
+        ctx.locations.manifest_path,
+    );
+    let output = super::super::ignored_builds::render_ignored_builds(config)?;
+    pnpm_diagnostics::print!("{output}");
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(in super::super) fn bugs<'a>(
+    ctx: &RunCtx<'a>,
+    args: BugsArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.loaders.config)()?;
+    let dir = ctx.locations.dir;
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg, dir).await }))
+}
+
+pub(in super::super) fn find_hash<'a>(
+    ctx: &RunCtx<'a>,
+    args: FindHashArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    args.run(|| (ctx.loaders.config)().map(|m| &*m))?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}

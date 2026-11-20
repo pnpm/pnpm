@@ -1,0 +1,234 @@
+import type * as logs from '@pnpm/core-loggers'
+import type { LogLevel } from '@pnpm/logger'
+import type * as Rx from 'rxjs'
+import { filter, throttleTime } from 'rxjs/operators'
+
+import type { ReporterPnpmConfig } from '../ReporterPnpmConfig.js'
+import { reportBigTarballProgress } from './reportBigTarballsProgress.js'
+import { reportContext } from './reportContext.js'
+import { reportDeprecations } from './reportDeprecations.js'
+import { reportExecutionTime } from './reportExecutionTime.js'
+import { reportHooks } from './reportHooks.js'
+import { reportIgnoredBuilds } from './reportIgnoredBuilds.js'
+import { type InstallCheckEvent, reportInstallChecks } from './reportInstallChecks.js'
+import { reportInstallingConfigDeps } from './reportInstallingConfigDeps.js'
+import { reportLifecycleScripts } from './reportLifecycleScripts.js'
+import { reportLockfileVerification } from './reportLockfileVerification.js'
+import { LOG_LEVEL_NUMBER, reportMisc } from './reportMisc.js'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { reportProgress } from './reportProgress.js'
+import { reportRequestRetry } from './reportRequestRetry.js'
+import { reportScope } from './reportScope.js'
+import { reportOptionalFetchFailures, reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies.js'
+import { reportStats } from './reportStats.js'
+import { type FilterPkgsDiff, reportSummary } from './reportSummary.js'
+import { reportUpdateCheck } from './reportUpdateCheck.js'
+
+const PRINT_EXECUTION_TIME_IN_COMMANDS = {
+  install: true,
+  update: true,
+  add: true,
+  remove: true,
+}
+
+type LogStreams = Parameters<typeof reporterForClient>[0]
+type ReporterForClientOptions = Parameters<typeof reporterForClient>[1]
+type Outputs = Array<Rx.Observable<Rx.Observable<{ msg: string }>>>
+
+interface ReportContext {
+  log$: LogStreams
+  opts: ReporterForClientOptions
+  cwd: string
+  width: number
+}
+
+export function reporterForClient (
+  log$: {
+    context: Rx.Observable<logs.ContextLog>
+    fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
+    executionTime: Rx.Observable<logs.ExecutionTimeLog>
+    ignoredScripts: Rx.Observable<logs.IgnoredScriptsLog>
+    progress: Rx.Observable<logs.ProgressLog>
+    stage: Rx.Observable<logs.StageLog>
+    deprecation: Rx.Observable<logs.DeprecationLog>
+    summary: Rx.Observable<logs.SummaryLog>
+    lifecycle: Rx.Observable<logs.LifecycleLog>
+    lockfileVerification: Rx.Observable<logs.LockfileVerificationLog>
+    stats: Rx.Observable<logs.StatsLog>
+    installCheck: Rx.Observable<InstallCheckEvent>
+    installingConfigDeps: Rx.Observable<logs.InstallingConfigDepsLog>
+    registry: Rx.Observable<logs.RegistryLog>
+    root: Rx.Observable<logs.RootLog>
+    packageManifest: Rx.Observable<logs.PackageManifestLog>
+    peerDependencyIssues: Rx.Observable<logs.PeerDependencyIssuesLog>
+    requestRetry: Rx.Observable<logs.RequestRetryLog>
+    link: Rx.Observable<logs.LinkLog>
+    other: Rx.Observable<logs.Log>
+    hook: Rx.Observable<logs.HookLog>
+    scope: Rx.Observable<logs.ScopeLog>
+    skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
+    packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
+    updateCheck: Rx.Observable<logs.UpdateCheckLog>
+  },
+  opts: {
+    appendOnly?: boolean
+    cmd: string
+    config?: ReporterPnpmConfig
+    env: NodeJS.ProcessEnv
+    filterPkgsDiff?: FilterPkgsDiff
+    process: NodeJS.Process
+    isRecursive: boolean
+    logLevel?: LogLevel
+    pnpmConfig?: ReporterPnpmConfig
+    streamLifecycleOutput?: boolean
+    aggregateOutput?: boolean
+    throttleProgress?: number
+    width?: number
+    hideAddedPkgsProgress?: boolean
+    hideProgressPrefix?: boolean
+    hideLifecycleOutput?: boolean
+    hideLifecyclePrefix?: boolean
+    // This is used by Bit CLI
+    approveBuildsInstructionText?: string
+  }
+): Outputs {
+  const ctx: ReportContext = {
+    log$,
+    opts,
+    width: opts.width ?? process.stdout.columns ?? 80,
+    cwd: opts.pnpmConfig?.dir ?? process.cwd(),
+  }
+
+  const outputs: Outputs = [
+    reportMisc(
+      log$,
+      {
+        appendOnly: opts.appendOnly === true,
+        config: opts.config,
+        cwd: ctx.cwd,
+        logLevel: opts.logLevel,
+        zoomOutCurrent: opts.isRecursive,
+      }
+    ),
+  ]
+
+  // logLevelNumber: 0123 = error warn info debug
+  const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
+  const showWarnings = logLevelNumber >= LOG_LEVEL_NUMBER.warn
+
+  if (showWarnings) {
+    outputs.push(...reportWarnings(ctx))
+  }
+
+  if (logLevelNumber >= LOG_LEVEL_NUMBER.info) {
+    outputs.push(...reportInfo(ctx))
+  } else {
+    outputs.push(...reportBelowInfo(ctx))
+  }
+
+  if (showWarnings) {
+    outputs.push(
+      reportIgnoredBuilds(log$, {
+        appendOnly: opts.appendOnly,
+        pnpmConfig: opts.pnpmConfig,
+        approveBuildsInstructionText: opts.approveBuildsInstructionText,
+      })
+    )
+  }
+
+  return outputs
+}
+
+function reportWarnings ({ log$, opts, cwd }: ReportContext): Outputs {
+  return [
+    reportPeerDependencyIssues(log$),
+    reportDeprecations({
+      deprecation: log$.deprecation,
+      stage: log$.stage,
+    }, { cwd, isRecursive: opts.isRecursive }),
+    reportRequestRetry(log$.requestRetry),
+    reportInstallChecks(log$.installCheck, { cwd }),
+    reportOptionalFetchFailures(log$.skippedOptionalDependency),
+  ]
+}
+
+function reportInfo (ctx: ReportContext): Outputs {
+  const { log$, opts, cwd } = ctx
+  const outputs: Outputs = []
+  if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
+    outputs.push(reportExecutionTime(log$.executionTime))
+  }
+  if (opts.cmd !== 'dlx') {
+    outputs.push(reportContext(log$, { cwd }))
+  }
+  outputs.push(...reportInstallInfo(ctx))
+  if (!opts.appendOnly) {
+    outputs.push(reportBigTarballProgress(log$))
+  }
+  if (!opts.isRecursive) {
+    outputs.push(reportSummary(log$, {
+      cmd: opts.cmd,
+      cwd,
+      env: opts.env,
+      filterPkgsDiff: opts.filterPkgsDiff,
+      pnpmConfig: opts.pnpmConfig,
+    }))
+  }
+  return outputs
+}
+
+function reportInstallInfo ({ log$, opts, cwd, width }: ReportContext): Outputs {
+  const throttle = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
+    ? throttleTime(opts.throttleProgress, undefined, { leading: true, trailing: true })
+    : undefined
+  return [
+    reportLifecycleScripts(log$, {
+      appendOnly: (opts.appendOnly === true || opts.streamLifecycleOutput) && !opts.hideLifecycleOutput,
+      aggregateOutput: opts.aggregateOutput,
+      hideLifecyclePrefix: opts.hideLifecyclePrefix,
+      cwd,
+      width,
+    }),
+    reportInstallingConfigDeps(log$.installingConfigDeps),
+    reportLockfileVerification(log$.lockfileVerification, {
+      appendOnly: opts.appendOnly,
+      cwd,
+      workspaceDir: opts.pnpmConfig?.workspaceDir,
+    }),
+    reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
+    reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
+    reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
+    reportUpdateCheck(log$.updateCheck, opts),
+    reportProgress(log$, {
+      cwd,
+      throttle,
+      hideAddedPkgsProgress: opts.hideAddedPkgsProgress,
+      hideProgressPrefix: opts.hideProgressPrefix,
+    }),
+    ...reportStats(log$, {
+      cmd: opts.cmd,
+      cwd,
+      isRecursive: opts.isRecursive,
+      width,
+      hideProgressPrefix: opts.hideProgressPrefix,
+    }),
+  ]
+}
+
+function reportBelowInfo ({ log$, opts, cwd, width }: ReportContext): Outputs {
+  return [
+    reportLifecycleScripts(log$, {
+      appendOnly: true,
+      aggregateOutput: true,
+      hideLifecyclePrefix: opts.hideLifecyclePrefix,
+      cwd,
+      width,
+      logLevel: opts.logLevel,
+      annotateOptionalFailure: true,
+    }),
+    reportLockfileVerification(log$.lockfileVerification.pipe(filter((log) => log.status === 'failed')), {
+      cwd,
+      workspaceDir: opts.pnpmConfig?.workspaceDir,
+    }),
+  ]
+}

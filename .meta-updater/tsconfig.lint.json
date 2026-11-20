@@ -3,6 +3,6 @@
   "include": [
     "src/**/*.ts",
     "test/**/*.ts",
-    "../__typings__/**/*.d.ts"
+    "../pnpm11/__typings__/**/*.d.ts"
   ]
 }

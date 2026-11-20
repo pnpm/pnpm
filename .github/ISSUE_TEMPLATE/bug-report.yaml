@@ -1,6 +1,5 @@
 name: Bug Report 🐛
 description: Create a bug report for pnpm
-labels: ['type: bug']
 type: Bug
 body:
   - type: markdown
@@ -85,3 +84,10 @@ body:
     attributes:
       label: If your OS is a Linux based, which one it is? (Include the version if relevant)
       placeholder: Linux, Ubuntu, Debian...
+  - type: checkboxes
+    id: working-on-fix
+    attributes:
+      label: Contributing a fix
+      description: Tick this if you plan to open a pull request. The issue will be assigned to you, so nobody else starts on the same fix.
+      options:
+        - label: I am working on a fix

@@ -1,0 +1,48 @@
+{
+  "package": {
+    "key": "parent@1.0.0",
+    "name": "parent",
+    "version": "1.0.0",
+    "alias": "linked",
+    "integrity": "sha512-PARENTAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  },
+  "posix": [
+    {
+      "name": "empty target",
+      "lockfileDir": "/workspace/project",
+      "target": "",
+      "expectedLinkNode": "link:/workspace/project",
+      "expectedSlot": "@/parent/1.0.0/3a16fe4340619f1a8febaf30c76e82343e21458a8dc88d47ee6829a17c9ccfd1"
+    },
+    {
+      "name": "parent segment",
+      "lockfileDir": "/workspace/project",
+      "target": "../shared",
+      "expectedLinkNode": "link:/workspace/shared",
+      "expectedSlot": "@/parent/1.0.0/f2a62b02eafef4509d49e4fb30d901773574154f038fa08d05a8105c44a82dfc"
+    }
+  ],
+  "win32": [
+    {
+      "name": "empty target",
+      "lockfileDir": "C:\\workspace\\project",
+      "target": "",
+      "expectedLinkNode": "link:C:\\workspace\\project",
+      "expectedSlot": "@/parent/1.0.0/3b3f19dbc521ff0a4153c37ea0054dd7138eafb0f7ebf6690b247d2da76f4726"
+    },
+    {
+      "name": "lowercase drive letter",
+      "lockfileDir": "c:\\workspace\\project",
+      "target": "..\\shared",
+      "expectedLinkNode": "link:c:\\workspace\\shared",
+      "expectedSlot": "@/parent/1.0.0/2d7c7787afd2dcea39d265a90fbc7eab84f101d6414b144a63518f04b5f42eb9"
+    },
+    {
+      "name": "uppercase drive letter",
+      "lockfileDir": "C:\\workspace\\project",
+      "target": "..\\shared",
+      "expectedLinkNode": "link:C:\\workspace\\shared",
+      "expectedSlot": "@/parent/1.0.0/f66596779425d9bb88ed1a71a0d828c5d4233f5cd0dbdc1faec8a5d508a30657"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@pnpm.e2e/pkg-with-events-and-peers",
+  "version": "1.0.0",
+  "description": "A package that creates files by pre- and postinstall scripts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "preinstall": "hello-world-js-bin && node create generated-by-preinstall",
+    "postinstall": "hello-world-js-bin && node create generated-by-postinstall"
+  },
+  "author": "Zoltan Kochan <zoltan.kochan@gmail.com> (http://kochan.io/)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/postinstall-example"
+  },
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "1.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm.e2e/peer-c": "*"
+  }
+}

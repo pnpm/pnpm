@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/abc-parent-with-missing-peers",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/abc": "1.0.0"
+  }
+}

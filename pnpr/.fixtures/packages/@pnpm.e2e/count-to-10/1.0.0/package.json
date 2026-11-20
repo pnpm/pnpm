@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/count-to-10",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node postinstall"
+  }
+}

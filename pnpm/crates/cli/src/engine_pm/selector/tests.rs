@@ -1,0 +1,91 @@
+use super::tool_install_selector;
+
+#[test]
+fn a_line_published_under_its_own_name_needs_no_rewrite() {
+    assert_eq!(tool_install_selector("yarn@1.22.22"), None);
+    assert_eq!(tool_install_selector("yarn@^1"), None);
+    assert_eq!(tool_install_selector("npm@11"), None);
+    assert_eq!(tool_install_selector("npm"), None);
+}
+
+/// Yarn Berry is published as `@yarnpkg/cli-dist`, so asking for `yarn@4`
+/// has to install that package under the name the user typed.
+#[test]
+fn yarn_berry_installs_the_cli_dist_package_under_the_yarn_name() {
+    assert_eq!(
+        tool_install_selector("yarn@4.9.2").as_deref(),
+        Some("yarn@npm:@yarnpkg/cli-dist@4.9.2"),
+    );
+    let berry = "yarn@npm:@yarnpkg/cli-dist@latest";
+    assert_eq!(tool_install_selector("yarn").as_deref(), Some(berry));
+}
+
+/// The tools that ship as platform archives go through the protocol that
+/// resolves archives.
+#[test]
+fn archive_published_tools_go_through_the_runtime_protocol() {
+    assert_eq!(tool_install_selector("yarn@6").as_deref(), Some("yarn@runtime:6"));
+    assert_eq!(tool_install_selector("bun@1.3.0").as_deref(), Some("bun@runtime:1.3.0"));
+    assert_eq!(tool_install_selector("node@22").as_deref(), Some("node@runtime:22"));
+    assert_eq!(tool_install_selector("deno").as_deref(), Some("deno@runtime:latest"));
+}
+
+/// `yarn@tool:<range>` names a Yarn line the way `yarn@<range>` does,
+/// wherever that line is published.
+#[test]
+fn yarn_tool_requests_map_like_bare_versions() {
+    assert_eq!(tool_install_selector("yarn@tool:1.22.22").as_deref(), Some("yarn@1.22.22"));
+    assert_eq!(
+        tool_install_selector("yarn@tool:4.9.2").as_deref(),
+        Some("yarn@npm:@yarnpkg/cli-dist@4.9.2"),
+    );
+    assert_eq!(tool_install_selector("yarn@tool:6").as_deref(), Some("yarn@runtime:6"));
+    assert_eq!(
+        tool_install_selector("yarn@runtime:4").as_deref(),
+        Some("yarn@npm:@yarnpkg/cli-dist@4"),
+    );
+    assert_eq!(tool_install_selector("yarn@tool:npm:@yarnpkg/cli-dist@4"), None);
+}
+
+/// Everything else is an ordinary package, including a scoped name whose
+/// leading `@` must not be read as a version separator.
+#[test]
+fn other_packages_are_left_alone() {
+    assert_eq!(tool_install_selector("typescript@5"), None);
+    assert_eq!(tool_install_selector("@yarnpkg/cli-dist@4.9.2"), None);
+    assert_eq!(tool_install_selector("nodemon"), None);
+    // pnpm installs itself through `self-update`, never through this path.
+    assert_eq!(tool_install_selector("pnpm@11"), None);
+}
+
+/// A request that already locates a package says what it wants; the
+/// rewrite would nest one locator inside another.
+#[test]
+fn a_request_that_locates_a_package_is_left_alone() {
+    assert_eq!(tool_install_selector("node@runtime:22"), None);
+    assert_eq!(tool_install_selector("bun@runtime:1.3.0"), None);
+    assert_eq!(tool_install_selector("node@tool:22"), None);
+    assert_eq!(tool_install_selector("yarn@npm:@yarnpkg/cli-dist@4.9.2"), None);
+    assert_eq!(tool_install_selector("node@github:nodejs/node"), None);
+    // The GitHub shorthand locates one without spelling out a protocol.
+    assert_eq!(tool_install_selector("yarn@yarnpkg/berry"), None);
+    assert_eq!(tool_install_selector("node@nodejs/node#main"), None);
+}
+
+#[test]
+fn rust_names_the_toolchain() {
+    let channel = |request: &str| {
+        super::rust_toolchain_request(request)
+            .map(|channel| {
+                channel.map(|channel| channel.to_string()).map_err(|error| error.to_string())
+            })
+    };
+    assert_eq!(channel("rust"), Some(Ok("stable".to_string())));
+    assert_eq!(channel("rust@latest"), Some(Ok("stable".to_string())));
+    assert_eq!(channel("rust@1.95"), Some(Ok("1.95".to_string())));
+    assert_eq!(channel("rust@nightly-2026-01-01"), Some(Ok("nightly-2026-01-01".to_string())));
+    assert!(matches!(channel("rust@^1.95"), Some(Err(_))));
+    assert_eq!(channel("rust@npm:rust@1.0.8"), None);
+    assert_eq!(channel("rustc"), None);
+    assert_eq!(channel("@scope/rust"), None);
+}

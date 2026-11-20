@@ -1,0 +1,239 @@
+//! Peer-suffixed sections to the next format.
+//!
+//! A reference is written without peer groups, unless reading the result back
+//! would select another snapshot for it. The writer reads its own output back
+//! and writes those references with their peer groups, until nothing changes.
+
+pub(super) mod snapshots;
+
+use super::{
+    NextFormatError,
+    NextSections,
+    RestoreContext,
+    RestoredSections,
+    read,
+};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
+use rayon::prelude::*;
+use snapshots::Snapshots;
+use std::collections::{
+    HashMap,
+    HashSet,
+};
+
+mod importers;
+mod peers;
+
+/// Reading back can need a reference with peer groups only where an earlier
+/// round wrote another reference with them, so the rounds are few. This
+/// bounds them for a lockfile that cannot be represented.
+pub(super) const MAX_ROUNDS: usize = 8;
+
+/// The next format's sections, read back and checked against the lockfile.
+pub(super) fn next_sections(lockfile: &Lockfile) -> Result<NextSections, NextFormatError> {
+    let empty = HashMap::new();
+    let suffixed = lockfile.snapshots.as_ref().unwrap_or(&empty);
+    let snapshots = Snapshots::of(suffixed, lockfile.packages.as_ref())?;
+    let context = RestoreContext {
+        packages: lockfile.packages.as_ref(),
+        settings: lockfile.settings.as_ref(),
+        patched_dependencies: lockfile.patched_dependencies.as_ref(),
+    };
+    let mut explicit = Explicit::default();
+    snapshots.mark_nested_bindings(&mut explicit);
+    for _ in 0..MAX_ROUNDS {
+        let sections = snapshots.sections(lockfile, &explicit)?;
+        let Some(rebuilt) = read::Rebuilt::of(&sections, context) else {
+            return Ok(sections);
+        };
+        if !snapshots.mark_mismatches(lockfile, &rebuilt, &mut explicit) {
+            // The marks above cover which snapshot each reference selects
+            // and the key each snapshot gets. The entries themselves can
+            // still read back differently, for a lockfile an older pnpm
+            // wrote, so the whole sections are compared once.
+            let restored = rebuilt.into_sections(&sections, context);
+            if explicit.mark_unbound_peer_names(lockfile, &restored) {
+                continue;
+            }
+            check_round_trip(lockfile, &restored)?;
+            return Ok(sections);
+        }
+    }
+    Err(NextFormatError::NotRepresentable { detail: "the references did not settle".to_string() })
+}
+
+/// The references written with their peer groups.
+#[derive(Default)]
+pub(super) struct Explicit {
+    snapshot_references: HashMap<PackageKey, HashSet<PkgName>>,
+    importer_references: HashMap<String, HashSet<PkgName>>,
+    unbound_peer_names: HashSet<PackageKey>,
+}
+
+impl Explicit {
+    /// Preserve the supplied transitive names while rebuilding identities.
+    pub(super) fn for_normalization(lockfile: &Lockfile) -> Self {
+        Self {
+            unbound_peer_names: lockfile.snapshots
+                .iter()
+                .flatten()
+                .map(|(key, _)| key.clone())
+                .collect(),
+            ..Self::default()
+        }
+    }
+
+    fn mark_unbound_peer_names(
+        &mut self,
+        lockfile: &Lockfile,
+        restored: &RestoredSections,
+    ) -> bool {
+        let mut marked = false;
+        for (key, entry) in lockfile.snapshots.iter().flatten() {
+            let Some(other) = restored.snapshots
+                .as_ref()
+                .and_then(|snapshots| snapshots.get(key))
+            else {
+                continue;
+            };
+            if transitive_names(entry) != transitive_names(other) {
+                marked |= self.unbound_peer_names.insert(key.clone());
+            }
+        }
+        marked
+    }
+
+    fn has_snapshot_reference(&self, key: &PackageKey, name: &PkgName) -> bool {
+        self.snapshot_references
+            .get(key)
+            .is_some_and(|names| names.contains(name))
+    }
+
+    fn has_importer_reference(&self, id: &str, name: &PkgName) -> bool {
+        self.importer_references
+            .get(id)
+            .is_some_and(|names| names.contains(name))
+    }
+
+    fn mark_snapshot_reference(&mut self, key: &PackageKey, name: &PkgName) -> bool {
+        if self.has_snapshot_reference(key, name) {
+            return false;
+        }
+        self.snapshot_references
+            .entry(key.clone())
+            .or_default()
+            .insert(name.clone())
+    }
+
+    fn mark_importer_reference(&mut self, id: &str, name: &PkgName) -> bool {
+        if self.has_importer_reference(id, name) {
+            return false;
+        }
+        self.importer_references
+            .entry(id.to_string())
+            .or_default()
+            .insert(name.clone())
+    }
+}
+
+/// Checks the sections as written. Importer `specifiers` are a working copy
+/// that is never written.
+pub(super) fn check_round_trip(
+    lockfile: &Lockfile,
+    restored: &RestoredSections,
+) -> Result<(), NextFormatError> {
+    if let Some((id, importer)) = lockfile.importers
+        .iter()
+        .find(|(id, importer)| !same_as_written(importer, restored.importers.get(*id)))
+    {
+        let fields = differing_importer_fields(importer, restored.importers.get(id));
+        return Err(NextFormatError::NotRepresentable {
+            detail: format!("importer {id}: {fields}"),
+        });
+    }
+    let empty = HashMap::new();
+    let original = lockfile.snapshots.as_ref().unwrap_or(&empty);
+    let restored = restored.snapshots.as_ref().unwrap_or(&empty);
+    if let Some(key) = original
+        .par_iter()
+        .find_any(|(key, entry)| !restored.get(*key).is_some_and(|other| same_entry(entry, other)))
+        .map(|(key, _)| key)
+        .or_else(|| {
+            restored
+                .keys()
+                .find(|key| !original.contains_key(*key))
+        })
+    {
+        return Err(NextFormatError::NotRepresentable { detail: format!("snapshot {key}") });
+    }
+    Ok(())
+}
+
+/// Equal, comparing transitive peer names as a set.
+pub(super) fn same_entry(left: &SnapshotEntry, right: &SnapshotEntry) -> bool {
+    left.id == right.id
+        && left.dependencies == right.dependencies
+        && left.optional_dependencies == right.optional_dependencies
+        && left.patched == right.patched
+        && left.optional == right.optional
+        && transitive_names(left) == transitive_names(right)
+}
+
+fn transitive_names(entry: &SnapshotEntry) -> HashSet<&str> {
+    entry.transitive_peer_dependencies
+        .iter()
+        .flatten()
+        .map(String::as_str)
+        .collect()
+}
+
+pub(super) fn children(entry: &SnapshotEntry) -> impl Iterator<Item = (&PkgName, &SnapshotDepRef)> {
+    entry.dependencies
+        .iter()
+        .chain(entry.optional_dependencies.iter())
+        .flatten()
+}
+
+/// Whether `restored` is `original` as the file holds it.
+fn same_as_written(original: &ProjectSnapshot, restored: Option<&ProjectSnapshot>) -> bool {
+    restored.is_some_and(|restored| as_written(original) == *restored)
+}
+
+/// `importer` as the file holds it: without `specifiers`, and with only the
+/// `injected` flags of its `dependenciesMeta`.
+fn as_written(importer: &ProjectSnapshot) -> ProjectSnapshot {
+    ProjectSnapshot {
+        specifiers: None,
+        dependencies_meta: importer.injected_dependencies_meta(importer.dependencies_meta.as_ref()),
+        ..importer.clone()
+    }
+}
+
+/// The names of the importer fields `restored` differs from `original`
+/// in, so the error says what did not round-trip.
+fn differing_importer_fields(
+    original: &ProjectSnapshot,
+    restored: Option<&ProjectSnapshot>,
+) -> String {
+    let Some(restored) = restored else { return "missing".to_string() };
+    let original = &as_written(original);
+    let differing: Vec<&str> = [
+        ("dependencies", original.dependencies != restored.dependencies),
+        ("devDependencies", original.dev_dependencies != restored.dev_dependencies),
+        ("optionalDependencies", original.optional_dependencies != restored.optional_dependencies),
+        ("dependenciesMeta", original.dependencies_meta != restored.dependencies_meta),
+        ("publishDirectory", original.publish_directory != restored.publish_directory),
+        ("linkDirectory", original.link_directory != restored.link_directory),
+    ]
+    .into_iter()
+    .filter_map(|(name, differs)| differs.then_some(name))
+    .collect();
+    format!("{} differ", differing.join(", "))
+}

@@ -1,0 +1,198 @@
+use pnpm_network::{
+    AddressGuard,
+    LocalResponse,
+};
+
+use super::{
+    AUTHORIZATION,
+    Arc,
+    Footprint,
+    Identity,
+    LocalFetch,
+    MetadataCacheScope,
+    Mutex,
+    PrivateAccessDescriptor,
+    ResolvedAlias,
+    RouteClass,
+    RouteContext,
+    UpstreamConfig,
+    UpstreamRouteHook,
+    fmt,
+    headers_credential_digest,
+    nerf_prefix,
+    scheme_of,
+};
+
+/// The [`UpstreamRouteHook`] pnpr installs on a resolve's
+/// [`AuthHeaders`](pnpm_network::AuthHeaders). Every metadata/tarball
+/// fetch routes through [`UpstreamRouteHook::authorize`], which classifies
+/// the route, records it into the shared [`Footprint`], and returns the
+/// pnpr-managed credential (never a client-forwarded one).
+pub struct RouteHook {
+    pub(super) context: Arc<RouteContext>,
+    pub(super) identity: Identity,
+    pub(super) footprint: Arc<Mutex<Footprint>>,
+    /// HMAC secret keying the per-descriptor metadata namespace
+    /// ([`MetadataCacheScope::Private`]); the same server secret the
+    /// resolution cache keys private footprints with.
+    pub(super) secret: Arc<[u8]>,
+    local_fetch: Option<Arc<LocalFetch>>,
+}
+
+impl fmt::Debug for RouteHook {
+    /// Redacts `Self::secret`, the descriptor-HMAC key must never reach a
+    /// log line or panic dump, or the private namespace becomes correlatable.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RouteHook")
+            .field("context", &self.context)
+            .field("identity", &self.identity)
+            .field("footprint", &self.footprint)
+            .field("secret", &"<redacted>")
+            .field("local_fetch", &self.local_fetch.is_some())
+            .finish()
+    }
+}
+
+impl RouteHook {
+    #[must_use]
+    pub fn new(
+        context: Arc<RouteContext>,
+        identity: Identity,
+        footprint: Arc<Mutex<Footprint>>,
+        secret: Arc<[u8]>,
+    ) -> Self {
+        Self { context, identity, footprint, secret, local_fetch: None }
+    }
+}
+
+impl RouteHook {
+    #[must_use]
+    pub fn with_local_fetch(mut self, fetch: Arc<LocalFetch>) -> Self {
+        self.local_fetch = Some(fetch);
+        self
+    }
+}
+
+impl UpstreamRouteHook for RouteHook {
+    fn fetch_local(&self, url: &str, headers: reqwest::header::HeaderMap) -> Option<LocalResponse> {
+        if !self.context.allows_fetch(url) || !self.context.is_own_url(url) {
+            return None;
+        }
+        self.local_fetch.as_ref()?(url, headers)
+    }
+
+    fn authorize(&self, url: &str, package: Option<&str>) -> Option<String> {
+        let local_package = self.context.local_package(url);
+        let package = local_package.as_deref().or(package);
+        match self.context.classify(&self.identity, url, package) {
+            RouteClass::Public => None,
+            RouteClass::Hosted { policy_id } => {
+                self.record(PrivateAccessDescriptor::Hosted { policy_id });
+                // Hosted packages are served by pnpr itself; no upstream
+                // credential is involved.
+                None
+            }
+            RouteClass::Proxied { alias, credential_digest } => {
+                let authorization = self.context.aliases
+                    .iter()
+                    .find(|candidate| candidate.name == alias)
+                    .and_then(|candidate| candidate.authorization.clone());
+                // Package-qualified only when the upstream's rules explicitly
+                // refine this name, so replay re-checks the refinement.
+                let package = self.context.alias_package_qualifier(&alias, package);
+                self.record(PrivateAccessDescriptor::Alias { alias, credential_digest, package });
+                authorization.filter(|_| !self.context.is_own_url(url))
+            }
+        }
+    }
+
+    fn allows_fetch(&self, url: &str) -> bool {
+        self.context.allows_fetch(url)
+    }
+
+    fn connect_guard(&self) -> Option<AddressGuard> {
+        let context = Arc::clone(&self.context);
+        Some(Arc::new(move |host, address| context.allows_address(host, address)))
+    }
+
+    fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
+        let local_package = self.context.local_package(url);
+        let package = local_package.as_deref().or(package);
+        // Read-only classification; this must not record into the
+        // footprint (`authorize` already does, at the real fetch point).
+        match self.context.classify(&self.identity, url, package) {
+            RouteClass::Public => {
+                if self.context.is_denied_own_package(&self.identity, url, package) {
+                    MetadataCacheScope::Private {
+                        descriptor_id: super::footprint::denied_digest_id(
+                            &self.identity,
+                            url,
+                            package,
+                            &self.secret,
+                        ),
+                    }
+                } else {
+                    MetadataCacheScope::Public
+                }
+            }
+            RouteClass::Hosted { policy_id } => MetadataCacheScope::Private {
+                descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }.digest_id(
+                    &self.secret,
+                ),
+            },
+            RouteClass::Proxied { alias, credential_digest } => MetadataCacheScope::Private {
+                descriptor_id: {
+                    let package = self.context.alias_package_qualifier(&alias, package);
+                    PrivateAccessDescriptor::Alias { alias, credential_digest, package }.digest_id(
+                        &self.secret,
+                    )
+                },
+            },
+        }
+    }
+}
+
+impl RouteHook {
+    pub(super) fn record(&self, descriptor: PrivateAccessDescriptor) {
+        self.footprint
+            .lock()
+            .expect("footprint poisoned")
+            .add(descriptor);
+    }
+}
+
+impl ResolvedAlias {
+    /// Resolve upstream access and credential state for route classification.
+    pub(super) fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
+        let authorization = upstream.headers
+            .get(AUTHORIZATION)
+            .filter(|_| !upstream.public)
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
+            .map(str::to_string);
+        Some(Self {
+            name: name.to_string(),
+            credential_digest: headers_credential_digest(&upstream.headers),
+            registry: upstream.url.clone(),
+            origin: nerf_prefix(&upstream.url)?,
+            scheme: scheme_of(&upstream.url)?.to_string(),
+            authorization,
+            rules: upstream.rules.clone(),
+        })
+    }
+
+    /// Whether a descriptor recorded for `package` can no longer be checked:
+    /// one without a package was recorded while every package had the same
+    /// readers, and once they differ it names no package to check.
+    pub(super) fn outgrew(&self, package: Option<&str>) -> bool {
+        package.is_none() && self.rules.refines_access()
+    }
+
+    /// Whether `identity` may select this alias: it may read something
+    /// through the upstream and have the origin fetched. A fetch through an
+    /// alias always reaches the origin, so `read` alone does not select one.
+    pub(super) fn admits(&self, identity: &Identity) -> bool {
+        self.rules.any_access_admits(identity)
+            && self.rules.any_admits(pnpr_policy::Action::Cache, identity)
+    }
+}

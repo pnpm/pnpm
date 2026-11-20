@@ -1,0 +1,47 @@
+[package]
+name = "pnpr-libsql"
+version = "0.0.1"
+description = "How pnpr reaches a libSQL database: the TLS connector, the connection pool, and an embedded replica of a Turso primary"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license-file = "../../LICENSE.md"
+repository.workspace = true
+
+[features]
+# A local primary that serves libSQL's sync protocol, for tests of an embedded
+# replica.
+testing = ["dep:axum", "dep:base64", "dep:serde_json"]
+
+[dependencies]
+pnpm-network = { workspace = true }
+pnpr-config = { workspace = true }
+pnpr-error = { workspace = true, features = ["backend-libsql"] }
+axum = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+http-0-2 = { workspace = true }
+hyper-0-14 = { workspace = true }
+libsql = { workspace = true }
+rustls = { workspace = true, features = ["aws-lc-rs"] }
+rustls-platform-verifier = { workspace = true }
+serde_json = { workspace = true, optional = true }
+tokio = { workspace = true }
+tokio-rustls = { workspace = true }
+tower-0-4 = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+axum = { workspace = true, features = ["json"] }
+base64 = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net"] }
+
+[lints]
+workspace = true

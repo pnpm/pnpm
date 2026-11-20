@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/pkg-with-bundle-dependencies-false",
+  "version": "1.0.0",
+  "bundleDependencies": false,
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "*"
+  }
+}

@@ -1,0 +1,614 @@
+use super::{
+    RuntimeFixture,
+    assert_installed,
+    command,
+    mock_node_release,
+    prepare_workspace,
+    runtime_fixture,
+    write_devengines_manifest,
+    write_runtime_lockfile_for_group,
+};
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pnpm_graph_hasher::{
+    host_arch,
+    host_platform,
+};
+use pnpm_testing_utils::fs::{
+    MTIME_STEP_MS,
+    set_mtime_ms,
+};
+use pnpm_workspace_state::{
+    RuntimeOnFail,
+    load_workspace_state,
+    update_workspace_state,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
+
+#[test]
+fn hoisted_no_runtime_installs_can_be_repeated_and_restore_the_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "nodeLinker: hoisted\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, fixture.version, Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    let tarball = pnpm_testing_utils::fixtures::minimal_tarball("dependency", "1.0.0");
+    fs::write(workspace.join("dependency.tgz"), &tarball).unwrap();
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["dependencies"] = json!({ "dependency": "file:dependency.tgz" });
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["dependencies"] = json!({
+        "dependency": { "specifier": "file:dependency.tgz", "version": "file:dependency.tgz" },
+    });
+    lockfile["packages"]["dependency@file:dependency.tgz"] = json!({
+        "name": "dependency",
+        "version": "1.0.0",
+        "resolution": { "tarball": "file:dependency.tgz" },
+    });
+    lockfile["snapshots"]["dependency@file:dependency.tgz"] = json!({});
+    fs::write(&lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+    let wanted = fs::read(workspace.join("pnpm-lock.yaml")).unwrap();
+
+    for extra in [None, None, Some("--force"), Some("--prod")] {
+        let mut install =
+            command(&workspace).with_args(["install", "--no-runtime", "--frozen-lockfile"]);
+        if let Some(extra) = extra {
+            install = install.with_arg(extra);
+        }
+        install.assert().success();
+        assert!(!workspace.join("node_modules/node").exists());
+        assert!(workspace.join("node_modules/dependency/package.json").exists());
+        assert_eq!(fs::read(workspace.join("pnpm-lock.yaml")).unwrap(), wanted);
+    }
+    assert!(!fixture.archive_mock.matched());
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_installed(&workspace, std::slice::from_ref(&fixture));
+}
+
+#[test]
+fn runtime_false_setting_skips_the_runtime() {
+    for (yaml, args) in [("runtime: false\n", &[][..]), ("", &["--config.runtime=false"][..])] {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = prepare_workspace(&root, yaml);
+        let mut server = mockito::Server::new();
+        let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+        write_devengines_manifest(&workspace, fixture.version, Some("download"));
+        write_runtime_lockfile_for_group(
+            &workspace,
+            std::slice::from_ref(&fixture),
+            "devDependencies",
+        );
+
+        command(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{yaml:?} {args:?}");
+        assert!(!fixture.archive_mock.matched(), "{yaml:?} {args:?}");
+    }
+}
+
+#[test]
+fn command_line_runtime_setting_overrides_the_workspace_yaml() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "runtime: false\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, fixture.version, Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--config.runtime=true"])
+        .assert()
+        .success();
+    assert_installed(&workspace, std::slice::from_ref(&fixture));
+}
+
+/// An `updateConfig` hook reads `runtime` only when a source set it, as on
+/// pnpm 11, where `--no-runtime` is the `runtime: false` setting.
+#[test]
+fn update_config_sees_runtime_only_when_set() {
+    let dump_config = "const fs = require('fs');\nconst path = require('path');\nmodule.exports = { hooks: { updateConfig (config) {\n  fs.writeFileSync(path.join(__dirname, 'seen.json'), JSON.stringify(config));\n  return config;\n} } }";
+    for (yaml, args, expected) in [
+        ("", &[][..], None),
+        ("runtime: false\n", &[][..], Some(false)),
+        ("", &["--no-runtime"][..], Some(false)),
+        ("", &["--config.runtime=true"][..], Some(true)),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = prepare_workspace(&root, yaml);
+        let mut server = mockito::Server::new();
+        let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+        write_devengines_manifest(&workspace, fixture.version, Some("download"));
+        write_runtime_lockfile_for_group(
+            &workspace,
+            std::slice::from_ref(&fixture),
+            "devDependencies",
+        );
+        fs::write(workspace.join(".pnpmfile.cjs"), dump_config).unwrap();
+
+        command(&workspace)
+            .with_arg("install")
+            .with_args(args)
+            .assert()
+            .success();
+        let seen: Value =
+            serde_json::from_slice(&fs::read(workspace.join("seen.json")).unwrap()).unwrap();
+        assert_eq!(seen.get("runtime").and_then(Value::as_bool), expected, "{yaml:?} {args:?}");
+        assert_eq!(seen.get("runtime").is_some(), expected.is_some(), "{yaml:?} {args:?}");
+    }
+}
+
+#[test]
+fn dedupe_and_prune_follow_the_runtime_setting() {
+    let cases: [(&str, &[&str]); 3] = [
+        ("runtime: false\n", &["dedupe"]),
+        ("runtime: false\n", &["prune"]),
+        ("", &["dedupe", "--no-runtime"]),
+    ];
+    for (yaml, args) in cases {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) = locked_runtime_project(&root, &mut server, yaml);
+
+        command(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{args:?}");
+        assert!(!fixture.archive_mock.matched(), "{args:?}");
+    }
+}
+
+#[test]
+fn update_config_hook_cannot_undo_no_runtime() {
+    for command_name in ["install", "dedupe"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) = locked_runtime_project(&root, &mut server, "");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { updateConfig (config) { config.runtime = true; return config } } }",
+        )
+        .unwrap();
+
+        command(&workspace)
+            .with_args([command_name, "--no-runtime"])
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{command_name}");
+        assert!(!fixture.archive_mock.matched(), "{command_name}");
+    }
+}
+
+#[test]
+fn update_config_hook_can_skip_the_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let (workspace, fixture) = locked_runtime_project(&root, &mut server, "");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.runtime = false; return config } } }",
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules/node").exists());
+    assert!(!fixture.archive_mock.matched());
+}
+
+/// A workspace whose `devEngines.runtime` is locked to a mocked Node.js 24.0.0.
+fn locked_runtime_project(
+    root: &tempfile::TempDir,
+    server: &mut mockito::Server,
+    extra_yaml: &str,
+) -> (std::path::PathBuf, RuntimeFixture) {
+    let workspace = prepare_workspace(root, extra_yaml);
+    let fixture = runtime_fixture(server, "node", "24.0.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, fixture.version, Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    (workspace, fixture)
+}
+
+#[test]
+fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let [_index, _shasums, archive] = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
+    )
+    .unwrap();
+
+    // No pnpm-lock.yaml, so the install takes the fresh-resolve path.
+    command(&workspace)
+        .with_args(["install", "--no-runtime"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains(format!("node@runtime:{version}").as_str()),
+        "the resolved runtime stays in the lockfile:\n{lockfile}",
+    );
+    assert!(
+        !workspace.join("node_modules/node").exists(),
+        "the runtime must not be materialized under --no-runtime",
+    );
+    let bin_dir = workspace.join("node_modules/.bin");
+    for bin in ["node", "node.exe", "node.cmd"] {
+        assert!(!bin_dir.join(bin).exists(), "runtime bin {bin} must not be linked");
+    }
+    assert!(!archive.matched(), "the runtime archive must not be downloaded");
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(
+        workspace.join("node_modules/node").exists(),
+        "a follow-up install without --no-runtime links the runtime",
+    );
+}
+
+#[test]
+fn engines_are_checked_against_the_locked_node_runtime() {
+    for linker in ["isolated", "hoisted"] {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = prepare_workspace(&root, format!("nodeLinker: {linker}\n").as_str());
+        let mut server = mockito::Server::new();
+        let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+        write_range_runtime_project(&workspace, &fixture, "optionalDependencies", ">=24.1.0");
+
+        command(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+            .assert()
+            .success();
+        assert!(
+            workspace.join("node_modules/dependency/package.json").exists(),
+            "{linker}: the locked Node.js 24.1.0 satisfies the optional dependency's engines",
+        );
+    }
+}
+
+#[test]
+fn project_engines_are_checked_against_a_locked_runtime_range_resolution() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=24.1.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^24.0.0");
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn project_engines_ignore_a_lockfile_runtime_for_an_outdated_specifier() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=24.1.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^23.0.0");
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+
+    let output = command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
+}
+
+#[test]
+fn project_engines_use_a_directly_declared_runtime_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "dependencies");
+    let manifest_path = workspace.join("package.json");
+    fs::write(&manifest_path, json!({ "name": "app" }).to_string()).unwrap();
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["dependencies"] = json!({"node": "tool:24.1.0"});
+    manifest["engines"]["node"] = json!(">=24.1.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["dependencies"]["node"]["specifier"] = json!("tool:24.1.0");
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn project_engines_use_the_locked_root_runtime_when_the_project_has_no_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\npackages:\n  - packages/*\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^24.0.0");
+    lockfile["importers"]["packages/app"] = json!({});
+    fs::write(lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+    fs::create_dir_all(workspace.join("packages/app")).unwrap();
+    fs::write(
+        workspace.join("packages/app/package.json"),
+        json!({ "name": "app", "engines": { "node": ">=24.1.0" } }).to_string(),
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn production_install_checks_engines_against_the_runtime_it_links() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    write_devengines_manifest(&workspace, "99.0.0", Some("download"));
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=99.0.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+
+    let output = command(&workspace)
+        .with_args(["install", "--prod"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
+}
+
+#[test]
+fn production_add_checks_engines_against_the_runtime_it_links() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\n");
+    write_devengines_manifest(&workspace, "99.0.0", Some("download"));
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["engines"]["node"] = json!(">=99.0.0");
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+
+    let output = command(&workspace)
+        .with_args(["add", "--prod", "is-positive"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_UNSUPPORTED_ENGINE"));
+}
+
+#[test]
+fn explicit_node_version_takes_priority_over_the_locked_node_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\nnodeVersion: 20.0.0\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_range_runtime_project(&workspace, &fixture, "dependencies", "<21");
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn explicit_node_version_is_checked_instead_of_the_locked_node_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "engineStrict: true\nnodeVersion: 20.0.0\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.1.0", host_platform(), host_arch());
+    write_range_runtime_project(&workspace, &fixture, "dependencies", ">=24.0.0");
+
+    let output = command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--no-runtime"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success());
+    assert!(stderr.contains("ERR_PNPM_UNSUPPORTED_ENGINE"), "{stderr}");
+}
+
+/// A project whose `devEngines.runtime` range is locked to `fixture` and
+/// that depends on a local `dependency` requiring `engines_node`.
+fn write_range_runtime_project(
+    workspace: &Path,
+    fixture: &RuntimeFixture,
+    dependency_group: &str,
+    engines_node: &str,
+) {
+    write_devengines_manifest(workspace, "^24.0.0", Some("download"));
+    write_runtime_lockfile_for_group(workspace, std::slice::from_ref(fixture), "devDependencies");
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({ "name": "dependency", "version": "1.0.0", "engines": { "node": engines_node } })
+            .to_string(),
+    )
+    .unwrap();
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest[dependency_group] = json!({ "dependency": "file:dependency" });
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let mut lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).unwrap()).unwrap();
+    lockfile["importers"]["."]["devDependencies"]["node"]["specifier"] = json!("runtime:^24.0.0");
+    lockfile["importers"]["."][dependency_group] = json!({
+        "dependency": { "specifier": "file:dependency", "version": "file:dependency" },
+    });
+    lockfile["packages"]["dependency@file:dependency"] = json!({
+        "resolution": { "directory": "dependency", "type": "directory" },
+        "engines": { "node": engines_node },
+    });
+    lockfile["snapshots"]["dependency@file:dependency"] =
+        json!({ "optional": dependency_group == "optionalDependencies" });
+    fs::write(&lockfile_path, serde_saphyr::to_string(&lockfile).unwrap()).unwrap();
+}
+
+#[test]
+fn run_after_a_no_runtime_install_does_not_install_again() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let (workspace, fixture) =
+        locked_runtime_project(&root, &mut server, "verifyDepsBeforeRun: error\n");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["scripts"] = json!({ "noop": "exit 0" });
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--no-runtime"])
+        .assert()
+        .success();
+    // A lockfile newer than the state, with unchanged content, makes the gate
+    // refresh the state.
+    let mut state = load_workspace_state(&workspace).unwrap().unwrap();
+    state.last_validated_timestamp -= 4 * MTIME_STEP_MS;
+    let validated = state.last_validated_timestamp;
+    update_workspace_state(&workspace, &state).unwrap();
+    set_mtime_ms(&workspace.join("pnpm-lock.yaml"), validated + 2 * MTIME_STEP_MS);
+    command(&workspace)
+        .with_args(["run", "noop"])
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules/node").exists());
+    assert!(!fixture.archive_mock.matched());
+    let state = load_workspace_state(&workspace).unwrap().unwrap();
+    assert!(state.last_validated_timestamp > validated);
+    assert_eq!(state.settings.runtime, Some(false));
+}
+
+/// A script runs with the runtime the last install linked, so a
+/// `--runtime-on-fail` the run does not repeat must not make the gate install.
+#[test]
+fn run_after_a_runtime_on_fail_flag_install_does_not_install_again() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let (workspace, _fixture) =
+        locked_runtime_project(&root, &mut server, "verifyDepsBeforeRun: error\n");
+    let manifest_path = workspace.join("package.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["scripts"] = json!({ "noop": "exit 0" });
+    fs::write(manifest_path, manifest.to_string()).unwrap();
+
+    command(&workspace)
+        .with_args(["install", "--runtime-on-fail=download"])
+        .assert()
+        .success();
+    let mut state = load_workspace_state(&workspace).unwrap().unwrap();
+    assert_eq!(state.settings.runtime_on_fail, Some(RuntimeOnFail::Download));
+    // A lockfile newer than the state, with unchanged content, makes the gate
+    // refresh the state.
+    state.last_validated_timestamp -= 4 * MTIME_STEP_MS;
+    let validated = state.last_validated_timestamp;
+    update_workspace_state(&workspace, &state).unwrap();
+    set_mtime_ms(&workspace.join("pnpm-lock.yaml"), validated + 2 * MTIME_STEP_MS);
+
+    command(&workspace)
+        .with_args(["run", "noop"])
+        .assert()
+        .success();
+    let state = load_workspace_state(&workspace).unwrap().unwrap();
+    assert!(state.last_validated_timestamp > validated);
+    assert_eq!(state.settings.runtime_on_fail, Some(RuntimeOnFail::Download));
+}
+
+#[test]
+fn no_runtime_install_unlinks_a_linked_runtime() {
+    for linker in ["isolated", "hoisted"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) =
+            locked_runtime_project(&root, &mut server, &format!("nodeLinker: {linker}\n"));
+
+        for args in [&["--no-runtime"][..], &["--no-runtime", "--frozen-lockfile"][..]] {
+            command(&workspace)
+                .with_arg("install")
+                .assert()
+                .success();
+            assert_installed(&workspace, std::slice::from_ref(&fixture));
+
+            command(&workspace)
+                .with_arg("install")
+                .with_args(args)
+                .assert()
+                .success();
+            let bin_dir = workspace.join("node_modules/.bin");
+            for link in std::iter::once(workspace.join("node_modules/node"))
+                .chain(["node", "node.exe", "node.cmd"].map(|bin| bin_dir.join(bin)))
+            {
+                assert_no_entry(&link, &format!("{linker} {args:?}"));
+            }
+        }
+    }
+}
+
+/// Unlike [`Path::exists`], also fails on a dangling symlink.
+fn assert_no_entry(path: &Path, context: &str) {
+    match fs::symlink_metadata(path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        result => panic!("{context}: {} must be removed, got {result:?}", path.display()),
+    }
+}

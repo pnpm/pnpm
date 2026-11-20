@@ -1,0 +1,540 @@
+//! `pacquet config`: manage the pnpm configuration files.
+//!
+//! Provides the `set` / `get` / `delete` / `list` subcommands, their file
+//! routing, key validation and value casting, and the read path.
+//!
+//! pacquet's [`Config`] is the loaded, merged config rather than pnpm's
+//! injected `_config` / `_context`: `pnpm config list` / `get` read the
+//! explicitly-set settings from [`Config::explicit_settings`] and the raw auth
+//! keys from [`Config::raw_auth_config`] (pacquet's stand-ins for pnpm's
+//! `explicitlySetKeys` + `authConfig`).
+
+mod ini;
+
+#[cfg(test)]
+mod tests;
+
+use clap::{
+    Args,
+    Subcommand,
+    ValueEnum,
+};
+use credentials::carries_global_credentials;
+use derive_more::{
+    Display,
+    Error,
+};
+use indexmap::IndexMap;
+use miette::Diagnostic;
+use pnpm_config::{
+    Config,
+    DEFAULT_JSR_REGISTRY,
+    GLOBAL_CONFIG_YAML_FILENAME,
+    WORKSPACE_MANIFEST_FILENAME,
+    YamlConfigTarget,
+    config_types,
+    naming_cases,
+    property_path,
+    property_path::Segment,
+    protected_settings,
+    refused_keys,
+    validate_structured_setting,
+};
+use pnpm_workspace_manifest_writer::{
+    update_manifest_field,
+    update_private_manifest_field,
+    update_workspace_setting,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use values::{
+    cast_field,
+    config_get,
+    config_list,
+    is_string_only_ini_key,
+    validate_ini_config_key,
+    validate_simple_key,
+    validate_workspace_key,
+    validate_yaml_config_key,
+};
+
+/// Manage the pnpm configuration files.
+#[derive(Debug, Args)]
+pub struct ConfigArgs {
+    #[clap(flatten)]
+    pub flags: ConfigFlags,
+
+    #[clap(subcommand)]
+    pub command: ConfigSubcommand,
+}
+
+impl ConfigArgs {
+    /// Whether this is a `get` / `list` the user scoped to the global config.
+    /// Such a read must not show the project's settings.
+    pub(super) fn reads_global_config(&self) -> bool {
+        self.flags.is_global()
+            && matches!(self.command, ConfigSubcommand::Get(_) | ConfigSubcommand::List(_))
+    }
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ConfigSubcommand {
+    /// Set the config key to the value provided.
+    Set(ConfigSetArgs),
+    /// Print the config value at the provided property path, such as
+    /// `nodeVersion` or `catalog.react`.
+    Get(ConfigGetArgs),
+    /// Remove the config key from the config file.
+    Delete(ConfigDeleteArgs),
+    /// Show all the config settings.
+    List(ConfigListArgs),
+}
+
+/// Flags shared by the `config` subcommands.
+#[derive(Debug, Default, Clone, Copy, Args)]
+pub struct ConfigFlags {
+    /// Operate on the global config file.
+    #[clap(short = 'g', long, global = true)]
+    pub global: bool,
+
+    /// Which config to read or write: `project` for the project's config,
+    /// `global` for the global config.
+    #[clap(long, value_enum, global = true)]
+    pub location: Option<ConfigLocation>,
+
+    /// Show all types of values in JSON format (not just objects and arrays).
+    #[clap(long, global = true)]
+    pub json: bool,
+}
+
+impl ConfigFlags {
+    /// Whether the user scoped the command to the global config with
+    /// `--global` or `--location=global`, ignoring the default
+    /// [`resolve_global`] applies when no location flag is given. `--global`
+    /// and `--location=global` are the same request.
+    pub(super) fn is_global(self) -> bool {
+        match self.location {
+            Some(location) => location == ConfigLocation::Global,
+            None => self.global,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum ConfigLocation {
+    Project,
+    Global,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigSetArgs {
+    pub key: Option<String>,
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigGetArgs {
+    pub key: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigDeleteArgs {
+    pub key: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigListArgs {}
+
+#[derive(Debug, Args)]
+pub struct ConfigSetAliasArgs {
+    #[clap(flatten)]
+    pub args: ConfigSetArgs,
+
+    #[clap(flatten)]
+    pub flags: ConfigFlags,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigGetAliasArgs {
+    #[clap(flatten)]
+    pub args: ConfigGetArgs,
+
+    #[clap(flatten)]
+    pub flags: ConfigFlags,
+}
+
+/// Errors raised by `pacquet config`, mirroring the `PnpmError` codes pnpm's
+/// config command raises (the `ERR_PNPM_` prefix is part of the public
+/// contract; see <https://pnpm.io/errors>).
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum ConfigError {
+    #[display("`pnpm config {subcommand}` requires the config key")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_NO_PARAMS))]
+    NoParams { subcommand: String },
+
+    #[display("Cannot set {key} to a non-string value ({value})")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_AUTH_NON_STRING))]
+    SetAuthNonString { key: String, value: String },
+
+    #[display("Cannot set config with an empty key")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_EMPTY_KEY))]
+    SetEmptyKey,
+
+    #[display("Setting deep property path is not supported")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_DEEP_KEY))]
+    SetDeepKey,
+
+    #[display("Key {key:?} isn't supported by INI config files")]
+    #[diagnostic(
+        code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_INI_CONFIG_KEY),
+        help("Add {camel:?} to the project workspace manifest instead")
+    )]
+    SetUnsupportedIniConfigKey { key: String, camel: String },
+
+    #[display("The key {key:?} isn't supported by the workspace manifest")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY), help("Try {camel:?}"))]
+    SetUnsupportedWorkspaceKey { key: String, camel: String },
+
+    #[display("The key {key:?} isn't supported by the global config.yaml file")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY), help("{hint}"))]
+    SetUnsupportedYamlConfigKey { key: String, hint: String },
+
+    /// A project's `pnpm-workspace.yaml` carries no machine-level state, so
+    /// writing such a key there would only leave behind one pnpm ignores.
+    #[display("The key {key:?} cannot be set in a project's pnpm-workspace.yaml")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING), help("{belongs}"))]
+    SetNotAProjectSetting { key: String, belongs: String },
+
+    #[display("Invalid value for structured config key {key:?}: {reason}")]
+    #[diagnostic(
+        code(ERR_PNPM_CONFIG_SET_STRUCTURED_VALUE),
+        help("Use --json with an object value")
+    )]
+    SetStructuredValue { key: String, reason: String },
+
+    #[display("Invalid property path: {_0}")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_INVALID_PROPERTY_PATH))]
+    InvalidPropertyPath(#[error(not(source))] property_path::ParsePropertyPathError),
+
+    #[display("Invalid JSON value: {_0}")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_INVALID_JSON))]
+    InvalidJson(#[error(not(source))] serde_json::Error),
+
+    #[display("The global config directory could not be determined")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_NO_GLOBAL_DIR))]
+    NoGlobalConfigDir,
+
+    // The rejected value is deliberately not echoed; it may be a credential
+    // (e.g. a token with a stray newline pasted from an env var).
+    #[display("Cannot write a value containing a control character to an INI config file")]
+    #[diagnostic(code(ERR_PNPM_CLI_CONFIG_SET_INVALID_CONTROL_CHARACTER))]
+    SetIniControlCharacter,
+}
+
+impl ConfigArgs {
+    pub fn run(self, config: &Config, dir: &Path) -> miette::Result<()> {
+        let Self { flags, command } = self;
+        match command {
+            ConfigSubcommand::Set(args) => {
+                let (key, value) = split_set_params(args.key, args.value, "set")?;
+                config_set(config, dir, flags, &key, Some(value))?;
+            }
+            ConfigSubcommand::Delete(args) => {
+                let key = args.key
+                    .filter(|key| !key.is_empty())
+                    .ok_or_else(|| ConfigError::NoParams { subcommand: "delete".to_string() })?;
+                config_set(config, dir, flags, &key, None)?;
+            }
+            ConfigSubcommand::Get(args) => {
+                let key = args.key
+                    .as_deref()
+                    .filter(|key| !key.is_empty());
+                let output = match key {
+                    Some(key) => config_get(config, flags, key)?,
+                    None => config_list(config),
+                };
+                pnpm_diagnostics::println!("{output}");
+                incomplete::warn_if_incomplete(config, key);
+            }
+            ConfigSubcommand::List(_) => {
+                pnpm_diagnostics::println!("{}", config_list(config));
+                incomplete::warn_if_incomplete(config, None);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Resolve the effective `global` boolean from the `--location` / `--global`
+/// flags. Mirrors pnpm's handler: `--location` wins, otherwise config
+/// operations default to global.
+pub(super) fn resolve_global(flags: ConfigFlags) -> bool {
+    match flags.location {
+        Some(ConfigLocation::Global) => true,
+        Some(ConfigLocation::Project) => false,
+        None => true,
+    }
+}
+
+/// Split `pnpm config set <key> [value]` params, handling the `key=value` form
+/// when no separate value is given. Mirrors the `set` arm of pnpm's handler.
+fn split_set_params(
+    key: Option<String>,
+    value: Option<String>,
+    subcommand: &str,
+) -> Result<(String, String), ConfigError> {
+    let key = key
+        .filter(|key| !key.is_empty())
+        .ok_or_else(|| ConfigError::NoParams { subcommand: subcommand.to_string() })?;
+    match value {
+        Some(value) => Ok((key, value)),
+        None => match key.split_once('=') {
+            Some((k, v)) => Ok((k.to_string(), v.to_string())),
+            None => Ok((key, String::new())),
+        },
+    }
+}
+
+// config set / delete
+
+/// `pnpm config set` (when `value` is `Some`) / `pnpm config delete` (when
+/// `value` is `None`). Port of `configSet`.
+fn config_set(
+    config: &Config,
+    dir: &Path,
+    flags: ConfigFlags,
+    key: &str,
+    value: Option<String>,
+) -> miette::Result<()> {
+    let global = resolve_global(flags);
+    let mut key = key.to_string();
+    let mut is_auth_setting = config_types::is_ini_config_key(&key);
+    if !is_auth_setting {
+        key = validate_simple_key(&key)?;
+        is_auth_setting = config_types::is_ini_config_key(&key);
+    }
+
+    // The cast/parsed value. `None` (delete) and JSON `null` both delete.
+    let value: Value = match value {
+        None => Value::Null,
+        Some(raw) if flags.json => serde_json::from_str(&raw).map_err(ConfigError::InvalidJson)?,
+        Some(raw) => Value::String(raw),
+    };
+
+    if is_auth_setting {
+        return set_auth_setting(config, dir, global, key, &value);
+    }
+
+    let (config_dir, config_file_name) = get_config_file_info(&key, global, config, dir)?;
+
+    match config_file_name {
+        GLOBAL_CONFIG_YAML_FILENAME | WORKSPACE_MANIFEST_FILENAME => {
+            set_yaml_setting(config_file_name, &config_dir, &key, value)?;
+        }
+        _ => {
+            // INI file reached via `getConfigFileInfo` (auth/scoped/registry key
+            // whose kebab-case form is an INI key). Validate against `types`.
+            key = validate_ini_config_key(&key)?;
+            write_ini_setting(&config_dir.join(config_file_name), &key, &value)?;
+        }
+    }
+    Ok(())
+}
+
+/// Write one setting to the global `config.yaml` or the project's
+/// `pnpm-workspace.yaml`, whichever `config_file_name` names. A project
+/// setting goes to the workspace file that owns it.
+fn set_yaml_setting(
+    config_file_name: &str,
+    config_dir: &Path,
+    key: &str,
+    value: Value,
+) -> miette::Result<()> {
+    let target = if config_file_name == WORKSPACE_MANIFEST_FILENAME {
+        YamlConfigTarget::Project
+    } else {
+        YamlConfigTarget::Global
+    };
+    let write = |key: &str, value: &Value| {
+        match target {
+            YamlConfigTarget::Project => update_workspace_setting(config_dir, key, value),
+            YamlConfigTarget::Global if carries_global_credentials(key, value) => {
+                update_private_manifest_field(&config_dir.join(config_file_name), key, value)
+            }
+            YamlConfigTarget::Global => {
+                update_manifest_field(&config_dir.join(config_file_name), key, value)
+            }
+        }
+        .map_err(miette::Report::new)
+    };
+    let given_key = key;
+    let cast = cast_field(value, &naming_cases::to_kebab_case(key));
+    if cast.is_null() {
+        let camel_key = naming_cases::to_camel_case(key);
+        write(&camel_key, &Value::Null)?;
+        return clear_other_spellings(&camel_key, given_key, write);
+    }
+    let key = validate_yaml_target_key(key, target)?;
+    validate_structured_setting(&key, &cast, target)
+        .map_err(|reason| ConfigError::SetStructuredValue { key: key.clone(), reason })?;
+    write(&key, &cast)
+}
+
+fn validate_yaml_target_key(key: &str, target: YamlConfigTarget) -> Result<String, ConfigError> {
+    match target {
+        YamlConfigTarget::Project => {
+            let key = validate_workspace_key(key)?;
+            if refused_keys::is_refused_by_a_project_manifest(&key) {
+                return Err(ConfigError::SetNotAProjectSetting {
+                    belongs: refused_keys::where_refused_key_belongs(&key),
+                    key,
+                });
+            }
+            Ok(key)
+        }
+        YamlConfigTarget::Global => {
+            let kebab = validate_yaml_config_key(key)?;
+            validate_workspace_key(&kebab)
+        }
+    }
+}
+
+/// A hand-edited file may carry a spelling pnpm did not write, and that is the
+/// one the reader's warning names, so a removal also clears the spelling the
+/// user gave and the kebab-case one.
+fn clear_other_spellings(
+    key: &str,
+    given_key: &str,
+    write: impl Fn(&str, &Value) -> miette::Result<()>,
+) -> miette::Result<()> {
+    let kebab_key = naming_cases::to_kebab_case(key);
+    for spelling in [given_key, kebab_key.as_str()] {
+        if spelling != key {
+            write(spelling, &Value::Null)?;
+        }
+    }
+    Ok(())
+}
+
+/// Write an auth setting to the global `auth.ini` or the directory's
+/// `.npmrc`.
+fn set_auth_setting(
+    config: &Config,
+    dir: &Path,
+    global: bool,
+    key: String,
+    value: &Value,
+) -> miette::Result<()> {
+    let config_path =
+        if global { global_config_dir(config)?.join("auth.ini") } else { dir.join(".npmrc") };
+    if !value.is_null() && !value.is_string() && is_string_only_ini_key(&key) {
+        return Err(ConfigError::SetAuthNonString { key, value: value.to_string() }.into());
+    }
+    write_ini_setting(&config_path, &key, value)
+}
+
+/// Read the INI file, set or delete `key`, and write it back. A delete of an
+/// absent key is a no-op (no write). Mirrors the INI arms of `configSet`.
+fn write_ini_setting(config_path: &Path, key: &str, value: &Value) -> miette::Result<()> {
+    let mut doc = ini::read(config_path)
+        .map_err(miette::Report::msg)
+        .map_err(|err| err.wrap_err(format!("reading {}", config_path.display())))?;
+    if value.is_null() {
+        if !doc.delete(key) {
+            return Ok(());
+        }
+    } else if let Value::Array(_) = value {
+        let values = collect_ini_values(key, value)?;
+        doc.set_array(key, &values);
+    } else {
+        let values = collect_ini_values(key, value)?;
+        doc.set(key, &values);
+    }
+    ini::write(config_path, &doc)
+        .map_err(miette::Report::msg)
+        .map_err(|err| err.wrap_err(format!("writing {}", config_path.display())))?;
+    Ok(())
+}
+
+fn validate_ini_string(key: &str, value: &str) -> Result<(), ConfigError> {
+    if has_control_char(key) || has_control_char(value) {
+        return Err(ConfigError::SetIniControlCharacter);
+    }
+    Ok(())
+}
+
+fn collect_ini_values(key: &str, value: &Value) -> Result<Vec<String>, ConfigError> {
+    if let Value::Array(items) = value {
+        let mut values = Vec::with_capacity(items.len());
+        for item in items {
+            let formatted = ini_value_string(item);
+            validate_ini_string(key, &formatted)?;
+            values.push(formatted);
+        }
+        return Ok(values);
+    }
+    let formatted = ini_value_string(value);
+    validate_ini_string(key, &formatted)?;
+    Ok(vec![formatted])
+}
+
+/// Whether `text` holds a control character. The INI writer splices `text`
+/// into a single `key=value` line, so a control character would corrupt the
+/// file; the values `config set` writes never legitimately contain one.
+fn has_control_char(text: &str) -> bool {
+    text.chars().any(char::is_control)
+}
+
+/// Render a JSON value as its INI string form. Auth values are strings; the
+/// non-string forms (only reachable for keys that are not string-only) follow
+/// the `ini` package's scalar stringification.
+fn ini_value_string(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => n.to_string(),
+        Value::Null => String::new(),
+        other => other.to_string(),
+    }
+}
+
+/// `getConfigFileInfo`: route `key` to its config directory and file name.
+fn get_config_file_info<'a>(
+    key: &str,
+    global: bool,
+    config: &'a Config,
+    dir: &'a Path,
+) -> Result<(PathBuf, &'static str), ConfigError> {
+    let kebab = naming_cases::to_kebab_case(key);
+    if global {
+        let file_name = if config_types::is_ini_config_key(&kebab) {
+            "auth.ini"
+        } else {
+            GLOBAL_CONFIG_YAML_FILENAME
+        };
+        return Ok((global_config_dir(config)?, file_name));
+    }
+    if config_types::is_ini_config_key(&kebab) {
+        return Ok((dir.to_path_buf(), ".npmrc"));
+    }
+    // Unlike `.npmrc`, `pnpm-workspace.yaml` is read only from the workspace
+    // root. Writing one into a sub-package would make that sub-package the
+    // root. See <https://github.com/pnpm/pnpm/issues/13757>.
+    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+    Ok((workspace_dir.to_path_buf(), WORKSPACE_MANIFEST_FILENAME))
+}
+
+fn global_config_dir(config: &Config) -> Result<PathBuf, ConfigError> {
+    config.config_dir.clone().ok_or(ConfigError::NoGlobalConfigDir)
+}
+
+mod credentials;
+mod incomplete;
+mod values;

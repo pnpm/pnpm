@@ -1,0 +1,44 @@
+[package]
+name = "pnpm-network"
+description = "Network utility functions used by pacquet"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+derive_more = { workspace = true }
+futures-util = { workspace = true }
+miette = { workspace = true }
+pnpm-process = { path = "../process" }
+rustls = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+tracing = { workspace = true }
+webpki-root-certs = { workspace = true }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+core-foundation = { workspace = true }
+security-framework = { workspace = true }
+security-framework-sys = { workspace = true }
+
+[dev-dependencies]
+flate2 = { workspace = true }
+mockito = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+pretty_assertions = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+reqwest = { workspace = true }
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-http = { workspace = true }
+
+[lints]
+workspace = true

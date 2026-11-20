@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/closure-lib-a",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/closure-lib-b": "^1.0.0",
+    "@pnpm.e2e/closure-peer-x": "^1.0.0"
+  }
+}

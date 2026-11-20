@@ -1,0 +1,82 @@
+use super::{
+    Colors,
+    Output,
+    ReporterOptions,
+    ReporterState,
+    cached_verdict,
+    standalone_install_command,
+    update_check::PnpmInstallSource,
+    update_command,
+};
+use jiff::Timestamp;
+use pnpm_reporter::{
+    IgnoredScriptsLog,
+    LogEvent,
+    LogLevel,
+    PendingSkillsLog,
+};
+use pretty_assertions::assert_eq;
+
+fn at(rfc3339: &str) -> Timestamp {
+    pnpm_time::parse_rfc3339(rfc3339).expect("parse timestamp")
+}
+
+#[test]
+fn dates_a_cached_verdict_relative_to_now() {
+    let now = at("2026-07-25T12:00:00.000Z");
+    assert_eq!(cached_verdict(Some("2026-07-25T11:59:59.747Z"), now), "verified 253ms ago");
+    assert_eq!(cached_verdict(Some("2026-07-25T11:58:00.000Z"), now), "verified 2m ago");
+    assert_eq!(cached_verdict(Some("2026-07-23T12:00:00.000Z"), now), "verified 2d ago");
+}
+
+/// A cache record from before the timestamp existed, and one whose
+/// timestamp is unusable, both fall back to the timeless wording rather
+/// than inventing an age.
+#[test]
+fn falls_back_to_the_timeless_wording_without_a_usable_timestamp() {
+    let now = at("2026-07-25T12:00:00.000Z");
+    assert_eq!(cached_verdict(None, now), "previously verified");
+    assert_eq!(cached_verdict(Some("last tuesday"), now), "previously verified");
+}
+
+/// A clock that moved backwards between the verification run and this
+/// install must not render a negative age.
+#[test]
+fn clamps_a_future_timestamp_to_zero() {
+    let now = at("2026-07-25T12:00:00.000Z");
+    assert_eq!(cached_verdict(Some("2026-07-25T12:00:05.000Z"), now), "verified 0ms ago");
+}
+
+#[test]
+fn flushes_pending_approvals_when_the_command_fails() {
+    let mut reporter = ReporterState::new_with_options(
+        "/repo".to_string(),
+        80,
+        Colors { enabled: false },
+        ReporterOptions { append_only: true, ..ReporterOptions::default() },
+    );
+    let _ = reporter.handle(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        level: LogLevel::Debug,
+        package_names: vec!["esbuild@1.0.0".to_string()],
+        strict_dep_builds: false,
+    }));
+    let _ = reporter.handle(&LogEvent::PendingSkills(PendingSkillsLog {
+        level: LogLevel::Debug,
+        package_names: vec!["esbuild".to_string()],
+    }));
+
+    let Output::Lines(lines) = reporter.flush_pending_approvals() else {
+        panic!("expected appended lines");
+    };
+    let output = lines.join("\n");
+
+    assert!(output.contains("Packages awaiting approval:\n  esbuild  build, skills"), "{output}");
+}
+
+/// `self-update` is named only where it can replace the executable in use.
+#[test]
+fn only_a_pnpm_home_install_is_told_to_self_update() {
+    assert_eq!(update_command(PnpmInstallSource::PnpmHome), "pnpm self-update");
+    assert_eq!(update_command(PnpmInstallSource::Corepack), standalone_install_command());
+    assert_eq!(update_command(PnpmInstallSource::Elsewhere), standalone_install_command());
+}

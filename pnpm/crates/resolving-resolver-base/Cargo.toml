@@ -1,0 +1,38 @@
+[package]
+name = "pnpm-resolving-resolver-base"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-lockfile = { workspace = true }
+pnpm-network = { workspace = true }
+pnpm-registry = { workspace = true }
+pnpm-semver-include-prerelease = { workspace = true }
+pnpm-time = { workspace = true }
+pnpm-version-policy = { workspace = true }
+
+jiff = { workspace = true }
+derive_more = { workspace = true }
+miette = { workspace = true }
+node-semver = { workspace = true }
+serde = { workspace = true, features = ["rc"] }
+serde_json = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+ssri = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[lints]
+workspace = true

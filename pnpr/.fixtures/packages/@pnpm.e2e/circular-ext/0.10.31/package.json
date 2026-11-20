@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/circular-ext",
+  "version": "0.10.31",
+  "dependencies": {
+    "@pnpm.e2e/circular-iterator": "^2.0.1",
+    "@pnpm.e2e/circular-symbol": "^3.1.0"
+  }
+}

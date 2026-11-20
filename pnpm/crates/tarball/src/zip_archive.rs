@@ -1,0 +1,547 @@
+//! Zip-archive fetch and extraction.
+//!
+//! Wheels and runtime binaries use ZIP decoding within the shared artifact
+//! request, integrity, retry, progress and store-publication lifecycle.
+
+pub(crate) use download::check_zip_size;
+
+use super::{
+    Arc,
+    ArchiveStoreProjection,
+    Component,
+    Cursor,
+    HashMap,
+    IgnoreEntryFilter,
+    NetworkError,
+    Read,
+    STREAM_ENTRY_BUFFER_MAX,
+    TarLimits,
+    TarballError,
+    allocate_tarball_buffer,
+    checked_now,
+    post_download_semaphore,
+};
+use pnpm_fs::file_mode;
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_reporter::Reporter;
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    WriteCasFileFromReaderError,
+    WrittenFile,
+};
+use ssri::Integrity;
+
+/// Walk a zip archive, writing each regular-file entry into the CAFS
+/// and returning the `{relative-path → CAFS path}` map plus the
+/// per-package [`PackageFilesIndex`] row to hand off to the shared
+/// store-index writer. Same contract as
+/// [`crate::extract::extract_tarball_entries_with_bins`], for the
+/// `BinaryResolution { archive: zip, .. }` artifacts Node.js / Bun /
+/// Deno ship their Windows builds in.
+///
+/// Directory entries are skipped rather than walked: expanding one
+/// would pull in every descendant without consulting
+/// `ignore_file_pattern`, leaving the per-file filter no longer
+/// authoritative.
+pub(crate) fn extract_zip_entries(
+    archive: &mut zip::ZipArchive<Cursor<Vec<u8>>>,
+    package_url: &str,
+    store_dir: &StoreDir,
+    archive_prefix: Option<&str>,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+    limits: TarLimits,
+) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
+    let entry_count = archive.len();
+    let mut extracted = ExtractedEntries::with_capacity(entry_count);
+    let budget = crate::extract::TarBudget::new(limits);
+
+    // Build the `{prefix}/` slice once. Treat `Some("")` as `None`,
+    // keeping entry paths verbatim when there is no prefix. The
+    // trailing slash anchors the strip so a prefix of `foo` doesn't
+    // accidentally consume `foobar/...`.
+    let basename_prefix: Option<String> = archive_prefix
+        .filter(|prefix| !prefix.is_empty())
+        .map(|prefix| format!("{prefix}/"));
+
+    for index in 0..entry_count {
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|source| TarballError::ReadZipArchive {
+                url: package_url.to_string(),
+                source,
+            })?;
+        let Some(cleaned) =
+            zip_entry_path(&entry, package_url, basename_prefix.as_deref(), ignore_file_pattern)?
+        else {
+            continue;
+        };
+        budget.announce_file(entry.size())?;
+        let stored = store_zip_entry(&mut entry, package_url, &cleaned, store_dir)?;
+        extracted.insert(cleaned, stored);
+    }
+
+    Ok((extracted.cas_paths, extracted.files_index))
+}
+
+/// The CAS paths and index rows of the entries extracted so far.
+struct ExtractedEntries {
+    cas_paths: pnpm_fs::CasPaths,
+    files_index: PackageFilesIndex,
+}
+
+impl ExtractedEntries {
+    fn with_capacity(entry_count: usize) -> Self {
+        Self {
+            cas_paths: HashMap::with_capacity(entry_count),
+            files_index: PackageFilesIndex {
+                manifest: None,
+                requires_build: None,
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: HashMap::with_capacity(entry_count),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+                tar_integrity: None,
+            },
+        }
+    }
+
+    fn insert(
+        &mut self,
+        entry_path: String,
+        (file_path, file_attrs): (pnpm_fs::StoreFile, CafsFileInfo),
+    ) {
+        if let Some(previous) = self.cas_paths.insert(entry_path.clone(), file_path) {
+            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
+        }
+        if let Some(previous) = self.files_index.files.insert(entry_path, file_attrs) {
+            tracing::warn!(?previous, "Duplication detected. Old entry has been ejected");
+        }
+    }
+}
+
+/// Write one entry into the CAS and describe it for the files index.
+///
+/// The central-directory record carries a Unix mode only when the
+/// archive was built by a Unix tool; Windows-built archives omit it.
+/// Fall back to `0o644` so the executable bit defaults to off. Mask off
+/// the high `st_mode` bits (e.g. `0o100000` for a regular file) so
+/// `CafsFileInfo.mode` stays permission-only, matching the convention
+/// `add_files_from_dir.rs` enforces for tar / on-disk imports.
+fn store_zip_entry(
+    entry: &mut zip::read::ZipFile<'_, Cursor<Vec<u8>>>,
+    package_url: &str,
+    entry_path: &str,
+    store_dir: &StoreDir,
+) -> Result<(pnpm_fs::StoreFile, CafsFileInfo), TarballError> {
+    let file_mode = entry.unix_mode().unwrap_or(0o644) & 0o777;
+    let declared_size = entry.size();
+    let written = write_zip_entry_to_cas(
+        entry,
+        declared_size,
+        package_url,
+        entry_path,
+        store_dir,
+        file_mode::is_executable(file_mode),
+    )?;
+    let info = written.index_entry(file_mode, checked_now());
+    Ok((written.file, info))
+}
+
+/// The canonical, prefix-stripped path of one zip entry, or `None` when the
+/// entry carries no payload to store (a directory, the prefix directory
+/// itself, or an ignored file).
+fn zip_entry_path(
+    entry: &zip::read::ZipFile<'_, Cursor<Vec<u8>>>,
+    package_url: &str,
+    basename_prefix: Option<&str>,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<Option<String>, TarballError> {
+    // Validate the path *before* the `is_dir()` early-skip so an
+    // archive carrying a directory entry like `../evil/` still
+    // surfaces [`TarballError::PathTraversal`] rather than being
+    // silently dropped. Pacquet wouldn't write that directory
+    // either way (only file entries take the CAS write path
+    // below), but rejecting outright keeps the "no unsafe entry
+    // accepted" contract intact for tooling that inspects the
+    // error code.
+    let raw_name = String::from_utf8_lossy(entry.name_raw()).into_owned();
+    let traversal = |entry_path: String| TarballError::PathTraversal {
+        url: package_url.to_string(),
+        entry_path,
+        reason: "zip entry path is absolute or escapes the archive root",
+    };
+    // [`zip::read::ZipFile::enclosed_name`] returns `None` for
+    // absolute paths and any path with a `..` component, a
+    // single check covers both forms of path traversal.
+    let Some(enclosed) = entry.enclosed_name() else {
+        return Err(traversal(raw_name));
+    };
+    if entry.is_dir() {
+        return Ok(None);
+    }
+
+    // Rebuild the path as a forward-slash string from the sanitized
+    // components, so `.` segments collapse to one canonical key and
+    // the ignore filter matches against exactly that key.
+    //
+    // `enclosed_name` yields only `Normal` components, but a `\`
+    // inside one is an ordinary filename character on Unix, so the
+    // segments are re-checked by
+    // [`crate::extract::archive_entry_segments`], which treats it as
+    // a separator the way pnpm does.
+    let joined: String = enclosed
+        .components()
+        .map(|component| match component {
+            Component::Normal(name) => name.to_string_lossy().into_owned(),
+            _ => unreachable!("enclosed_name returns only Normal components: {:?}", enclosed),
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    let Some(segments) = crate::extract::archive_entry_segments(&joined) else {
+        return Err(traversal(raw_name));
+    };
+    let normalized = segments.join("/");
+
+    // Strip the archive's top-level basename (`prefix` on
+    // `pnpm_lockfile::BinaryResolution`) so the ignore filter
+    // sees paths relative to the archive root.
+    let cleaned = match basename_prefix {
+        Some(prefix) => normalized
+            .strip_prefix(prefix)
+            .unwrap_or(&normalized)
+            .to_string(),
+        None => normalized,
+    };
+    // An entry whose name was exactly the prefix directory leaves no
+    // relative payload behind.
+    if cleaned.is_empty() || ignore_file_pattern.is_some_and(|filter| filter(&cleaned)) {
+        return Ok(None);
+    }
+    Ok(Some(cleaned))
+}
+
+/// Hash one zip entry into the content-addressed store, holding it in
+/// memory only while it is small.
+///
+/// Nothing in a zip archive bounds an entry's decompressed size:
+/// `uncompressed_size` in the central directory is a claim, and the
+/// deflate stream behind it keeps producing bytes for as long as it
+/// likes, a tar entry, by contrast, is raw bytes the header's size
+/// field genuinely delimits. Both branches below therefore read through
+/// a [`Read::take`] of the claim and reject an entry whose payload
+/// outruns it, rather than growing to whatever it decodes to.
+///
+/// Entries above [`STREAM_ENTRY_BUFFER_MAX`] go straight into the store
+/// with an incremental hash, the same shape
+/// [`crate::extract::stream_extract_gzipped_tarball_with_tar`] gives a large
+/// tar entry, so a runtime archive's biggest member never has to fit in
+/// memory.
+///
+/// Returns the CAS path, the content hash, and the entry's size.
+pub(crate) fn write_zip_entry_to_cas(
+    entry: &mut impl Read,
+    declared_size: u64,
+    package_url: &str,
+    entry_path: &str,
+    store_dir: &StoreDir,
+    executable: bool,
+) -> Result<WrittenFile, TarballError> {
+    let read_error = |source| TarballError::ReadZipEntries {
+        url: package_url.to_string(),
+        entry_path: entry_path.to_string(),
+        source,
+    };
+    // One byte past the claim is all it takes to tell a truthful entry
+    // from one whose payload keeps going.
+    let mut bounded = entry.take(declared_size.saturating_add(1));
+
+    if declared_size > STREAM_ENTRY_BUFFER_MAX {
+        // `Some(declared_size)` makes the store writer reject a stream
+        // that runs short or long before anything is committed to a
+        // content-addressed path.
+        return store_dir
+            .write_cas_file_from_reader(&mut bounded, executable, Some(declared_size))
+            .map_err(|error| match error {
+                WriteCasFileFromReaderError::Read(error) => read_error(error),
+                WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
+            });
+    }
+
+    let prealloc = declared_size as usize;
+    let mut buffer = Vec::new();
+    buffer
+        .try_reserve(prealloc)
+        .map_err(|err| {
+            read_error(std::io::Error::new(
+                std::io::ErrorKind::OutOfMemory,
+                format!("failed to reserve {prealloc} bytes for zip entry: {err}"),
+            ))
+        })?;
+    bounded.read_to_end(&mut buffer).map_err(read_error)?;
+    if buffer.len() as u64 != declared_size {
+        return Err(read_error(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "zip entry decompressed to {} bytes where its central-directory record claims {declared_size}",
+                buffer.len(),
+            ),
+        )));
+    }
+
+    store_dir.write_cas_file(&buffer, executable).map_err(TarballError::WriteCasFile)
+}
+
+/// Run one full zip-archive fetch attempt: hit the network, drain the
+/// body into RAM, verify the integrity hash, then walk the zip and
+/// extract every file entry into the CAFS.
+///
+/// Keep this in step with [`crate::download::fetch_and_extract_once`]:
+/// the two share a network permit shape, a post-download semaphore
+/// gate, and a retry classification, and a change to one that is not
+/// mirrored in the other silently splits the two archive formats.
+///
+/// Writes directly into the CAS via [`StoreDir::write_cas_file`]
+/// rather than extracting to a temp dir and importing each file.
+// 8 arguments, over the default clippy threshold, but each is
+// distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
+)]
+pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
+    http_client: &ThrottledClient,
+    package_url: &str,
+    package_integrity: &Integrity,
+    package_id: &str,
+    attempt: u32,
+    store_dir: &StoreDir,
+    auth_headers: &AuthHeaders,
+    archive_prefix: Option<&str>,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    max_bytes: Option<usize>,
+    limits: TarLimits,
+) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
+    let (client, response_head, _) = crate::archive_request::request_archive::<Reporter>(
+        http_client,
+        package_url,
+        package_id,
+        auth_headers,
+        pnpm_network::UNPRIORITIZED,
+        attempt,
+        false,
+        None,
+        crate::archive_request::ArchiveContentCoding::DecodedByClient,
+    )
+    .await?;
+    let buffer = download_zip_body::<Reporter>(response_head, package_url, package_id, max_bytes)
+        .await
+        .inspect_err(|error| {
+            if error.is_fetch_timeout() {
+                http_client.downscale_while_peers_active(package_url);
+            }
+        })?;
+    drop(client);
+
+    let result = ZipExtraction {
+        buffer,
+        package_integrity: package_integrity.clone(),
+        package_url: package_url.to_string(),
+        archive_prefix: archive_prefix.map(str::to_string),
+        ignore_file_pattern,
+        limits,
+    }
+    .run(store_dir)
+    .await?;
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
+
+    Ok(result)
+}
+
+/// A downloaded archive with what its extraction task owns.
+pub(crate) struct ZipExtraction {
+    pub(crate) buffer: Vec<u8>,
+    pub(crate) package_integrity: Integrity,
+    pub(crate) package_url: String,
+    pub(crate) archive_prefix: Option<String>,
+    pub(crate) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    pub(crate) limits: TarLimits,
+}
+
+impl ZipExtraction {
+    pub(crate) async fn run(
+        self,
+        store_dir: &StoreDir,
+    ) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
+        let permit =
+            post_download_semaphore().acquire().await.expect("post-download semaphore stays open");
+        let store_dir = store_dir.clone();
+        crate::extraction_task::spawn_extraction(permit, move || self.extract(&store_dir))
+            .await
+            .map_err(TarballError::TaskJoin)?
+    }
+
+    fn extract(
+        self,
+        store_dir: &StoreDir,
+    ) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
+        crate::download::verify_tarball_integrity(
+            &self.buffer,
+            Some(self.package_integrity),
+            self.package_url.clone(),
+        )?;
+        // The buffer + ZipArchive are released on return, large runtime
+        // archives (Node.js for Windows is ~30 MB) would otherwise keep
+        // the buffer alive through the whole read.
+        let mut archive = zip::ZipArchive::new(Cursor::new(self.buffer))
+            .map_err(|source| TarballError::ReadZipArchive {
+                url: self.package_url.clone(),
+                source,
+            })?;
+        extract_zip_entries(
+            &mut archive,
+            &self.package_url,
+            store_dir,
+            self.archive_prefix.as_deref(),
+            self.ignore_file_pattern.as_deref(),
+            self.limits,
+        )
+    }
+}
+
+/// Run [`fetch_and_extract_zip_once`] under pnpm's retry policy.
+/// Same shape as [`crate::download::fetch_and_extract_conditional`]:
+/// permanent errors fail fast, while transient errors retry with
+/// exponential backoff until [`RetryOpts::retries`] is exhausted.
+/// On success, emit `pnpm:progress fetched` once per resolved package.
+// 10 arguments, over the default clippy threshold for the same
+// reason `fetch_and_extract_with_retry` is: each is distinct, and
+// bundling into a struct would just push the same fields into a
+// wrapper.
+#[expect(clippy::too_many_arguments, reason = "arg count is fixed by the fetcher signature")]
+pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
+    http_client: &ThrottledClient,
+    package_url: &str,
+    package_integrity: &Integrity,
+    package_id: &str,
+    requester: &str,
+    store_dir: &StoreDir,
+    retry_opts: RetryOpts,
+    auth_headers: &AuthHeaders,
+    archive_prefix: Option<&str>,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    max_bytes: Option<usize>,
+    limits: TarLimits,
+) -> Result<(pnpm_fs::CasPaths, PackageFilesIndex), TarballError> {
+    crate::archive_retry::retry_archive::<Reporter, _, _>(
+        package_url,
+        package_id,
+        requester,
+        None,
+        retry_opts,
+        |attempt| {
+            fetch_and_extract_zip_once::<Reporter>(
+                http_client,
+                package_url,
+                package_integrity,
+                package_id,
+                attempt,
+                store_dir,
+                auth_headers,
+                archive_prefix,
+                ignore_file_pattern.clone(),
+                max_bytes,
+                limits,
+            )
+        },
+    )
+    .await
+}
+
+/// Counterpart to [`crate::download::IngestTarballToStore`] for zip-archive binary
+/// resolutions: the zip flow downloads the body, verifies the
+/// integrity hash, then walks zip entries and writes each to the CAFS.
+///
+/// The store-index lookup, prefetch cache reuse, and store-index
+/// writer queueing match [`crate::download::IngestTarballToStore`], runtime
+/// artifacts share the same `index.db` schema as ordinary npm
+/// packages.
+#[must_use]
+pub struct IngestZipArchiveToStore<'a> {
+    pub fetching: crate::ArchiveFetchOptions<'a>,
+    pub package: crate::ZipArchivePackage<'a>,
+    pub store: crate::ArchiveStoreContext<'a>,
+    pub requester: &'a str,
+    /// Basename of the archive's top-level directory, mirroring the
+    /// `prefix` field on `pnpm_lockfile::BinaryResolution`. The
+    /// zip extractor strips `{prefix}/` from each entry path before
+    /// the ignore-filter check and the CAS write, so downstream
+    /// consumers see paths relative to the package root rather than
+    /// the runtime-version-stamped wrapper directory.
+    pub archive_prefix: Option<&'a str>,
+    /// See [`crate::download::IngestTarballToStore::ignore_file_pattern`], the
+    /// per-fetch archive filter is shared by both archive types.
+    pub ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    /// Ecosystem-owned projection policy applied after verified extraction.
+    pub store_projection: ArchiveStoreProjection<'a>,
+}
+
+impl IngestZipArchiveToStore<'_> {
+    /// Ingest through the shared archive cache, verification and publication lifecycle.
+    pub async fn run_without_mem_cache<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
+        self.ingestion().run::<Reporter>().await
+    }
+
+    /// Verify and publish an already downloaded ZIP through the shared store lifecycle.
+    pub async fn run_with_buffer<Reporter: self::Reporter>(
+        &self,
+        buffer: Vec<u8>,
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
+        let ingestion = self.ingestion();
+        if let Some(cached) = ingestion.load_cache::<Reporter>().await? {
+            return Ok(Arc::unwrap_or_clone(cached.files));
+        }
+        let paths = ingestion.ingest_zip_buffer(buffer).await?;
+        crate::download::emit_progress_fetched::<Reporter>(self.package.id, self.requester, None);
+        Ok(paths)
+    }
+
+    fn ingestion(&self) -> crate::ingestion::ArchiveIngestion<'_> {
+        crate::ingestion::ArchiveIngestion {
+            store: &self.store,
+            fetching: self.fetching,
+            package: crate::TarballPackage {
+                integrity_kind: crate::IntegrityKind::Resource,
+                integrity: Some(self.package.integrity),
+                url: self.package.url,
+                id: self.package.id,
+                unpacked_size: None,
+                file_count: None,
+            },
+
+            requester: self.requester,
+
+            ignore_file_pattern: &self.ignore_file_pattern,
+
+            progress_reported: &None,
+            store_projection: self.store_projection,
+            format: crate::ingestion::ArchiveFormat::Zip {
+                integrity: self.package.integrity,
+                prefix: self.archive_prefix,
+                max_bytes: self.package.max_bytes,
+            },
+        }
+    }
+}
+
+mod download;
+use download::download_zip_body;

@@ -1,0 +1,209 @@
+use super::update_stale_hoist_symlink;
+
+#[test]
+fn concurrent_hoists_replace_the_same_stale_dependency_link() {
+    let root = tempfile::tempdir().unwrap();
+    let store = root.path().join("store");
+    let old_target = store.join("old");
+    let target = store.join("new");
+    let modules = root.path().join("node_modules");
+    std::fs::create_dir_all(&old_target).unwrap();
+    std::fs::create_dir_all(&target).unwrap();
+    std::fs::create_dir_all(&modules).unwrap();
+    std::fs::write(target.join("index.js"), "module.exports = 2").unwrap();
+
+    for iteration in 0..100 {
+        let link = modules.join(format!("dep-{iteration}"));
+        pnpm_fs::symlink_dir(&old_target, &link).unwrap();
+        let barrier = std::sync::Barrier::new(32);
+        let results = std::thread::scope(|scope| {
+            let worker = || {
+                barrier.wait();
+                update_stale_hoist_symlink(&target, &link, &store, &modules)
+            };
+            let mut workers = Vec::new();
+            for _ in 0..32 {
+                workers.push(scope.spawn(worker));
+            }
+            workers
+                .into_iter()
+                .map(|worker| worker.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+        for result in results {
+            result.expect("concurrent hoists must reuse the winning replacement");
+        }
+        assert_eq!(std::fs::canonicalize(&link).unwrap(), std::fs::canonicalize(&target).unwrap());
+        assert_eq!(std::fs::read_to_string(link.join("index.js")).unwrap(), "module.exports = 2");
+    }
+}
+
+#[test]
+fn accepts_only_a_replacement_link_to_the_requested_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let other = root.path().join("other");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::create_dir(&other).unwrap();
+    for (name, winner) in [("same", &target), ("different", &other)] {
+        let link = root.path().join(name);
+        pnpm_fs::symlink_dir(winner, &link).unwrap();
+        let result = super::create_hoist_symlink(&target, &link);
+        if winner == &target {
+            result.unwrap();
+        } else {
+            assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+        }
+        assert_eq!(std::fs::canonicalize(&link).unwrap(), std::fs::canonicalize(winner).unwrap());
+    }
+}
+
+#[test]
+fn preserves_a_directory_created_by_another_writer() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::create_dir(&link).unwrap();
+    std::fs::write(link.join("sentinel"), "keep").unwrap();
+    assert_eq!(
+        super::create_hoist_symlink(&target, &link).unwrap_err().kind(),
+        std::io::ErrorKind::AlreadyExists,
+    );
+    assert!(!pnpm_fs::is_symlink_or_junction(&link).unwrap());
+    assert_eq!(std::fs::read_to_string(link.join("sentinel")).unwrap(), "keep");
+}
+
+#[cfg(windows)]
+#[test]
+fn rechecks_a_link_after_a_reparse_point_read_race() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    junction::create(&target, &link).unwrap();
+    let not_a_reparse_point = std::io::Error::from_raw_os_error(4390);
+    assert!(super::should_retry_hoist_link_read(&link, &not_a_reparse_point));
+    pnpm_fs::remove_symlink_dir(&link).unwrap();
+    assert!(super::should_retry_hoist_link_read(&link, &not_a_reparse_point));
+    // An empty directory is what a junction looks like before its reparse
+    // point is set.
+    std::fs::create_dir(&link).unwrap();
+    assert!(super::should_retry_hoist_link_read(&link, &not_a_reparse_point));
+    std::fs::write(link.join("sentinel"), "keep").unwrap();
+    assert!(!super::should_retry_hoist_link_read(&link, &not_a_reparse_point));
+}
+
+#[cfg(windows)]
+#[test]
+fn waits_out_a_junction_another_hoist_is_creating() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::create_dir(&link).unwrap();
+
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let in_creation = link.clone();
+    let mut seen = 0;
+    let result = pnpm_fs::test_support::with_retry_observer(
+        &link,
+        move |attempt| {
+            seen += 1;
+            sender
+                .send(
+                    attempt
+                        .as_ref()
+                        .copied()
+                        .map_err(std::io::Error::raw_os_error),
+                )
+                .unwrap();
+            // Let the other hoist go on the second failed attempt, which proves
+            // the first retried. A delay instead would race the retry budget.
+            if seen == 2 {
+                std::fs::remove_dir(&in_creation).unwrap();
+            }
+        },
+        || super::create_hoist_symlink(&target, &link),
+    );
+
+    let attempts: Vec<_> = receiver.try_iter().collect();
+    eprintln!("hoist result: {result:?}; real filesystem attempts: {attempts:?}");
+    result.expect("the hoist must link once the directory in its way is gone");
+    assert!(attempts.len() > 1, "the hoist must retry the directory in its way: {attempts:?}");
+    assert_eq!(attempts.last(), Some(&Ok(())));
+    assert_eq!(std::fs::canonicalize(&link).unwrap(), std::fs::canonicalize(&target).unwrap());
+}
+
+#[test]
+fn recreates_a_link_removed_before_ownership_inspection() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    update_stale_hoist_symlink(&target, &link, root.path(), root.path()).unwrap();
+    assert_eq!(std::fs::canonicalize(link).unwrap(), std::fs::canonicalize(target).unwrap());
+}
+
+#[cfg(windows)]
+#[test]
+fn rechecks_a_junction_completed_after_its_metadata_was_read() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    let link = root.path().join("link");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("index.js"), "module.exports = 2").unwrap();
+    std::fs::create_dir(&link).unwrap();
+    let in_progress = std::fs::symlink_metadata(&link).unwrap();
+    std::fs::remove_dir(&link).unwrap();
+    junction::create(&target, &link).unwrap();
+    assert!(super::may_be_junction_in_creation(&link, &in_progress));
+}
+
+#[cfg(windows)]
+#[test]
+fn treats_a_directory_its_creator_holds_exclusively_as_a_junction_in_creation() {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    std::fs::create_dir(&link).unwrap();
+    let in_progress = std::fs::symlink_metadata(&link).unwrap();
+    let _creator = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(&link)
+        .unwrap();
+    let listing_error = std::fs::read_dir(&link).unwrap_err();
+    assert!(pnpm_fs::is_transient_file_lock_error(&listing_error), "{listing_error:?}");
+    assert!(super::may_be_junction_in_creation(&link, &in_progress));
+}
+
+#[cfg(windows)]
+#[test]
+fn retries_link_read_on_delete_pending_or_transient_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    let delete_pending = std::io::Error::from_raw_os_error(303);
+    assert!(super::should_retry_hoist_link_read(&link, &delete_pending));
+}
+
+#[cfg(windows)]
+#[test]
+fn retries_when_directory_is_unlinked_during_inspection() {
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    std::fs::create_dir(&link).unwrap();
+    let in_progress = std::fs::symlink_metadata(&link).unwrap();
+    std::fs::remove_dir(&link).unwrap();
+    assert!(super::may_be_junction_in_creation(&link, &in_progress));
+}
+
+#[test]
+fn retries_link_read_on_not_found() {
+    let root = tempfile::tempdir().unwrap();
+    let link = root.path().join("link");
+    let not_found = std::io::Error::from(std::io::ErrorKind::NotFound);
+    assert!(super::should_retry_hoist_link_read(&link, &not_found));
+}

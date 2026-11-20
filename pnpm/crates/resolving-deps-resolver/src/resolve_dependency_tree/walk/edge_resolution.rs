@@ -1,0 +1,544 @@
+use crate::resolved_tree::PeerSet;
+
+use super::{
+    Arc,
+    ChildEdge,
+    Cow,
+    NodeId,
+    NodeKind,
+    NodeSeed,
+    PackageRegistration,
+    PendingNode,
+    PkgNameVerPeer,
+    ResolveDependencyTreeError,
+    ResolveOptions,
+    ResolvedPackage,
+    ResolvedPackageInput,
+    Resolver,
+    SeededPackage,
+    TreeCtx,
+    UpdateBehavior,
+    Value,
+    WantedDependency,
+    WantedKey,
+    async_recursion,
+    build_pkg_id_with_patch_hash,
+    current_pkg_from_lockfile,
+    dependencies_named_as_peers,
+    emit_deprecation_if_needed,
+    ensure_same_registry_revision,
+    failed_edge::SkippedOptionalReport,
+    is_exotic_resolved_via,
+    is_update_target,
+    keeps_locked_runtime,
+    keeps_locked_version,
+    lock_recoverable,
+    node_alias,
+    node_depends_on_changed_direct_dep,
+    opts_for_child_spec,
+    overlay_version_view,
+    package_root_link_result,
+    parent_ids_contain_sequence,
+    peer_shadowed_dependencies,
+    pin_locked_version,
+    pin_patched_revision,
+    project_relative_cache_scope,
+    register_shadowable_dep_names,
+    resolve_wanted_cached,
+    resolves_children_through_catalogs,
+    seed_reused_node,
+    try_reuse_node,
+};
+
+#[async_recursion]
+pub(in super::super) async fn resolve_node_seed<'e, Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: WantedDependency,
+    edge: ChildEdge<'e>,
+) -> Result<NodeSeed, ResolveDependencyTreeError>
+where
+    'e: 'async_recursion,
+    Chain: Resolver + ?Sized,
+{
+    let current_is_optional = wanted.optional.unwrap_or(false) || edge.parent_optional;
+
+    // The edge's recorded snapshot key in the prior lockfile, if any.
+    // Feeds both subtree reuse (below) and (when the edge re-resolves
+    // anyway) the `currentPkg` payload custom resolvers receive.
+    let prior_key = edge.reuse.prior_key(ctx, &wanted);
+
+    // **Lockfile-resolution reuse.** When the prior lockfile already
+    // resolved this edge (and the recorded version still satisfies the
+    // manifest range, for a direct dep), synthesize the resolution from
+    // the lockfile and walk its transitive subtree from the snapshot
+    // graph instead of re-resolving from the registry.
+    // `synthesize_reused_result` is conservative: any shape it can't
+    // faithfully reproduce (non-registry resolutions, missing metadata)
+    // yields `None` here and the node falls through to a fresh resolve.
+    //
+    // Stale-pin refresh: a node depending on a changed direct dep is
+    // resolved fresh rather than reused, so its children walk against
+    // their manifest ranges where `seed_node_children` can redirect a
+    // stale pin onto the higher direct-dep version (reusing the subtree
+    // would keep the pin, leaving the lockfile non-convergent).
+    if ctx.workspace.reuse.subtrees
+        && edge.reuse.allows_reuse()
+        && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
+        && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
+    {
+        reject_exotic_subdep(ctx, &wanted, &reused.result, edge.depth, edge.parent_is_workspace)?;
+        resolver.on_reused(&reused.result);
+        return seed_reused_node(ctx, wanted, &edge, current_is_optional, reused).await;
+    }
+
+    // Locked-version pin, the fresh-resolve counterpart of subtree
+    // reuse: a transitive edge whose recorded version still satisfies
+    // its manifest range (`prior_key` is satisfies-gated) resolves to
+    // exactly that version even when its subtree cannot be reused
+    // wholesale. Without it, a re-resolve picks open ranges (`*`)
+    // against the whole preferred-versions pool and lands every such
+    // edge on the highest locked version, churning the lockfile.
+    // Mirrors the TypeScript resolver's `replaceVersionInBareSpecifier`
+    // under `!update`: direct deps (depth 0) keep recomputing their
+    // specifier, and an edge a `pacquet update` reaches keeps
+    // re-picking. Only plain semver ranges pin; aliased (`npm:`),
+    // named-registry, and exotic specifiers keep today's behavior.
+    let mut wanted = wanted;
+    pin_locked_version(ctx, &mut wanted, prior_key.as_ref(), edge.depth);
+
+    let Some(result) = resolve_edge(ctx, resolver, &mut wanted, &edge, prior_key.as_ref()).await?
+    else {
+        return Ok(NodeSeed::Done(None));
+    };
+
+    if let Some(violation) = recheck_against_minimum_release_age(ctx, &result) {
+        lock_recoverable(&ctx.workspace.policy.policy_violations).push(violation);
+    }
+
+    reject_exotic_subdep(ctx, &wanted, &result, edge.depth, edge.parent_is_workspace)?;
+
+    let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
+
+    record_workspace_manifest_identity(ctx, &wanted, &result, &id);
+
+    if closes_cycle(edge.ancestor_ids, &id) {
+        return Ok(NodeSeed::Done(None));
+    }
+
+    seed_pending(ctx, &wanted, result, &edge, ResolvedEdge { id, prior_key, current_is_optional })
+}
+
+/// Memoise the per-wanted resolve. The first caller for a given
+/// `(alias, bare_specifier, optional, injected)` runs the resolver chain
+/// and stores the `Arc<ResolveResult>` on `ctx.resolved_by_wanted`;
+/// every later caller for the same wanted dep clones the `Arc` and
+/// skips the chain entirely. Concurrent first-callers can both miss the
+/// cache and run `resolver.resolve` in parallel, the resolver's own
+/// per-cache-key semaphore (`pick_package::fetch_locker`) already
+/// coalesces those into a single network fetch, so the doubled work is
+/// bounded to in-memory packument lookups + semver matching, and the
+/// second to finish loses the `insert` race harmlessly (the entry holds
+/// an `Arc` to an equivalent `ResolveResult`).
+///
+/// `None` when the edge is a droppable optional that failed to resolve.
+pub(super) async fn resolve_edge<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, SkippedOptionalReport::Emit).await
+}
+
+pub(in super::super) async fn try_resolve_edge_cached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, SkippedOptionalReport::Suppress)
+        .await
+}
+
+/// [`try_resolve_edge_cached`] for an edge resolved only to read its
+/// manifest. It shares the cache entry of the same edge resolved for the
+/// tree, but a failure drops it as [`SkippedOptionalReport::Detached`].
+pub(in super::super) async fn try_resolve_edge_detached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, SkippedOptionalReport::Detached)
+        .await
+}
+
+async fn resolve_edge_inner<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+    report: SkippedOptionalReport,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    if let Some(result) = package_root_link_result(wanted) {
+        return Ok(Some(Arc::new(result)));
+    }
+    let base = edge_opts(ctx, wanted, edge, prior_key);
+    let fallback_dir = (edge.depth > 0).then_some(ctx.importer.lockfile_dir.as_path());
+    let opts = opts_for_child_spec(&base, wanted, edge.parent_dir, fallback_dir);
+    let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
+    match resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
+        .await
+    {
+        Ok(result) => Ok(Some(result)),
+        Err(err) => {
+            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err, report)?;
+            Ok(None)
+        }
+    }
+}
+
+/// `resolutionMode` makes the version pick depend on whether this is a
+/// direct (`depth == 0`) or transitive dep, so the options key off the
+/// depth. The prior lockfile entry rides along as `currentPkg`, handed
+/// to the resolver. Eligible direct edges prefer their current version
+/// without changing the specifier used to save the dependency.
+pub(super) fn edge_opts<'c>(
+    ctx: &'c TreeCtx,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Cow<'c, ResolveOptions> {
+    let opts = ctx.opts_for_depth(edge.depth);
+    let current_pkg = prior_key.and_then(|key| {
+        let lockfile = ctx.workspace.reuse.lockfile.as_ref()?;
+        current_pkg_from_lockfile(lockfile, key, &ctx.workspace.cache.registry_context)
+    });
+    if opts.refresh.update == UpdateBehavior::Patches {
+        pin_patched_revision(
+            wanted,
+            current_pkg.as_ref(),
+            prior_key,
+            &ctx.workspace.cache.registry_context,
+        );
+    }
+    match current_pkg {
+        Some(current_pkg) => {
+            let keeps_locked = keeps_locked_runtime(ctx, &current_pkg)
+                || prior_key.is_some_and(|key| keeps_locked_version(ctx, wanted, key, edge.depth));
+            Cow::Owned(ResolveOptions {
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    prefer_current_version: edge.depth == 0 && keeps_locked,
+                    repick_current_version: !keeps_locked,
+                    current_pkg: Some(current_pkg),
+                    ..opts.refresh.clone()
+                },
+                ..opts.clone()
+            })
+        }
+        None => Cow::Borrowed(opts),
+    }
+}
+
+/// Project-relative resolutions (`link:`/`file:`/`workspace:`) are keyed
+/// by the consuming importer so one importer's relative path is never
+/// reused by another. See [`WantedKey`]. The prior key joins so two
+/// edges that share a specifier but recorded different versions never
+/// share a `currentPkg`-dependent result.
+///
+/// The overlay's view for this edge joins the cache key: the same range
+/// can legitimately pick different versions under levels that resolved
+/// different siblings. The view keeps each candidate name (alias, `npm:`
+/// inner target, folded `jsr:` name) paired with its versions, the
+/// picker consults the overlay per name, so a flat union of versions
+/// could collide two overlays that distribute the same versions across
+/// different names. Empty for almost every edge, so the dedup keeps
+/// working where it matters.
+pub(super) fn edge_cache_key(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> WantedKey {
+    let project_scope = project_relative_cache_scope(wanted, opts);
+    let overlay_versions = edge.pick_overlay
+        .as_ref()
+        .map(|overlay| overlay_version_view(overlay, wanted))
+        .unwrap_or_default();
+    let update_target = is_update_target(
+        ctx.update_scope(),
+        wanted,
+        prior_key.and_then(|key| key.suffix.version_semver()),
+        edge.depth,
+    );
+    WantedKey::new((
+        wanted.alias.clone(),
+        wanted.bare_specifier.clone(),
+        wanted.optional,
+        wanted.injected,
+        opts.version.pick_lowest_version,
+        (opts.policy.published_by, opts.policy.fallback_published_by),
+        project_scope,
+        prior_key.cloned(),
+        overlay_versions,
+        ctx.update_cache_scope(),
+        update_target,
+        opts.refresh.prefer_current_version,
+    ))
+}
+
+/// Returns the policy violation to record for `result`. A violation with
+/// any other code is returned unchanged. A `minimumReleaseAge` violation
+/// is returned only if the package was published after the base
+/// `published_by` cutoff and `published_by_exclude` does not cover it.
+///
+/// The resolver flags a pick against the cutoff it picked with, which
+/// `resolutionMode: time-based` tightens below the `minimumReleaseAge`
+/// cutoff for subdependencies. The picking cutoff is never later than
+/// the `minimumReleaseAge` one, so every real violation is flagged first.
+fn recheck_against_minimum_release_age(
+    ctx: &TreeCtx,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Option<pnpm_resolving_resolver_base::ResolutionPolicyViolation> {
+    let violation = result.policy_violation.as_ref()?;
+    if violation.code != pnpm_resolving_npm_resolver::MINIMUM_RELEASE_AGE_VIOLATION_CODE {
+        return Some(violation.clone());
+    }
+    let policy = &ctx.options.base.policy;
+    pnpm_resolving_npm_resolver::detect_min_release_age_violation(
+        &violation.name,
+        &violation.version,
+        result.package.published_at.as_deref(),
+        &violation.resolution,
+        policy.published_by,
+        policy.published_by_exclude.as_ref(),
+    )
+}
+
+/// What a freshly resolved edge settled before its node seeds.
+pub(super) struct ResolvedEdge {
+    pub(super) id: String,
+    pub(super) prior_key: Option<PkgNameVerPeer>,
+    pub(super) current_is_optional: bool,
+}
+
+/// Register the resolved package and defer its peer split to children ownership settlement.
+pub(super) fn seed_pending(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    result: Arc<pnpm_resolving_resolver_base::ResolveResult>,
+    edge: &ChildEdge<'_>,
+    resolved: ResolvedEdge,
+) -> Result<NodeSeed, ResolveDependencyTreeError> {
+    let alias = node_alias(wanted, &result, &resolved.id);
+    let identity = NodeIdentity::of(&result, &resolved.id);
+    let peer_shadowed = peer_shadowed_dependencies(
+        result.package.manifest.as_deref(),
+        edge.parent_pkg_aliases,
+        ctx.workspace.policy.auto_install_peers,
+    );
+    let seeded = SeededPackage {
+        id: &resolved.id,
+        result: &result,
+        current_is_optional: resolved.current_is_optional,
+        kind: identity.kind,
+    };
+    let id = match register_seeded_package(ctx, seeded)? {
+        PackageRegistration::Created(id) => {
+            emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
+            id
+        }
+        PackageRegistration::Existing(id) => id,
+    };
+    // Not only on a created registration: a package first registered from
+    // the prior lockfile carries a synthesized manifest without
+    // `dependencies`.
+    register_shadowable_dep_names(
+        ctx,
+        dependencies_named_as_peers(result.package.manifest.as_deref()).map(|(name, _)| name),
+    );
+
+    let ancestry = edge.pending_ancestry(&id, resolved.current_is_optional);
+    let locked_resolution = resolved.locked_resolution(ctx, wanted, edge);
+
+    Ok(NodeSeed::Pending(Box::new(PendingNode {
+        result,
+        kind: identity.kind,
+        resolves_children_through_catalogs: identity.resolves_children_through_catalogs,
+        peer_shadowed,
+        claim: None,
+        lockfile: super::PendingNodeLockfile { prior_key: resolved.prior_key, locked_resolution },
+        identity: super::PendingNodeIdentity { id, alias, node_id: identity.node_id },
+        ancestry,
+    })))
+}
+
+/// What a fresh resolve decides about a package before registering it.
+pub(super) struct NodeIdentity {
+    pub(super) kind: NodeKind,
+    pub(super) resolves_children_through_catalogs: bool,
+    pub(super) node_id: NodeId,
+}
+
+impl NodeIdentity {
+    pub(super) fn of(result: &Arc<pnpm_resolving_resolver_base::ResolveResult>, id: &str) -> Self {
+        let kind = NodeKind::of(result, id);
+        Self {
+            kind,
+            resolves_children_through_catalogs: resolves_children_through_catalogs(result),
+            node_id: node_id_for(kind.is_leaf(), id),
+        }
+    }
+}
+
+/// Leaves (no deps / optional deps / peers / `peerDependenciesMeta`) reuse the
+/// package id as their `NodeId`, collapsing every parent edge onto one tree
+/// node. Non-leaves get a fresh per-occurrence id so the peer resolver can
+/// attach different peer suffixes per call site.
+pub(in super::super) fn node_id_for(is_leaf: bool, id: &str) -> NodeId {
+    if is_leaf { NodeId::leaf(id) } else { NodeId::next() }
+}
+
+/// Cycle break: a direct self-edge and the second lap of a longer cycle are
+/// dropped; the first re-entry is kept so the cycle-closing edge reaches the
+/// lockfile snapshot.
+pub(in super::super) fn closes_cycle(ancestor_ids: &[Arc<str>], id: &str) -> bool {
+    ancestor_ids
+        .last()
+        .is_some_and(|parent| {
+            &**parent == id || parent_ids_contain_sequence(ancestor_ids, parent, id)
+        })
+}
+
+/// Build (or look up) the [`ResolvedPackage`] envelope, answering with the
+/// package table's `Arc` of the id as a created or an existing entry. The
+/// first visitor populates it; later visitors AND-fold the `optional` flag
+/// so a single non-optional path flips it back to `false`.
+///
+/// Peers are classified only by
+/// [`fn@super::level_walk::install_owner_peer_dependencies`] after children ownership settles.
+pub(super) fn register_seeded_package(
+    ctx: &TreeCtx,
+    seeded: SeededPackage<'_>,
+) -> Result<PackageRegistration, ResolveDependencyTreeError> {
+    let SeededPackage {
+        id,
+        result,
+        current_is_optional,
+        kind,
+    } = seeded;
+    let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
+    if let Some(existing) = packages.get_mut(id) {
+        ensure_same_registry_revision(existing, result)?;
+        existing.optional = existing.optional && current_is_optional;
+        // A package first registered from lockfile reuse carries a synthesized
+        // manifest without `dependencies`; replace it with the full manifest
+        // when a fresh resolve reaches the same package id.
+        existing.set_result(Arc::clone(result));
+        return Ok(PackageRegistration::Existing(Arc::clone(&existing.id)));
+    }
+    ctx.workspace.record_package_write(id);
+    let shared_id: Arc<str> = Arc::from(id);
+    packages.insert(
+        Arc::<str>::clone(&shared_id),
+        ResolvedPackage::new(ResolvedPackageInput {
+            id: Arc::<str>::clone(&shared_id),
+            result: Arc::clone(result),
+            peer_set: PeerSet::default(),
+            optional: current_is_optional,
+            is_leaf: kind.is_leaf(),
+        }),
+    );
+    Ok(PackageRegistration::Created(shared_id))
+}
+
+/// A `workspace:` edge the resolver did not name carries its identity in the
+/// linked project's own manifest.
+pub(super) fn record_workspace_manifest_identity(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    id: &str,
+) {
+    if result.package.name_ver.is_some() {
+        return;
+    }
+    let names_a_workspace_project = wanted.bare_specifier
+        .as_deref()
+        .is_some_and(|specifier| {
+            specifier.starts_with("workspace:")
+                && !pnpm_workspace_spec::is_workspace_path_specifier(specifier)
+        });
+    if !names_a_workspace_project {
+        return;
+    }
+    let Some(manifest) = result.package.manifest.as_deref() else { return };
+    let (Some(name), Some(version)) = (
+        manifest.get("name").and_then(Value::as_str),
+        manifest.get("version").and_then(Value::as_str),
+    ) else {
+        return;
+    };
+    ctx.workspace.versions.record_workspace_manifest_identity(id, name, version);
+}
+
+pub(super) fn reject_exotic_subdep(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    depth: i32,
+    parent_is_workspace: bool,
+) -> Result<(), ResolveDependencyTreeError> {
+    if !ctx.options.base.policy.block_exotic_subdeps
+        || depth == 0
+        || parent_is_workspace
+        || !is_exotic_resolved_via(&result.resolved_via)
+    {
+        return Ok(());
+    }
+    Err(ResolveDependencyTreeError::ExoticSubdep {
+        specifier: wanted.alias
+            .clone()
+            .or_else(|| wanted.bare_specifier.clone())
+            .unwrap_or_default(),
+        resolved_via: result.resolved_via.clone(),
+    })
+}
+
+impl ChildEdge<'_> {
+    fn pending_ancestry(
+        &self,
+        id: &Arc<str>,
+        current_is_optional: bool,
+    ) -> super::PendingNodeAncestry {
+        let next_ancestors = self.ancestor_ids
+            .iter()
+            .cloned()
+            .chain(std::iter::once(Arc::clone(id)))
+            .collect();
+        super::PendingNodeAncestry {
+            parent_ancestors: Arc::clone(self.ancestor_ids),
+            next_ancestors: Arc::new(next_ancestors),
+            depth: self.depth,
+            current_is_optional,
+        }
+    }
+}

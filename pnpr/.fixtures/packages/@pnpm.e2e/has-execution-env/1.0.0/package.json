@@ -1,0 +1,14 @@
+{
+  "name": "@pnpm.e2e/has-execution-env",
+  "version": "1.0.0",
+  "description": "The package.json defines a pnpm.executionEnv",
+  "scripts": {
+    "install": "node generate-node-info.js"
+  },
+  "index": "read-generated-node-info.js",
+  "pnpm": {
+    "executionEnv": {
+      "nodeVersion": "20.0.0"
+    }
+  }
+}

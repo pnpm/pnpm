@@ -1,0 +1,614 @@
+//! `login` tests for the web-login error paths and the QR-generation
+//! fallback.
+
+use std::{
+    cell::RefCell,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::Mutex,
+};
+
+use pipe_trait::Pipe;
+use pnpm_network_web_auth_testing::{
+    SleepBehavior,
+    ok_202,
+    ok_token,
+    web_auth_fake,
+};
+use pretty_assertions::assert_eq;
+use serde_json::json;
+
+use super::{
+    LoginError,
+    login,
+    support::{
+        PromptScript,
+        ReadScript,
+        client,
+        login_fake,
+        opts,
+    },
+};
+
+#[tokio::test]
+async fn should_throw_when_web_login_returns_invalid_response() {
+    web_auth_fake!(FakeHost, RecordingReporter);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
+    );
+    assert_eq!(err.to_string(), "The registry returned an invalid response for web-based login");
+}
+
+/// A `npm-notice` header on a failed probe is not printed: the notice is
+/// display-only text for a login that is about to start, and a probe the
+/// login rejects has not started one.
+#[tokio::test]
+async fn should_not_print_an_npm_notice_when_the_web_login_probe_fails() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(500)
+        .with_header("npm-notice", "Verification code: 123456")
+        .with_body("Internal Server Error")
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
+/// The same holds when the probe answers 200 but the body lacks a usable
+/// `loginUrl` / `doneUrl`: the login is rejected and the notice is never
+/// shown.
+#[tokio::test]
+async fn should_not_print_an_npm_notice_when_the_web_login_response_is_invalid() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_header("npm-notice", "Verification code: 123456")
+        .with_body(json!({"loginUrl": "https://example.org/auth"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
+/// A rejected login URL ends the flow before anything is printed, so the
+/// notice of a response with an unsafe URL is never shown either.
+#[tokio::test]
+async fn should_not_print_an_npm_notice_when_the_login_url_is_unsafe() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": "https://example.org/auth/\u{1b}[31mlogin",
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_header("npm-notice", "Verification code: 123456")
+        .with_body(body)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
+#[tokio::test]
+async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos);
+    login_fake!(FakeHost, set_ini_read);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|_| Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"))));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/broken/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    let LoginError::ReadAuthIni { error, .. } = &err else {
+        panic!("expected ReadAuthIni, got {err:?}");
+    };
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+    // The web-login messages are surfaced before the read is attempted.
+    let messages = infos();
+    assert_eq!(messages.len(), 2, "expected the auth-URL and Press-ENTER lines: {messages:?}");
+    assert!(messages[0].contains("https://example.org/auth/login"), "got {messages:?}");
+    assert_eq!(messages[1], "Press ENTER to open the URL in your browser.");
+}
+
+/// A web-login probe that fails with a status other than 404 / 405 is fatal:
+/// it does not fall back to classic login but surfaces as `WEB_LOGIN_FAILED`,
+/// exercising the `Http` arm of `From<WebLoginFlowError>`.
+#[tokio::test]
+async fn should_surface_a_non_404_web_login_http_error_as_web_login_failed() {
+    web_auth_fake!(FakeHost, RecordingReporter);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let mut server = mockito::Server::new_async().await;
+    let login_mock = server
+        .mock("POST", "/-/v1/login")
+        .with_status(500)
+        .with_body("Internal Server Error")
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    login_mock.assert_async().await;
+    assert!(matches!(err, LoginError::WebLoginFailed { status: 500, .. }), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_WEB_LOGIN_FAILED"),
+    );
+    assert_eq!(err.to_string(), "Web-based login failed (HTTP 500): Internal Server Error");
+}
+
+/// A web-login probe that never reaches the registry surfaces as a transport
+/// error (`LoginError::Request`), exercising the `Transport` arm of
+/// `From<WebLoginFlowError>`. A loopback listener that never accepts keeps the
+/// endpoint deterministic while a short-lived client turns the stalled
+/// request into a transport timeout.
+#[tokio::test]
+async fn should_surface_a_web_login_transport_failure_as_a_request_error() {
+    web_auth_fake!(FakeHost, RecordingReporter);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind an ephemeral port");
+    let addr = listener.local_addr().expect("read the assigned port");
+    let registry = format!("http://{addr}/");
+    let config_dir = Path::new("/mock/config");
+    let build_client = |redirect| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_millis(25))
+            .redirect(redirect)
+            .build()
+            .expect("build short-lived client")
+    };
+    let http_client = pnpm_network::ThrottledClient::from_clients(
+        build_client(reqwest::redirect::Policy::limited(10)),
+        build_client(reqwest::redirect::Policy::none()),
+    );
+
+    let err = login::<FakeHost, RecordingReporter>(&http_client, opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::Request { .. }), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_REQUEST_FAILED"),
+    );
+    assert!(err.to_string().starts_with("The login request failed:"), "unexpected message: {err}");
+}
+
+#[tokio::test]
+async fn should_fall_back_to_url_only_display_when_the_login_url_exceeds_qr_capacity() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch, infos, warns);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+
+    let long_login_url = format!("https://example.org/auth/{}", "a".repeat(4000));
+    let body = json!({
+        "loginUrl": long_login_url,
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .expect("the login should succeed without a QR code");
+
+    assert!(
+        warns()
+            .iter()
+            .any(|message| message.starts_with("Could not generate a QR code:")),
+        "got {:?}",
+        warns(),
+    );
+    let auth_message = infos()
+        .into_iter()
+        .find(|message| message.contains(&long_login_url))
+        .expect("the auth URL should be surfaced");
+    assert_eq!(auth_message, format!("Authenticate your account at:\n{long_login_url}"));
+}
+
+/// When the web-auth poll never sees a token before its budget elapses, the
+/// login fails with the transparent web-auth timeout, exercising the `Timeout`
+/// arm of `From<WebLoginFlowError>`. Each fake sleep jumps the fake clock past
+/// the five-minute budget, so the next poll iteration times out.
+#[tokio::test]
+async fn should_time_out_when_the_web_auth_poll_never_completes() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_sleep_behavior, set_fetch);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_202())));
+    set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::WebAuthTimeout(_)), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_WEBAUTH_TIMEOUT"),
+    );
+    assert_eq!(err.to_string(), "Web-based authentication timed out before it could be completed");
+}
+
+/// A non-string `loginUrl` is rejected as an invalid response by the same
+/// narrowing that catches a missing field, never reaching the URL checks.
+#[tokio::test]
+async fn should_treat_a_non_string_login_url_as_an_invalid_response() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": 12345,
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::InvalidResponse), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_LOGIN_INVALID_RESPONSE"),
+    );
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
+/// A registry-controlled `loginUrl` carrying a control character is never a
+/// valid URL; the login is rejected as a possible terminal-spoofing attempt
+/// (rather than sanitized and used), and nothing reaches the terminal raw.
+#[tokio::test]
+async fn rejects_a_login_url_containing_control_characters() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": "https://example.org/auth/\u{1b}[31mlogin",
+        "doneUrl": "https://example.org/auth/done",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
+    );
+    assert!(
+        infos()
+            .iter()
+            .all(|message| !message.contains('\u{1b}')),
+        "got {:?}",
+        infos(),
+    );
+}
+
+/// The `doneUrl` twin of the check above: a control character in the poll URL
+/// is rejected before the URL is used or anything is printed.
+#[tokio::test]
+async fn rejects_a_done_url_containing_control_characters() {
+    web_auth_fake!(FakeHost, RecordingReporter, infos);
+    login_fake!(FakeHost);
+    reset();
+    reset_login();
+
+    let body = json!({
+        "loginUrl": "https://example.org/auth/login",
+        "doneUrl": "https://example.org/auth/done\r\nspoofed line",
+    })
+    .to_string();
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(body)
+        .create_async()
+        .await;
+    let registry = server.url();
+    let config_dir = Path::new("/mock/config");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, LoginError::UnsafeLoginUrl), "got {err:?}");
+    assert_eq!(
+        err.pipe_ref(miette::Diagnostic::code)
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_AUTH_COMMANDS_LOGIN_UNSAFE_URL"),
+    );
+    assert!(infos().is_empty(), "got {:?}", infos());
+}
+
+/// A registry the config reader would refuse is refused before the network:
+/// authenticating first would spend a round-trip to produce a `config.yaml`
+/// route that no later command can load. The message carries no part of the URL,
+/// which can hold credentials.
+#[tokio::test]
+async fn should_refuse_a_registry_the_config_reader_would_reject() {
+    web_auth_fake!(FakeHost, RecordingReporter);
+    login_fake!(FakeHost, login_writes);
+    reset();
+    reset_login();
+
+    let mut options = opts("https://user:secret@registry.example/", Path::new("/mock/config"));
+    options.scope = Some("@acme");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), options).await.unwrap_err();
+
+    let LoginError::UnrecordableLogin { reason } = &err else {
+        panic!("expected UnrecordableLogin, got {err:?}");
+    };
+    assert!(!reason.contains("secret"), "the message must not echo credentials: {reason}");
+    assert!(login_writes().is_empty(), "nothing may be written for a refused registry");
+}
+
+/// The same guard for a scope: `registries` routes it, and one that is not a
+/// package scope makes the document unloadable.
+#[tokio::test]
+async fn should_refuse_a_scope_the_config_reader_would_reject() {
+    web_auth_fake!(FakeHost, RecordingReporter);
+    login_fake!(FakeHost, login_writes);
+    reset();
+    reset_login();
+
+    let mut options = opts("https://registry.example/", Path::new("/mock/config"));
+    options.scope = Some("@foo/bar");
+
+    let err = login::<FakeHost, RecordingReporter>(&client(), options).await.unwrap_err();
+
+    assert!(
+        matches!(err, LoginError::UnrecordableLogin { .. }),
+        "a slashed scope must be refused, got {err:?}",
+    );
+    assert!(login_writes().is_empty(), "nothing may be written for a refused scope");
+}
+
+/// A `config.yaml` the login cannot edit fails it before anything is written,
+/// so no token is left behind for a login that reported an error.
+#[tokio::test]
+async fn should_write_nothing_when_config_yaml_cannot_be_parsed() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_fake!(FakeHost, set_ini_read, login_writes);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|path| {
+        Ok(if path.ends_with("config.yaml") {
+            "_auth: [unclosed\n".to_owned()
+        } else {
+            String::new()
+        })
+    }));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+
+    let err =
+        login::<FakeHost, RecordingReporter>(&client(), opts(&registry, Path::new("/mock/config")))
+            .await
+            .unwrap_err();
+
+    assert!(matches!(err, LoginError::ParseConfigYaml(_)), "got {err:?}");
+    assert!(login_writes().is_empty(), "nothing may be written: {:?}", login_writes());
+}
+
+/// A `config.yaml` write that fails after `auth.ini` was written puts
+/// `auth.ini` back, so the failed login leaves no token behind.
+#[tokio::test]
+async fn should_restore_auth_ini_when_the_config_yaml_write_fails() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_fake!(FakeHost, set_ini_read, fail_writes_to, login_writes);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|path| {
+        Ok(if path.ends_with("auth.ini") { "kept=value\n".to_owned() } else { String::new() })
+    }));
+    fail_writes_to("config.yaml");
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+
+    let mut options = opts(&registry, Path::new("/mock/config"));
+    options.scope = Some("@acme");
+    let err = login::<FakeHost, RecordingReporter>(&client(), options).await.unwrap_err();
+
+    assert!(matches!(err, LoginError::WriteConfigYaml { .. }), "got {err:?}");
+    let writes = login_writes();
+    let (path, text) = writes.last().expect("auth.ini was written");
+    assert!(path.ends_with("auth.ini"), "got {writes:?}");
+    assert_eq!(text, "kept=value\n");
+}
+
+/// An unreadable `config.yaml` fails the login before anything is written.
+#[tokio::test]
+async fn should_write_nothing_when_config_yaml_cannot_be_read() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_fake!(FakeHost, set_ini_read, login_writes);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|path| {
+        if path.ends_with("config.yaml") {
+            Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"))
+        } else {
+            Ok(String::new())
+        }
+    }));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+
+    let err =
+        login::<FakeHost, RecordingReporter>(&client(), opts(&registry, Path::new("/mock/config")))
+            .await
+            .unwrap_err();
+
+    assert!(matches!(err, LoginError::ReadConfigYaml { .. }), "got {err:?}");
+    assert!(login_writes().is_empty(), "nothing may be written: {:?}", login_writes());
+}

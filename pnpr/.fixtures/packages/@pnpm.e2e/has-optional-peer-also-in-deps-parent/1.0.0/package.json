@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/has-optional-peer-also-in-deps-parent",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/bravo-dep": "1.0.0",
+    "@pnpm.e2e/has-optional-peer-also-in-deps": "1.0.0"
+  }
+}

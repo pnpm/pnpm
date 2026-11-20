@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/pkg-with-peer-having-bin",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/peer-with-bin": "^1.0.0"
+  },
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "^1.0.0"
+  }
+}

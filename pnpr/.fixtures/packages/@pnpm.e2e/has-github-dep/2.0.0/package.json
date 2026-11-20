@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-github-dep",
+  "version": "2.0.0",
+  "dependencies": {
+    "is-positive": "kevva/is-positive"
+  }
+}

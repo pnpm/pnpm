@@ -1,0 +1,215 @@
+use super::{
+    CanonicalPackageName,
+    Ecosystem,
+    is_safe_path_segment,
+};
+
+#[test]
+fn canonicalizes_each_ecosystem() {
+    assert_eq!(CanonicalPackageName::parse("React", Ecosystem::Npm).unwrap().as_str(), "React");
+    assert_eq!(
+        CanonicalPackageName::parse("Serde_JSON", Ecosystem::Cargo).unwrap().as_str(),
+        "serde-json",
+    );
+    assert_eq!(
+        CanonicalPackageName::parse("Demo.Package_name", Ecosystem::Pypi).unwrap().as_str(),
+        "demo-package-name",
+    );
+    let stored = CanonicalPackageName::from_stored("acme/app", Ecosystem::Oci);
+    assert_eq!(stored.as_str(), "acme/app");
+    assert_eq!(stored.ecosystem(), Ecosystem::Oci);
+}
+
+#[test]
+fn reports_ecosystem_specific_name_errors() {
+    let cargo_error = CanonicalPackageName::parse("9lives", Ecosystem::Cargo).unwrap_err();
+    assert_eq!(
+        cargo_error.to_string(),
+        r#"Package name "9lives" is not valid for cargo: crate name "9lives" must start with a letter or `_`"#,
+    );
+
+    let python_error = CanonicalPackageName::parse("demo package", Ecosystem::Pypi).unwrap_err();
+    assert_eq!(
+        python_error.to_string(),
+        r#"Package name "demo package" is not valid for pypi: "demo package" is not a valid Python project name"#,
+    );
+}
+
+#[test]
+fn accepts_unscoped() {
+    let name = CanonicalPackageName::parse("lodash", Ecosystem::Npm).unwrap();
+    assert_eq!(name.as_str(), "lodash");
+    assert_eq!(name.tarball_name_for_version("4.17.21"), "lodash-4.17.21.tgz");
+    name.parse_tarball_name("lodash-4.17.21.tgz").unwrap();
+}
+
+#[test]
+fn accepts_scoped() {
+    let name = CanonicalPackageName::parse("@types/node", Ecosystem::Npm).unwrap();
+    assert_eq!(name.as_str(), "@types/node");
+    assert_eq!(name.tarball_name_for_version("20.0.0"), "node-20.0.0.tgz");
+    name.parse_tarball_name("node-20.0.0.tgz").unwrap();
+}
+
+#[test]
+fn rejects_traversal() {
+    assert!(CanonicalPackageName::parse("..", Ecosystem::Npm).is_err());
+    assert!(CanonicalPackageName::parse("foo/../bar", Ecosystem::Npm).is_err());
+    assert!(CanonicalPackageName::parse("@scope/..", Ecosystem::Npm).is_err());
+}
+
+#[test]
+fn rejects_dot_prefix() {
+    assert!(CanonicalPackageName::parse(".hidden", Ecosystem::Npm).is_err());
+}
+
+#[test]
+fn rejects_tarball_for_other_package() {
+    let name = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
+    assert!(name.parse_tarball_name("bar-1.0.0.tgz").is_err());
+    assert!(name.parse_tarball_name("../foo-1.0.0.tgz").is_err());
+    assert!(name.parse_tarball_name("foo-1.0.0").is_err());
+}
+
+/// `C:foo` is a drive-relative prefix on Windows. `PathBuf::join` replaces
+/// the base path with it instead of descending, so a `:` anywhere in a name,
+/// version, or preserved non-canonical tarball basename must be rejected
+/// before it can become a storage or cache path segment.
+#[test]
+fn rejects_windows_drive_prefixes() {
+    assert!(!is_safe_path_segment("C:evil.tgz"));
+    assert!(!is_safe_path_segment("c:"));
+    assert!(CanonicalPackageName::parse("C:foo", Ecosystem::Npm).is_err());
+    assert!(CanonicalPackageName::parse("@scope/C:foo", Ecosystem::Npm).is_err());
+    let name = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
+    assert!(name.parse_tarball_name("foo-1.0.0:x.tgz").is_err());
+}
+
+/// A name is interpolated into an upstream URL, so a `?`, `#`, or `%` in it
+/// would address a different package there than the one it is authorized and
+/// cached under.
+#[test]
+fn rejects_url_delimiters_and_blanks() {
+    for raw in ["foo?bar", "foo#bar", "foo%2fbar", "foo bar", "foo\tbar", "foo\u{7f}bar"] {
+        assert!(CanonicalPackageName::parse(raw, Ecosystem::Npm).is_err(), "{raw:?}");
+        assert!(!is_safe_path_segment(raw), "{raw:?}");
+    }
+    assert!(CanonicalPackageName::parse("@scope/foo?bar", Ecosystem::Npm).is_err());
+    assert!(CanonicalPackageName::parse("@sco?pe/foo", Ecosystem::Npm).is_err());
+    let name = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
+    assert!(name.parse_tarball_name("foo-1.0.0?x.tgz").is_err());
+}
+
+#[test]
+fn accepts_multi_component_image_names() {
+    let name = CanonicalPackageName::parse("acme/team/app", Ecosystem::Oci).unwrap();
+    assert_eq!(name.as_str(), "acme/team/app");
+
+    let single = CanonicalPackageName::parse("alpine", Ecosystem::Oci).unwrap();
+    assert_eq!(single.as_str(), "alpine");
+}
+
+#[test]
+fn folds_image_name_case() {
+    assert_eq!(
+        CanonicalPackageName::parse("ACME/App", Ecosystem::Oci).unwrap().as_str(),
+        "acme/app",
+    );
+}
+
+#[test]
+fn accepts_image_name_separators() {
+    for name in ["a.b/c_d", "a__b", "a---b", "x/y.z_0/w"] {
+        assert!(
+            CanonicalPackageName::parse(name, Ecosystem::Oci).is_ok(),
+            "{name} should be a valid image name",
+        );
+    }
+}
+
+#[test]
+fn rejects_malformed_image_names() {
+    for name in ["", "acme//app", "/app", "app/", ".app", "app.", "-app", "a..b", "a_-b", "a+b"] {
+        assert!(
+            CanonicalPackageName::parse(name, Ecosystem::Oci).is_err(),
+            "{name} should not be a valid image name",
+        );
+    }
+}
+
+#[test]
+fn rejects_image_name_traversal() {
+    assert!(CanonicalPackageName::parse("acme/../etc", Ecosystem::Oci).is_err());
+    assert!(CanonicalPackageName::parse("..", Ecosystem::Oci).is_err());
+}
+
+#[test]
+fn image_names_may_outrun_the_npm_length_limit() {
+    let long = format!("{}/{}", "a".repeat(120), "b".repeat(120));
+    assert!(CanonicalPackageName::parse(&long, Ecosystem::Oci).is_ok());
+    assert!(CanonicalPackageName::parse(&"a".repeat(256), Ecosystem::Oci).is_err());
+}
+
+#[test]
+fn reports_image_name_errors() {
+    let error = CanonicalPackageName::parse("acme//app", Ecosystem::Oci).unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        r#"Package name "acme//app" is not valid for oci: image name "acme//app" has an empty path component"#,
+    );
+}
+
+#[test]
+fn accepts_sigstore_names() {
+    let unscoped = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
+    assert_eq!(unscoped.sigstore_name_for_version("1.0.0"), "foo-1.0.0.sigstore");
+    assert_eq!(
+        unscoped.parse_sigstore_name("foo-1.0.0.sigstore").unwrap(),
+        ("foo-1.0.0.sigstore".to_string(), "1.0.0".to_string()),
+    );
+    assert_eq!(
+        unscoped.parse_sigstore_name("foo-1.0.0.sigstore.json").unwrap(),
+        ("foo-1.0.0.sigstore".to_string(), "1.0.0".to_string()),
+    );
+
+    let scoped = CanonicalPackageName::parse("@scope/bar", Ecosystem::Npm).unwrap();
+    assert_eq!(scoped.sigstore_name_for_version("2.1.0"), "bar-2.1.0.sigstore");
+    assert_eq!(
+        scoped.parse_sigstore_name("@scope/bar-2.1.0.sigstore").unwrap(),
+        ("bar-2.1.0.sigstore".to_string(), "2.1.0".to_string()),
+    );
+    assert_eq!(
+        scoped.parse_sigstore_name("bar-2.1.0.sigstore").unwrap(),
+        ("bar-2.1.0.sigstore".to_string(), "2.1.0".to_string()),
+    );
+
+    assert!(unscoped.parse_sigstore_name("bar-1.0.0.sigstore").is_err());
+    assert!(unscoped.parse_sigstore_name("foo-1.0.0.tgz").is_err());
+    assert!(unscoped.parse_sigstore_name("../foo-1.0.0.sigstore").is_err());
+}
+
+#[test]
+fn publishing_rejects_names_that_reads_accept() {
+    for name in ["Upper", "a~b", "_pkg", "pkg@x", "@scope/pkg@x", "café", "http"] {
+        let parsed = CanonicalPackageName::parse(name, Ecosystem::Npm).unwrap();
+        assert!(parsed.validate_npm_publish().is_err(), "{name}");
+    }
+    for name in ["pkg", "@scope/pkg", "pkg_name", "@scope/_pkg"] {
+        CanonicalPackageName::parse(name, Ecosystem::Npm)
+            .unwrap()
+            .validate_npm_publish()
+            .unwrap();
+    }
+}
+
+#[test]
+fn cargo_keys_fold_case_and_separators_without_collapsing_them() {
+    for raw in ["Demo_Crate", "demo-crate", "DEMO-CRATE"] {
+        let name = CanonicalPackageName::parse(raw, Ecosystem::Cargo).unwrap();
+        assert_eq!(name.as_str(), "demo-crate");
+        assert_eq!(name, CanonicalPackageName::parse(name.as_str(), Ecosystem::Cargo).unwrap());
+    }
+    for (raw, expected) in [("_demo", "-demo"), ("demo__crate", "demo--crate")] {
+        assert_eq!(CanonicalPackageName::parse(raw, Ecosystem::Cargo).unwrap().as_str(), expected);
+    }
+}

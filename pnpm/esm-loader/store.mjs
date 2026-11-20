@@ -1,0 +1,193 @@
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+export function loaderError (code, message) {
+  return Object.assign(new Error(message), { code })
+}
+
+export function openStore (manifestURL) {
+  const manifestPath = fileURLToPath(manifestURL)
+  const base = path.dirname(manifestPath)
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  if (!isRecord(manifest) || manifest.version !== 1 || typeof manifest.storeDir !== 'string') {
+    throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid store manifest: ${manifestPath}`)
+  }
+  const virtualRoot = path.join(base, '.pnpm-loader')
+  const storeDir = path.resolve(base, manifest.storeDir)
+  const packages = readPackages(manifest.packages, base, virtualRoot)
+  const files = new Map()
+  const directories = new Set([virtualRoot])
+  for (const pkg of packages.values()) {
+    if (pkg.stored) directories.add(pkg.root)
+  }
+  const lookup = packageLookup(packages)
+  function index (pkg) {
+    if (pkg?.stored && !pkg.indexed) indexFiles(pkg, files, directories, storeDir)
+    return pkg
+  }
+  function owner (filename) {
+    return index(lookup(filename))
+  }
+  function file (filename) {
+    owner(filename)
+    return files.get(filename)
+  }
+  function isDirectory (filename) {
+    owner(filename)
+    return directories.has(filename)
+  }
+  const filesystem = virtualFilesystem({ file, isDirectory, virtualRoot })
+  return { packages, index, owner, filesystem, file, isDirectory, virtualRoot }
+}
+
+function packageLookup (packages) {
+  const roots = new Map([...packages.values()].map(pkg => [pkg.root, pkg]))
+  const cache = new Map()
+  return function owner (filename) {
+    if (cache.has(filename)) return cache.get(filename)
+    let directory = filename
+    while (!roots.has(directory) && path.dirname(directory) !== directory) {
+      directory = path.dirname(directory)
+    }
+    const pkg = roots.get(directory)
+    cache.set(filename, pkg)
+    return pkg
+  }
+}
+
+function readPackages (entries, base, virtualRoot) {
+  if (!isRecord(entries)) {
+    throw loaderError('ERR_PNPM_LOADER_MANIFEST', 'The store manifest needs a packages object')
+  }
+  const packages = new Map()
+  const roots = new Map()
+  for (const [id, entry] of Object.entries(entries)) {
+    validatePackage(id, entry)
+    const stored = Object.hasOwn(entry, 'files')
+    if (stored === Object.hasOwn(entry, 'root')) {
+      throw loaderError('ERR_PNPM_LOADER_MANIFEST', `${id} must have either files or root`)
+    }
+    const root = stored
+      ? path.join(virtualRoot, createHash('sha256').update(id).digest('hex'))
+      : path.resolve(base, entry.root)
+    const previous = roots.get(root)
+    if ((!stored && within(virtualRoot, root)) || (previous && (previous.resolution !== 'node' || entry.resolution !== 'node'))) {
+      throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Conflicting package root: ${root}`)
+    }
+    roots.set(root, entry)
+    packages.set(id, { ...entry, id, root, stored, dependencies: new Map(Object.entries(entry.dependencies ?? {})) })
+  }
+  for (const pkg of packages.values()) {
+    for (const [alias, target] of pkg.dependencies) {
+      if (!packages.has(target)) {
+        throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Unknown dependency ${alias} -> ${target} in ${pkg.id}`)
+      }
+    }
+  }
+  return packages
+}
+
+function validatePackage (id, entry) {
+  if (!isRecord(entry) || !isRecord(entry.dependencies ?? {}) ||
+    (Object.hasOwn(entry, 'files') && !isRecord(entry.files)) ||
+    (Object.hasOwn(entry, 'root') && typeof entry.root !== 'string') ||
+    (entry.resolution !== undefined && (entry.resolution !== 'node' || typeof entry.root !== 'string'))) {
+    throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid package entry: ${id}`)
+  }
+}
+
+function isRecord (value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function indexFiles (pkg, files, directories, storeDir) {
+  if (pkg.indexError) throw pkg.indexError
+  try {
+    const entries = packageEntries(pkg, storeDir)
+    for (const [filename, entry] of entries.files) files.set(filename, entry)
+    for (const directory of entries.directories) directories.add(directory)
+    pkg.hasNodeModules = entries.hasNodeModules
+    pkg.indexed = true
+  } catch (error) {
+    pkg.indexError = error
+    throw error
+  }
+}
+
+function packageEntries (pkg, storeDir) {
+  const files = new Map()
+  const directories = new Set()
+  let hasNodeModules = false
+  if (!Object.hasOwn(pkg.files, 'package.json')) {
+    files.set(path.join(pkg.root, 'package.json'), { source: Buffer.from('{}') })
+  }
+  for (const [name, hash] of Object.entries(pkg.files)) {
+    const parts = name.split('/')
+    if (!validFilename(name, parts) || typeof hash !== 'string' || !/^[a-f0-9]{128}(?:-exec)?$/.test(hash)) {
+      throw loaderError('ERR_PNPM_LOADER_MANIFEST', `Invalid store file ${pkg.id}/${name}`)
+    }
+    if (parts.includes('node_modules')) hasNodeModules = true
+    const filename = path.join(pkg.root, name)
+    files.set(filename, { blob: path.join(storeDir, 'files', hash.slice(0, 2), hash.slice(2)), hash: hash.slice(0, 128) })
+    for (let parent = path.dirname(filename); within(pkg.root, parent); parent = path.dirname(parent)) {
+      directories.add(parent)
+    }
+  }
+  for (const filename of files.keys()) {
+    if (directories.has(filename)) throw loaderError('ERR_PNPM_LOADER_MANIFEST', `File is also a directory: ${filename}`)
+  }
+  return { files, directories, hasNodeModules }
+}
+
+function validFilename (name, parts) {
+  return name.length > 0 && !name.includes('\\') && !name.includes('\0') && !name.includes(':') &&
+    parts.every(part => part !== '' && part !== '.' && part !== '..')
+}
+
+export function within (root, filename) {
+  return filename === root || filename.startsWith(`${root}${path.sep}`)
+}
+
+function virtualFilesystem ({ file, isDirectory, virtualRoot }) {
+  const jsonCache = new Map()
+  function statSync (filename) {
+    const normalized = path.resolve(filename)
+    if (!within(virtualRoot, normalized)) return fs.statSync(filename)
+    const stored = file(normalized) !== undefined
+    const directory = isDirectory(normalized)
+    if (!stored && !directory) throw missing(filename)
+    return {
+      isFile: () => stored,
+      isDirectory: () => directory,
+      isSymbolicLink: () => false,
+    }
+  }
+  function readFileSync (filename, encoding) {
+    const normalized = path.resolve(filename)
+    if (!within(virtualRoot, normalized)) return fs.readFileSync(filename, encoding)
+    const entry = file(normalized)
+    if (!entry) throw missing(filename)
+    if (entry.source) return encoding ? entry.source.toString(encoding) : entry.source
+    const source = fs.readFileSync(entry.blob)
+    if (createHash('sha512').update(source).digest('hex') !== entry.hash) {
+      throw loaderError('ERR_PNPM_LOADER_INTEGRITY', `Store file failed integrity verification: ${entry.blob}`)
+    }
+    return encoding ? source.toString(encoding) : source
+  }
+  function readJsonSync (filename) {
+    const normalized = path.resolve(filename)
+    if (jsonCache.has(normalized)) return jsonCache.get(normalized)
+    const source = readFileSync(filename, 'utf8')
+    const parsed = JSON.parse(source.charCodeAt(0) === 0xFEFF ? source.slice(1) : source)
+    if (within(virtualRoot, normalized)) jsonCache.set(normalized, parsed)
+    return parsed
+  }
+  return { statSync, readFileSync, readJsonSync }
+}
+
+function missing (filename) {
+  return loaderError('ENOENT', `No file in store manifest: ${filename}`)
+}

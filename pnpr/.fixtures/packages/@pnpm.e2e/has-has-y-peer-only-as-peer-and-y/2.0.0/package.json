@@ -1,0 +1,10 @@
+{
+  "name": "@pnpm.e2e/has-has-y-peer-only-as-peer-and-y",
+  "version": "2.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/has-y-peer": "^1.0.0"
+  },
+  "dependencies": {
+    "@pnpm/y": "2.0.0"
+  }
+}

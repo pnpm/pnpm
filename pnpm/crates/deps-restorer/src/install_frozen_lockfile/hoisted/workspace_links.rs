@@ -1,0 +1,118 @@
+use super::{
+    HoistedLinkerError,
+    HoistedLinkerInputs,
+    Lockfile,
+    PathBuf,
+    Reporter,
+    SkippedSnapshots,
+};
+use crate::SymlinkDirectDependencies;
+use std::collections::HashSet;
+
+pub(super) const ALL_DEPENDENCY_GROUPS: [super::DependencyGroup; 3] =
+    [super::DependencyGroup::Prod, super::DependencyGroup::Dev, super::DependencyGroup::Optional];
+
+// The hoisted walker skips workspace links, which still need symlinks in each importer.
+pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
+    inputs: &HoistedLinkerInputs<'_>,
+    lockfile: &Lockfile,
+    skipped: &SkippedSnapshots,
+    link_options: &pnpm_cmd_shim::LinkBinsOptions,
+    claimed_commands: &mut crate::ClaimedCommands,
+) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
+    let changed_dirs = workspace_linked_bin_dirs(inputs);
+    // Workspace `link:` deps still need symlinks under each importer's
+    // `node_modules/<alias>` even though the regular deps now live as
+    // real directories. The hoisted dep-graph walker skips
+    // `workspace:`-prefixed references entirely (they're not in the
+    // hoist tree), so without this pass workspace siblings would be
+    // missing from each project's `node_modules/`. `link_only: true`
+    // filters every other dep out so the call doesn't try to re-create
+    // symlinks for packages that the hoisted linker already wrote as
+    // real dirs.
+    let trusted = trusted_importer_ids(inputs);
+    let workspace_claimed = SymlinkDirectDependencies {
+        context: crate::ImporterLinkContext {
+            config: inputs.config,
+            layout: inputs.graph.layout,
+            workspace_root: inputs.projects.walker_lockfile_dir,
+            link_options,
+        },
+        graph: crate::ImporterDependencyGraph {
+            importers: inputs.projects.importers,
+            packages: lockfile.packages.as_ref(),
+            skipped,
+        },
+        policy: crate::DirectLinkPolicy {
+            public_hoist_targets: None,
+            trusted_importer_ids: Some(&trusted),
+            link_only: true,
+        },
+        dependency_groups: ALL_DEPENDENCY_GROUPS.into_iter(),
+        // `link_only` keeps only `link:` siblings, which have no
+        // lockfile row for a prefetched manifest to serve.
+        package_manifests: None,
+        package_bins: None,
+        requires_build_by_snapshot: None,
+        scheduled_builds: None,
+    }
+    .run_claiming_bins::<Reporter>()
+    .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
+    claimed_commands.merge(workspace_claimed);
+    Ok(changed_dirs)
+}
+
+/// Prunes the root's `.bin` and each selected project's.
+pub(super) fn prune_importer_hoisted_bins(
+    inputs: &HoistedLinkerInputs<'_>,
+    claimed_commands: &crate::ClaimedCommands,
+) -> Result<(), HoistedLinkerError> {
+    let modules_dirs =
+        crate::ImporterModulesDirs::from_config(inputs.config, inputs.projects.walker_lockfile_dir);
+    let project_modules_dirs: Vec<PathBuf> = inputs.projects.manifests
+        .iter()
+        .map(|(project_dir, _)| modules_dirs.of(project_dir))
+        .collect();
+    claimed_commands
+        .prune_stale_bins(
+            std::iter::once(modules_dirs.root())
+                .chain(project_modules_dirs.iter().map(PathBuf::as_path)),
+        )
+        .map_err(HoistedLinkerError::HoistLinkBins)
+}
+
+/// Importer ids backed by the install's own declared projects, relative to
+/// `walker_lockfile_dir`.
+fn trusted_importer_ids(inputs: &HoistedLinkerInputs<'_>) -> HashSet<String> {
+    inputs.projects.manifests
+        .iter()
+        .map(|(project_dir, _)| {
+            pnpm_workspace::importer_id_from_root_dir(
+                inputs.projects.walker_lockfile_dir,
+                project_dir,
+            )
+        })
+        .collect()
+}
+
+fn workspace_linked_bin_dirs(inputs: &HoistedLinkerInputs<'_>) -> HashSet<PathBuf> {
+    let modules_dirs =
+        crate::ImporterModulesDirs::from_config(inputs.config, inputs.projects.walker_lockfile_dir);
+    inputs.projects.manifests
+        .iter()
+        .filter_map(|(project_dir, _)| {
+            let importer_id = pnpm_workspace::importer_id_from_root_dir(
+                inputs.projects.walker_lockfile_dir,
+                project_dir,
+            );
+            let snapshot = inputs.projects.importers.get(&importer_id)?;
+            let has_links = snapshot
+                .dependencies_by_groups(ALL_DEPENDENCY_GROUPS)
+                .any(|(_, dependency)| {
+                    matches!(dependency.version, pnpm_lockfile::ImporterDepVersion::Link(_))
+                });
+
+            has_links.then(|| modules_dirs.of(project_dir))
+        })
+        .collect()
+}

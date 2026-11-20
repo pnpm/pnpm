@@ -1,0 +1,70 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../core/error"
+    },
+    {
+      "path": "../../core/types"
+    },
+    {
+      "path": "../../engine/runtime/bun-resolver"
+    },
+    {
+      "path": "../../engine/runtime/deno-resolver"
+    },
+    {
+      "path": "../../engine/runtime/node-resolver"
+    },
+    {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../fetching/tarball-fetcher"
+    },
+    {
+      "path": "../../fetching/types"
+    },
+    {
+      "path": "../../hooks/types"
+    },
+    {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../testing/mock-agent"
+    },
+    {
+      "path": "../git-resolver"
+    },
+    {
+      "path": "../local-resolver"
+    },
+    {
+      "path": "../npm-resolver"
+    },
+    {
+      "path": "../resolver-base"
+    },
+    {
+      "path": "../tarball-resolver"
+    }
+  ]
+}

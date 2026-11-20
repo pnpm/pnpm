@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/has-optional-peer-also-in-deps-parent": "1.0.0"
+  }
+}

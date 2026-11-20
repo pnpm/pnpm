@@ -1,0 +1,1414 @@
+mod auto_dedupe;
+
+mod integrity;
+
+mod builds;
+
+mod store;
+
+mod runtimes;
+
+mod catalogs;
+
+mod resolution;
+
+mod lockfile;
+
+mod modules_dir;
+
+mod workspace;
+
+mod installation;
+
+mod hooks;
+
+mod in_memory_manifests;
+
+mod overrides;
+
+mod injected;
+
+mod validation;
+
+mod settings_classification;
+
+use super::{
+    Decision,
+    OptimisticRepeatInstallCheck,
+    check_optimistic_repeat_install,
+    deps_status::{
+        RunDepsStatus,
+        check_deps_status_before_run,
+    },
+};
+use crate::install_state::settings::current_settings;
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_testing_utils::fs::{
+    MTIME_STEP_MS,
+    backdate_existing_files,
+    set_mtime,
+    set_mtime_ms,
+};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+    WorkspaceStateSettings,
+    load_workspace_state,
+    update_workspace_state,
+};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
+use tempfile::tempdir;
+
+fn isolated_included() -> IncludedDependencies {
+    IncludedDependencies { dependencies: true, dev_dependencies: true, optional_dependencies: true }
+}
+
+/// Run the fast-path check in single-project mode with no loaded
+/// lockfile and no catalogs, the shape every pre-content-check test
+/// exercises.
+fn check(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> Decision {
+    check_with_catalogs(
+        workspace_root,
+        config,
+        node_linker,
+        project_manifests,
+        false,
+        &BTreeMap::default(),
+    )
+}
+
+fn check_with_catalogs(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    is_workspace_install: bool,
+    catalogs: &Catalogs,
+) -> Decision {
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        project_manifests: crate::DeclaredManifests::new(project_manifests),
+        is_workspace_install,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    })
+}
+
+fn check_with_lockfile(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    lockfile: &Lockfile,
+) -> Decision {
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        project_manifests: crate::DeclaredManifests::new(project_manifests),
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    })
+}
+
+fn check_workspace(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    catalogs: &Catalogs,
+) -> Decision {
+    check_with_catalogs(workspace_root, config, node_linker, project_manifests, true, catalogs)
+}
+
+/// Write an empty `pnpm-lock.yaml` to satisfy the single-project
+/// branch's lockfile-existence gate. The fast path only checks
+/// existence, not contents.
+fn write_empty_lockfile(workspace_root: &std::path::Path) {
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write pnpm-lock.yaml");
+}
+
+fn write_local_tarball_lockfile(
+    workspace_root: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    dependency_group: &str,
+    tarball: &[u8],
+) -> Lockfile {
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(tarball)
+        .result();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    {dependency_group}:\n      tar:\n        specifier: file:./vendor/tar.tgz\n        version: file:vendor/tar.tgz\npackages:\n  tar@file:vendor/tar.tgz:\n    resolution: {{integrity: {integrity}, tarball: file:vendor/tar.tgz}}\nsnapshots:\n  tar@file:vendor/tar.tgz: {{}}\n",
+        ),
+    )
+    .expect("write local tarball lockfile");
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root)
+        .expect("load local tarball lockfile")
+        .expect("local tarball lockfile on disk");
+    lockfile
+        .save_current_to_install_state_dir(virtual_store_dir)
+        .expect("write current local tarball lockfile");
+    lockfile
+}
+
+fn write_bare_tarball_lockfile(
+    workspace_root: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    tarball: &[u8],
+) -> Lockfile {
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(tarball)
+        .result();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      tar:\n        specifier: dependency.tgz\n        version: file:dependency.tgz\npackages:\n  tar@file:dependency.tgz:\n    resolution: {{integrity: {integrity}, tarball: file:dependency.tgz}}\nsnapshots:\n  tar@file:dependency.tgz: {{}}\n",
+        ),
+    )
+    .expect("write bare tarball lockfile");
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root)
+        .expect("load bare tarball lockfile")
+        .expect("bare tarball lockfile on disk");
+    lockfile
+        .save_current_to_install_state_dir(virtual_store_dir)
+        .expect("write current bare tarball lockfile");
+    lockfile
+}
+
+fn write_registry_lockfile(
+    workspace_root: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    specifier: &str,
+) -> Lockfile {
+    let integrity = IntegrityOpts::new()
+        .algorithm(Algorithm::Sha512)
+        .chain(b"registry")
+        .result();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      tar:\n        specifier: {specifier}\n        version: 1.0.0\npackages:\n  tar@1.0.0:\n    resolution: {{integrity: {integrity}}}\nsnapshots:\n  tar@1.0.0: {{}}\n",
+        ),
+    )
+    .expect("write registry lockfile");
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root)
+        .expect("load registry lockfile")
+        .expect("registry lockfile on disk");
+    lockfile
+        .save_current_to_install_state_dir(virtual_store_dir)
+        .expect("write current registry lockfile");
+    lockfile
+}
+
+fn write_state(
+    workspace_root: &std::path::Path,
+    timestamp: i64,
+    settings: WorkspaceStateSettings,
+    projects: BTreeMap<String, ProjectEntry>,
+) {
+    write_state_with_pnpmfiles(workspace_root, timestamp, settings, projects, Vec::new());
+}
+
+fn write_state_with_pnpmfiles(
+    workspace_root: &std::path::Path,
+    timestamp: i64,
+    settings: WorkspaceStateSettings,
+    projects: BTreeMap<String, ProjectEntry>,
+    pnpmfiles: Vec<String>,
+) {
+    let mut state = WorkspaceState {
+        last_validated_timestamp: timestamp,
+        projects,
+        pnpmfiles,
+        filtered_install: false,
+        config_dependencies: None,
+        validation: None,
+        settings,
+    };
+    record_validation_on_disk(workspace_root, &mut state);
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+    wait_for_the_next_filesystem_tick(workspace_root);
+}
+
+/// Record in the state on disk that an install materialized
+/// `project_manifests`, for manifests no `package.json` on disk carries.
+fn record_installed(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) {
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read workspace state")
+        .expect("workspace state on disk");
+    super::validation::record_validation(
+        &mut state,
+        &super::validation::RecordValidation {
+            workspace_root,
+            config,
+            project_manifests: crate::DeclaredManifests::new(project_manifests),
+            workspace_projects: None,
+            lockfile: None,
+            vouched: &super::validation::Vouched::All,
+        },
+    );
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+}
+
+/// Record what an install of the files on disk proves, as an install that
+/// wrote `state` would: every project whose manifest can be read, and the
+/// lockfile and pnpmfiles beside them.
+fn record_validation_on_disk(workspace_root: &std::path::Path, state: &mut WorkspaceState) {
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    let manifests = state.projects
+        .keys()
+        .filter_map(|dir| {
+            let manifest =
+                PackageManifest::from_path(std::path::Path::new(dir).join("package.json")).ok()?;
+            Some((std::path::PathBuf::from(dir), manifest))
+        })
+        .collect::<Vec<_>>();
+    let project_manifests = manifests
+        .iter()
+        .map(|(dir, manifest)| (dir.clone(), manifest))
+        .collect::<Vec<_>>();
+    super::validation::record_validation(
+        state,
+        &super::validation::RecordValidation {
+            workspace_root,
+            config: &config,
+            project_manifests: crate::DeclaredManifests::new(&project_manifests),
+            workspace_projects: None,
+            lockfile: None,
+            vouched: &super::validation::Vouched::All,
+        },
+    );
+}
+
+/// Keep manifests older than the wanted lockfile and the lockfile older
+/// than validation, including when mtimes cover a whole second.
+fn backdate_validated_files(workspace_root: &std::path::Path) -> i64 {
+    let timestamp = backdate_existing_files(workspace_root);
+    for entry in walkdir::WalkDir::new(workspace_root) {
+        let entry = entry.expect("read workspace file");
+        if entry.file_type().is_file() && entry.file_name() == "package.json" {
+            set_mtime_ms(entry.path(), timestamp - 2 * MTIME_STEP_MS);
+        }
+    }
+    timestamp
+}
+
+fn validate_existing_files(workspace_root: &std::path::Path) {
+    let timestamp = backdate_validated_files(workspace_root);
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read workspace state")
+        .expect("workspace state on disk");
+    state.last_validated_timestamp = timestamp;
+    record_validation_on_disk(workspace_root, &mut state);
+    update_workspace_state(workspace_root, &state).expect("refresh workspace state");
+}
+
+/// Setup a workspace whose recorded `lastValidatedTimestamp` covers
+/// every file written so far, so the manifest reads as validated.
+fn setup_fresh_install(
+    config_kind: pnpm_config::NodeLinker,
+    project_name: &str,
+    project_version: &str,
+    manifest_extra_json: &str,
+) -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    setup_fresh_install_with_config(
+        config_kind,
+        project_name,
+        project_version,
+        manifest_extra_json,
+        |_| {},
+    )
+}
+
+/// Same as [`setup_fresh_install`] but applies `configure` to the
+/// `Config` before the workspace-state snapshot is taken, so the
+/// settings comparison sees the configured values as unchanged.
+fn setup_fresh_install_with_config(
+    config_kind: pnpm_config::NodeLinker,
+    project_name: &str,
+    project_version: &str,
+    manifest_extra_json: &str,
+    configure: impl FnOnce(&mut Config),
+) -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+
+    let manifest_body = if manifest_extra_json.is_empty() {
+        format!(r#"{{"name":"{project_name}","version":"{project_version}"}}"#)
+    } else {
+        format!(
+            r#"{{"name":"{project_name}","version":"{project_version}",{manifest_extra_json}}}"#,
+        )
+    };
+    fs::write(&manifest_path, manifest_body).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    // Seed `pnpm-lock.yaml` so the single-project branch's lockfile
+    // gate passes, most tests run in single-project mode (no
+    // `pnpm-workspace.yaml`) and would otherwise short-circuit on
+    // the missing-lockfile reason regardless of what they intend
+    // to exercise.
+    write_empty_lockfile(workspace_root);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    configure(&mut config);
+    let config = Box::leak(Box::new(config));
+    // Pre-create the modules dir so the "missing node_modules" guard
+    // doesn't fire on the happy-path tests.
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    // A fresh install links every `workspace:`/`link:` dependency, so a
+    // fixture that claims a fresh state has to show those entries too. A test
+    // that wants one gone removes it itself.
+    for (alias, spec) in manifest.dependencies([
+        pnpm_package_manifest::DependencyGroup::Prod,
+        pnpm_package_manifest::DependencyGroup::Dev,
+        pnpm_package_manifest::DependencyGroup::Optional,
+    ]) {
+        if super::modules_dirs::direct_links::is_local_link_spec(spec) {
+            fs::create_dir_all(config.modules_dir.join(alias)).unwrap();
+        }
+    }
+
+    record_test_workspace_state(
+        workspace_root,
+        config,
+        config_kind,
+        &[(workspace_root.to_path_buf(), &manifest)],
+    );
+
+    (dir, config, manifest)
+}
+
+fn record_test_workspace_state(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) {
+    let state = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root,
+        config,
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        catalogs: &BTreeMap::default(),
+        projects: crate::install::StateProjects {
+            manifests: crate::DeclaredManifests::new(project_manifests),
+            workspace_projects: None,
+            lockfile: None,
+        },
+        filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: config.auto_dedupe.then_some(true),
+            registry_keys_verified: true,
+            registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
+            kept_settings: None,
+        },
+        vouched: &super::validation::Vouched::All,
+    });
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+    wait_for_the_next_filesystem_tick(workspace_root);
+}
+
+/// Minimal valid lockfile matching a manifest with
+/// `"dependencies": {"foo": "^1.0.0"}`.
+const FOO_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  foo@1.0.0: {}
+";
+
+const FOO_LOCKFILE_WITHOUT_PACKAGES: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+";
+
+const FOO_MANIFEST: &str = r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#;
+
+/// [`FOO_MANIFEST`] edited in a way the lockfile still satisfies.
+const FOO_MANIFEST_EDITED: &str =
+    r#"{"name":"root","version":"1.0.0","description":"edited","dependencies":{"foo":"^1.0.0"}}"#;
+
+/// Build a single project whose manifest, wanted lockfile, and current
+/// lockfile all agree, with the workspace state stamped after every
+/// file write. Content-check tests then touch or rewrite individual
+/// files and assert the decision.
+fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), FOO_MANIFEST).unwrap();
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE).unwrap();
+    let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
+    let config = config.leak();
+
+    record_test_workspace_state(
+        workspace_root,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+    );
+
+    (dir, config)
+}
+
+fn content_check_decision(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    is_workspace_install: bool,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> Decision {
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: crate::DeclaredManifests::new(project_manifests),
+        is_workspace_install,
+        lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    })
+}
+
+/// The instant every mtime-collision test stamps on the files the
+/// freshness check stats and on the recorded `lastValidatedTimestamp`.
+const COLLIDING_MTIME_SECS: u64 = 1_700_000_000;
+/// [`COLLIDING_MTIME_SECS`] in the milliseconds the state records.
+const COLLIDING_MTIME_MS: i64 = 1_700_000_000_000;
+
+/// Reproduce the mtime-tick collision of
+/// [#13907](https://github.com/pnpm/pnpm/issues/13907): every file the
+/// freshness check stats is stamped `subsec_nanos` into the millisecond
+/// the workspace state records as validated, so the manifest reads as
+/// possibly-modified and the content check runs. A `subsec_nanos` of
+/// zero is the whole-second-mtime filesystem's version of the same
+/// collision.
+fn collide_mtimes_with_recorded_state(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    subsec_nanos: u32,
+) {
+    let modified = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::new(COLLIDING_MTIME_SECS, subsec_nanos);
+    for path in [
+        workspace_root.join("package.json"),
+        workspace_root.join(Lockfile::FILE_NAME),
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
+    ] {
+        set_mtime(&path, modified);
+    }
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    write_state(
+        workspace_root,
+        COLLIDING_MTIME_MS,
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
+        projects,
+    );
+}
+
+/// Date the wanted lockfile [`lockfile_mtime_after`] `recorded`, the
+/// state's `lastValidatedTimestamp`, so the next check compares its content.
+fn date_lockfile_after(workspace_root: &std::path::Path, recorded: i64) {
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    set_mtime_ms(&path, lockfile_mtime_after(recorded));
+    wait_for_the_next_filesystem_tick(workspace_root);
+}
+
+/// Wait until the filesystem clock moves past every write so far, so a check
+/// that records a file records a stat the next check trusts.
+fn wait_for_the_next_filesystem_tick(workspace_root: &std::path::Path) {
+    let now = || {
+        crate::install_state::timestamps::filesystem_now_ns_in_modules(&workspace_root.join(
+            "node_modules",
+        ))
+        .unwrap()
+    };
+    let written = now();
+    while now() <= written {
+        std::thread::yield_now();
+    }
+}
+
+/// [`MTIME_STEP_MS`] past `recorded`, never on an exact second. The check
+/// reads such an mtime as whole-second precision, which covers the whole
+/// second, so the check that compared the lockfile could not record a
+/// timestamp past it and the next run would compare it again.
+fn lockfile_mtime_after(recorded: i64) -> i64 {
+    let ms = recorded + MTIME_STEP_MS;
+    if ms % 1_000 == 0 { ms - 1 } else { ms }
+}
+
+/// The workspace state file as the last write left it.
+fn recorded_state_text(workspace_root: &std::path::Path) -> String {
+    fs::read_to_string(pnpm_workspace_state::get_file_path(workspace_root))
+        .expect("read the workspace state")
+}
+
+fn recorded_timestamp(workspace_root: &std::path::Path) -> i64 {
+    load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written")
+        .last_validated_timestamp
+}
+
+fn assert_content_check_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    let recorded = recorded_state_text(dir.path());
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    assert_eq!(recorded_state_text(dir.path()), recorded, "a converged check records nothing");
+}
+
+fn workspace_deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> RunDepsStatus {
+    workspace_deps_status_for_selected(dir, config, project_manifests, &[])
+}
+
+fn workspace_deps_status_for_selected(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    selected_project_dirs: &[&std::path::Path],
+) -> RunDepsStatus {
+    deps_status(dir, config, project_manifests, selected_project_dirs, true)
+}
+
+fn single_project_deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> RunDepsStatus {
+    deps_status(dir, config, project_manifests, &[], false)
+}
+
+fn deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    selected_project_dirs: &[&std::path::Path],
+    is_workspace_install: bool,
+) -> RunDepsStatus {
+    let state = load_workspace_state(dir.path())
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
+    check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            project_manifests: crate::DeclaredManifests::new(project_manifests),
+            is_workspace_install,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+            catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
+            manifests: crate::RepeatInstallManifests::ON_DISK,
+        },
+        &state,
+        selected_project_dirs,
+    )
+}
+
+/// Leave the state as `pnpm install --filter` leaves it: only the
+/// `materialized` projects are proven installed.
+fn record_filtered_install(workspace_root: &std::path::Path, materialized: &[&std::path::Path]) {
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    state.filtered_install = true;
+    let materialized = materialized
+        .iter()
+        .map(|dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, dir))
+        .collect::<Vec<_>>();
+    let validation = state.validation.as_mut().expect("a recorded validation");
+    validation.manifests.retain(|importer_id, _| materialized.contains(importer_id));
+    validation.lockfiles.retain(|importer_id, _| materialized.contains(importer_id));
+    update_workspace_state(workspace_root, &state).expect("write the workspace state");
+}
+
+/// Record that the project at `project_dir` was installed from another
+/// lockfile than the one on disk now.
+fn record_installed_from_an_earlier_lockfile(
+    workspace_root: &std::path::Path,
+    project_dir: &std::path::Path,
+) {
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    let manifest = PackageManifest::from_path(project_dir.join("package.json")).unwrap();
+    state.validation
+        .as_mut()
+        .expect("a recorded validation")
+        .insert_project(
+            pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir),
+            super::validation::manifest_digest(&manifest),
+            Some("an earlier lockfile"),
+        );
+    update_workspace_state(workspace_root, &state).expect("write the workspace state");
+}
+
+/// `config` for a command filtered to the projects it selected.
+fn filtered_command_config(config: &Config) -> &'static Config {
+    let mut config = config.clone();
+    config.filter = vec!["{selected}".into()];
+    config.leak()
+}
+
+/// A workspace whose state records a filtered install: the root project was
+/// materialized, `packages/a` was not.
+fn setup_filtered_install_workspace()
+-> (tempfile::TempDir, &'static Config, PackageManifest, PackageManifest) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let project_dir = workspace_root.join("packages/a");
+    fs::create_dir_all(&project_dir).unwrap();
+    fs::write(
+        project_dir.join("package.json"),
+        r#"{"name":"a","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let lockfile = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n\npackages:\n\n  foo@1.0.0:\n    resolution: {integrity: sha512-aaa}\n\nsnapshots:\n\n  foo@1.0.0: {}\n";
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), lockfile).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), lockfile).unwrap();
+    let config = config.leak();
+
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    projects.insert(
+        project_dir.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("a".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    record_filtered_install(workspace_root, &[workspace_root]);
+
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let project_manifest = PackageManifest::from_path(project_dir.join("package.json")).unwrap();
+    (dir, config, root_manifest, project_manifest)
+}
+
+/// A filtered install leaves the projects it did not select without a
+/// modules directory, so the state it records exempts them. The projects
+/// the gated command selected are still held to that requirement:
+/// otherwise a filtered `run` or `exec` could select a project the
+/// filtered install never materialized and run it without its
+/// dependencies (<https://github.com/pnpm/pnpm/issues/11865>).
+#[test]
+fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
+    let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
+    let project_dir = dir.path().join("packages/a");
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
+    let selected = [project_dir.as_path()];
+
+    assert_eq!(
+        workspace_deps_status(&dir, config, &project_manifests),
+        RunDepsStatus::UpToDate,
+        "an empty selection keeps the exemption a filtered install records",
+    );
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue.contains("does not have a modules directory")
+        ),
+        "a selected project the filtered install did not materialize is outdated",
+    );
+
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+        RunDepsStatus::UpToDate,
+        "a selected project the current lockfile records as installed is current",
+    );
+
+    fs::remove_dir_all(project_dir.join("node_modules")).unwrap();
+    assert!(
+        matches!(
+            workspace_deps_status(&dir, config, &project_manifests),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue.contains("does not have a modules directory")
+        ),
+        "once every project is proven installed, each one with dependencies needs a modules directory",
+    );
+}
+
+/// A modules directory does not prove that the filtered install materialized
+/// a selected project. The current lockfile must also record the project and
+/// its direct dependencies, including when `pnpm-lock.yaml` is missing and
+/// the current lockfile stands in for it.
+#[test]
+fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
+    let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
+    let project_dir = dir.path().join("packages/a");
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
+    let selected = [project_dir.as_path()];
+    fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    let current_without_importer = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
+    let current_without_snapshot = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n";
+
+    for current in [current_without_importer, current_without_snapshot] {
+        fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current).unwrap();
+        assert!(
+            matches!(
+                workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+                RunDepsStatus::Outdated { issue, .. }
+                    if issue == "Workspace package a has dependencies but was not installed"
+            ),
+            "a selected project the current lockfile does not record as installed is outdated",
+        );
+    }
+
+    fs::write(
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n  packages/a: {}\n",
+    )
+    .unwrap();
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "Workspace package a has dependencies but was not installed"
+        ),
+        "a selected project the current lockfile carries without dependencies is outdated",
+    );
+
+    let root_only = [dir.path()];
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &root_only),
+        RunDepsStatus::UpToDate,
+        "a selected project without dependencies needs no importer",
+    );
+
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    for current in [current_without_importer, current_without_snapshot] {
+        fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current).unwrap();
+        assert!(
+            matches!(
+                workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+                RunDepsStatus::Outdated { issue, .. }
+                    if issue == "Workspace package a has dependencies but was not installed"
+            ),
+            "deleting pnpm-lock.yaml does not make an uninstalled project current",
+        );
+    }
+}
+
+const FILTERED_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+  packages/b:
+    dependencies:
+      bar:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  bar@1.0.0:
+    resolution: {integrity: sha512-bbb}
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  bar@1.0.0: {}
+
+  foo@1.0.0: {}
+";
+
+/// What `pnpm install --filter a` records as the current lockfile for
+/// [`FILTERED_WANTED_LOCKFILE`].
+const FILTERED_CURRENT_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+snapshots:
+
+  foo@1.0.0: {}
+";
+
+/// A lockfile that is newer than the last validation after a filtered
+/// install is compared against what that install materialized, not the
+/// whole workspace (<https://github.com/pnpm/pnpm/issues/16322>).
+#[test]
+fn a_filtered_state_accepts_a_newer_lockfile_that_did_not_change_the_selected_projects() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let mut project_dirs = Vec::new();
+    for (name, dependency) in [("a", "foo"), ("b", "bar")] {
+        let project_dir = workspace_root.join("packages").join(name);
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(
+            project_dir.join("package.json"),
+            format!(
+                r#"{{"name":"{name}","version":"1.0.0","dependencies":{{"{dependency}":"^1.0.0"}}}}"#,
+            ),
+        )
+        .unwrap();
+        project_dirs.push(project_dir);
+    }
+    fs::create_dir_all(project_dirs[0].join("node_modules")).unwrap();
+    let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+    fs::write(&lockfile_path, FILTERED_WANTED_LOCKFILE).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
+        FILTERED_CURRENT_LOCKFILE,
+    )
+    .unwrap();
+    let config = config.leak();
+
+    let projects = [(workspace_root, "root"), (&project_dirs[0], "a"), (&project_dirs[1], "b")]
+        .into_iter()
+        .map(|(project_dir, name)| {
+            let entry = ProjectEntry {
+                name: Some(name.into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            };
+            (project_dir.to_string_lossy().into_owned(), entry)
+        })
+        .collect();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    record_filtered_install(workspace_root, &[workspace_root, &project_dirs[0]]);
+
+    let manifests = [workspace_root, &project_dirs[0], &project_dirs[1]].map(|project_dir| {
+        PackageManifest::from_path(project_dir.join("package.json")).unwrap()
+    });
+    let project_manifests = [
+        (workspace_root.to_path_buf(), &manifests[0]),
+        (project_dirs[0].clone(), &manifests[1]),
+        (project_dirs[1].clone(), &manifests[2]),
+    ];
+    let selected = [project_dirs[0].as_path()];
+
+    set_mtime_ms(&lockfile_path, recorded_timestamp(workspace_root) + MTIME_STEP_MS);
+    assert_eq!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+        RunDepsStatus::UpToDate,
+        "a touched lockfile with the same contents is current",
+    );
+
+    fs::write(
+        &lockfile_path,
+        FILTERED_WANTED_LOCKFILE.replace(
+            "  foo@1.0.0: {}",
+            "  foo@1.0.0:\n    dependencies:\n      bar: 1.0.0",
+        ),
+    )
+    .unwrap();
+    set_mtime_ms(&lockfile_path, recorded_timestamp(workspace_root) + MTIME_STEP_MS);
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "the installed dependencies are not up to date with the lockfile"
+        ),
+        "a lockfile change that reaches a materialized project is outdated",
+    );
+}
+
+const STALE_IMPORTER_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+  packages/b:
+    dependencies:
+      bar:
+        specifier: ^1.0.0
+        version: 1.0.0
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+    devDependencies:
+      qar:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  bar@1.0.0:
+    resolution: {integrity: sha512-bbb}
+
+  foo@1.0.0:
+    resolution: {integrity: sha512-aaa}
+
+  qar@1.0.0:
+    resolution: {integrity: sha512-qqq}
+
+snapshots:
+
+  bar@1.0.0: {}
+
+  foo@1.0.0: {}
+
+  qar@1.0.0: {}
+";
+
+/// A workspace in which `pnpm install --filter a` ran after `b` gained `foo`:
+/// `b` keeps the modules directory and the current-lockfile importer of an
+/// earlier install, which a lockfile other than the one on disk now records.
+/// `b_current_importer` is that earlier importer.
+fn setup_stale_unselected_importer_workspace(
+    b_current_importer: &str,
+    included: IncludedDependencies,
+) -> (tempfile::TempDir, &'static Config, [PackageManifest; 3]) {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("package.json"), r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    for (name, dependencies) in [
+        ("a", r#""dependencies":{"foo":"^1.0.0"}"#),
+        (
+            "b",
+            r#""dependencies":{"bar":"^1.0.0","foo":"^1.0.0"},"devDependencies":{"qar":"^1.0.0"}"#,
+        ),
+    ] {
+        let project_dir = workspace_root.join("packages").join(name);
+        fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+        fs::write(
+            project_dir.join("package.json"),
+            format!(r#"{{"name":"{name}","version":"1.0.0",{dependencies}}}"#),
+        )
+        .unwrap();
+    }
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), STALE_IMPORTER_WANTED_LOCKFILE).unwrap();
+    let current_lockfile = format!(
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {{}}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n\n  packages/b:\n{b_current_importer}\npackages:\n\n  bar@1.0.0:\n    resolution: {{integrity: sha512-bbb}}\n\n  foo@1.0.0:\n    resolution: {{integrity: sha512-aaa}}\n\nsnapshots:\n\n  bar@1.0.0: {{}}\n\n  foo@1.0.0: {{}}\n",
+    );
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    fs::create_dir_all(&config.install_state_dir).unwrap();
+    fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current_lockfile)
+        .unwrap();
+    let config = config.leak();
+
+    let project_dirs = [
+        workspace_root.to_path_buf(),
+        workspace_root.join("packages/a"),
+        workspace_root.join("packages/b"),
+    ];
+    let projects = project_dirs
+        .iter()
+        .zip(["root", "a", "b"])
+        .map(|(project_dir, name)| {
+            let entry = ProjectEntry {
+                name: Some(name.into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            };
+            (project_dir.to_string_lossy().into_owned(), entry)
+        })
+        .collect();
+    let settings = current_settings(config, pnpm_config::NodeLinker::Isolated, included, None);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+    record_filtered_install(workspace_root, &[&project_dirs[0], &project_dirs[1]]);
+    record_installed_from_an_earlier_lockfile(workspace_root, &project_dirs[2]);
+
+    let manifests = project_dirs.map(|project_dir| {
+        PackageManifest::from_path(project_dir.join("package.json")).unwrap()
+    });
+    (dir, config, manifests)
+}
+
+/// After a filtered install, nothing newer than the recorded validation proves
+/// a selected project current: that install refreshed the timestamp without
+/// materializing the projects it did not select. A selected project whose
+/// current-lockfile importer predates the wanted lockfile is outdated
+/// (<https://github.com/pnpm/pnpm/issues/17011>).
+#[test]
+fn a_filtered_state_requires_the_selected_projects_to_match_the_wanted_lockfile() {
+    let (dir, config, manifests) = setup_stale_unselected_importer_workspace(
+        "    dependencies:\n      bar:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+        IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: false,
+            optional_dependencies: true,
+        },
+    );
+    let config = filtered_command_config(config);
+    let project_dirs = ["packages/a", "packages/b"].map(|project| dir.path().join(project));
+    let project_manifests = [
+        (dir.path().to_path_buf(), &manifests[0]),
+        (project_dirs[0].clone(), &manifests[1]),
+        (project_dirs[1].clone(), &manifests[2]),
+    ];
+
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(
+                &dir,
+                config,
+                &project_manifests,
+                &[project_dirs[1].as_path()],
+            ),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "the installed dependencies are not up to date with the lockfile"
+        ),
+        "a selected project the filtered install left behind the wanted lockfile is outdated",
+    );
+    assert_eq!(
+        workspace_deps_status_for_selected(
+            &dir,
+            config,
+            &project_manifests,
+            &[project_dirs[0].as_path()],
+        ),
+        RunDepsStatus::UpToDate,
+        "an unselected project left behind the wanted lockfile does not make the selection outdated",
+    );
+}
+
+/// Without `pnpm-lock.yaml` the current lockfile stands in for it. The
+/// selected project's manifest gained a dependency that lockfile does not
+/// record, so its install is outdated.
+#[test]
+fn a_filtered_state_without_a_wanted_lockfile_holds_the_selected_projects_to_the_current_one() {
+    let (dir, config, manifests) = setup_stale_unselected_importer_workspace(
+        "    dependencies:\n      bar:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+        isolated_included(),
+    );
+    let config = filtered_command_config(config);
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let project_b = dir.path().join("packages/b");
+    let project_manifests = [
+        (dir.path().to_path_buf(), &manifests[0]),
+        (dir.path().join("packages/a"), &manifests[1]),
+        (project_b.clone(), &manifests[2]),
+    ];
+
+    assert!(matches!(
+        workspace_deps_status_for_selected(&dir, config, &project_manifests, &[project_b.as_path()]),
+        RunDepsStatus::Outdated { issue, .. }
+            if issue == "a modified manifest is no longer satisfied by the lockfile"
+    ));
+}
+
+/// The groups the filtered install left out are not held against the selected
+/// projects, or a gate after `pnpm install --prod --filter` would install
+/// before every script.
+#[test]
+fn a_filtered_state_compares_the_selected_projects_in_the_recorded_groups() {
+    let (dir, config, manifests) = setup_stale_unselected_importer_workspace(
+        "    dependencies:\n      bar:\n        specifier: ^1.0.0\n        version: 1.0.0\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n",
+        IncludedDependencies {
+            dependencies: true,
+            dev_dependencies: false,
+            optional_dependencies: true,
+        },
+    );
+    let project_b = dir.path().join("packages/b");
+    let project_manifests = [
+        (dir.path().to_path_buf(), &manifests[0]),
+        (dir.path().join("packages/a"), &manifests[1]),
+        (project_b.clone(), &manifests[2]),
+    ];
+
+    assert_eq!(
+        workspace_deps_status_for_selected(
+            &dir,
+            config,
+            &project_manifests,
+            &[project_b.as_path()]
+        ),
+        RunDepsStatus::UpToDate,
+    );
+}
+
+fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    let recorded = recorded_state_text(dir.path());
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    assert_eq!(recorded_state_text(dir.path()), recorded, "a converged check records nothing");
+}
+
+/// Workspace lockfile whose root importer links a sibling: the link
+/// stays valid while the sibling's version satisfies the manifest
+/// range, and a bump outside the range falls through to the full
+/// install.
+fn linked_sibling_decision(sibling_version: &str) -> Decision {
+    linked_sibling_decision_for_spec(
+        "pkg-a",
+        "^1.0.0",
+        "link:pkg-a",
+        sibling_version,
+        pnpm_config::LinkWorkspacePackages::DirectOnly,
+        false,
+    )
+}
+
+fn linked_sibling_decision_for_spec(
+    dependency_name: &str,
+    specifier: &str,
+    lockfile_ref: &str,
+    sibling_version: &str,
+    link_workspace_packages: pnpm_config::LinkWorkspacePackages,
+    exclude_links_from_lockfile: bool,
+) -> Decision {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(
+        workspace_root.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "devDependencies": { (dependency_name): specifier },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let sibling_dir = workspace_root.join("pkg-a");
+    fs::create_dir_all(&sibling_dir).unwrap();
+    fs::write(
+        sibling_dir.join("package.json"),
+        format!(r#"{{"name":"pkg-a","version":"{sibling_version}"}}"#),
+    )
+    .unwrap();
+    let root_importer = if exclude_links_from_lockfile {
+        "  .: {}".to_string()
+    } else {
+        format!(
+            "  .:\n    devDependencies:\n      {dependency_name}:\n        specifier: {specifier}\n        version: {lockfile_ref}",
+        )
+    };
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!("lockfileVersion: '9.0'\n\nimporters:\n\n{root_importer}\n\n  pkg-a: {{}}\n"),
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
+    config.link_workspace_packages = link_workspace_packages;
+    config.exclude_links_from_lockfile = exclude_links_from_lockfile;
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    // A fresh install links a `workspace:`/`link:` dependency, so the entry is
+    // part of the state the fixture records.
+    if super::modules_dirs::direct_links::is_local_link_spec(specifier)
+        || lockfile_ref.starts_with("link:")
+    {
+        fs::create_dir_all(config.modules_dir.join(dependency_name)).unwrap();
+    }
+    let config = config.leak();
+
+    let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
+
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    projects.insert(
+        sibling_dir.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("pkg-a".into()),
+            version: Some(sibling_version.into()),
+            has_modules_dir: false,
+        },
+    );
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+
+    // Edit the root manifest, leaving its dependencies as they were, so the
+    // content re-check runs.
+    fs::write(
+        workspace_root.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "description": "edited",
+            "devDependencies": { (dependency_name): specifier },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let root_manifest_touched =
+        PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+    let _ = root_manifest;
+
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root).expect("parse pnpm-lock.yaml");
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        project_manifests: crate::DeclaredManifests::new(&[
+            (workspace_root.to_path_buf(), &root_manifest_touched),
+            (sibling_dir, &sibling_manifest),
+        ]),
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    })
+}

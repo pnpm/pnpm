@@ -1,0 +1,27 @@
+{
+  "description": "A root npm-shrinkwrap.json is recorded; it is derived from the archive on both sides.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0"
+    },
+    "files": [
+      "package.json",
+      "npm-shrinkwrap.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0"
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "hasInstallScript": false,
+      "hasShrinkwrap": true
+    },
+    "mismatched": [],
+    "tolerated": []
+  }
+}

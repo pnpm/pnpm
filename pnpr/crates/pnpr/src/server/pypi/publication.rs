@@ -1,0 +1,307 @@
+use super::{
+    super::{
+        documents::{
+            HostedTarget,
+            stage_hosted_artifacts,
+        },
+        publishing::commit_publishes,
+    },
+    Action,
+    AppState,
+    AuthedCaller,
+    BTreeMap,
+    Bytes,
+    CanonicalPackageName,
+    DistributionKind,
+    ECOSYSTEM,
+    HeaderMap,
+    Identity,
+    ProjectDocument,
+    ProjectFile,
+    PublishTarget,
+    RegistryError,
+    RegistrySource,
+    Request,
+    Response,
+    StagedPublish,
+    State,
+    StatusCode,
+    TargetRegistry,
+    Upload,
+    Yanked,
+    authorize_package,
+    bad_request,
+    header,
+    multipart,
+    normalize_version,
+    now_iso,
+    parse_distribution_filename,
+    parse_upload,
+    private_no_cache,
+    resolve_publish_target_for,
+    sha256_hex,
+};
+use axum::{
+    extract::FromRequest as _,
+    response::IntoResponse,
+};
+use pnpr_pypi::CoreMetadata;
+
+/// `POST legacy/`: the legacy upload API `twine` speaks.
+pub(super) async fn post_upload(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
+    request: Request,
+) -> Response {
+    if matches!(identity, Identity::Anonymous) {
+        return private_no_cache(super::upload_errors::response(RegistryError::Unauthenticated {
+            resource: "Python uploads".to_string(),
+        }));
+    }
+    let body = match Bytes::from_request(request, &state).await {
+        Ok(body) => body,
+        Err(err) => return private_no_cache(err.into_response()),
+    };
+    let response = match upload_file(&state, &identity, registry.as_deref(), &headers, &body).await
+    {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(err) => super::upload_errors::response(err),
+    };
+    private_no_cache(response)
+}
+
+pub(super) async fn upload_file(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    headers: &HeaderMap,
+    body: &[u8],
+) -> Result<(), RegistryError> {
+    let content_type = headers
+        .get(header::CONTENT_TYPE)
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
+        .ok_or_else(|| bad_request("request body must be multipart/form-data"))?;
+    let parts = multipart::parse_form(content_type, body).map_err(bad_request)?;
+    let upload = parse_upload(parts).map_err(bad_request)?;
+    validate_upload(state, identity, registry, upload).await?.publish(state).await
+}
+
+/// An upload that may proceed: the caller is allowed to publish the project,
+/// the file's name matches the project and version it claims, and the entry
+/// that will record it is built. Publishing it is [`Self::publish`] on its
+/// own, or [`Self::stage`] as one package of a cross-ecosystem batch.
+pub(in super::super) struct PypiPublication {
+    pub(super) target: PypiTarget,
+    pub(super) entry: ProjectFile,
+    pub(super) content: Vec<u8>,
+    metadata: Option<String>,
+}
+
+/// Every check a legacy-API upload must pass before anything is written.
+pub(in super::super) async fn validate_upload(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    upload: Upload,
+) -> Result<PypiPublication, RegistryError> {
+    let target = authorize_upload(state, identity, registry, &upload).await?;
+    verify_upload(target, upload).await
+}
+
+/// Where an upload writes, once its fields are consistent and the caller is
+/// allowed to publish the project there. Everything this decides is cheap, so
+/// a caller holding an undecoded payload can settle the question before
+/// spending anything on the file.
+pub(in super::super) struct PypiTarget {
+    pub(super) key: CanonicalPackageName,
+    pub(super) namespace: String,
+    /// The hosted registry whose `publish` rule admitted [`Self::publisher`].
+    pub(super) registry: String,
+    pub(super) publisher: Identity,
+}
+
+pub(in super::super) async fn authorize_upload(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    upload: &Upload,
+) -> Result<PypiTarget, RegistryError> {
+    let key = CanonicalPackageName::parse(&upload.name, ECOSYSTEM)?;
+    let project = key.as_str();
+    let version = normalize_version(&upload.version).map_err(bad_request)?;
+    let distribution = parse_distribution_filename(&upload.filename).map_err(bad_request)?;
+    if distribution.name != project {
+        return Err(bad_request(format!(
+            "filename {:?} does not belong to project {project:?}",
+            upload.filename,
+        )));
+    }
+    if normalize_version(&distribution.version).map_err(bad_request)? != version {
+        return Err(bad_request(format!(
+            "filename {:?} does not carry version {version:?}",
+            upload.filename,
+        )));
+    }
+    match (upload.filetype.as_str(), distribution.kind) {
+        ("bdist_wheel", DistributionKind::Wheel) | ("sdist", DistributionKind::Sdist) => {}
+        (filetype, _) => {
+            return Err(bad_request(format!(
+                "filetype {filetype:?} does not match the filename {:?}",
+                upload.filename,
+            )));
+        }
+    }
+    let (source, namespace) =
+        match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, project) {
+            PublishTarget::Hosted { source, namespace } => (source, namespace),
+            PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
+            PublishTarget::Denied(err) => return Err(err),
+            PublishTarget::NotFound => return Err(RegistryError::NotFound),
+        };
+    let hosted = RegistrySource::Hosted(source.clone());
+    authorize_package(state, identity, &hosted, project, Action::Publish, Some(&namespace)).await?;
+    Ok(PypiTarget { key, namespace, registry: source, publisher: identity.clone() })
+}
+
+/// Check the file against the digest it was uploaded with, and build the
+/// entry that will record it.
+pub(in super::super) async fn verify_upload(
+    target: PypiTarget,
+    upload: Upload,
+) -> Result<PypiPublication, RegistryError> {
+    tokio::task::spawn_blocking(move || verify_distribution(target, upload))
+        .await
+        .map_err(RegistryError::JoinError)?
+}
+
+fn verify_distribution(
+    target: PypiTarget,
+    upload: Upload,
+) -> Result<PypiPublication, RegistryError> {
+    let sha256 = sha256_hex(&upload.content);
+    if upload.sha256_digest
+        .as_deref()
+        .is_some_and(|declared| !declared.eq_ignore_ascii_case(&sha256))
+    {
+        return Err(bad_request("sha256_digest does not match the uploaded file"));
+    }
+    let metadata = verify_distribution_metadata(&upload)?;
+    let metadata = upload.filename.ends_with(".whl").then_some(metadata);
+    let entry = ProjectFile {
+        filename: upload.filename,
+        url: None,
+        hashes: BTreeMap::from([("sha256".to_string(), sha256)]),
+        requires_python: upload.requires_python,
+        yanked: Yanked::Flag(false),
+        size: Some(upload.content.len() as u64),
+        core_metadata: metadata
+            .as_ref()
+            .map(|metadata| {
+                CoreMetadata::Hashes(BTreeMap::from([(
+                    "sha256".to_string(),
+                    sha256_hex(metadata.as_bytes()),
+                )]))
+            }),
+        dist_info_metadata: None,
+        data_dist_info_metadata: None,
+        upload_time: Some(now_iso()),
+    };
+    Ok(PypiPublication { target, entry, content: upload.content, metadata })
+}
+
+fn verify_distribution_metadata(upload: &Upload) -> Result<String, RegistryError> {
+    let metadata = if upload.filename.ends_with(".tar.gz") {
+        pnpr_pypi::archive::metadata_from_sdist(&upload.content, &upload.filename)
+    } else {
+        pnpr_pypi::archive::metadata_from_zip(
+            &upload.content,
+            &upload.filename,
+            parse_distribution_filename(&upload.filename).map_err(bad_request)?.kind,
+        )
+    }
+    .map_err(bad_request)?;
+    let metadata = String::from_utf8(metadata).map_err(bad_request)?;
+    for field in ["Name", "Version"] {
+        let count = metadata
+            .lines()
+            .take_while(|line| !line.is_empty())
+            .filter(|line| !line.starts_with([' ', '\t']))
+            .filter_map(|line| line.split_once(':'))
+            .filter(|(name, _)| name.trim().eq_ignore_ascii_case(field))
+            .count();
+        if count != 1 {
+            return Err(bad_request(format!(
+                "distribution metadata must carry exactly one {field} field",
+            )));
+        }
+    }
+    pnpm_python_resolver::WheelMetadata::parse_for(
+        &metadata,
+        &upload.name.parse().map_err(bad_request)?,
+        &upload.version.parse().map_err(bad_request)?,
+        &upload.filename,
+    )
+    .map_err(|err| bad_request(format!("{err:#}")))?;
+    Ok(metadata)
+}
+
+impl PypiPublication {
+    pub(in super::super) fn key(&self) -> &CanonicalPackageName {
+        &self.target.key
+    }
+
+    /// The organization whose catalog the file is published into.
+    pub(in super::super) fn namespace(&self) -> &str {
+        &self.target.namespace
+    }
+
+    /// Publish this file on its own, in a transaction of one.
+    pub(super) async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
+        let _guard = state.inner.locks.packages.lock(self.target.key.as_str()).await;
+        let staged = self.stage(state).await?;
+        commit_publishes(state, vec![staged]).await
+    }
+
+    /// Stage this file as one package of a larger transaction. The caller
+    /// holds the package lock and commits.
+    pub(in super::super) async fn stage(
+        self,
+        state: &AppState,
+    ) -> Result<StagedPublish, RegistryError> {
+        let sidecar = format!("{}.metadata", self.entry.filename);
+        let mut files = vec![(self.entry.filename.as_str(), self.content.as_slice())];
+        if let Some(metadata) = &self.metadata {
+            files.push((sidecar.as_str(), metadata.as_bytes()));
+        }
+        let PypiTarget { key, namespace, registry, publisher } = &self.target;
+        stage_hosted_artifacts(
+            state,
+            &HostedTarget { namespace, registry, publisher },
+            key,
+            &files,
+            &refuse_existing_file(&self.entry.filename),
+            ProjectDocument {
+                files: vec![self.entry.clone()],
+                ..ProjectDocument::new(key.as_str())
+            },
+        )
+        .await
+    }
+}
+
+/// Published and deleted filenames are immutable.
+pub(super) fn refuse_existing_file(
+    filename: &str,
+) -> impl Fn(&ProjectDocument) -> Result<(), RegistryError> {
+    let filename = filename.to_string();
+    move |document: &ProjectDocument| {
+        if document.file(&filename).is_some() || document.deleted_files.contains(&filename) {
+            Err(RegistryError::BadRequest { reason: format!("File already exists: {filename:?}") })
+        } else {
+            Ok(())
+        }
+    }
+}

@@ -1,0 +1,8 @@
+extends: existence
+message: "Describe the current contract. '%s' is history, and history belongs in the commit message."
+link: https://github.com/pnpm/pnpm/blob/main/AGENTS.md#comments
+level: error
+ignorecase: false
+tokens:
+  - '[Tt]he (?:old|original|previous) (?:code|implementation|approach|logic)\b'
+  - '\b(?:was|were) (?:changed|renamed|moved|replaced) (?:to|from|by)\b'

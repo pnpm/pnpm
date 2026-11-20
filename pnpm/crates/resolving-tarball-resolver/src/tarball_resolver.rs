@@ -1,0 +1,391 @@
+//! Resolves `http://` / `https://` tarball URLs and the latest-version
+//! companion path for them.
+
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
+
+use pnpm_lockfile::{
+    IntegrityTarget,
+    LockfileResolution,
+    TarballResolution,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_reporter::SilentReporter;
+use pnpm_resolving_resolver_base::{
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_tarball::{
+    FetchTarballForResolution,
+    MemCache,
+    PrefetchIntegrityCheck,
+    PrefetchResult,
+    RetryOpts,
+    TarballError,
+    prefetch_cas_paths,
+};
+use ssri::Integrity;
+
+mod cache;
+
+/// Store/network handles the [`TarballResolver`] needs to fetch a
+/// remote tarball during resolution.
+pub struct TarballFetchContext {
+    pub mem_cache: Option<Arc<MemCache>>,
+    pub auth_headers: Arc<AuthHeaders>,
+    pub retry_opts: RetryOpts,
+    pub tar_limits: pnpm_tarball::TarLimits,
+    /// What the prior lockfile recorded for each remote-tarball entry,
+    /// keyed by `pkg_id`. Lets a re-resolve reuse the already-extracted
+    /// store content instead of re-downloading. Empty on a first install.
+    ///
+    /// A remote tarball's `pkg_id` is its normalized bare specifier, so
+    /// the resolver can look an entry up before the preflight that would
+    /// reveal a redirect.
+    pub prior_tarball_entries: Arc<HashMap<String, PriorTarballEntry>>,
+    pub store: pnpm_tarball::ArchiveStoreContext<'static>,
+    /// `<cacheDir>` for the URL → integrity record. `None` in unit tests
+    /// that only exercise the HEAD preflight.
+    pub cache_dir: Option<PathBuf>,
+    /// Which hash the resolution's integrity names.
+    pub integrity_target: IntegrityTarget,
+}
+
+/// One remote-tarball entry carried over from the prior lockfile.
+#[derive(Debug, Clone)]
+pub struct PriorTarballEntry {
+    pub integrity: Integrity,
+    /// `<integrity>\t<pkg_id>`: the store-index row holding the
+    /// extracted content.
+    pub store_index_key: String,
+    /// The URL the lockfile recorded. An immutable redirect moves this
+    /// off the bare specifier, so a warm reuse replays it rather than
+    /// re-deriving one and churning the lockfile.
+    pub tarball_url: String,
+}
+
+/// Resolves `http://...` / `https://...` tarball URLs from a project's
+/// manifest. One instance per install, the throttled HTTP client is
+/// shared with the rest of the install pipeline so the HEAD
+/// pre-flight respects the same concurrency cap as metadata fetches
+/// and tarball downloads.
+///
+/// When `fetch_context` is `Some`, the resolver downloads the tarball
+/// during resolution to fill `manifest` + `integrity` into its
+/// [`ResolveResult`], name/version/integrity for a remote tarball live
+/// in the tarball's `package.json`, and pacquet builds the lockfile
+/// before the install/fetch pass. `None` (unit tests only) keeps the
+/// HEAD-only shape with no manifest/integrity.
+pub struct TarballResolver {
+    pub http_client: Arc<ThrottledClient>,
+    pub fetch_context: Option<TarballFetchContext>,
+}
+
+impl Resolver for TarballResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        Box::pin(self.resolve_impl(wanted_dependency))
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async move { Ok(resolve_latest(query)) })
+    }
+}
+
+impl TarballResolver {
+    async fn resolve_impl(
+        &self,
+        wanted_dependency: &WantedDependency,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        let Some(bare) = wanted_dependency.bare_specifier.as_deref() else {
+            return Ok(None);
+        };
+        let Some(normalized_bare_specifier) = remote_tarball_id(bare) else {
+            return Ok(None);
+        };
+        let normalized_bare_specifier = normalized_bare_specifier?;
+
+        // The bundled manifest carries the same dependency fields a fresh
+        // extraction would, so transitive resolution is unchanged. Done
+        // before the HEAD request so a hit needs no network at all (this
+        // is what lets a re-resolve succeed under `--offline`).
+        if let Some(reused) =
+            self.reuse_from_warm_store(wanted_dependency, &normalized_bare_specifier).await
+        {
+            return Ok(Some(reused));
+        }
+
+        if let Some(reused) =
+            self.reuse_from_http_cache(wanted_dependency, &normalized_bare_specifier).await?
+        {
+            return Ok(Some(reused));
+        }
+
+        self.fetch_and_resolve(wanted_dependency, normalized_bare_specifier).await
+    }
+
+    async fn fetch_and_resolve(
+        &self,
+        wanted_dependency: &WantedDependency,
+        normalized_bare_specifier: String,
+    ) -> Result<Option<ResolveResult>, ResolveError> {
+        let resolved_url = self.preflight_url(&normalized_bare_specifier).await?;
+
+        let Some(ctx) = self.fetch_context.as_ref() else {
+            return Ok(Some(Self::head_only_result(
+                wanted_dependency,
+                normalized_bare_specifier,
+                resolved_url,
+                None,
+                None,
+            )));
+        };
+
+        // Silent reporter: the install pass owns the
+        // `resolved → found_in_store → imported` event ordering (see
+        // `prefetching_resolver.rs`).
+        let resolved = self
+            .tarball_fetch(ctx, &normalized_bare_specifier, &resolved_url)
+            .run::<SilentReporter>(ctx.mem_cache.as_deref())
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)?;
+        self.remember_http_cache(&normalized_bare_specifier, &resolved_url, &resolved);
+
+        Ok(Some(Self::head_only_result(
+            wanted_dependency,
+            normalized_bare_specifier,
+            resolved_url,
+            Some(resolved.integrity),
+            resolved.manifest.map(Arc::new),
+        )))
+    }
+
+    /// The normalized specifier is the store package ID even when an immutable
+    /// redirect changes the download URL: the lockfile and install pass key the
+    /// store-index row by this ID. The manifest is at the tarball root.
+    fn tarball_fetch<'a>(
+        &'a self,
+        ctx: &'a TarballFetchContext,
+        normalized_bare_specifier: &'a str,
+        resolved_url: &'a str,
+    ) -> FetchTarballForResolution<'a> {
+        FetchTarballForResolution {
+            http_client: &self.http_client,
+            store: ctx.store.resolution_store(),
+            package: pnpm_tarball::TarballPackage {
+                integrity_kind: ctx.integrity_target.into(),
+                integrity: None,
+                unpacked_size: None,
+                file_count: None,
+                url: resolved_url,
+                id: normalized_bare_specifier,
+            },
+            auth_headers: &ctx.auth_headers,
+            retry_opts: ctx.retry_opts,
+            tar_limits: ctx.tar_limits,
+            manifest_subdir: None,
+            // A direct URL tarball carries no registry revision.
+            revision_addressed: false,
+        }
+    }
+
+    /// Authorize and authenticate the preflight like the GET. Only immutable responses
+    /// pin the post-redirect URL; mutable URLs must be revalidated on the next run.
+    async fn preflight_url(&self, normalized_bare_specifier: &str) -> Result<String, ResolveError> {
+        if let Some(ctx) = self.fetch_context.as_ref()
+            && !ctx.auth_headers.allows_fetch(normalized_bare_specifier)
+        {
+            return Err(Box::new(TarballError::OffAllowlist {
+                url: pnpm_network::redact_url_credentials(normalized_bare_specifier),
+            }));
+        }
+        if let Some(ctx) = self.fetch_context.as_ref()
+            && ctx.auth_headers
+                .fetch_local(normalized_bare_specifier, None, reqwest::header::HeaderMap::new())
+                .is_some()
+        {
+            return Ok(normalized_bare_specifier.to_string());
+        }
+        self.remote_preflight_url(normalized_bare_specifier).await
+    }
+
+    /// Sends a HEAD preflight, retrying with GET when the server answers
+    /// 405 Method Not Allowed. The GET response body is never read.
+    async fn remote_preflight_url(
+        &self,
+        normalized_bare_specifier: &str,
+    ) -> Result<String, ResolveError> {
+        let mut response =
+            self.send_preflight(reqwest::Method::HEAD, normalized_bare_specifier).await?;
+        if response.status() == reqwest::StatusCode::METHOD_NOT_ALLOWED {
+            response = self.send_preflight(reqwest::Method::GET, normalized_bare_specifier).await?;
+        }
+
+        let resolved_url = if response
+            .headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
+            .is_some_and(|header| header.contains("immutable"))
+        {
+            response.url().to_string()
+        } else {
+            normalized_bare_specifier.to_string()
+        };
+
+        Ok(resolved_url)
+    }
+
+    async fn send_preflight(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+    ) -> Result<reqwest::Response, ResolveError> {
+        let client = self.http_client.acquire_for_url(url).await;
+        let mut request = client.request(method, url);
+        if let Some(value) = self.fetch_context
+            .as_ref()
+            .and_then(|ctx| ctx.auth_headers.for_url(url))
+        {
+            request = request.header("authorization", value);
+        }
+        request
+            .send()
+            .await
+            .map_err(|err| Box::new(err) as ResolveError)
+    }
+
+    /// Reuse an already-extracted store entry for the dependency whose
+    /// `pkg_id` is `normalized_bare_specifier`, when the prior lockfile
+    /// recorded it with an integrity and the store still holds the
+    /// content + its bundled manifest. Returns `None` (caller downloads)
+    /// when there's no fetch context, no prior entry for the id, or the
+    /// store-index lookup misses, never on a wrong-content risk, since
+    /// the key embeds the integrity and the CAFS is content-addressed.
+    async fn reuse_from_warm_store(
+        &self,
+        wanted_dependency: &WantedDependency,
+        normalized_bare_specifier: &str,
+    ) -> Option<ResolveResult> {
+        let ctx = self.fetch_context.as_ref()?;
+        let prior = ctx.prior_tarball_entries.get(normalized_bare_specifier)?;
+        let cache_key = &prior.store_index_key;
+        let PrefetchResult { cas_paths, manifests, .. } = ctx.prefetch(cache_key).await;
+        // The bundled manifest is required to resolve the tarball's
+        // transitive dependencies; a row without one (or with no CAFS
+        // entry) is treated as a miss so the caller re-fetches.
+        if !cas_paths.contains_key(cache_key) {
+            return None;
+        }
+        let manifest = manifests.get(cache_key)?;
+        Some(Self::head_only_result(
+            wanted_dependency,
+            normalized_bare_specifier.to_string(),
+            prior.tarball_url.clone(),
+            Some(prior.integrity.clone()),
+            Some(Arc::clone(manifest)),
+        ))
+    }
+
+    /// Build the `ResolveResult` for a claimed HTTP or HTTPS tarball.
+    /// `name_ver` stays `None` (URL-id semantics: the depPath is
+    /// `name@<url>`, derived downstream from the manifest name);
+    /// `integrity` and `manifest` are filled once the tarball is
+    /// fetched.
+    fn head_only_result(
+        wanted_dependency: &WantedDependency,
+        normalized_bare_specifier: String,
+        resolved_url: String,
+        integrity: Option<Integrity>,
+        manifest: Option<Arc<serde_json::Value>>,
+    ) -> ResolveResult {
+        ResolveResult {
+            id: PkgResolutionId::from(normalized_bare_specifier.clone()),
+            resolution: LockfileResolution::Tarball(TarballResolution {
+                tarball: resolved_url,
+                integrity,
+                revision: None,
+                git_hosted: None,
+                path: None,
+            }),
+            resolved_via: "url".to_string(),
+            normalized_bare_specifier: Some(normalized_bare_specifier),
+            alias: wanted_dependency.alias.clone(),
+            policy_violation: None,
+            package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest,
+                non_deprecated_alternative: None,
+            },
+        }
+    }
+}
+
+/// URL tarballs lock to the exact URL, no concept of "latest". When
+/// the wanted dep names an HTTP or HTTPS URL, claim it so the dispatcher
+/// stops; the caller still surfaces a ref-mismatch report if the
+/// lockfile points at a different URL than before.
+fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {
+    let bare = query.wanted_dependency.bare_specifier.as_deref()?;
+    if !is_http_url(bare) {
+        return None;
+    }
+    Some(LatestInfo { latest_manifest: None })
+}
+
+/// The id an `http(s)` tarball spec resolves to, which the lockfile keys the
+/// package by: the URL without a redundant default port
+/// (`registry.npmjs.org:443` → `registry.npmjs.org`). `None` for any other
+/// spec.
+#[must_use]
+pub fn remote_tarball_id(bare: &str) -> Option<Result<String, ResolveError>> {
+    is_http_url(bare)
+        .then(|| {
+            reqwest::Url::parse(bare)
+                .map(|url| url.to_string())
+                .map_err(|err| Box::new(err) as ResolveError)
+        })
+}
+
+fn is_http_url(bare: &str) -> bool {
+    bare.starts_with("http:") || bare.starts_with("https:")
+}
+
+#[cfg(test)]
+mod tests;
+
+impl TarballFetchContext {
+    async fn prefetch(&self, cache_key: &str) -> PrefetchResult {
+        prefetch_cas_paths(
+            self.store.index.clone(),
+            &self.store.dir,
+            vec![cache_key.to_string()],
+            PrefetchIntegrityCheck::eager_if(self.store.verify_integrity),
+            Arc::clone(&self.store.verified_files_cache),
+        )
+        .await
+    }
+}

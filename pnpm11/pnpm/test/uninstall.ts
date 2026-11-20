@@ -1,0 +1,71 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { prepare } from '@pnpm/prepare'
+import PATH from 'path-name'
+
+import { execPnpm } from './utils/index.js'
+
+test('uninstall package and remove from appropriate property', async () => {
+  const project = prepare()
+  await execPnpm(['install', '--save-optional', 'is-positive@3.1.0'])
+
+  // testing the CLI directly as there was an issue where `npm.config` started to set save = true by default
+  // npm@5 introduced --save-prod that behaves the way --save worked in pre 5 versions
+  await execPnpm(['uninstall', 'is-positive'])
+
+  project.storeHas('is-positive', '3.1.0')
+
+  await execPnpm(['store', 'prune'])
+
+  project.storeHasNot('is-positive', '3.1.0')
+
+  project.hasNot('is-positive')
+
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
+  expect(pkgJson.optionalDependencies).toBeUndefined()
+})
+
+test('uninstall global package with its bin files', async () => {
+  prepare()
+
+  const global = process.cwd()
+  const pnpmHome = path.resolve(global, 'pnpm')
+  const globalBin = path.join(pnpmHome, 'bin')
+
+  const env = {
+    PNPM_HOME: pnpmHome,
+    [PATH]: `${globalBin}${path.delimiter}${process.env[PATH] ?? ''}`,
+    XDG_DATA_HOME: global,
+  }
+
+  await execPnpm(['add', '-g', '@pnpm.e2e/sh-hello-world@1.0.1'], { env })
+
+  let stat = fs.existsSync(path.resolve(globalBin, 'sh-hello-world'))
+  expect(stat).toBeTruthy() // sh-hello-world is in .bin
+
+  await execPnpm(['uninstall', '-g', '@pnpm.e2e/sh-hello-world'], { env })
+
+  stat = fs.existsSync(path.resolve(globalBin, 'sh-hello-world'))
+  expect(stat).toBeFalsy() // sh-hello-world is removed from .bin
+})
+
+test('remove with --trust-lockfile removes a package rejected by supply-chain policy', async () => {
+  const project = prepare()
+  await execPnpm(['add', '@pnpm/e2e.test-provenance@0.0.5', '--trust-policy=off'])
+
+  fs.writeFileSync('pnpm-workspace.yaml', 'trustPolicy: no-downgrade\n', 'utf8')
+
+  let err!: Error
+  try {
+    await execPnpm(['remove', '@pnpm/e2e.test-provenance'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err).toBeTruthy()
+
+  await execPnpm(['remove', '@pnpm/e2e.test-provenance', '--trust-lockfile'])
+  project.hasNot('@pnpm/e2e.test-provenance')
+})

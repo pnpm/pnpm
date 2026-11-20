@@ -1,0 +1,20 @@
+{
+  "name": "@pnpm.e2e/hello-world-js-bin-parent",
+  "version": "1.0.0",
+  "description": "A package with a hello world js bin",
+  "bin": {
+    "hello-world-js-bin": "./index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Zoltan Kochan (http://kochan.io/)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/hello-world-js-bin-parent"
+  },
+  "dependencies": {
+    "@pnpm.e2e/hello-world-js-bin": "1.0.0"
+  }
+}

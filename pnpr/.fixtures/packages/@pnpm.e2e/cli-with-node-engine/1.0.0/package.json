@@ -1,0 +1,19 @@
+{
+  "name": "@pnpm.e2e/cli-with-node-engine",
+  "version": "1.0.0",
+  "bin": "cli.js",
+  "type": "module",
+  "files": [
+    "cli.js"
+  ],
+  "scripts": {
+    "postinstall": "node cli.js"
+  },
+  "engines": {
+    "runtime": {
+      "name": "node",
+      "version": "22.19.0",
+      "onFail": "download"
+    }
+  }
+}

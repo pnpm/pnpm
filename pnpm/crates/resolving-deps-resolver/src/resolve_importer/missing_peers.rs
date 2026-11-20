@@ -1,0 +1,291 @@
+use super::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+    HashSet,
+    MissingPeer,
+    MissingPeerInfo,
+};
+use crate::peer_provider::is_registry_peer_specifier;
+use node_semver::Range;
+use std::borrow::Cow;
+
+/// Split the missing-peer report into the inputs the inner and outer
+/// loops consume.
+///
+/// A peer name is **required** for this iteration when at least one of
+/// its consumers declared it non-optional and it isn't already in
+/// `parent_pkg_aliases` (i.e. not already a direct dep that just
+/// hadn't been added to the alias set yet). Its merged range is
+/// computed by [`merge_ranges`].
+///
+/// Peers whose consumers are *all* optional are returned as the second
+/// component, keyed by peer name with the deduplicated range list the
+/// outer loop's [`fn@crate::get_hoistable_optional_peers`] needs.
+pub(super) fn partition_missing_peers(
+    missing: &HashMap<String, Vec<MissingPeer>>,
+    parent_pkg_aliases: &HashSet<String>,
+    auto_install_peers_from_highest_match: bool,
+) -> (BTreeMap<String, MissingPeerInfo>, BTreeMap<String, Vec<String>>) {
+    let mut missing_required: BTreeMap<String, MissingPeerInfo> = BTreeMap::new();
+    let mut missing_optional: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (peer_name, entries) in missing {
+        if parent_pkg_aliases.contains(peer_name) {
+            continue;
+        }
+        match classify_missing_peer(entries, auto_install_peers_from_highest_match) {
+            MissingPeerKind::Required(range) => {
+                missing_required.insert(peer_name.clone(), MissingPeerInfo { range });
+            }
+            MissingPeerKind::Optional(ranges) => {
+                missing_optional.insert(peer_name.clone(), ranges);
+            }
+            MissingPeerKind::Unhoistable => {}
+        }
+    }
+    (missing_required, missing_optional)
+}
+
+/// What the hoist can do with one missing peer's recorded requirements.
+pub(super) enum MissingPeerKind {
+    Required(String),
+    Optional(Vec<String>),
+    /// Nothing to install: no range survived the merge, or every entry was
+    /// optional and named no range.
+    Unhoistable,
+}
+
+pub(super) fn classify_missing_peer(
+    entries: &[MissingPeer],
+    auto_install_peers_from_highest_match: bool,
+) -> MissingPeerKind {
+    // Hoisting a missing required peer fetches it, so it needs the original
+    // specifier with its scheme preserved (`work:5.x.x`); hoist_peers reduces
+    // it to a comparable range itself. The optional path below dedupes onto
+    // an already-present version, so it uses the display range instead.
+    let required_ranges: Vec<&str> = entries
+        .iter()
+        .filter(|entry| !entry.optional)
+        .map(|entry| entry.raw_range.as_str())
+        .collect();
+    // Any `workspace:` declaration, optional or not, confines the peer to the
+    // workspace project. The optional path dedupes onto a preferred version,
+    // which may belong to a registry package, so it never takes such a peer.
+    if entries
+        .iter()
+        .any(|entry| entry.raw_range.starts_with("workspace:"))
+    {
+        if required_ranges.is_empty() {
+            return MissingPeerKind::Unhoistable;
+        }
+        let ranges: Vec<&str> = entries
+            .iter()
+            .map(|entry| entry.raw_range.as_str())
+            .collect();
+        return merge_workspace_peer_ranges(&ranges, auto_install_peers_from_highest_match);
+    }
+    if required_ranges.is_empty() {
+        let ordered = distinct_wanted_ranges(entries);
+        if ordered.is_empty() {
+            return MissingPeerKind::Unhoistable;
+        }
+        return MissingPeerKind::Optional(ordered);
+    }
+    match merge_ranges(&required_ranges, auto_install_peers_from_highest_match) {
+        Some(range) => MissingPeerKind::Required(range),
+        None => MissingPeerKind::Unhoistable,
+    }
+}
+
+/// Merge the ranges of a peer that at least one consumer declares with
+/// `workspace:`.
+///
+/// Identical ranges pass through unchanged, so an aliased
+/// `workspace:<name>@<range>` still reaches the workspace resolver.
+/// Otherwise the versions the consumers name are intersected, and the
+/// result keeps the `workspace:` protocol, so only the workspace project
+/// satisfies the hoisted peer. A shorthand (`workspace:`, `workspace:*`,
+/// `workspace:^`, `workspace:~`) names no version and narrows nothing;
+/// distinct shorthands alone merge into `workspace:*`. A version that is
+/// not a semver range, such as an alias or an `npm:` specifier, cannot be
+/// merged, so the peer stays missing.
+fn merge_workspace_peer_ranges(
+    ranges: &[&str],
+    auto_install_peers_from_highest_match: bool,
+) -> MissingPeerKind {
+    let Some(ranges) = ranges
+        .iter()
+        .map(|range| join_workspace_union(range))
+        .collect::<Option<Vec<Cow<'_, str>>>>()
+    else {
+        return MissingPeerKind::Unhoistable;
+    };
+    let first = &ranges[0];
+    if ranges
+        .iter()
+        .all(|range| range == first)
+    {
+        return MissingPeerKind::Required(first.to_string());
+    }
+    let versioned: Vec<&str> = ranges
+        .iter()
+        .map(|range| range.strip_prefix("workspace:").unwrap_or(range))
+        .filter(|body| !matches!(*body, "" | "*" | "^" | "~"))
+        .collect();
+    if versioned.is_empty() {
+        return MissingPeerKind::Required("workspace:*".to_string());
+    }
+    if versioned
+        .iter()
+        .map(Range::parse)
+        .any(|parsed| parsed.is_err())
+    {
+        return MissingPeerKind::Unhoistable;
+    }
+    match merge_ranges(&versioned, auto_install_peers_from_highest_match) {
+        Some(range) => MissingPeerKind::Required(format!("workspace:{range}")),
+        None => MissingPeerKind::Unhoistable,
+    }
+}
+
+/// Rewrite a `||` union whose members carry `workspace:` as one
+/// `workspace:` range, which the workspace resolver reads as a whole:
+/// `workspace:^1 || workspace:^2` → `workspace:^1 || ^2`. A shorthand member
+/// admits any version, so the union becomes `workspace:*`. `None` when a
+/// member is neither a semver range nor a shorthand, such as an aliased
+/// `workspace:foo@^1`, whose package one prefix cannot carry for the rest.
+fn join_workspace_union(range: &str) -> Option<Cow<'_, str>> {
+    if !range.contains("||") {
+        return Some(Cow::Borrowed(range));
+    }
+    let members: Vec<&str> = range
+        .split("||")
+        .map(|member| {
+            let member = member.trim();
+            member.strip_prefix("workspace:").unwrap_or(member)
+        })
+        .collect();
+    let is_shorthand = |member: &&str| matches!(*member, "" | "*" | "^" | "~");
+    if members
+        .iter()
+        .any(|member| !is_shorthand(member) && Range::parse(member).is_err())
+    {
+        return None;
+    }
+    if members.iter().any(is_shorthand) {
+        return Some(Cow::Borrowed("workspace:*"));
+    }
+    Some(Cow::Owned(format!("workspace:{}", members.join(" || "))))
+}
+
+/// The distinct wanted ranges the entries name, in first-seen order.
+pub(super) fn distinct_wanted_ranges(entries: &[MissingPeer]) -> Vec<String> {
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut ordered: Vec<String> = Vec::new();
+    for entry in entries {
+        if seen.insert(entry.wanted_range.clone()) {
+            ordered.push(entry.wanted_range.clone());
+        }
+    }
+    ordered
+}
+
+/// Combine multiple consumers' wanted ranges into a single specifier,
+/// the upstream `mergePkgsDeps` policy: a single (or single unique)
+/// range passes through unchanged, distinct compatible ranges reduce to
+/// their semver intersection, and disjoint semver ranges fall back to a
+/// `||`-join under `auto_install_peers_from_highest_match`. Conflicting
+/// non-semver specifiers return `None`, leaving the peer missing.
+///
+/// Only the unique ranges reach [`intersect_ranges`]: folding a range in
+/// a second time cannot narrow the result, and every pass costs another
+/// Cartesian product over the alternatives.
+pub(super) fn merge_ranges(
+    ranges: &[&str],
+    auto_install_peers_from_highest_match: bool,
+) -> Option<String> {
+    if ranges.len() == 1 {
+        return Some(ranges[0].to_string());
+    }
+    let mut seen: HashSet<&str> = HashSet::default();
+    let unique: Vec<&str> = ranges
+        .iter()
+        .copied()
+        .filter(|&range| seen.insert(range))
+        .collect();
+    if unique.len() == 1 {
+        return Some(ranges[0].to_string());
+    }
+    if !unique.iter().all(|range| is_registry_peer_specifier(range)) {
+        return None;
+    }
+    if let Some(intersection) = intersect_ranges(&unique) {
+        return Some(intersection);
+    }
+    if auto_install_peers_from_highest_match
+        && unique
+            .iter()
+            .map(Range::parse)
+            .all(|parsed| parsed.is_ok())
+    {
+        return Some(ranges.join(" || "));
+    }
+    None
+}
+
+/// Semver intersection of every range, rendered in `node-semver`'s
+/// canonical form (`2` ∩ `^2.2.0` → `>=2.2.0 <3.0.0-0`, the same shape
+/// the `semver-range-intersect` npm package emits upstream). `None`
+/// when a range fails to parse or the ranges share no versions,
+/// mirroring `safeIntersect`'s caught-throw `null`.
+pub(crate) fn intersect_ranges(ranges: &[&str]) -> Option<String> {
+    let mut iter = ranges.iter();
+    let first = Range::parse(iter.next()?).ok()?;
+    iter.try_fold(first, |acc, range| {
+        Range::parse(range)
+            .ok()
+            .and_then(|range| acc.intersect(&range))
+            .map(|intersection| collapse_covered_alternatives(&intersection))
+    })
+    .map(|range| range.to_string())
+}
+
+/// Drop the alternatives of a union that another alternative already
+/// covers, leaving the same set of versions behind.
+///
+/// [`Range::intersect`] pairs every alternative of one union with every
+/// alternative of the other, so an alternative two consumers agree on
+/// survives once per pair and the next intersection multiplies that
+/// count again. `semver-range-intersect` collapses the union upstream,
+/// which is why the growth is pacquet's alone.
+pub(super) fn collapse_covered_alternatives(range: &Range) -> Range {
+    let rendered = range.to_string();
+    let alternatives: Vec<&str> = rendered.split("||").collect();
+    if alternatives.len() < 2 {
+        return range.clone();
+    }
+    let Some(parsed) = alternatives
+        .iter()
+        .map(Range::parse)
+        .map(Result::ok)
+        .collect::<Option<Vec<Range>>>()
+    else {
+        return range.clone();
+    };
+    let mut kept: Vec<&str> = Vec::with_capacity(alternatives.len());
+    for (index, alternative) in parsed.iter().enumerate() {
+        // Of two alternatives that cover each other, only the first is kept.
+        let covered = parsed
+            .iter()
+            .enumerate()
+            .any(|(other_index, other)| {
+                other_index != index
+                    && other.allows_all(alternative)
+                    && (other_index < index || !alternative.allows_all(other))
+            });
+        if !covered {
+            kept.push(alternatives[index]);
+        }
+    }
+    Range::parse(kept.join("||")).unwrap_or_else(|_| range.clone())
+}

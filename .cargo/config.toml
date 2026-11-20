@@ -1,0 +1,26 @@
+[alias]
+# Do not append `--` or it will break IDEs
+codecov = "llvm-cov nextest --workspace --exclude pnpm-integrated-benchmark --exclude pnpm-micro-benchmark --exclude pnpm-registry-mock --ignore-filename-regex tasks"
+
+[env]
+# Seed aws-lc's RNG from the OS CSPRNG only, without CPU jitter entropy.
+# Jitter entropy's power-on health test can fail on loaded or virtualized
+# machines, and aws-lc then calls abort() during the first TLS handshake:
+# pnpm/tasks#239, aws/aws-lc-rs#1072.
+AWS_LC_SYS_NO_JITTER_ENTROPY = "1"
+# clippy looks for clippy.toml in each crate directory and its parents, which never include .config/.
+CLIPPY_CONF_DIR = { value = ".config", relative = true }
+
+[target.powerpc64le-unknown-linux-gnu]
+# cross's binutils 2.26 mislinks calls to optional libc symbols such as gettid.
+# Use Rust's bundled LLD while retaining the cross image's libc baseline.
+rustflags = ["-C", "link-arg=-B.github/scripts/rust-lld"]
+
+[target.wasm32-wasip1-threads]
+rustflags = ["--cfg", "tokio_unstable"]
+
+# >>> pnpm-managed cargo sources >>>
+[[include]]
+path = "../.pnpm/crates/config.toml"
+optional = true
+# <<< pnpm-managed cargo sources <<<

@@ -1,0 +1,34 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      needs-react-17:
+        specifier: 1.0.0
+        version: 1.0.0
+      needs-react-18:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  needs-react-17@1.0.0:
+    resolution: {integrity: sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==}
+    peerDependencies:
+      react: ^17.0.0
+
+  needs-react-18@1.0.0:
+    resolution: {integrity: sha512-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb==}
+    peerDependencies:
+      react: ^18.0.0
+
+snapshots:
+
+  needs-react-17@1.0.0: {}
+
+  needs-react-18@1.0.0: {}

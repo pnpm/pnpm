@@ -1,0 +1,925 @@
+import { rmSync, utimesSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+
+import { expect, jest, test } from '@jest/globals'
+import { ABBREVIATED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
+import gfs from '@pnpm/fs.graceful-fs'
+import { logger } from '@pnpm/logger'
+import type { PackageMeta } from '@pnpm/resolving.registry.types'
+import { EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
+import { temporaryDirectory } from 'tempy'
+
+import type { FetchMetadataOptions } from '../src/fetch.js'
+import { memoizeFetchMetadata } from '../src/memoizeFetchMetadata.js'
+import type { RegistryPackageSpec } from '../src/parseBareSpecifier.js'
+import {
+  getPkgMetaCacheKey,
+  getPkgMirrorPath,
+  type PackageMetaCache,
+  pickPackage,
+  prepareJsonForDisk,
+  saveMeta,
+  UNVALIDATED_MIRROR_MAX_AGE_MS,
+} from '../src/pickPackage.js'
+import { parseNdjsonMeta } from './utils/index.js'
+
+const REGISTRY = 'https://registry.npmjs.org/'
+
+async function readMirrorWithRetry (pkgMirror: string, attempts: number): Promise<string | undefined> {
+  try {
+    return await readFile(pkgMirror, 'utf8')
+  } catch {
+    if (attempts <= 0) return undefined
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    return readMirrorWithRetry(pkgMirror, attempts - 1)
+  }
+}
+
+function fooMeta (): PackageMeta {
+  return {
+    name: 'foo',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'foo',
+        version: '1.0.0',
+        dist: {
+          tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
+          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+        },
+      },
+    },
+  } as unknown as PackageMeta
+}
+
+function createMetaCache (): PackageMetaCache {
+  const store = new Map<string, PackageMeta>()
+  return {
+    get: (key) => store.get(key),
+    set: (key, meta) => {
+      store.set(key, meta)
+    },
+    has: (key) => store.has(key),
+  }
+}
+
+test('getPkgMetaCacheKey canonicalizes the registry so trailing-slash variants share one key', () => {
+  // A configured named registry without a trailing slash and the verifier's
+  // trailing-slashed prefix for the same registry must map to one cache slot.
+  expect(getPkgMetaCacheKey('https://reg.example.com', 'foo', false, false))
+    .toBe(getPkgMetaCacheKey('https://reg.example.com/', 'foo', false, false))
+
+  // RegistriesByScope that genuinely differ by path are never collapsed.
+  expect(getPkgMetaCacheKey('https://reg.example.com/team-a/', 'foo', false, false))
+    .not.toBe(getPkgMetaCacheKey('https://reg.example.com/team-b/', 'foo', false, false))
+
+  // Abbreviated and full documents keep distinct slots.
+  expect(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))
+    .not.toBe(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))
+
+  // Filtered and unfiltered full metadata keep distinct slots (clearMeta
+  // strips the filtered form), but filterMetadata is irrelevant to the
+  // abbreviated key.
+  expect(getPkgMetaCacheKey(REGISTRY, 'foo', true, true))
+    .not.toBe(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))
+  expect(getPkgMetaCacheKey(REGISTRY, 'foo', false, true))
+    .toBe(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))
+})
+
+test('updateChecksums bypasses the in-memory cache so a disk-promoted entry cannot skip revalidation', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'version', name: 'foo', fetchSpec: '1.0.0' }
+
+  // A normal resolve takes the on-disk exact-version fast path: no network, and
+  // it promotes the disk-loaded packument into the in-memory cache.
+  const first = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+  expect(ctx.metaCache.has(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))).toBe(true)
+
+  // updateChecksums must still hit the registry, even though the warm in-memory
+  // cache now holds a disk-sourced entry for this package.
+  await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, updateChecksums: true, preferredVersionSelectors: undefined })
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('offline resolution promotes the disk-loaded packument into the in-memory cache', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('offline resolution must not hit the network')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    offline: true,
+  }
+  // A range spec avoids the exact-version fast path, so resolution goes through
+  // the offline branch that loads the packument from disk.
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  const first = await pickPackage(ctx, spec, opts)
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(ctx.metaCache.has(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))).toBe(true)
+
+  // Delete the on-disk mirror: a second resolve must still succeed, proving it
+  // is served from the in-memory cache instead of re-reading and re-parsing disk.
+  rmSync(pkgMirror)
+  const second = await pickPackage(ctx, spec, opts)
+  expect(second.pickedPackage?.version).toBe('1.0.0')
+})
+
+test('simultaneous offline picks of one package read and parse the mirror once', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('offline resolution must not hit the network')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    offline: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  const readFileSpy = jest.spyOn(gfs, 'readFile')
+  try {
+    // All picks start before any completes, so every one misses the pre-queue
+    // in-memory cache check and queues behind the per-package limiter. The
+    // first dequeued pick must promote the parsed mirror before the limiter
+    // releases; the rest are then served from the in-memory cache.
+    const picks = await Promise.all(Array.from({ length: 10 }, async () => pickPackage(ctx, spec, opts)))
+    expect(picks.every((pick) => pick.pickedPackage?.version === '1.0.0')).toBe(true)
+    const mirrorReads = readFileSpy.mock.calls.filter(([file]) => file === pkgMirror).length
+    expect(mirrorReads).toBe(1)
+  } finally {
+    readFileSpy.mockRestore()
+  }
+})
+
+test('prefer-offline resolution promotes the disk-loaded packument into the in-memory cache', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('prefer-offline resolution must not hit the network when the cache is warm')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    preferOffline: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  const first = await pickPackage(ctx, spec, opts)
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(ctx.metaCache.has(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))).toBe(true)
+
+  rmSync(pkgMirror)
+  const second = await pickPackage(ctx, spec, opts)
+  expect(second.pickedPackage?.version).toBe('1.0.0')
+})
+
+test('normal range resolution reuses a provably dominant lockfile version from disk', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+})
+
+test('a package excluded from minimumReleaseAge reuses a provably dominant lockfile version from disk', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  // Old enough that neither the mirror-age nor the release-age shortcut answers.
+  utimesSync(pkgMirror, new Date(0), new Date(0))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    publishedBy: new Date(),
+    publishedByExclude: (pkgName) => pkgName === 'foo',
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+})
+
+test('a fresh mirror without an etag resolves a range without a registry request', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+})
+
+test('an expired mirror without an etag is fetched again and can see a newer version', async () => {
+  const staleMeta = fooMeta()
+  const freshMeta = fooMeta()
+  freshMeta.versions['1.5.0'] = {
+    ...freshMeta.versions['1.0.0'],
+    version: '1.5.0',
+  }
+  freshMeta['dist-tags'].latest = '1.5.0'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+  const expired = new Date(Date.now() - UNVALIDATED_MIRROR_MAX_AGE_MS - 60_000)
+  utimesSync(pkgMirror, expired, expired)
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.5.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('a fresh mirror that has an etag still revalidates a range', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"abc"'))
+  const fetchCalls: Array<{ etag?: string }> = []
+  const ctx = {
+    fetch: async (pkgName: string, opts: { etag?: string }) => {
+      fetchCalls.push({ etag: opts.etag })
+      return { meta, etag: '"abc"' }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchCalls).toEqual([{ etag: '"abc"' }])
+})
+
+test('pnpm update does not reuse a fresh mirror that has no etag', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+    refreshMetadata: true,
+  })
+
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('pnpm update does not reuse a mirror that an earlier resolution promoted to memory', async () => {
+  const staleMeta = fooMeta()
+  const freshMeta = fooMeta()
+  freshMeta.versions['1.5.0'] = {
+    ...freshMeta.versions['1.0.0'],
+    version: '1.5.0',
+  }
+  freshMeta['dist-tags'].latest = '1.5.0'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' } as const
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+  await pickPackage(ctx, spec, opts)
+
+  const result = await pickPackage(ctx, spec, { ...opts, refreshMetadata: true })
+
+  expect(result.pickedPackage?.version).toBe('1.5.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test.each([
+  ['the registry forbade caching it', { uncacheable: true }, undefined],
+  ['its modification time is in the future', {}, new Date(Date.now() + 60 * 60_000)],
+])('a mirror without an etag is not reused when %s', async (_, body, mtime) => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined, body))
+  if (mtime != null) {
+    utimesSync(pkgMirror, mtime, mtime)
+  }
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test.each([
+  ['a pinned version it holds', { type: 'version', name: 'foo', fetchSpec: '1.0.0' }, undefined],
+  ['a dominant lockfile version', { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+  }],
+] as const)('a mirror the registry forbade caching answers %s', async (_, spec, preferredVersionSelectors) => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined, { uncacheable: true }))
+  utimesSync(pkgMirror, new Date(0), new Date(0))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors }
+
+  const first = await pickPackage(ctx, spec, opts)
+  const second = await pickPackage(ctx, spec, opts)
+
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(second.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+})
+
+test('an online lowest-version pick refetches a mirror the registry forbade caching after a pinned pick read it', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined, { uncacheable: true }))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  await pickPackage(ctx, { type: 'version', name: 'foo', fetchSpec: '1.0.0' }, opts)
+  expect(fetchedNames).toHaveLength(0)
+  await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, { ...opts, pickLowestVersion: true })
+
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('normal range resolution fetches when the cache is missing its lockfile version', async () => {
+  const staleMeta = fooMeta()
+  const freshMeta = fooMeta()
+  freshMeta.versions['1.1.0'] = {
+    ...freshMeta.versions['1.0.0'],
+    version: '1.1.0',
+  }
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: {
+      '1.1.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.1.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('normal range resolution fetches when trust downgrade protection is active', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+    trustPolicy: 'no-downgrade',
+  })
+
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('a stable cached range does not let a later unproven range skip the registry', async () => {
+  const staleMeta = fooMeta()
+  staleMeta.versions['1.1.0'] = {
+    ...staleMeta.versions['1.0.0'],
+    version: '1.1.0',
+  }
+  const freshMeta = structuredClone(staleMeta)
+  freshMeta.versions['1.2.0'] = {
+    ...freshMeta.versions['1.0.0'],
+    version: '1.2.0',
+  }
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+  // A just-written mirror without an ETag is reused. This case is about a
+  // later unproven range, so the mirror has to be old enough to revalidate.
+  const expired = new Date(Date.now() - UNVALIDATED_MIRROR_MAX_AGE_MS - 60_000)
+  utimesSync(pkgMirror, expired, expired)
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const preferredVersionSelectors = {
+    '1.0.0': { selectorType: 'version' as const, weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+  }
+
+  await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors,
+  })
+  const second = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '>=1.1.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors,
+  })
+
+  expect(second.pickedPackage?.version).toBe('1.2.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('a stable cached range uses the canonical packument package name', async () => {
+  const meta = fooMeta()
+  meta.name = '@scope/foo'
+  meta.versions['1.0.0'].name = 'foo'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, '@scope/foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+  const ctx = {
+    fetch: async () => {
+      throw new Error('a stable cached range must not hit the network')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+
+  const result = await pickPackage(ctx, { type: 'range', name: '@scope/foo', fetchSpec: '^1.0.0' }, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+    },
+  })
+
+  expect(result.pickedPackage?.name).toBe('@scope/foo')
+})
+
+test('the response body is mirrored in the indexed layout', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+
+  const ctx = {
+    fetch: async () => ({ meta, etag: undefined }),
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  // A range spec avoids the exact-version fast path and, with no on-disk mirror,
+  // forces the network-fetch branch that writes the mirror and caches the meta.
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+  expect(res.pickedPackage?.version).toBe('1.0.0')
+
+  // The mirror is written fire-and-forget, so retry until it appears.
+  const mirror = await readMirrorWithRetry(pkgMirror, 100)
+  expect(mirror?.startsWith('pnpm-meta-v1 ')).toBe(true)
+  const persisted = parseNdjsonMeta<PackageMeta>(mirror!)
+  expect(persisted.versions['1.0.0']).toStrictEqual(meta.versions['1.0.0'])
+  expect(persisted['dist-tags']).toStrictEqual(meta['dist-tags'])
+})
+
+test('projects sharing one in-flight fetch encode the mirror once instead of per project', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const projects = 20
+
+  let fetches = 0
+  let joined = 0
+  let allJoined!: () => void
+  const inFlight = new Promise<void>((resolve) => {
+    allJoined = resolve
+  })
+  const memoized = memoizeFetchMetadata(async () => {
+    fetches++
+    // Hold the request open until every project has joined it, so the fan-out
+    // this guards against is reproduced rather than raced for.
+    await inFlight
+    return { meta, etag: undefined }
+  })
+  const ctx = {
+    fetch: async (pkgName: string, opts: FetchMetadataOptions) => {
+      if (++joined === projects) allJoined()
+      return memoized.fetch(pkgName, opts)
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const stringifySpy = jest.spyOn(JSON, 'stringify')
+  try {
+    const picks = await Promise.all(Array.from({ length: projects }, async () =>
+      pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+    ))
+    expect(picks.every((pick) => pick.pickedPackage?.version === '1.0.0')).toBe(true)
+    expect(fetches).toBe(1)
+    // Encoding per project is what exhausted the heap: the body reaches tens
+    // of MB for a popular package, and every project holds its own copy until
+    // the mirror write limiter drains.
+    const versionSerializations = stringifySpy.mock.calls
+      .filter(([value]) => value === meta || value === meta.versions['1.0.0'])
+      .length
+    expect(versionSerializations).toBe(1)
+  } finally {
+    stringifySpy.mockRestore()
+  }
+})
+
+test('a full document fetched for an optional dependency is condensed in memory while the mirror keeps full version manifests', async () => {
+  const meta = fooMeta()
+  meta.versions['1.0.0'].libc = ['glibc']
+  meta.versions['1.0.0'].scripts = { postinstall: 'node scripts/build.js' }
+  ;(meta as PackageMeta & { readme: string }).readme = '# a readme the size of a novel'
+  meta.time = { '1.0.0': '2020-01-01T00:00:00.000Z' }
+  const cacheDir = temporaryDirectory()
+
+  const ctx = {
+    fetch: async () => ({ meta, etag: undefined }),
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, optional: true, preferredVersionSelectors: undefined })
+  expect(res.pickedPackage?.libc).toEqual(['glibc'])
+  expect(res.meta.time).toEqual({ '1.0.0': '2020-01-01T00:00:00.000Z' })
+  expect(res.pickedPackage?.scripts).toBeUndefined()
+  expect((res.meta as PackageMeta & { readme?: string }).readme).toBeUndefined()
+  expect(ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', true, false))).toBe(res.meta)
+
+  // The full-metadata mirror keeps unstripped version manifests.
+  const pkgMirror = getPkgMirrorPath(cacheDir, FULL_META_DIR, REGISTRY, 'foo')
+  const mirror = await readMirrorWithRetry(pkgMirror, 100)
+  const persisted = parseNdjsonMeta<PackageMeta>(mirror!)
+  expect(persisted.versions['1.0.0'].scripts).toStrictEqual({ postinstall: 'node scripts/build.js' })
+  expect(persisted.time).toEqual({ '1.0.0': '2020-01-01T00:00:00.000Z' })
+})
+
+test('a mirror holding a full document is condensed when promoted into the in-memory cache', async () => {
+  const meta = fooMeta()
+  meta.versions['1.0.0'].scripts = { postinstall: 'node scripts/build.js' }
+  ;(meta as PackageMeta & { readme: string }).readme = '# a readme the size of a novel'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('offline resolution must not hit the network')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    offline: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+  expect(res.pickedPackage?.version).toBe('1.0.0')
+  expect(res.pickedPackage?.scripts).toBeUndefined()
+  const cached = ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))
+  expect(cached).toBe(res.meta)
+  expect((cached as PackageMeta & { readme?: string }).readme).toBeUndefined()
+})
+
+test('a disk-promoted cache entry that cannot satisfy the spec falls back to the registry under prefer-offline', async () => {
+  const staleMeta = fooMeta()
+  const freshMeta = fooMeta()
+  freshMeta.versions['2.0.0'] = {
+    ...staleMeta.versions['1.0.0'],
+    version: '2.0.0',
+    dist: {
+      ...staleMeta.versions['1.0.0'].dist,
+      tarball: 'https://registry.npmjs.org/foo/-/foo-2.0.0.tgz',
+    },
+  }
+  freshMeta['dist-tags'].latest = '2.0.0'
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(staleMeta, undefined))
+
+  const fetchedNames: string[] = []
+  const ctx = {
+    fetch: async (pkgName: string) => {
+      fetchedNames.push(pkgName)
+      return { meta: freshMeta, etag: undefined }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    preferOffline: true,
+  }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  // The first resolve is satisfied by the stale on-disk mirror and promotes it
+  // into the in-memory cache.
+  const first = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }, opts)
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchedNames).toHaveLength(0)
+
+  // A range the promoted (registry-unverified) entry can't satisfy must fall
+  // back to the registry instead of failing the pick.
+  const second = await pickPackage(ctx, { type: 'range', name: 'foo', fetchSpec: '^2.0.0' }, opts)
+  expect(second.pickedPackage?.version).toBe('2.0.0')
+  expect(fetchedNames).toEqual(['foo'])
+})
+
+test('pickPackage retries once without validators when a 304 loses its cache body', async () => {
+  const meta = fooMeta()
+  meta.versions['1.0.0'].scripts = { postinstall: 'echo cache-race-marker' }
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  type CacheBypassFetchMetadataOptions = FetchMetadataOptions & { cacheBypass?: boolean }
+  const fetchCalls: CacheBypassFetchMetadataOptions[] = []
+  const ctx = {
+    fetch: async (_pkgName: string, opts: FetchMetadataOptions) => {
+      fetchCalls.push(opts)
+      if (fetchCalls.length === 1) {
+        rmSync(pkgMirror)
+        return { notModified: true as const }
+      }
+      return { meta, etag: '"fresh"' }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    filterMetadata: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const result = await pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(fetchCalls).toHaveLength(2)
+  expect(fetchCalls[0]).toMatchObject({ etag: '"stale"' })
+  expect(fetchCalls[1]).toMatchObject({ cacheBypass: true })
+  expect(fetchCalls[1].etag).toBeUndefined()
+  expect(fetchCalls[1].modified).toBeUndefined()
+  expect(result.meta.etag).toBe('"fresh"')
+  expect(result.meta.versions['1.0.0'].scripts).toBeUndefined()
+  expect(ctx.metaCache.get(getPkgMetaCacheKey(REGISTRY, 'foo', false, true))).toBe(result.meta)
+
+  const mirror = await readMirrorWithRetry(pkgMirror, 100)
+  expect(mirror).toBeDefined()
+  if (mirror == null) throw new Error('fresh mirror was not persisted')
+  const newlineIdx = mirror.indexOf('\n')
+  const persistedHeaders = JSON.parse(mirror.slice(0, newlineIdx))
+  const persistedMeta = JSON.parse(mirror.slice(newlineIdx + 1))
+  expect(persistedHeaders.etag).toBe('"fresh"')
+  expect(persistedMeta.versions['1.0.0'].scripts).toBeUndefined()
+})
+
+test('pickPackage stops after one cache-loss fallback', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  type CacheBypassFetchMetadataOptions = FetchMetadataOptions & { cacheBypass?: boolean }
+  const fetchCalls: CacheBypassFetchMetadataOptions[] = []
+  const ctx = {
+    fetch: async (_pkgName: string, opts: FetchMetadataOptions) => {
+      fetchCalls.push(opts)
+      if (fetchCalls.length === 1) rmSync(pkgMirror)
+      return { notModified: true as const }
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  await expect(pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_META_NOT_MODIFIED_WITHOUT_CACHE' })
+  expect(fetchCalls).toHaveLength(2)
+  expect(fetchCalls[1]).toMatchObject({ cacheBypass: true })
+  expect(fetchCalls[1].etag).toBeUndefined()
+  expect(fetchCalls[1].modified).toBeUndefined()
+})
+
+test('pickPackage propagates a cache-loss fallback error', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  type CacheBypassFetchMetadataOptions = FetchMetadataOptions & { cacheBypass?: boolean }
+  const fetchCalls: CacheBypassFetchMetadataOptions[] = []
+  const fallbackError = new Error('fallback failed')
+  const ctx = {
+    fetch: async (_pkgName: string, opts: FetchMetadataOptions) => {
+      fetchCalls.push(opts)
+      if (fetchCalls.length === 1) {
+        rmSync(pkgMirror)
+        return { notModified: true as const }
+      }
+      throw fallbackError
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  await expect(pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })).rejects.toBe(fallbackError)
+  expect(fetchCalls).toHaveLength(2)
+  expect(fetchCalls[1]).toMatchObject({ cacheBypass: true })
+  expect(fetchCalls[1].etag).toBeUndefined()
+  expect(fetchCalls[1].modified).toBeUndefined()
+})
+
+test('pickPackage falls back to cached metadata without logging an error when fetch fails', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, '"stale"'))
+
+  const errorSpy = jest.spyOn(logger, 'error')
+  const ctx = {
+    fetch: async () => {
+      throw new Error('Network error or 404')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const result = await pickPackage(ctx, spec, {
+    registry: REGISTRY,
+    dryRun: false,
+    preferredVersionSelectors: undefined,
+  })
+
+  expect(result.pickedPackage?.version).toBe('1.0.0')
+  expect(errorSpy).not.toHaveBeenCalled()
+  errorSpy.mockRestore()
+})

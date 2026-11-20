@@ -1,0 +1,512 @@
+#[cfg(target_family = "wasm")]
+extern crate pnpm_http as reqwest;
+
+pub use archive_integrity::{
+    ArchiveIntegrity,
+    IntegrityKind,
+};
+pub use archive_options::*;
+pub use archive_request::CacheHeaders;
+pub(crate) use body_hasher::BodyHasher;
+pub use bounded_reader::BoundedReader;
+pub use download::*;
+pub use error::*;
+pub use extract::{
+    ArchiveLimit,
+    DEFAULT_MAX_TARBALL_UNPACKED_SIZE,
+    MAX_PUBLICATION_ARCHIVE_ENTRIES,
+    MAX_PUBLICATION_MANIFEST_BYTES,
+    MAX_PUBLICATION_PATH_BYTES,
+    PublicationArchive,
+    PublicationArchiveError,
+    TarInspection,
+    TarLimits,
+    inspect_tar,
+    read_buffered_tar_entry,
+    read_publication_archive,
+    tar_requires_build,
+};
+pub(crate) use extract::{
+    STREAM_ENTRY_BUFFER_MAX,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    allocate_tarball_buffer,
+    apply_append_manifest,
+    apply_placeholder_manifest,
+    body_chunk_channel,
+    checked_now,
+    clean_archive_entry_path,
+    decompress_gzip,
+    extract_archive_bytes,
+    extract_resource_stream,
+    is_eager_decode_limit_exceeded,
+    oversized_manifest_error,
+    tar_entry_payload,
+};
+pub use fetch_for_resolution::{
+    FetchTarballForResolution,
+    NotModifiedResponse,
+    ResolutionStore,
+    ResolvedTarball,
+    TarballResolutionFetch,
+};
+pub use local_tarball::*;
+pub(crate) use mem_cache::{
+    CacheClaimGuard,
+    CacheSlotClaim,
+    claim_cache_entry,
+    wait_for_cached_tarball,
+};
+pub use mem_cache::{
+    CacheValue,
+    CachedTarball,
+    MemCache,
+    alias_available_cache_entry,
+};
+pub use pnpm_network::RetryOpts;
+pub use prefetch::*;
+pub use zip_archive::*;
+
+mod archive_integrity;
+mod archive_options;
+mod archive_request;
+mod archive_retry;
+mod body_hasher;
+mod bounded_reader;
+mod content_coding;
+mod download;
+mod error;
+mod extract;
+mod extraction_task;
+mod fetch_for_resolution;
+mod ingestion;
+mod local_tarball;
+mod mem_cache;
+mod prefetch;
+mod zip_archive;
+
+use std::{
+    borrow::Cow,
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    io::{
+        self,
+        Cursor,
+        Read,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+    },
+    time::{
+        Duration,
+        Instant,
+        UNIX_EPOCH,
+    },
+};
+
+use dashmap::DashSet;
+use pnpm_network::AuthHeaders;
+use pnpm_package_manifest::PackageBin;
+use pnpm_reporter::Reporter;
+use rayon::prelude::*;
+use ssri::Integrity;
+use tokio::sync::{
+    RwLock,
+    Semaphore,
+};
+
+/// Ceiling on a single eager buffer reservation sized from untrusted
+/// archive metadata, `dist.unpackedSize` in registry metadata and an
+/// entry's `uncompressed_size` in a zip central directory. Both are
+/// attacker-controlled, and post-download work runs concurrently (see
+/// [`post_download_semaphore`]), so whatever one task reserves up front
+/// is multiplied across every task in flight.
+///
+/// Bounds the eager reservation only, never the output: both consumers
+/// grow their buffer on demand, so an archive larger than the ceiling
+/// still decodes in full.
+const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
+
+/// Maximum payload size of a buffered TAR metadata extension.
+pub const MAX_TARBALL_METADATA_BYTES: u64 = MAX_UNTRUSTED_PREALLOC_BYTES as u64;
+
+fn auth_header_for_package_download(
+    auth_headers: &AuthHeaders,
+    package_url: &str,
+    package_id: &str,
+) -> Option<String> {
+    if package_id.starts_with("node@runtime:") {
+        auth_headers.for_secure_url_with_package(package_url, Some(package_id))
+    } else {
+        auth_headers.for_url_with_package(package_url, Some(package_id))
+    }
+}
+
+/// Cap on concurrent post-download tarball work (SHA-512 of the whole
+/// tarball + gzip inflate + per-file SHA-512 + CAFS writes). The body is
+/// CPU-bound with some blocking FS I/O, and putting it on
+/// `tokio::task::spawn_blocking` makes the default 512-thread blocking
+/// pool available, but async fan-out across `try_join_all` routinely
+/// fires hundreds of these at once on a 1352-snapshot install, which
+/// thrashes small CI runners. Past "Download completed" a 2-CPU GitHub
+/// Actions runner wedged between decompress-close and `Checksum verified`
+/// on [#269] until the step timeout. `num_cpus * 2` (floor 4) keeps enough
+/// work in flight to overlap per-file FS writes with SHA on another task
+/// without oversubscribing the cores.
+///
+/// [#269]: https://github.com/pnpm/pacquet/pull/269
+fn post_download_semaphore() -> &'static Semaphore {
+    static SEM: LazyLock<Semaphore> =
+        LazyLock::new(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)));
+    &SEM
+}
+
+/// Admission cap for the extract-while-downloading path (see
+/// [`download`]): how many downloads may hold a blocking thread that
+/// extracts their body as it arrives. Deliberately separate from
+/// [`post_download_semaphore`] because a streaming extractor holds its slot
+/// for the whole body transfer (mostly parked between chunks), so
+/// sharing the post-download permits would starve the eager
+/// extractions that hold one only for a burst of CPU. The cap uses
+/// [`std::thread::available_parallelism`] with a minimum of two permits
+/// so cgroup and CPU-quota limits are respected. Admission uses
+/// `try_acquire`; a download with no free slot buffers its body instead.
+fn streaming_extract_semaphore() -> &'static Semaphore {
+    static SEM: LazyLock<Semaphore> = LazyLock::new(|| {
+        let cores = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
+        Semaphore::new(cores.max(2))
+    });
+    &SEM
+}
+
+/// Dedicated rayon pool for the per-file CAS-write phase of extraction
+/// ([`crate::extract::extract_tarball_entries_with_bins`]).
+///
+/// Separate from the global pool because the install overlaps
+/// extraction with linking, and the linker runs on the global pool:
+/// sharing it would let hundreds of tarballs finishing at once queue
+/// ahead of the linker and stall it for seconds.
+///
+/// Sized to the core count, the work being CPU-bound (SHA-512 plus the
+/// CAFS write). `None` if the pool cannot be built, and the caller
+/// falls back to the global pool.
+fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
+    static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(num_cpus::get().max(1))
+            .thread_name(|index| format!("cas-write-{index}"))
+            .build()
+            .map_err(|error| {
+                tracing::warn!(
+                    target: "pacquet::download",
+                    ?error,
+                    "failed to build the dedicated CAS-write pool; falling back to the global rayon pool",
+                );
+            })
+            .ok()
+    });
+    POOL.as_ref()
+}
+
+/// Per-package callback that decides whether a given archive entry
+/// (path relative to the archive's top-level directory, after the
+/// `prefix` strip on zip archives, after the `package/` strip on
+/// npm tarballs) should be excluded from the CAS write.
+///
+/// Implements the `ignoreFilePattern` / `archiveFilters` behavior.
+/// Pacquet uses a callback rather than a regex so the caller can
+/// hand-code the filter without pulling a regex engine into
+/// `pnpm-tarball`; the canonical Node-runtime filter lives at
+/// the install-dispatch site (Slice D) where it's constructed once
+/// per fetch.
+pub type IgnoreEntryFilter = dyn Fn(&str) -> bool + Send + Sync;
+
+/// Install-scoped set of store-index cache keys
+/// (`store_index_key(integrity, pkg_id)`) whose package status
+/// (`fetched` or `found_in_store`) has already been emitted during this
+/// install.
+///
+/// The resolve-time prefetcher emits download/cache-hit progress as soon
+/// as it knows the outcome, then records the key here. The later
+/// virtual-store warm batch still emits `resolved`, but skips the second
+/// package status for recorded keys, so progress is timely without
+/// double-counting. See <https://github.com/pnpm/pnpm/issues/12235>.
+pub type ReportedProgressKeys = DashSet<String>;
+
+/// Shared handle to a [`ReportedProgressKeys`] set, allocated once per
+/// install and shared between early fetchers and the later install-pass
+/// reporter.
+pub type SharedReportedProgressKeys = Arc<ReportedProgressKeys>;
+
+/// Namespaced marker for a resolution observer that may report this package
+/// after fetch and materialization paths have had the first chance to claim it.
+#[must_use]
+pub fn pending_progress_key(store_index_key: &str) -> String {
+    format!("\0observer:{store_index_key}")
+}
+
+/// A verified archive's CAFS files and bundled package metadata.
+#[derive(Debug, Clone)]
+pub struct FetchedTarball {
+    /// The resource's integrity.
+    pub integrity: Integrity,
+    /// See [`ArchiveIntegrity::tar`].
+    pub tar_integrity: Option<Integrity>,
+    pub files_map: pnpm_fs::CasPaths,
+    pub manifest: Option<serde_json::Value>,
+    pub requires_build: bool,
+    pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
+}
+
+/// Output of [`IngestTarballToStore::ingest_local_tarball`], pairing the
+/// extracted archive with the `sha1` integrity of its on-disk bytes.
+#[derive(Debug, Clone)]
+pub struct FetchedLocalTarball {
+    pub tarball: FetchedTarball,
+    pub sha1_integrity: Integrity,
+}
+
+impl<'a> IngestTarballToStore<'a> {
+    /// Execute the subroutine with an in-memory cache.
+    ///
+    /// # Caller invariant: stable filter per archive
+    ///
+    /// The cache is keyed on the archive's identity, which
+    /// [`package_mem_cache_key`] spells for an ordinary package. Within
+    /// one key, a second caller fetching the same archive with a different
+    /// [`ignore_file_pattern`] silently receives the map the first caller's
+    /// filter produced. Every fetch of an archive must use the same filter.
+    /// Nothing enforces this; today it holds because an archive's identity
+    /// determines its package name and filters are keyed by package name.
+    ///
+    /// [`ignore_file_pattern`]: IngestTarballToStore::ignore_file_pattern
+    pub async fn run_with_mem_cache<Reporter: self::Reporter>(
+        self,
+        mem_cache: &'a MemCache,
+    ) -> Result<Arc<pnpm_fs::CasPaths>, TarballError> {
+        self.run_with_mem_cache_inner::<Reporter>(mem_cache, false).await
+            .map(|cached| Arc::clone(&cached.files))
+    }
+
+    /// Execute a registry revision fetch with the shared in-memory cache.
+    /// The network path performs exactly one GET and rejects redirects.
+    pub async fn run_revision_addressed_with_mem_cache<Reporter: self::Reporter>(
+        self,
+        mem_cache: &'a MemCache,
+    ) -> Result<Arc<pnpm_fs::CasPaths>, TarballError> {
+        self.run_with_mem_cache_inner::<Reporter>(mem_cache, true).await
+            .map(|cached| Arc::clone(&cached.files))
+    }
+
+    /// Execute with the shared in-memory cache and return the full [`CachedTarball`]
+    /// slot, including the extracted archive's `requires_build` verdict.
+    pub async fn run_cached_with_mem_cache<Reporter: self::Reporter>(
+        self,
+        mem_cache: &'a MemCache,
+        revision_addressed: bool,
+    ) -> Result<Arc<CachedTarball>, TarballError> {
+        self.run_with_mem_cache_inner::<Reporter>(mem_cache, revision_addressed).await
+    }
+
+    async fn run_with_mem_cache_inner<Reporter: self::Reporter>(
+        self,
+        mem_cache: &'a MemCache,
+        revision_addressed: bool,
+    ) -> Result<Arc<CachedTarball>, TarballError> {
+        let mem_cache_key = self.store_projection.mem_cache_key(
+            self.package.url,
+            self.package.integrity,
+            revision_addressed,
+        );
+        let cache_key =
+            store_index_cache_key(self.package.integrity, self.package.id, self.store_projection);
+        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
+
+        if let Some(prefetched) = self.store.prefetched_cas_paths
+            && let Some(cache_key) = cache_key.as_deref()
+            && let Some(cas_paths) = prefetched.get(cache_key)
+        {
+            return Ok(self.reuse_prefetched::<Reporter>(
+                mem_cache,
+                mem_cache_key,
+                cas_paths,
+                progress_key,
+            ));
+        }
+
+        // QUESTION: I see no copying from existing store_dir, is there such mechanism?
+        // TODO: If it's not implemented yet, implement it
+
+        loop {
+            match claim_cache_entry(mem_cache, &mem_cache_key) {
+                CacheSlotClaim::Existing(cache_lock) => {
+                    if let Some(cached) = self.wait_for_owner::<Reporter>(
+                        mem_cache,
+                        &mem_cache_key,
+                        &cache_lock,
+                        progress_key,
+                    )
+                    .await?
+                    {
+                        return Ok(cached);
+                    }
+                }
+                CacheSlotClaim::Claimed(claim) => {
+                    return self.fetch_as_owner::<Reporter>(claim, revision_addressed).await;
+                }
+            }
+        }
+    }
+
+    /// Hands the `Arc` on without deep-cloning the per-file map: on a warm
+    /// install every snapshot takes this path, and by 1k+ snapshots that
+    /// clone dominates the memory traffic. The `Arc` is also stashed under the
+    /// archive's cache identity so peer-resolved variants of one package
+    /// share it.
+    fn reuse_prefetched<Reporter: self::Reporter>(
+        &self,
+        mem_cache: &'a MemCache,
+        mem_cache_key: String,
+        cas_paths: &Arc<pnpm_fs::CasPaths>,
+        progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+    ) -> Arc<CachedTarball> {
+        tracing::info!(
+            target: "pacquet::download",
+            package_url = ?self.package.url,
+            package_id = ?self.package.id,
+            "Reusing prefetched CAFS entry, skipping download (warm-cache fast path)",
+        );
+        emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
+        let cached = CachedTarball::from_files_arc(Arc::clone(cas_paths));
+        let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cached))));
+        mem_cache.insert(mem_cache_key, cache_lock);
+        cached
+    }
+
+    /// Park until the task that claimed this URL settles the cache slot.
+    ///
+    /// `pnpm:progress` fires exactly once per URL, only the first writer's
+    /// `run_without_mem_cache` call emits. Later waiters on the same cache
+    /// slot do not re-trigger the emit.
+    async fn wait_for_owner<Reporter: self::Reporter>(
+        &self,
+        mem_cache: &MemCache,
+        mem_cache_key: &str,
+        cache_lock: &Arc<RwLock<CacheValue>>,
+        progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+    ) -> Result<Option<Arc<CachedTarball>>, TarballError> {
+        let Some(cached) =
+            wait_for_cached_tarball(mem_cache, mem_cache_key, cache_lock, self.package.url).await?
+        else {
+            return Ok(None);
+        };
+        emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
+        Ok(Some(cached))
+    }
+
+    /// Run the actual fetch, then settle the cache slot either way. On error
+    /// the slot must transition to `Failed` and `notify_waiters` must fire so
+    /// concurrent requesters surface a sibling-fetch error instead of parking
+    /// on the Notify forever.
+    async fn fetch_as_owner<Reporter: self::Reporter>(
+        &self,
+        claim: CacheClaimGuard<'_>,
+        revision_addressed: bool,
+    ) -> Result<Arc<CachedTarball>, TarballError> {
+        let result = self.load_or_fetch::<Reporter>(revision_addressed).await;
+        match result {
+            Ok(loaded) => {
+                let cached = claim.publish_available(CachedTarball {
+                    files: loaded.files,
+                    manifest: loaded.manifest,
+                    requires_build: loaded.requires_build,
+                    bins: loaded.bins,
+                })
+                .await;
+                Ok(cached)
+            }
+            Err(err) => {
+                claim.publish_failed(&err).await;
+                Err(err)
+            }
+        }
+    }
+
+    async fn load_or_fetch<Reporter: self::Reporter>(
+        &self,
+        revision_addressed: bool,
+    ) -> Result<crate::CachedCasPaths, TarballError> {
+        self.ingestion(revision_addressed).load_or_fetch::<Reporter>().await
+    }
+
+    /// Execute without the in-memory cache and return the CAS map paired with
+    /// the archive's extracted metadata.
+    pub async fn run_cached_without_mem_cache<Reporter: self::Reporter>(
+        &self,
+        revision_addressed: bool,
+    ) -> Result<CachedCasPaths, TarballError> {
+        self.load_or_fetch::<Reporter>(revision_addressed).await
+    }
+
+    /// Execute the subroutine without an in-memory cache.
+    pub async fn run_without_mem_cache<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
+        self.load_or_fetch::<Reporter>(false).await.map(|cached| Arc::unwrap_or_clone(cached.files))
+    }
+
+    /// Execute a registry revision fetch without the in-memory cache.
+    /// The network path performs exactly one GET and rejects redirects.
+    pub async fn run_revision_addressed_without_mem_cache<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<pnpm_fs::CasPaths, TarballError> {
+        self.load_or_fetch::<Reporter>(true).await.map(|cached| Arc::unwrap_or_clone(cached.files))
+    }
+
+    /// Fetch without cache reuse, indexing unpinned archives by computed integrity.
+    pub async fn fetch_and_extract<Reporter: self::Reporter>(
+        &self,
+    ) -> Result<FetchedTarball, TarballError> {
+        self.ingestion(false).fetch::<Reporter>(true).await
+    }
+
+    /// Ingest the local tarball at `path` in a single read, returning its
+    /// extracted metadata alongside the `sha1` integrity of its bytes.
+    pub async fn ingest_local_tarball<Reporter: self::Reporter>(
+        &self,
+        path: &Path,
+    ) -> Result<FetchedLocalTarball, TarballError> {
+        self.ingestion(false).ingest_local_tarball::<Reporter>(path).await
+    }
+
+    fn ingestion(&self, revision_addressed: bool) -> ingestion::ArchiveIngestion<'_> {
+        ingestion::ArchiveIngestion {
+            store: &self.store,
+            fetching: self.fetching,
+            package: self.package,
+
+            requester: self.requester,
+
+            ignore_file_pattern: &self.ignore_file_pattern,
+
+            progress_reported: &self.progress_reported,
+            store_projection: self.store_projection,
+            format: ingestion::ArchiveFormat::TarGz {
+                unpacked_size: self.package.unpacked_size,
+                file_count: self.package.file_count,
+                revision_addressed,
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

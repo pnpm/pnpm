@@ -1,0 +1,600 @@
+import { describe, expect, it, jest } from '@jest/globals'
+import {
+  createOtpSession,
+  type OtpContext,
+  OtpNonInteractiveError,
+  OtpSecondChallengeError,
+  SyntheticOtpError,
+  type WebAuthFetchOptions,
+  type WebAuthFetchResponse,
+  WebAuthTimeoutError,
+  withOtpHandling,
+} from '@pnpm/network.web-auth'
+
+function createMockResponse (init: {
+  ok: boolean
+  status: number
+  json?: unknown
+  headers?: WebAuthFetchResponse['headers']
+}): WebAuthFetchResponse {
+  let bodyConsumed = false
+  return {
+    ok: init.ok,
+    status: init.status,
+    json: async () => {
+      if (bodyConsumed) throw new Error('Unexpected double consumption of response body')
+      bodyConsumed = true
+      return init.json ?? {}
+    },
+    headers: init.headers ?? {
+      get: name => {
+        throw new Error(`Unexpected call to headers.get: ${name}`)
+      },
+    },
+  }
+}
+
+type MockContextOverrides = Omit<Partial<OtpContext>, 'process'> & {
+  process?: Partial<OtpContext['process']>
+}
+
+const createOtpMockContext = (overrides?: MockContextOverrides): OtpContext => ({
+  Date: { now: () => 0 },
+  setTimeout: (cb: () => void) => cb(),
+  enquirer: { input: async () => '123456' },
+  fetch: async () => createMockResponse({
+    ok: false,
+    status: 404,
+  }),
+  globalInfo: msg => {
+    throw new Error(`Unexpected call to globalInfo: ${msg}`)
+  },
+  globalWarn: msg => {
+    throw new Error(`Unexpected call to globalWarn: ${msg}`)
+  },
+  ...overrides,
+  process: {
+    stdin: { isTTY: true },
+    stdout: { isTTY: true },
+    ...overrides?.process,
+  },
+})
+
+const fetchOptions: WebAuthFetchOptions = { method: 'GET' }
+
+describe('withOtpHandling', () => {
+  it('returns the result when the operation succeeds without OTP', async () => {
+    const context = createOtpMockContext()
+    const result = await withOtpHandling({ context, fetchOptions, operation: async () => 'success' })
+    expect(result).toBe('success')
+  })
+
+  it('throws non-OTP errors as-is', async () => {
+    const error = new Error('network error')
+    const context = createOtpMockContext()
+    await expect(withOtpHandling({ context, fetchOptions, operation: async () => {
+      throw error
+    } }))
+      .rejects.toBe(error)
+  })
+
+  it('throws OtpNonInteractiveError when terminal is not interactive', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), { code: 'EOTP' })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toBeInstanceOf(OtpNonInteractiveError)
+  })
+
+  it('throws OtpNonInteractiveError when stdout is not interactive', async () => {
+    const context = createOtpMockContext({
+      process: { stdout: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), { code: 'EOTP' })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toBeInstanceOf(OtpNonInteractiveError)
+  })
+
+  it('preserves webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'https://registry.npmjs.org/auth/abc',
+          doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+        },
+      })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toMatchObject({
+        authUrl: 'https://registry.npmjs.org/auth/abc',
+        doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+      })
+  })
+
+  it('strips credentials from webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'https://user:secret@registry.npmjs.org/auth/abc',
+          doneUrl: 'https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz',
+        },
+      })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toMatchObject({
+        authUrl: 'https://registry.npmjs.org/auth/abc',
+        doneUrl: 'https://registry.npmjs.org/auth/abc/done?authId=xyz',
+      })
+  })
+
+  it('omits non-http webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'javascript:alert(1)',
+          doneUrl: 'file:///tmp/token',
+        },
+      })
+    }
+    try {
+      await withOtpHandling({ context, fetchOptions, operation })
+      throw new Error('Expected withOtpHandling to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(OtpNonInteractiveError)
+      expect((error as OtpNonInteractiveError).authUrl).toBeUndefined()
+      expect((error as OtpNonInteractiveError).doneUrl).toBeUndefined()
+    }
+  })
+
+  describe('classic OTP flow', () => {
+    it('prompts for OTP and retries operation', async () => {
+      let callCount = 0
+      const context = createOtpMockContext({
+        enquirer: { input: async () => '654321' },
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), { code: 'EOTP' })
+          }
+          expect(otp).toBe('654321')
+          return 'ok'
+        },
+      })
+      expect(result).toBe('ok')
+      expect(callCount).toBe(2)
+    })
+
+    it('throws OtpSecondChallengeError if retry also requires OTP', async () => {
+      const context = createOtpMockContext()
+      const operation = async () => {
+        throw Object.assign(new Error('otp'), { code: 'EOTP' })
+      }
+      await expect(withOtpHandling({ context, fetchOptions, operation }))
+        .rejects.toBeInstanceOf(OtpSecondChallengeError)
+    })
+
+    it('throws non-OTP errors from the retry as-is', async () => {
+      let callCount = 0
+      const retryError = new Error('server error')
+      const context = createOtpMockContext()
+      await expect(withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async () => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), { code: 'EOTP' })
+          }
+          throw retryError
+        },
+      })).rejects.toBe(retryError)
+    })
+
+    it('re-throws the original OTP error when enquirer returns no OTP', async () => {
+      const context = createOtpMockContext({
+        enquirer: { input: async () => '' },
+      })
+      await expect(withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async () => {
+          throw Object.assign(new Error('otp'), { code: 'EOTP' })
+        },
+      })).rejects.toMatchObject({ code: 'EOTP' })
+    })
+
+    it('re-throws the original OTP error when enquirer returns undefined', async () => {
+      const context = createOtpMockContext({
+        enquirer: { input: async () => undefined },
+      })
+      await expect(withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async () => {
+          throw Object.assign(new Error('otp'), { code: 'EOTP' })
+        },
+      })).rejects.toMatchObject({ code: 'EOTP' })
+    })
+  })
+
+  describe('webauth flow', () => {
+    it('polls doneUrl and uses returned token', async () => {
+      let operationCallCount = 0
+      let fetchCallCount = 0
+      const globalInfo = jest.fn()
+      const context = createOtpMockContext({
+        globalInfo,
+        fetch: async (): Promise<WebAuthFetchResponse> => {
+          fetchCallCount++
+          if (fetchCallCount < 3) {
+            return createMockResponse({
+              ok: true,
+              status: 202,
+              headers: { get: () => '1' },
+            })
+          }
+          return createMockResponse({
+            ok: true,
+            status: 200,
+            json: { token: 'web-token-123' },
+          })
+        },
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          operationCallCount++
+          if (operationCallCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'https://registry.npmjs.org/auth/abc',
+                doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+              },
+            })
+          }
+          expect(otp).toBe('web-token-123')
+          return 'published'
+        },
+      })
+      expect(result).toBe('published')
+      expect(operationCallCount).toBe(2)
+      expect(fetchCallCount).toBe(3)
+      expect(globalInfo.mock.calls).toEqual([[expect.stringContaining('https://registry.npmjs.org/auth/abc')]])
+    })
+
+    it('warns and falls back to URL-only display when QR generation fails', async () => {
+      // Longer than the 2953-byte maximum QR data capacity, which makes
+      // qrcode-terminal throw.
+      const longAuthUrl = `https://registry.npmjs.org/auth/${'a'.repeat(4000)}`
+      let operationCallCount = 0
+      const globalInfo = jest.fn()
+      const globalWarn = jest.fn()
+      const context = createOtpMockContext({
+        globalInfo,
+        globalWarn,
+        fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
+          ok: true,
+          status: 200,
+          json: { token: 'web-token-456' },
+        }),
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          operationCallCount++
+          if (operationCallCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: longAuthUrl,
+                doneUrl: 'https://registry.npmjs.org/auth/done',
+              },
+            })
+          }
+          expect(otp).toBe('web-token-456')
+          return 'published'
+        },
+      })
+      expect(result).toBe('published')
+      expect(globalWarn.mock.calls).toEqual([[expect.stringMatching(/^Could not generate a QR code: /)]])
+      expect(globalInfo.mock.calls).toEqual([[`Authenticate your account at:\n${longAuthUrl}`]])
+    })
+
+    it('falls back to classic prompt when only authUrl is present (no doneUrl)', async () => {
+      let callCount = 0
+      const context = createOtpMockContext({
+        enquirer: { input: async () => 'manual-code' },
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: { authUrl: 'https://registry.npmjs.org/auth/abc' },
+            })
+          }
+          expect(otp).toBe('manual-code')
+          return 'done'
+        },
+      })
+      expect(result).toBe('done')
+    })
+
+    it('falls back to classic prompt when only doneUrl is present (no authUrl)', async () => {
+      let callCount = 0
+      const context = createOtpMockContext({
+        enquirer: { input: async () => 'manual-code' },
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: { doneUrl: 'https://registry.npmjs.org/auth/abc/done' },
+            })
+          }
+          expect(otp).toBe('manual-code')
+          return 'done'
+        },
+      })
+      expect(result).toBe('done')
+    })
+
+    it('falls back to classic prompt when webauth URLs are not http(s)', async () => {
+      let callCount = 0
+      const context = createOtpMockContext({
+        enquirer: { input: async () => 'manual-code' },
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'javascript:alert(1)',
+                doneUrl: 'file:///tmp/token',
+              },
+            })
+          }
+          expect(otp).toBe('manual-code')
+          return 'done'
+        },
+      })
+      expect(result).toBe('done')
+    })
+
+    it('throws WebAuthTimeoutError when webauth polling times out', async () => {
+      let time = 0
+      const globalInfo = jest.fn()
+      const context = createOtpMockContext({
+        globalInfo,
+        Date: { now: () => time },
+        setTimeout: (cb: () => void) => {
+          time += 6 * 60 * 1000
+          cb()
+        },
+        fetch: async (): Promise<WebAuthFetchResponse> => createMockResponse({
+          ok: true,
+          status: 202,
+          headers: { get: () => null },
+        }),
+      })
+      let called = false
+      await expect(withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async () => {
+          if (!called) {
+            called = true
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'https://registry.npmjs.org/auth/abc',
+                doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+              },
+            })
+          }
+          throw new Error('Unexpected second call to operation')
+        },
+      })).rejects.toBeInstanceOf(WebAuthTimeoutError)
+      expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('https://registry.npmjs.org/auth/abc'))
+    })
+  })
+})
+
+describe('SyntheticOtpError', () => {
+  it('has EOTP code', () => {
+    const err = new SyntheticOtpError({ authUrl: 'https://example.com/auth', doneUrl: 'https://example.com/done' })
+    expect(err.code).toBe('EOTP')
+  })
+
+  it('stores body', () => {
+    const body = { authUrl: 'https://example.com/auth', doneUrl: 'https://example.com/done' }
+    const err = new SyntheticOtpError(body)
+    expect(err.body).toEqual(body)
+  })
+})
+
+describe('SyntheticOtpError.fromUnknownBody', () => {
+  const unexpectedWarn = (msg: string) => {
+    throw new Error(`Unexpected call to globalWarn: ${msg}`)
+  }
+
+  it('extracts valid string authUrl and doneUrl', () => {
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, {
+      authUrl: 'https://example.com/auth',
+      doneUrl: 'https://example.com/done',
+    })
+    expect(err.body).toEqual({
+      authUrl: 'https://example.com/auth',
+      doneUrl: 'https://example.com/done',
+    })
+  })
+
+  it('returns undefined body when body is null', () => {
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, null)
+    expect(err.body).toBeUndefined()
+  })
+
+  it('returns undefined body when body is not an object', () => {
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, 'not an object')
+    expect(err.body).toBeUndefined()
+  })
+
+  it('warns when authUrl has wrong type', () => {
+    const globalWarn = jest.fn()
+    const err = SyntheticOtpError.fromUnknownBody(globalWarn, {
+      authUrl: 123,
+      doneUrl: 'https://example.com/done',
+    })
+    expect(globalWarn.mock.calls).toEqual([[expect.stringContaining('authUrl')]])
+    expect(err.body?.authUrl).toBeUndefined()
+    expect(err.body?.doneUrl).toBe('https://example.com/done')
+  })
+
+  it('warns when doneUrl has wrong type', () => {
+    const globalWarn = jest.fn()
+    const err = SyntheticOtpError.fromUnknownBody(globalWarn, {
+      authUrl: 'https://example.com/auth',
+      doneUrl: true,
+    })
+    expect(globalWarn.mock.calls).toEqual([[expect.stringContaining('doneUrl')]])
+    expect(err.body?.authUrl).toBe('https://example.com/auth')
+    expect(err.body?.doneUrl).toBeUndefined()
+  })
+
+  it('warns for both when both have wrong types', () => {
+    const globalWarn = jest.fn()
+    const err = SyntheticOtpError.fromUnknownBody(globalWarn, {
+      authUrl: 42,
+      doneUrl: false,
+    })
+    expect(globalWarn.mock.calls).toEqual([
+      [expect.stringContaining('authUrl')],
+      [expect.stringContaining('doneUrl')],
+    ])
+    expect(err.body?.authUrl).toBeUndefined()
+    expect(err.body?.doneUrl).toBeUndefined()
+  })
+
+  it('returns empty body when body has no authUrl or doneUrl', () => {
+    const err = SyntheticOtpError.fromUnknownBody(unexpectedWarn, { something: 'else' })
+    expect(err.body).toEqual({})
+  })
+})
+
+describe('createOtpSession', () => {
+  it('reuses the one-time password it obtained across later operations', async () => {
+    const input = jest.fn(async () => '123456')
+    const context = createOtpMockContext({ enquirer: { input } })
+    const session = createOtpSession({ context, fetchOptions })
+    const sentPasswords: Array<string | undefined> = []
+    const operation = async (otp?: string): Promise<string> => {
+      sentPasswords.push(otp)
+      if (otp !== '123456') throw new SyntheticOtpError(undefined)
+      return 'published'
+    }
+
+    await expect(session.run(operation)).resolves.toBe('published')
+    await expect(session.run(operation)).resolves.toBe('published')
+
+    expect(sentPasswords).toEqual([undefined, '123456', '123456'])
+    expect(input).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for a new one-time password once the registry stops accepting the one it holds', async () => {
+    const passwords = ['first-otp', 'second-otp']
+    const input = jest.fn(async () => passwords.shift())
+    const context = createOtpMockContext({ enquirer: { input } })
+    const session = createOtpSession({ context, fetchOptions })
+    const sentPasswords: Array<string | undefined> = []
+    let acceptedOtp = 'first-otp'
+    const operation = async (otp?: string): Promise<string> => {
+      sentPasswords.push(otp)
+      if (otp !== acceptedOtp) throw new SyntheticOtpError(undefined)
+      // The password expires right after the operation it was obtained for.
+      acceptedOtp = 'second-otp'
+      return 'published'
+    }
+
+    await expect(session.run(operation)).resolves.toBe('published')
+    await expect(session.run(operation)).resolves.toBe('published')
+
+    expect(sentPasswords).toEqual([undefined, 'first-otp', 'first-otp', 'second-otp'])
+    expect(input).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws OtpSecondChallengeError when a freshly obtained password is challenged again', async () => {
+    const context = createOtpMockContext()
+    const session = createOtpSession({ context, fetchOptions })
+    await expect(session.run(async () => {
+      throw new SyntheticOtpError(undefined)
+    })).rejects.toThrow(OtpSecondChallengeError)
+  })
+})
+
+describe('SyntheticOtpError.fromUnauthorizedBody', () => {
+  it('recognizes a body carrying both web-auth URLs', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody(JSON.stringify({
+      error: 'one-time pass required',
+      authUrl: 'https://auth.example/login',
+      doneUrl: 'https://auth.example/done',
+    }))
+    expect(error).toBeInstanceOf(SyntheticOtpError)
+    expect(error?.body).toEqual({
+      authUrl: 'https://auth.example/login',
+      doneUrl: 'https://auth.example/done',
+    })
+  })
+
+  it('drops a non-string URL but still reports a challenge', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody(JSON.stringify({ authUrl: 42, doneUrl: 'https://auth.example/done' }))
+    expect(error?.body).toEqual({ authUrl: undefined, doneUrl: 'https://auth.example/done' })
+  })
+
+  it('recognizes the classic "one-time pass" wording as a challenge without a body', () => {
+    const error = SyntheticOtpError.fromUnauthorizedBody('{"error":"You must provide a One-Time Pass. Upgrade your client to npm@latest in order to use 2FA."}')
+    expect(error).toBeInstanceOf(SyntheticOtpError)
+    expect(error?.body).toBeUndefined()
+  })
+
+  it('returns undefined for a plain authentication failure', () => {
+    expect(SyntheticOtpError.fromUnauthorizedBody('{"error":"unauthorized"}')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('{"authUrl":"https://auth.example/login"}')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('Bad token')).toBeUndefined()
+    expect(SyntheticOtpError.fromUnauthorizedBody('')).toBeUndefined()
+  })
+})

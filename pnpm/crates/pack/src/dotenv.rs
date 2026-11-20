@@ -1,0 +1,123 @@
+//! Warns when a tarball is about to carry dotenv files that the manifest's
+//! `files` field never named. npm-compatible file selection packs them
+//! whenever no ignore file excludes them, so they leak local secrets on
+//! publish. Naming a file in `files` is how a package ships one on purpose.
+
+use super::{
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    Reporter,
+    Value,
+};
+use pnpm_fs_packlist::build_files_matcher;
+use pnpm_reporter::PnpmLog;
+use pnpm_text_sanitize::sanitize_inline;
+
+/// Dotenv files that document variables rather than hold their values.
+const DOTENV_TEMPLATES: &[&str] = &[".env.example", ".env.sample", ".env.template"];
+
+/// Emit one warning listing every packed dotenv file that no `files`
+/// entry names.
+pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
+    pkg_dir: &Path,
+    publish_manifest: &Value,
+    files_map: &indexmap::IndexMap<String, PathBuf>,
+) {
+    let files_field = publish_manifest
+        .get("files")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[][..]);
+    let is_listed = named_in_files(files_field);
+    let unlisted: Vec<&str> = files_map
+        .keys()
+        .filter_map(|name| name.strip_prefix("package/"))
+        .filter(|path| is_dotenv_file(path))
+        .filter(|path| !is_listed(path))
+        .collect();
+    if unlisted.is_empty() {
+        return;
+    }
+    let listing = unlisted
+        .iter()
+        .map(|path| sanitize_inline(path))
+        .collect::<Vec<_>>()
+        .join("\n  ");
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!(
+            "The package tarball includes dotenv files that may contain secrets:\n  {listing}\n\
+             Exclude them in .npmignore (or .gitignore if the package has no .npmignore), \
+             or list them in the \"files\" field of package.json to publish them on purpose. \
+             pnpm 13 will refuse to pack dotenv files that \"files\" does not list.",
+        ),
+        prefix: pkg_dir.to_string_lossy().into_owned(),
+    }));
+}
+
+/// `.env` and `.env.<suffix>` at any depth, except the committed templates.
+pub(super) fn is_dotenv_file(path: &str) -> bool {
+    let basename = basename(path);
+    basename == ".env" || (basename.starts_with(".env.") && !DOTENV_TEMPLATES.contains(&basename))
+}
+
+/// Whether the `files` entries whose last segment starts with `.env`,
+/// negations included, match the packed path with the packlist's own
+/// `files` semantics. An entry naming the path itself counts even after a
+/// glob exclusion, as it does for the packlist. An entry excluding that exact
+/// path always wins. A directory entry such as `dist` that merely contains
+/// the file does not count, and neither does a dotenv glob rooted elsewhere.
+pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
+    let dotenv_entries: Vec<Value> = files_field
+        .iter()
+        .filter(|entry| {
+            entry
+                .as_str()
+                .is_some_and(|entry| {
+                    basename(entry.trim_start_matches('!').trim_end_matches('/'))
+                        .starts_with(".env")
+                })
+        })
+        .cloned()
+        .collect();
+    let excluded: Vec<String> = dotenv_entries
+        .iter()
+        .filter_map(Value::as_str)
+        .filter_map(|entry| entry.strip_prefix('!'))
+        .map(literal_path)
+        .collect();
+    let named: Vec<String> = dotenv_entries
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|entry| !entry.starts_with('!'))
+        .map(literal_path)
+        .collect();
+    let matcher = build_files_matcher(&dotenv_entries);
+    move |path| {
+        let lowercase = path.to_lowercase();
+        !excluded.contains(&lowercase) && (named.contains(&lowercase) || matcher.includes(path))
+    }
+}
+
+/// A `files` entry as the path it names, lowercased because the packlist
+/// matches without case sensitivity, with repeated separators collapsed.
+/// A trailing `/` stays: the packlist never reads such an entry as a file.
+fn literal_path(entry: &str) -> String {
+    let entry = entry.trim_start_matches("./");
+    let mut path = entry
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("/")
+        .to_lowercase();
+    if entry.ends_with('/') {
+        path.push('/');
+    }
+    path
+}
+
+fn basename(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}

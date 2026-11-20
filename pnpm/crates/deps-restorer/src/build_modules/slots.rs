@@ -1,0 +1,355 @@
+//! Locating and repairing the virtual-store slot a build runs in.
+
+use super::{
+    BuildModulesError,
+    HashMap,
+    ImportIndexedDirOpts,
+    PackageKey,
+    Path,
+    PathBuf,
+    Reporter,
+    import_indexed_dir,
+};
+use pnpm_store_dir::SideEffectsOverlay;
+use std::{
+    fs,
+    io,
+};
+
+/// Compute the package directory inside the virtual store for a snapshot key.
+///
+/// Routes the slot-dir lookup through the install-scoped
+/// [`crate::VirtualStoreLayout`], which precomputes
+/// `<scope>/<name>/<version>/<hash>` suffixes per *full* snapshot key
+/// (with the peer-dependency suffix preserved) when GVS is enabled.
+/// Peer-resolved snapshots therefore have to look up by the full key
+/// (`slot_dir(key)`) or the GVS lookup misses, falls through to the
+/// legacy flat-name path, and points at a directory that
+/// [`crate::CreateVirtualDirBySnapshot`] never created.
+/// `slot_dir(key.without_peer())` silently drops lifecycle scripts for
+/// peer-resolved snapshots, never use it here.
+///
+/// The package-name segment is `key.name`, which carries no
+/// peer context: the slot's `node_modules/<pkg>` is keyed by the bare
+/// package name whatever the peers resolved to.
+pub(crate) fn virtual_store_dir_for_key(
+    layout: &crate::VirtualStoreLayout,
+    key: &PackageKey,
+) -> PathBuf {
+    let name = key.name.to_string();
+
+    #[cfg(windows)]
+    let name = pnpm_fs::to_native_separators(Path::new(&name));
+
+    layout
+        .slot_dir(key)
+        .join("node_modules")
+        .join(name)
+}
+
+/// Remove every installed copy of an optional dependency whose build
+/// failed, so a consumer that probes for it finds it absent rather than
+/// half-built. The next install finds the directory missing and retries
+/// the build.
+///
+/// A directory that is not a plain descendant of the virtual store or the
+/// lockfile directory is left alone, since its path comes from a
+/// lockfile-controlled package name.
+pub(crate) fn discard_skipped_optional_dependency(
+    pkg_roots: PkgRoots<'_>,
+    lockfile_dir: &Path,
+    key: &PackageKey,
+) -> Result<(), BuildModulesError> {
+    let virtual_store_dir = pkg_roots.layout.package_store_dir();
+    for pkg_dir in pkg_roots.all_recorded(key) {
+        if !is_contained_descendant(virtual_store_dir, &pkg_dir)
+            && !is_contained_descendant(lockfile_dir, &pkg_dir)
+        {
+            tracing::warn!(
+                target: "pacquet::build",
+                dep_path = %key,
+                pkg_dir = %pkg_dir.display(),
+                "refusing to remove a skipped optional dependency outside the project",
+            );
+            continue;
+        }
+        // A duplicate placement is recorded as a link to the location
+        // imported first; the link is unlinked itself, never followed.
+        let remove = if pnpm_fs::is_symlink_or_junction(&pkg_dir).unwrap_or(false) {
+            pnpm_fs::remove_symlink_dir
+        } else {
+            pnpm_fs::remove_dir_all_with_retry
+        };
+        match remove(&pkg_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(source) => {
+                return Err(BuildModulesError::RemoveSkippedOptionalDependency {
+                    path: pkg_dir,
+                    source,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether `dir` is a strict descendant of `root` reached only through
+/// `..`-free path components, so a crafted `..` segment in a
+/// lockfile-controlled package name cannot make a recursive delete escape
+/// `root`.
+pub(crate) fn is_contained_descendant(root: &Path, dir: &Path) -> bool {
+    dir.strip_prefix(root)
+        .is_ok_and(|suffix| {
+            let mut components = suffix.components().peekable();
+            components.peek().is_some()
+                && components.all(|component| matches!(component, std::path::Component::Normal(_)))
+        })
+}
+
+/// Where each snapshot's package sits on disk, under either linker.
+///
+/// `by_key` is what distinguishes the two: the isolated linker leaves it
+/// `None` and every lookup derives the one virtual-store slot from
+/// `layout`, while the hoisted walker fills it with the paths it chose,
+/// which may be several for one snapshot.
+#[derive(Clone, Copy)]
+pub(crate) struct PkgRoots<'a> {
+    pub layout: &'a crate::VirtualStoreLayout,
+    pub by_key: Option<&'a HashMap<PackageKey, Vec<PathBuf>>>,
+}
+
+impl PkgRoots<'_> {
+    /// The canonical on-disk package directory for a snapshot, the one
+    /// whose lifecycle scripts run and whose contents seed the
+    /// side-effects cache.
+    ///
+    /// Under the hoisted linker this is the first directory the walker
+    /// recorded. `None` there means the snapshot is absent from the
+    /// hoisted graph (pre-skipped, or the walker decided not to record
+    /// it); the caller should treat that the same as the isolated
+    /// `pkg_dir.exists() == false` skip.
+    ///
+    /// Use [`Self::all`] instead for a write that has to reach every copy
+    /// of the package.
+    pub(crate) fn canonical(self, key: &PackageKey) -> Option<PathBuf> {
+        match self.by_key {
+            Some(map) => map
+                .get(key)
+                .and_then(|dirs| dirs.first())
+                .cloned(),
+            None => Some(virtual_store_dir_for_key(self.layout, key)),
+        }
+    }
+
+    /// Every distinct on-disk directory holding a snapshot's package.
+    ///
+    /// The isolated linker gives each snapshot exactly one virtual-store
+    /// slot, so this is [`Self::canonical`] in a one-element list. The
+    /// hoisted linker can place the same snapshot at several paths, a
+    /// version conflict keeps a package out of the root and the walker
+    /// nests a copy under each consumer that needs it. Two recorded
+    /// locations may also alias one directory: the hoisted linker
+    /// replaces a duplicate placement with a symlink to the location
+    /// imported first (see [`crate::symlink_package()`]), so both paths
+    /// resolve to the same files. Those collapse here, a write has to
+    /// reach each distinct directory once, not once per recorded path.
+    pub(crate) fn all(self, key: &PackageKey) -> Vec<PathBuf> {
+        match self.by_key {
+            Some(map) => match map.get(key) {
+                Some(dirs) => dedupe_aliased_dirs(dirs),
+                None => Vec::new(),
+            },
+            None => vec![virtual_store_dir_for_key(self.layout, key)],
+        }
+    }
+
+    /// Every recorded on-disk location of a snapshot's package, aliasing
+    /// included: a duplicate hoisted placement recorded as a link to
+    /// another location (see [`crate::symlink_package()`]) is listed as
+    /// itself, not collapsed into its target. Removal walks this list
+    /// (each alias has to be unlinked too, or it is left dangling over
+    /// the removed directory) while writes use [`Self::all`] to reach
+    /// each distinct directory once.
+    pub(crate) fn all_recorded(self, key: &PackageKey) -> Vec<PathBuf> {
+        match self.by_key {
+            Some(map) => map
+                .get(key)
+                .cloned()
+                .unwrap_or_default(),
+            None => vec![virtual_store_dir_for_key(self.layout, key)],
+        }
+    }
+}
+
+/// Collapse locations that resolve to one directory, keeping the recorded
+/// (non-canonicalized) paths so consumers keep writing where the walker
+/// placed them. Single-location snapshots (the common case) skip the
+/// canonicalization entirely.
+fn dedupe_aliased_dirs(dirs: &[PathBuf]) -> Vec<PathBuf> {
+    if dirs.len() == 1 {
+        return dirs.to_vec();
+    }
+    let mut seen = std::collections::HashSet::with_capacity(dirs.len());
+    let mut distinct = Vec::with_capacity(dirs.len());
+    for dir in dirs {
+        // A path that fails to canonicalize is kept: the directory may
+        // genuinely be gone, and the caller's own `exists()` handling
+        // decides what that means.
+        if seen.insert(dir.canonicalize().unwrap_or_else(|_| dir.clone())) {
+            distinct.push(dir.clone());
+        }
+    }
+    distinct
+}
+
+/// Re-import a snapshot's package directory from the side-effects cache
+/// overlay (the `base - deleted + added` file set already resolved to
+/// CAS paths by [`pnpm_store_dir::build_file_maps_from_index`]).
+///
+/// The warm-link phase materializes only the pristine tarball files, so
+/// a cached build whose `is_built` gate fires would otherwise leave the
+/// slot in its pre-build state. A forced re-import rebuilds the directory
+/// to match the overlay exactly (adding the build output and dropping any
+/// files the build deleted) while preserving the slot's nested
+/// `node_modules/` symlinks.
+///
+/// The import always runs on a cache hit (non-GVS). Skipping it when the
+/// slot "looks" materialized is unsound by filename alone (a slot left
+/// from a different cache key can carry the same filenames with stale
+/// bytes) and a content check would read every file, costing as much as
+/// the hardlink-based re-import it would replace. A cheap *and* sound skip
+/// needs a link-phase "this slot was re-linked pristine-only this install"
+/// signal threaded from the link phase, which is left as a follow-up.
+pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
+    directories: &crate::BuildLayout<'_>,
+    pkg_dir: &Path,
+    overlay: &SideEffectsOverlay,
+) -> Result<(), BuildModulesError> {
+    // Held only around this one replacement: the build phase runs
+    // lifecycle scripts, which may start installs of their own.
+    let swap_lock = crate::ModulesSwapLock::new(directories.modules_dir);
+    import_indexed_dir::<Reporter>(
+        directories.logged_methods,
+        directories.import_method,
+        pkg_dir,
+        &overlay.files,
+        ImportIndexedDirOpts {
+            force: true,
+            keep_modules_dir: true,
+            swap_lock: Some(&swap_lock),
+            ..ImportIndexedDirOpts::default()
+        },
+    )
+    .map_err(BuildModulesError::MaterializeSideEffects)?;
+    for (relative, target) in &overlay.symlinks {
+        let link = pkg_dir.join(relative);
+        create_overlay_symlink(&link, target)
+            .map_err(|source| BuildModulesError::MaterializeSideEffectsSymlink {
+                path: link,
+                source,
+            })?;
+    }
+    Ok(())
+}
+
+/// Import a side-effects cache overlay into a global virtual store slot as
+/// the link phase imports any package: in place, with `package.json` last,
+/// repairing an import that did not finish. The overlay holds no symlinks.
+pub(crate) fn import_side_effects_into_slot<Reporter: self::Reporter>(
+    directories: &crate::BuildLayout<'_>,
+    pkg_dir: &Path,
+    overlay: &SideEffectsOverlay,
+) -> Result<(), BuildModulesError> {
+    import_indexed_dir::<Reporter>(
+        directories.logged_methods,
+        directories.import_method,
+        pkg_dir,
+        &overlay.files,
+        ImportIndexedDirOpts { safe_to_skip: true, ..ImportIndexedDirOpts::default() },
+    )
+    .map_err(BuildModulesError::MaterializeSideEffects)
+}
+
+fn symlink_points_to(link: &Path, target: &str) -> bool {
+    fs::read_link(link).is_ok_and(|actual| actual == Path::new(target))
+}
+
+/// Replace whatever is at `link` with a symlink to `target`. The overlay
+/// holds no symlinks off Unix (see [`pnpm_store_dir::SideEffectsOverlay`]).
+fn create_overlay_symlink(link: &Path, target: &str) -> io::Result<()> {
+    if symlink_points_to(link, target) {
+        return Ok(());
+    }
+    if let Some(parent) = link.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    match fs::symlink_metadata(link) {
+        Ok(meta) if meta.is_dir() => fs::remove_dir_all(link)?,
+        Ok(_) => fs::remove_file(link)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(target, link);
+    #[cfg(not(unix))]
+    return Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        format!("cannot restore the symlink to {target} on this platform"),
+    ));
+}
+
+/// Walk every ancestor `node_modules/.bin` from `pkg_root` up to
+/// (and including) `lockfile_dir`. Used as the per-snapshot
+/// `extra_bin_paths` under `nodeLinker: hoisted` so a lifecycle
+/// script invoked at a nested location can resolve bins added by
+/// any ancestor's `node_modules/.bin`, npm-style ancestor-chain
+/// resolution that the isolated layout doesn't need (every slot's
+/// children sit in its own `node_modules`, and bin-link writes are
+/// per-slot).
+///
+/// A step is skipped when `dir`'s parent path string starts with
+/// `@`, a guard for relative-path code paths. The check is against
+/// the parent's path-string first character.
+///
+/// Non-existent ancestor `.bin` directories are harmless: they
+/// just don't contribute anything to lifecycle-script PATH lookup.
+pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<PathBuf> {
+    let mut bin_dirs: Vec<PathBuf> = Vec::new();
+    let mut dir: PathBuf = pkg_root.to_path_buf();
+    loop {
+        let parent = dir.parent().unwrap_or_else(|| Path::new(""));
+        let parent_starts_with_at = parent
+            .to_str()
+            .map(str::chars)
+            .and_then(|mut chars| chars.next())
+            .is_some_and(|ch| ch == '@');
+        if !parent_starts_with_at {
+            bin_dirs.push(dir.join("node_modules").join(".bin"));
+        }
+        dir = parent.to_path_buf();
+        if dir == *lockfile_dir || dir.as_os_str().is_empty() {
+            break;
+        }
+    }
+    bin_dirs.push(lockfile_dir.join("node_modules").join(".bin"));
+    bin_dirs
+}
+
+/// Parse `name` and `version` from a lockfile snapshot key like
+/// `/@pnpm.e2e/install-script-example@1.0.0`.
+#[must_use]
+pub fn parse_name_version_from_key(key: &str) -> (String, String) {
+    let stripped = key.strip_prefix('/').unwrap_or(key);
+    match stripped.rfind('@') {
+        Some(idx) if idx > 0 => (stripped[..idx].to_string(), stripped[idx + 1..].to_string()),
+        _ => (stripped.to_string(), String::new()),
+    }
+}
+
+/// Whether a global virtual store slot holds its package. The package
+/// directory is final once its `package.json` exists: an import writes it
+/// last, and a build is renamed into place whole.
+pub(crate) fn package_is_placed(package_dir: &Path) -> io::Result<bool> {
+    package_dir.join("package.json").try_exists()
+}

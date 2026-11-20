@@ -1,0 +1,7 @@
+{
+  "name": "@having/scoped-peer",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@scoped/peer": "^1.0.0"
+  }
+}

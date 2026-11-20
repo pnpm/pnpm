@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/has-pkg-with-peer-only",
+  "version": "1.0.0",
+  "dependencies": {
+    "@scoped/peer": "1.0.0",
+    "@having/scoped-peer": "1.0.0"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "name": "@acme/private",
+  "description": "A package hosted on GitHub Packages (fixture).",
+  "dist-tags": {
+    "latest": "2.1.0"
+  },
+  "versions": {
+    "1.0.0": {
+      "name": "@acme/private",
+      "version": "1.0.0",
+      "dist": {
+        "tarball": "https://npm.pkg.github.com/download/@acme/private/1.0.0/acme-private-1.0.0.tgz",
+        "shasum": "0000000000000000000000000000000000000001",
+        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+      },
+      "dependencies": {}
+    },
+    "2.0.0": {
+      "name": "@acme/private",
+      "version": "2.0.0",
+      "dist": {
+        "tarball": "https://npm.pkg.github.com/download/@acme/private/2.0.0/acme-private-2.0.0.tgz",
+        "shasum": "0000000000000000000000000000000000000002",
+        "integrity": "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=="
+      },
+      "dependencies": {}
+    },
+    "2.1.0": {
+      "name": "@acme/private",
+      "version": "2.1.0",
+      "dist": {
+        "tarball": "https://npm.pkg.github.com/download/@acme/private/2.1.0/acme-private-2.1.0.tgz",
+        "shasum": "0000000000000000000000000000000000000003",
+        "integrity": "sha512-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=="
+      },
+      "dependencies": {}
+    }
+  },
+  "time": {
+    "created": "2024-01-15T10:00:00.000Z",
+    "modified": "2024-08-01T12:00:00.000Z",
+    "1.0.0": "2024-01-15T10:00:00.000Z",
+    "2.0.0": "2024-06-01T10:00:00.000Z",
+    "2.1.0": "2024-08-01T12:00:00.000Z"
+  }
+}

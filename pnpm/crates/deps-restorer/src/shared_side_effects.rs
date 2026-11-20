@@ -1,0 +1,383 @@
+mod platform;
+use platform::{
+    ArtifactPlatform,
+    artifact_platform,
+    digest_integrity,
+    package_version,
+    patch_hash,
+};
+
+mod persisted;
+use persisted::{
+    decoded_trusted_keys,
+    insert_side_effects_map,
+    quarantine_remote_side_effects,
+    store_holds,
+    stored_remote_side_effects_are_verified,
+    stored_remote_side_effects_blobs_are_valid,
+    take_persisted_remote_side_effects,
+};
+
+mod remote;
+use remote::{
+    ApplyResolvedRemoteArtifacts,
+    RemoteCacheSetup,
+    apply_resolved_remote_artifacts,
+    remote_cache_setup,
+    resolve_remote_artifacts,
+};
+
+mod planning;
+use planning::{
+    CandidatePlan,
+    plan_candidate_groups,
+    plan_eligible_roots,
+};
+
+use crate::{
+    AllowBuildPolicy,
+    RemoteSideEffectsQuarantineBySnapshot,
+    RequiresBuildBySnapshot,
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+    StoreIndexKeysBySnapshot,
+    artifact_signer_settings,
+    artifact_store_options,
+};
+use pnpm_config::Config;
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_pnpr_client::{
+    ARTIFACT_KIND,
+    ArtifactBlobSource,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactPublication,
+    ArtifactSigner,
+    ArtifactStore,
+    ArtifactSubject,
+    CompatibilityConstraints,
+    OwnerScope,
+    PackageIdentity,
+};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    StoreIndexWriter,
+};
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    sync::Arc,
+};
+
+pub(crate) type BaseCasPaths = HashMap<PackageKey, Arc<pnpm_fs::CasPaths>>;
+
+pub struct SharedSideEffectsPublisher {
+    signer: ArtifactSigner,
+    store: ArtifactStore,
+    organization: String,
+    packages: HashSet<String>,
+    platform: ArtifactPlatform<'static>,
+    runtime: tokio::runtime::Handle,
+}
+
+pub(crate) struct ApplySharedSideEffectsOptions<'a> {
+    pub cached: SharedSideEffectsCacheRows<'a>,
+    pub config: &'a Config,
+    /// The wanted lockfile's snapshots and packages.
+    pub wanted: (&'a HashMap<PackageKey, SnapshotEntry>, &'a HashMap<PackageKey, PackageMetadata>),
+    pub requires_build_by_snapshot: &'a RequiresBuildBySnapshot,
+    pub allow_build_policy: &'a AllowBuildPolicy,
+    pub side_effects_maps_by_snapshot: &'a mut SideEffectsMapsBySnapshot,
+    pub store_index_writer: &'a Arc<StoreIndexWriter>,
+    /// The platforms the install links, with the CLI's overrides.
+    pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+}
+
+pub(crate) struct PreparedSharedSideEffects {
+    setup: RemoteCacheSetup,
+    groups: BTreeMap<String, planning::CandidateGroup>,
+}
+
+pub(crate) struct ResolvedSharedSideEffects {
+    setup: RemoteCacheSetup,
+    groups: BTreeMap<String, planning::CandidateGroup>,
+    resolved: Option<(
+        BTreeMap<String, pnpm_pnpr_client::VerifiedArtifact>,
+        Vec<pnpm_pnpr_client::RejectedArtifact>,
+    )>,
+}
+
+pub(crate) fn cold_shared_packages_have_known_requires_build(
+    cold: &[(&PackageKey, &SnapshotEntry)],
+    shared_packages: Option<&HashSet<&str>>,
+    requires_build_by_snapshot: &RequiresBuildBySnapshot,
+) -> bool {
+    let Some(shared_packages) = shared_packages else { return true };
+    cold.iter()
+        .all(|(snapshot_key, _)| {
+            !shared_packages.contains(snapshot_key.name.to_string().as_str())
+                || requires_build_by_snapshot.contains_key(*snapshot_key)
+        })
+}
+
+pub(crate) async fn prepare_shared_side_effects(
+    options: &mut ApplySharedSideEffectsOptions<'_>,
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<PreparedSharedSideEffects> {
+    let persisted_remote = take_persisted_remote_side_effects(
+        options.side_effects_maps_by_snapshot,
+        options.cached.by_snapshot,
+    );
+    if !options.config.side_effects_cache_read() {
+        options.side_effects_maps_by_snapshot.clear();
+    }
+    let setup = remote_cache_setup(options.config, importers)?;
+    let roots = plan_eligible_roots(options, &setup);
+    if roots.is_empty() {
+        return None;
+    }
+    let groups = plan_candidate_groups(
+        &CandidatePlan {
+            config: options.config,
+            snapshots: options.wanted.0,
+            packages: options.wanted.1,
+            setup: &setup,
+            side_effects_by_snapshot: options.cached.by_snapshot,
+            store_index_keys_by_snapshot: options.cached.store_index_keys_by_snapshot,
+            supported_architectures: options.supported_architectures,
+        },
+        roots,
+        persisted_remote,
+        options.side_effects_maps_by_snapshot,
+    )
+    .await;
+    if groups.is_empty() || options.config.frozen_store {
+        return None;
+    }
+    Some(PreparedSharedSideEffects { setup, groups })
+}
+
+pub(crate) async fn resolve_prepared_side_effects(
+    prepared: Option<PreparedSharedSideEffects>,
+    quarantine_by_snapshot: &RemoteSideEffectsQuarantineBySnapshot,
+) -> Option<ResolvedSharedSideEffects> {
+    let prepared = prepared?;
+    let resolved =
+        resolve_remote_artifacts(&prepared.setup, &prepared.groups, quarantine_by_snapshot).await;
+    Some(ResolvedSharedSideEffects { setup: prepared.setup, groups: prepared.groups, resolved })
+}
+
+pub(crate) async fn finish_shared_side_effects(
+    resolved: Option<ResolvedSharedSideEffects>,
+    config: &Config,
+    base_cas_paths: &BaseCasPaths,
+    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+    store_index_writer: &Arc<StoreIndexWriter>,
+) {
+    let Some(resolved) = resolved else { return };
+    apply_resolved_remote_artifacts(
+        ApplyResolvedRemoteArtifacts {
+            config,
+            setup: &resolved.setup,
+            groups: &resolved.groups,
+            base_cas_paths,
+            side_effects_maps_by_snapshot,
+            store_index_writer,
+        },
+        resolved.resolved,
+    )
+    .await;
+}
+
+/// `importers` are the wanted lockfile's: the root project's runtime pin
+/// picks the Node.js major of the artifacts.
+pub(crate) async fn apply_shared_side_effects(
+    mut options: ApplySharedSideEffectsOptions<'_>,
+    importers: &HashMap<String, ProjectSnapshot>,
+) {
+    let prepared = prepare_shared_side_effects(&mut options, importers).await;
+    let resolved =
+        resolve_prepared_side_effects(prepared, options.cached.quarantine_by_snapshot).await;
+    finish_shared_side_effects(
+        resolved,
+        options.config,
+        options.cached.base_cas_paths,
+        options.side_effects_maps_by_snapshot,
+        options.store_index_writer,
+    )
+    .await;
+}
+
+fn non_empty(value: &str) -> Option<&str> {
+    (!value.is_empty()).then_some(value)
+}
+
+pub(crate) fn shared_side_effects_publisher(
+    config: &Config,
+    importers: &HashMap<String, ProjectSnapshot>,
+) -> Option<SharedSideEffectsPublisher> {
+    let packages = &config.remote_side_effects_cache.as_ref()?.packages;
+    let settings = config.remote_cache_settings();
+    if !settings.publish.unwrap_or(false) {
+        return None;
+    }
+    let platform = artifact_platform(importers)?;
+    let organization = non_empty(settings.org.as_deref()?)?.to_string();
+    let store = ArtifactStore::from_options(artifact_store_options(config, &settings)).ok()??;
+    Some(SharedSideEffectsPublisher {
+        signer: ArtifactSigner::from_settings(artifact_signer_settings(&settings)).ok()?,
+        store,
+        organization,
+        packages: packages.iter().cloned().collect(),
+        platform,
+        runtime: tokio::runtime::Handle::current(),
+    })
+}
+
+impl SharedSideEffectsPublisher {
+    pub(crate) fn can_publish(
+        &self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+    ) -> bool {
+        self.packages.contains(&metadata_key.name.to_string())
+            && metadata.resolution.checkable_integrity().is_some()
+    }
+
+    pub(crate) fn publish(
+        &self,
+        snapshot_key: &PackageKey,
+        metadata: &PackageMetadata,
+        graph: &HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>,
+        patch_file_hash: Option<&str>,
+        diff: pnpm_store_dir::SideEffectsDiff,
+        store: &pnpm_store_dir::StoreDir,
+    ) -> Result<(), String> {
+        if diff.is_empty() {
+            return Ok(());
+        }
+        let Some(subject) = self.subject(&snapshot_key.without_peer(), metadata) else {
+            return Ok(());
+        };
+        let input_key =
+            pnpm_graph_hasher::calc_dep_state_input_key(graph, snapshot_key, patch_file_hash);
+        let upload = artifact_upload(diff.added.unwrap_or_default(), store)?;
+        let payload = ArtifactPayload {
+            kind: ARTIFACT_KIND.to_string(),
+            subject,
+            input_key: input_key.clone(),
+            owner: OwnerScope::organization(self.organization.clone()),
+            builder_id: self.signer.builder_id.clone(),
+            builder_profile: self.signer.builder_profile.clone(),
+            compatibility: CompatibilityConstraints::Tagged {
+                tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
+            },
+            manifest: ArtifactManifest {
+                added: upload.files,
+                deleted: diff.deleted.unwrap_or_default(),
+            },
+        };
+        self.publish_payload(input_key, &payload, upload.blobs.into_values().collect())
+    }
+
+    fn publish_payload(
+        &self,
+        input_key: String,
+        payload: &ArtifactPayload,
+        blobs: Vec<ArtifactBlobSource>,
+    ) -> Result<(), String> {
+        self.runtime
+            .block_on(self.store.publish_artifact(&ArtifactPublication {
+                key: input_key,
+                envelope: self.signer.sign(payload).map_err(|error| error.to_string())?,
+                blobs,
+            }))
+            .map_err(|error| error.to_string())
+    }
+
+    /// The artifact's subject, when this publisher covers the package
+    /// and its source can be pinned.
+    fn subject(
+        &self,
+        metadata_key: &PackageKey,
+        metadata: &PackageMetadata,
+    ) -> Option<ArtifactSubject> {
+        let package_name = metadata_key.name.to_string();
+        if !self.packages.contains(&package_name) {
+            return None;
+        }
+        let source_integrity =
+            metadata.resolution.checkable_integrity().map(ToString::to_string)?;
+        Some(ArtifactSubject::dependency_side_effects(
+            PackageIdentity {
+                name: package_name,
+                version: package_version(metadata_key, metadata.version.as_deref()),
+            },
+            source_integrity,
+        ))
+    }
+}
+
+/// The built files as the artifact lists them, and the CAFS file each
+/// one's blob is uploaded from.
+struct ArtifactUpload {
+    files: Vec<ArtifactFile>,
+    blobs: BTreeMap<String, ArtifactBlobSource>,
+}
+
+fn artifact_upload(
+    added: HashMap<String, CafsFileInfo>,
+    store: &pnpm_store_dir::StoreDir,
+) -> Result<ArtifactUpload, String> {
+    let mut files = Vec::new();
+    let mut blobs = BTreeMap::new();
+    for (path, info) in added {
+        let integrity = digest_integrity(&info.digest)?;
+        let stored_path = store
+            .cas_file_path_by_mode(&info.digest, info.mode)
+            .ok_or_else(|| format!("invalid CAFS digest for built file {path:?}"))?;
+        files.push(ArtifactFile {
+            path,
+            integrity: integrity.clone(),
+            mode: info.mode,
+            size: info.size,
+        });
+        blobs
+            .entry(integrity.clone())
+            .or_insert_with(|| ArtifactBlobSource {
+                integrity,
+                size: info.size,
+                path: stored_path,
+            });
+    }
+    files.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+    Ok(ArtifactUpload { files, blobs })
+}
+
+fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {
+    let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
+        unreachable!("dependency side-effects candidates have dependency subjects")
+    };
+    package
+}
+
+#[cfg(test)]
+mod tests;
+
+pub(crate) struct SharedSideEffectsCacheRows<'a> {
+    pub base_cas_paths: &'a BaseCasPaths,
+    pub cold_snapshots: Option<&'a HashSet<&'a PackageKey>>,
+    pub by_snapshot: &'a SideEffectsBySnapshot,
+    pub quarantine_by_snapshot: &'a RemoteSideEffectsQuarantineBySnapshot,
+    pub store_index_keys_by_snapshot: &'a StoreIndexKeysBySnapshot,
+}

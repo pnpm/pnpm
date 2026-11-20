@@ -1,0 +1,31 @@
+{
+  "description": "A submitted install script other than node-gyp rebuild is never tolerated.",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "1.0.0"
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "1.0.0",
+    "scripts": {
+      "install": "node build.js"
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "1.0.0",
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "scripts"
+    ],
+    "tolerated": []
+  }
+}

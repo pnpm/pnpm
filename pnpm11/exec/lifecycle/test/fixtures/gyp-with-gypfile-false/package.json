@@ -1,0 +1,5 @@
+{
+  "name": "gyp-with-gypfile-false",
+  "version": "1.0.0",
+  "gypfile": false
+}

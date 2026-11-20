@@ -1,0 +1,5 @@
+{
+  "name": "@pnpm.e2e/shell-mock",
+  "version": "0.0.0",
+  "bin": "index.js"
+}

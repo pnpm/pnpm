@@ -1,0 +1,336 @@
+use crate::cli_args::{
+    registry_client::{
+        apply_auth_and_otp,
+        auth_header_for_package,
+        build_registry_client,
+        join_registry_endpoint,
+        package_endpoint_url,
+        resolve_registries_with_override,
+        resolve_target_registry_for_package,
+    },
+    sanitize::{
+        DEFAULT_ERROR_BODY_LIMIT,
+        read_sanitized_error_body,
+    },
+    whoami::fetch_whoami,
+};
+use clap::Parser;
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::Config;
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+    escaped_package_name,
+    normalize_registry_url,
+    send_with_retry,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+
+#[derive(Debug, Parser)]
+pub struct StarArgs {
+    /// The base URL of the npm registry.
+    #[clap(long)]
+    pub registry: Option<String>,
+
+    pub package_name: String,
+}
+
+/// Errors shared by `pacquet star` and `pacquet unstar`. `action` is
+/// `"star"` or `"unstar"` so a single set of variants renders the right verb
+/// for either command, matching the shared TypeScript `performStarAction`.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum StarError {
+    #[display("You must be logged in to {action} packages")]
+    #[diagnostic(code(ERR_PNPM_STAR_UNAUTHORIZED))]
+    Unauthorized { action: &'static str },
+
+    #[display("Failed to {action} package: {status} {status_text}. {body}")]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
+    Failed { action: &'static str, status: u16, status_text: String, body: String },
+
+    #[display("Package \"{package}\" not found in registry")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_NOT_FOUND))]
+    PackageNotFound { package: String },
+
+    #[display("Failed to fetch package info: {status} {status_text}")]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
+    FetchPackageInfo { status: u16, status_text: String },
+
+    #[display("Failed to {action} package (legacy): {status} {status_text}. {body}")]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
+    LegacyFailed { action: &'static str, status: u16, status_text: String, body: String },
+}
+
+impl StarArgs {
+    pub async fn run(&self, config: &Config) -> miette::Result<()> {
+        star_action(config, self.registry.as_deref(), &self.package_name, true).await
+    }
+}
+
+/// Resolve credentials and drive [`fetch_star`] for either command. Fails with
+/// `ERR_PNPM_STAR_UNAUTHORIZED` before any request when no credentials are
+/// configured for the registry.
+pub(crate) async fn star_action(
+    config: &Config,
+    registry_override: Option<&str>,
+    package_name: &str,
+    is_star: bool,
+) -> miette::Result<()> {
+    let action = action_word(is_star);
+    let registries = resolve_registries_with_override(config, registry_override);
+    let registry_url =
+        resolve_target_registry_for_package(&registries, registry_override, package_name, None);
+    let auth_header = auth_header_for_package(config, &registry_url, package_name)
+        .ok_or(StarError::Unauthorized { action })?;
+    let http_client = build_registry_client(config)?;
+    let retry_opts = config.retry_opts();
+    fetch_star(&registry_url, &http_client, &auth_header, retry_opts, package_name, is_star).await
+}
+
+pub(crate) async fn fetch_star(
+    registry_url: &str,
+    http_client: &ThrottledClient,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    package_name: &str,
+    is_star: bool,
+) -> miette::Result<()> {
+    let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
+    let normalized = normalize_registry_url(registry_url);
+    let star_url = join_registry_endpoint(registry_url, "-/user/v1/star")
+        .unwrap_or_else(|_| format!("{normalized}-/user/v1/star"));
+    let body = json!({ "name": package_name, "package": package_name }).to_string();
+
+    let (client, response) = send_with_retry(http_client, &star_url, retry_opts, |client| {
+        apply_auth_and_otp(
+            client
+                .request(method.clone(), &star_url)
+                .header("content-type", "application/json")
+                .body(body.clone()),
+            Some(auth_header),
+            None,
+        )
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("requesting the registry star endpoint")?;
+
+    if response.status().is_success() {
+        drop(client);
+        return Ok(());
+    }
+    drop(client);
+
+    fetch_alternate_star(registry_url, http_client, auth_header, retry_opts, package_name, is_star)
+        .await
+}
+
+/// Star/unstar a package on a registry without the star endpoints by fetching
+/// the full packument, editing its `users` map, and writing it back, the
+/// legacy path the TypeScript CLI keeps for old registries.
+async fn perform_legacy_star_action(
+    registry_url: &str,
+    http_client: &ThrottledClient,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    package_name: &str,
+    escaped_name: &str,
+    is_star: bool,
+) -> miette::Result<()> {
+    let action = action_word(is_star);
+    let username = fetch_whoami(registry_url, http_client, auth_header, retry_opts).await?;
+    let normalized = normalize_registry_url(registry_url);
+    let pkg_url = package_endpoint_url(registry_url, package_name)
+        .unwrap_or_else(|_| format!("{normalized}{escaped_name}"));
+
+    let mut pkg_data =
+        fetch_package_document(http_client, &pkg_url, auth_header, retry_opts, package_name).await?;
+
+    apply_star_to_users(&mut pkg_data, &username, is_star);
+
+    let update_url = match pkg_data.get("_rev").and_then(Value::as_str) {
+        Some(rev) => format!("{pkg_url}/-rev/{rev}"),
+        None => pkg_url,
+    };
+    put_updated_package_document(
+        http_client,
+        &update_url,
+        auth_header,
+        retry_opts,
+        pkg_data.to_string(),
+        action,
+    )
+    .await
+}
+
+async fn put_updated_package_document(
+    http_client: &ThrottledClient,
+    update_url: &str,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    update_body: String,
+    action: &'static str,
+) -> miette::Result<()> {
+    let (client, response) = send_with_retry(http_client, update_url, retry_opts, |client| {
+        apply_auth_and_otp(
+            client
+                .put(update_url)
+                .header("content-type", "application/json")
+                .body(update_body.clone()),
+            Some(auth_header),
+            None,
+        )
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("updating the package metadata")?;
+
+    if !response.status().is_success() {
+        let (status, status_text, body) =
+            read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
+        return Err(
+            StarError::LegacyFailed { action, status: status.as_u16(), status_text, body }.into()
+        );
+    }
+    drop(client);
+    Ok(())
+}
+
+async fn fetch_package_document(
+    http_client: &ThrottledClient,
+    pkg_url: &str,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    package_name: &str,
+) -> miette::Result<Value> {
+    let (client, response) = send_with_retry(http_client, pkg_url, retry_opts, |client| {
+        apply_auth_and_otp(
+            client.get(pkg_url).header("accept", "application/json"),
+            Some(auth_header),
+            None,
+        )
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("requesting the package metadata")?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        drop(client);
+        if status.as_u16() == 404 {
+            return Err(StarError::PackageNotFound { package: package_name.to_string() }.into());
+        }
+        return Err(StarError::FetchPackageInfo {
+            status: status.as_u16(),
+            status_text: status
+                .canonical_reason()
+                .unwrap_or_default()
+                .to_string(),
+        }
+        .into());
+    }
+    let pkg_data = response
+        .json()
+        .await
+        .into_diagnostic()
+        .wrap_err("parsing the package metadata")?;
+    drop(client);
+    Ok(pkg_data)
+}
+
+/// Set or clear `pkg_data.users[username]`, creating the `users` map when it is
+/// missing or not an object, mirroring `pkgData.users = pkgData.users || {}`.
+fn apply_star_to_users(pkg_data: &mut Value, username: &str, is_star: bool) {
+    let Some(obj) = pkg_data.as_object_mut() else { return };
+    let users = obj
+        .entry("users")
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !users.is_object() {
+        *users = Value::Object(Map::new());
+    }
+    let users = users.as_object_mut().expect("users was just ensured to be an object");
+    if is_star {
+        users.insert(username.to_string(), Value::Bool(true));
+    } else {
+        users.remove(username);
+    }
+}
+
+fn action_word(is_star: bool) -> &'static str {
+    if is_star { "star" } else { "unstar" }
+}
+
+async fn fetch_alternate_star(
+    registry_url: &str,
+    http_client: &ThrottledClient,
+    auth_header: &str,
+    retry_opts: RetryOpts,
+    package_name: &str,
+    is_star: bool,
+) -> miette::Result<()> {
+    let action = action_word(is_star);
+    let method = if is_star { reqwest::Method::PUT } else { reqwest::Method::DELETE };
+    let escaped_name = escaped_package_name(package_name);
+    let alt_endpoint = format!("-/user/package/{escaped_name}/star");
+    let normalized = normalize_registry_url(registry_url);
+    let alt_star_url = join_registry_endpoint(registry_url, &alt_endpoint)
+        .unwrap_or_else(|_| format!("{normalized}{alt_endpoint}"));
+    let (client2, response2) = send_with_retry(http_client, &alt_star_url, retry_opts, |client| {
+        apply_auth_and_otp(
+            client
+                .request(method.clone(), &alt_star_url)
+                .header("content-type", "application/json"),
+            Some(auth_header),
+            None,
+        )
+    })
+    .await
+    .into_diagnostic()
+    .wrap_err("requesting the alt registry star endpoint")?;
+
+    if response2.status().is_success() {
+        drop(client2);
+        return Ok(());
+    }
+
+    let status = response2.status();
+    // Registries that don't implement the star endpoints answer with one of
+    // these statuses; fall back to editing the packument's `users` map, as the
+    // TypeScript CLI does.
+    if matches!(status.as_u16(), 400 | 404 | 405 | 500) {
+        drop(client2);
+        return perform_legacy_star_action(
+            registry_url,
+            http_client,
+            auth_header,
+            retry_opts,
+            package_name,
+            &escaped_name,
+            is_star,
+        )
+        .await;
+    }
+    Err(star_error(response2, action).await.into())
+}
+
+async fn star_error(response: reqwest::Response, action: &'static str) -> StarError {
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
+    StarError::Failed { action, status: status.as_u16(), status_text, body }
+}
+
+#[cfg(test)]
+mod tests;

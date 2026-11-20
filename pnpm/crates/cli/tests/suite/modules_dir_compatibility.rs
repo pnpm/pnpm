@@ -1,0 +1,429 @@
+//! A modules directory linked with another store, virtual store, or layout
+//! version: `add`, `remove`, and `update` refuse it, and `install`
+//! recreates it. Mirrors `validateModules` and `checkCompatibility` in
+//! `pnpm11/installing/deps-installer/src/install/`.
+
+use crate::_utils::{
+    append_workspace_yaml_key,
+    enable_gvs_in_workspace_yaml,
+    flatten_report,
+    pacquet_in,
+};
+use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
+use pipe_trait::Pipe;
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+#[test]
+fn add_remove_and_update_refuse_a_modules_dir_linked_from_another_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_is_positive(&workspace);
+
+    switch_store_dir(&workspace);
+
+    for args in [&["add", "is-negative@1.0.0"][..], &["remove", "is-positive"], &["update"]] {
+        assert_report_contains(
+            &run_failing(&workspace, args),
+            &[
+                "ERR_PNPM_UNEXPECTED_STORE",
+                "Unexpected store location",
+                "are currently linked from the store at",
+                "pacquet-store",
+                "pnpm now wants to use the store at",
+                "other-store",
+                "to link dependencies.",
+            ],
+        );
+        assert!(
+            workspace.join("node_modules/is-positive").exists(),
+            "{args:?} purged node_modules",
+        );
+    }
+
+    let other_store = Path::new("other-store").join("v11");
+    install_records(&workspace, "storeDir", &other_store);
+    let workspace_state = read_json(&workspace.join("node_modules/.pnpm-workspace-state-v1.json"));
+    let recorded_store_dir = recorded_path(&workspace_state["settings"], "storeDir");
+    assert!(
+        recorded_store_dir.is_absolute() && recorded_store_dir.ends_with(&other_store),
+        "{recorded_store_dir:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn add_refuses_a_modules_dir_linked_from_another_virtual_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_is_positive(&workspace);
+    append_workspace_yaml_key(&workspace, "virtualStoreDir", "node_modules/.vs");
+
+    assert_report_contains(
+        &run_failing(&workspace, &["add", "is-negative@1.0.0"]),
+        &[
+            "ERR_PNPM_UNEXPECTED_VIRTUAL_STORE",
+            "Unexpected virtual store location",
+            "pnpm now wants to use the virtual store at",
+        ],
+    );
+    assert!(workspace.join("node_modules/is-positive").exists(), "add purged node_modules");
+
+    install_records(&workspace, "virtualStoreDir", Path::new(".vs"));
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn add_refuses_a_modules_dir_with_another_layout_version() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_is_positive(&workspace);
+
+    let modules_yaml_path = workspace.join("node_modules/.modules.yaml");
+    let modules_yaml = fs::read_to_string(&modules_yaml_path).expect("read .modules.yaml");
+    let downgraded = modules_yaml.replace(r#""layoutVersion": 5"#, r#""layoutVersion": 4"#);
+    assert_ne!(modules_yaml, downgraded, "`.modules.yaml` should record layout version 5");
+    fs::write(&modules_yaml_path, downgraded).expect("write .modules.yaml");
+
+    assert_report_contains(
+        &run_failing(&workspace, &["add", "is-negative@1.0.0"]),
+        &[
+            "ERR_PNPM_MODULES_BREAKING_CHANGE",
+            "The current version of pnpm is not compatible with the available node_modules structure",
+            "Run pnpm install to recreate node_modules.",
+        ],
+    );
+    assert!(workspace.join("node_modules/is-positive").exists(), "add purged node_modules");
+
+    drop((root, mock_instance));
+}
+
+/// `add` refuses a modules directory installed with another `nodeLinker`.
+/// Keeping it would leave the hoisted layout's packages behind, and purging
+/// it could drop links a filtered `add` does not recreate.
+#[test]
+fn add_refuses_a_modules_dir_installed_with_another_node_linker() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+    pacquet_in(&workspace)
+        .with_args(["add", "@pnpm.e2e/pkg-with-1-dep@100.0.0"])
+        .assert()
+        .success();
+    let hoisted = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    assert!(hoisted.exists(), "the hoisted linker should place the transitive at the root");
+    let yaml = workspace.join("pnpm-workspace.yaml");
+    let switched = fs::read_to_string(&yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace("nodeLinker: hoisted", "nodeLinker: isolated");
+    fs::write(&yaml, switched).expect("write pnpm-workspace.yaml");
+
+    assert_report_contains(
+        &run_failing(&workspace, &["add", "is-positive@1.0.0"]),
+        &["ERR_PNPM_NODE_LINKER_DIFF"],
+    );
+    assert!(hoisted.exists(), "add purged node_modules");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(fs::symlink_metadata(&hoisted).is_err(), "install left the hoisted transitive behind");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn install_warns_why_it_recreates_the_modules_dir() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+    install_is_positive(&workspace);
+    let yaml = workspace.join("pnpm-workspace.yaml");
+    let switched = fs::read_to_string(&yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace("nodeLinker: hoisted", "nodeLinker: isolated");
+    fs::write(&yaml, switched).expect("write pnpm-workspace.yaml");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = output.get_output();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_report_contains(
+        &report,
+        &[
+            "has to be recreated. This modules directory was created using a different node-linker value.",
+        ],
+    );
+    assert!(!report.contains(r#"Run "pnpm install" to recreate"#), "{report}");
+
+    drop((root, mock_instance));
+}
+
+/// A filtered install refuses a layout drift. Purging the shared modules
+/// directory would break the projects it skips, which it does not relink.
+#[test]
+fn a_filtered_install_refuses_a_layout_drift() {
+    for (key, value, code, relinked_dep) in [
+        ("nodeLinker", "hoisted", "ERR_PNPM_NODE_LINKER_DIFF", "node_modules"),
+        ("hoistPattern", "['is-*']", "ERR_PNPM_HOIST_PATTERN_DIFF", "project-2/node_modules"),
+        (
+            "publicHoistPattern",
+            "['is-*']",
+            "ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF",
+            "project-2/node_modules",
+        ),
+    ] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let skipped_dep = install_two_project_workspace(&workspace);
+
+        append_workspace_yaml_key(&workspace, key, value);
+        assert_report_contains(&run_failing(&workspace, &["--filter", "root", "install"]), &[code]);
+        assert!(skipped_dep.exists(), "{key}: the filtered install broke the skipped project");
+
+        pacquet_in(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let relinked_dep = workspace.join(relinked_dep).join("is-negative/package.json");
+        assert!(relinked_dep.exists(), "{key}: the full install did not relink the project");
+
+        drop((root, mock_instance));
+    }
+}
+
+/// A tree linked from the sibling `v3` store passes the refusal, so a filtered
+/// install keeps it and merges into its records.
+#[test]
+fn a_filtered_install_keeps_the_records_of_a_tree_linked_from_the_v3_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let skipped_dep = install_two_project_workspace(&workspace);
+    // The repeat-install fast path never reads `.modules.yaml`.
+    append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+    let modules_path = workspace.join("node_modules/.modules.yaml");
+    let mut modules = read_json(&modules_path);
+    let v3_store = recorded_path(&modules, "storeDir").with_file_name("v3");
+    modules["storeDir"] = v3_store.display().to_string().into();
+    fs::write(&modules_path, modules.to_string()).expect("write .modules.yaml");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "root", "install"])
+        .assert()
+        .success();
+
+    assert!(skipped_dep.exists(), "the filtered install broke the skipped project");
+    let current = fs::read_to_string(workspace.join("node_modules/.pnpm/lock.yaml"))
+        .expect("read the current lockfile");
+    assert!(current.contains("project-2:"), "the current lockfile dropped project-2:\n{current}");
+    let hoisted = read_json(&modules_path)["hoistedDependencies"].to_string();
+    assert!(
+        hoisted.contains(r#""@pnpm.e2e/dep-of-pkg-with-1-dep@"#),
+        ".modules.yaml dropped project-2's hoisted dependency: {hoisted}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// The refusal accepts a tree linked from the sibling `v3` store, but a plain
+/// install still recreates it, so the warning needs a reason of its own.
+#[test]
+fn install_warns_why_it_recreates_a_tree_linked_from_the_v3_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    install_is_positive(&workspace);
+    // The repeat-install fast path never reads `.modules.yaml`.
+    append_workspace_yaml_key(&workspace, "optimisticRepeatInstall", false);
+    let modules_path = workspace.join("node_modules/.modules.yaml");
+    let mut modules = read_json(&modules_path);
+    let v3_store = recorded_path(&modules, "storeDir").with_file_name("v3");
+    modules["storeDir"] = v3_store.display().to_string().into();
+    fs::write(&modules_path, modules.to_string()).expect("write .modules.yaml");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let output = output.get_output();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_report_contains(
+        &report,
+        &["has to be recreated. Its recorded layout differs from the current settings."],
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Returns the manifest of the dependency the non-root project links.
+fn install_two_project_workspace(workspace: &Path) -> PathBuf {
+    let project = workspace.join("project-2");
+    fs::create_dir_all(&project).expect("create project-2");
+    fs::write(workspace.join("package.json"), r#"{"name":"root"}"#)
+        .expect("write root package.json");
+    fs::write(
+        project.join("package.json"),
+        r#"{"name":"project-2","dependencies":{"is-negative":"1.0.0","@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .expect("write project-2 package.json");
+    append_workspace_yaml_key(workspace, "packages", "[project-2]");
+    pacquet_in(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let dep = project.join("node_modules/is-negative/package.json");
+    assert!(dep.exists(), "the install did not link project-2");
+    dep
+}
+
+/// A script runs the same from whichever store `node_modules` was linked
+/// from, so `pnpm run` passes verification and keeps the recorded store for
+/// the install that recreates the tree.
+#[test]
+fn run_passes_verification_after_a_store_change_that_install_acts_on() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "scripts": { "start": "node --version" },
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    switch_store_dir(&workspace);
+
+    pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "run", "start"])
+        .assert()
+        .success();
+
+    let state = read_json(&workspace.join("node_modules/.pnpm-workspace-state-v1.json"));
+    let recorded_store_dir = recorded_path(&state["settings"], "storeDir");
+    assert!(
+        recorded_store_dir.ends_with(Path::new("pacquet-store").join("v11")),
+        "{recorded_store_dir:?}",
+    );
+    install_records(&workspace, "storeDir", &Path::new("other-store").join("v11"));
+
+    drop((root, mock_instance));
+}
+
+/// Under a global virtual store, the state records the configured
+/// `virtualStoreDir` anchored at the project, as pnpm v11 does, not the
+/// global virtual store.
+#[test]
+fn the_workspace_state_records_the_configured_virtual_store_dir_under_a_global_virtual_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    enable_gvs_in_workspace_yaml(
+        &workspace,
+        "virtualStoreDir: node_modules/.vs\nglobalVirtualStoreDir: ../gvs\n",
+    );
+    install_is_positive(&workspace);
+
+    let state = read_json(&workspace.join("node_modules/.pnpm-workspace-state-v1.json"));
+    let recorded = recorded_path(&state["settings"], "virtualStoreDir");
+    assert!(
+        recorded.is_absolute()
+            && recorded.ends_with(Path::new("workspace").join("node_modules").join(".vs")),
+        "{recorded:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+fn switch_store_dir(workspace: &Path) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    let switched = yaml.replace("storeDir: ../pacquet-store", "storeDir: ../other-store");
+    assert_ne!(yaml, switched, "the harness should write `storeDir: ../pacquet-store`");
+    fs::write(&yaml_path, switched).expect("write pnpm-workspace.yaml");
+}
+
+fn install_is_positive(workspace: &Path) {
+    pacquet_in(workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+}
+
+/// `pnpm install` recreates the modules directory, whose `.modules.yaml`
+/// then records a `field` path ending in `expected`.
+fn install_records(workspace: &Path, field: &str, expected: &Path) {
+    pacquet_in(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/is-positive").exists());
+    let modules = read_json(&workspace.join("node_modules/.modules.yaml"));
+    let recorded = recorded_path(&modules, field);
+    assert!(recorded.ends_with(expected), "{field}: {recorded:?}");
+}
+
+fn read_json(path: &Path) -> serde_json::Value {
+    fs::read_to_string(path)
+        .expect("read the file")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse the file as JSON")
+}
+
+fn recorded_path(record: &serde_json::Value, field: &str) -> PathBuf {
+    record[field]
+        .as_str()
+        .map(Path::new)
+        .map(pnpm_fs::lexical_normalize)
+        .unwrap_or_else(|| panic!("{field} is recorded"))
+}
+
+fn run_failing(workspace: &Path, args: &[&str]) -> String {
+    let output = pacquet_in(workspace)
+        .with_args(args)
+        .assert()
+        .failure();
+    String::from_utf8_lossy(&output.get_output().stderr).into_owned()
+}
+
+fn assert_report_contains(stderr: &str, expected: &[&str]) {
+    let report = flatten_report(stderr);
+    for text in expected {
+        assert!(report.contains(&flatten_report(text)), "expected {text:?} in {stderr}");
+    }
+}

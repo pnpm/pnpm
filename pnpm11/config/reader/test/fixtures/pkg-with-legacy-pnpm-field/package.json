@@ -1,0 +1,10 @@
+{
+  "pnpm": {
+    "overrides": {
+      "lodash": "^4.17.21"
+    },
+    "patchedDependencies": {
+      "is-odd": "patches/is-odd.patch"
+    }
+  }
+}

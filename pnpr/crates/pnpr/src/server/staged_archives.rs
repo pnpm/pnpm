@@ -1,0 +1,402 @@
+//! `PUT` and `HEAD /-/pnpr/v0/publish/archives/{integrity}`: stage a release
+//! archive by integrity ahead of the publish commit that references it
+//! ([atomic workspace publication](https://github.com/pnpm/rfcs/blob/92d2b281af321ecf8f1e5fea63f698716ba4e9e7/pnpr/text/0000-atomic-workspace-publication.md)).
+//!
+//! A staged archive belongs to the principal that uploaded it, and only a
+//! commit by that principal can claim it. Nothing is published by staging:
+//! the commit authorizes every package it publishes as an inline publish
+//! would, and copies the archive into its package before it commits.
+
+use super::{
+    AppState,
+    AuthedCaller,
+    Body,
+    Identity,
+    MAX_PUBLISH_BODY_BYTES,
+    Response,
+    State,
+    StatusCode,
+    header,
+    private_no_cache,
+};
+use axum::{
+    extract::Path,
+    http::HeaderMap,
+    response::IntoResponse,
+};
+use futures_util::StreamExt as _;
+use pnpm_shared_artifact_protocol::{
+    blob_id,
+    verify_blob_digest,
+};
+use pnpr_error::RegistryError;
+use pnpr_storage::{
+    BlobId,
+    StagedArchiveKey,
+    Storage,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
+use std::collections::HashMap;
+
+/// The most a principal may hold staged at once, across all its archives.
+/// Archives of a release wait here only until its commit, so this is many
+/// releases' worth.
+pub(super) const MAX_STAGED_BYTES_PER_PRINCIPAL: u64 = 2 * 1024 * 1024 * 1024;
+
+/// The most archives a principal may hold staged at once. Each upload of a
+/// new archive reads every record of its principal, so this bounds that
+/// work as well as the store.
+pub(super) const MAX_STAGED_ARCHIVES_PER_PRINCIPAL: usize = 256;
+
+/// Uploads received at once across the server. Each is buffered whole, up to
+/// one archive's limit, so this bounds their memory. Another upload waits
+/// for a permit rather than failing, so a publisher's parallel uploads queue.
+pub(super) const MAX_CONCURRENT_STAGED_UPLOADS: usize = 4;
+
+/// Uploads one principal may have received at once, of the server's
+/// [`MAX_CONCURRENT_STAGED_UPLOADS`].
+pub(super) const MAX_CONCURRENT_STAGED_UPLOADS_PER_PRINCIPAL: usize = 2;
+
+/// The slowest upload rate a staged archive is given time for.
+const MIN_UPLOAD_BYTES_PER_SECOND: u64 = 256 * 1024;
+
+/// The most an upload reserves before its bytes arrive.
+const INITIAL_BUFFER_BYTES: u64 = 1024 * 1024;
+
+/// The archive a staging route names. The route may also name the registry
+/// it is mounted under, which staging ignores.
+#[derive(serde::Deserialize)]
+pub(super) struct ArchivePath {
+    integrity: String,
+}
+
+/// `PUT /-/pnpr/v0/publish/archives/{integrity}`: stage a release archive.
+pub(super) async fn serve_stage_archive(
+    state: State<AppState>,
+    caller: AuthedCaller,
+    Path(ArchivePath { integrity }): Path<ArchivePath>,
+    headers: HeaderMap,
+    body: Body,
+) -> Response {
+    if state.routing().hosted.is_empty() {
+        return private_no_cache(StatusCode::NOT_FOUND.into_response());
+    }
+    private_no_cache(
+        stage_archive(&state, &caller.0, integrity, &headers, body).await
+            .map_or_else(IntoResponse::into_response, |created| {
+                if created { StatusCode::CREATED } else { StatusCode::OK }.into_response()
+            }),
+    )
+}
+
+/// `HEAD /-/pnpr/v0/publish/archives/{integrity}`: whether the caller holds
+/// the archive staged.
+pub(super) async fn serve_staged_archive_size(
+    state: State<AppState>,
+    caller: AuthedCaller,
+    Path(ArchivePath { integrity }): Path<ArchivePath>,
+) -> Response {
+    if state.routing().hosted.is_empty() {
+        return private_no_cache(StatusCode::NOT_FOUND.into_response());
+    }
+    let result = async {
+        let principal = principal(&caller.0)?;
+        let blob_id = archive_blob_id(&integrity)?;
+        state.inner.storage.staged_archive_size(&StagedArchiveKey { principal, blob_id: &blob_id })
+            .await
+    }
+    .await;
+    private_no_cache(match result {
+        Ok(Some(size)) => ([(header::CONTENT_LENGTH, size.to_string())], ()).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(err) => err.into_response(),
+    })
+}
+
+/// Stage the archive streamed in `body` for the caller. `Ok(false)` when the
+/// caller had it staged already, which renews it.
+async fn stage_archive(
+    state: &AppState,
+    identity: &Identity,
+    integrity: String,
+    headers: &HeaderMap,
+    body: Body,
+) -> Result<bool, RegistryError> {
+    let principal = principal(identity)?;
+    let blob_id = archive_blob_id(&integrity)?;
+    let size = declared_size(headers)?;
+    let storage = &state.inner.storage;
+    let key = StagedArchiveKey { principal, blob_id: &blob_id };
+    // The principal's own permit first, so its uploads queue behind each
+    // other rather than taking every permit of the server.
+    let _principal_upload = state.inner.locks
+        .staged_archive_uploads_by_principal
+        .acquire(principal)
+        .await;
+    let _upload = state.inner.locks.staged_archive_uploads
+        .acquire()
+        .await
+        .expect("the staged upload semaphore is never closed");
+    // Uploading an archive staged already only renews it. Any other upload
+    // reserves its size first, so uploads running in parallel see each
+    // other's when they check the limits. The usage check counts only held
+    // archives, so a near-expiry archive being renewed and expired records
+    // do not block it.
+    let renewing = storage.staged_archive_size(&key).await?.is_some()
+        || !reserve_within_limits(storage, &key, size).await?;
+    let received =
+        tokio::time::timeout(receive_deadline(size), receive_archive(body, &integrity, size))
+            .await
+            .unwrap_or_else(|_| {
+                Err(bad_request("the archive upload was too slow to finish in time".to_string()))
+            });
+    let staged = match received {
+        Ok(bytes) => storage.stage_archive(&key, bytes).await,
+        Err(err) => Err(err),
+    };
+    if staged.is_err() && !renewing {
+        storage.release_staged_archive(&key).await?;
+    }
+    staged
+}
+
+/// How long receiving an archive of `size` bytes may take while it holds an
+/// upload permit: a minute, plus the time to send it at
+/// [`MIN_UPLOAD_BYTES_PER_SECOND`]. A client that withholds its bytes would
+/// otherwise keep other publishers waiting for the permit.
+fn receive_deadline(size: u64) -> std::time::Duration {
+    std::time::Duration::from_secs(60 + size / MIN_UPLOAD_BYTES_PER_SECOND)
+}
+
+/// The `Content-Length` of a staged archive upload, within one archive's
+/// limit: the same cap an inline publish of it has.
+fn declared_size(headers: &HeaderMap) -> Result<u64, RegistryError> {
+    let limit = MAX_PUBLISH_BODY_BYTES as u64;
+    let size = headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|length| {
+            length
+                .to_str()
+                .ok()?
+                .parse::<u64>()
+                .ok()
+        })
+        .ok_or_else(|| bad_request("a staged archive upload needs a Content-Length".to_string()))?;
+    if size > limit {
+        return Err(bad_request(format!(
+            "the archive is {size} bytes, over the {limit}-byte limit of one archive",
+        )));
+    }
+    Ok(size)
+}
+
+/// Reserve `size` bytes for `key`'s archive, unless that takes its principal
+/// past its limits. `Ok(false)` when a concurrent upload of the same bytes
+/// staged the archive meanwhile, so this upload only renews it.
+async fn reserve_within_limits(
+    storage: &Storage,
+    key: &StagedArchiveKey<'_>,
+    size: u64,
+) -> Result<bool, RegistryError> {
+    // A first, cheap refusal of a principal far over its limit, counting the
+    // archives it holds. It allows twice the limit: the archive's own
+    // record, renewed or reserved again, is no new one, and the check below
+    // is the exact one.
+    let listed = storage.staged_archive_count(key.principal).await?;
+    if listed >= 2 * MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+        return Err(over_limit(&format!("{MAX_STAGED_ARCHIVES_PER_PRINCIPAL} archives")));
+    }
+    if !storage.reserve_staged_archive(key, size).await? {
+        return Ok(false);
+    }
+    let usage = storage.staged_archive_usage(key.principal).await?;
+    let refusal = if usage.bytes > MAX_STAGED_BYTES_PER_PRINCIPAL {
+        over_limit(&format!("{MAX_STAGED_BYTES_PER_PRINCIPAL} bytes"))
+    } else if usage.archives > MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+        over_limit(&format!("{MAX_STAGED_ARCHIVES_PER_PRINCIPAL} archives"))
+    } else {
+        return Ok(true);
+    };
+    storage.release_staged_archive(key).await?;
+    Err(refusal)
+}
+
+fn over_limit(limit: &str) -> RegistryError {
+    bad_request(format!(
+        "staging this archive would hold more than {limit} that no publish has claimed yet; \
+         publish or wait for staged archives to expire",
+    ))
+}
+
+/// Read `body` whole, refusing it unless it is `size` bytes matching
+/// `integrity`.
+async fn receive_archive(body: Body, integrity: &str, size: u64) -> Result<Vec<u8>, RegistryError> {
+    let mut stream = body.into_data_stream();
+    // The declared size is the client's word, so the buffer grows with what
+    // arrives rather than reserving it up front.
+    let mut bytes =
+        Vec::with_capacity(usize::try_from(size.min(INITIAL_BUFFER_BYTES)).unwrap_or_default());
+    let mut hasher = Sha512::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk =
+            chunk.map_err(|err| bad_request(format!("the archive upload was interrupted: {err}")))?;
+        if (bytes.len() + chunk.len()) as u64 > size {
+            return Err(bad_request(format!(
+                "the archive is larger than its declared {size} bytes",
+            )));
+        }
+        hasher.update(&chunk);
+        // Past the first buffer the client is sending what it declared, so
+        // take the rest in one allocation rather than doubling into it.
+        if bytes.len() as u64 >= INITIAL_BUFFER_BYTES
+            && bytes.capacity() < bytes.len() + chunk.len()
+        {
+            bytes.reserve_exact(usize::try_from(size).unwrap_or_default() - bytes.len());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if bytes.len() as u64 != size {
+        return Err(bad_request(format!(
+            "the archive has {} bytes but declares {size}",
+            bytes.len(),
+        )));
+    }
+    verify_blob_digest(integrity, &hasher.finalize())
+        .map_err(|err| RegistryError::BadRequest { reason: format!("EINTEGRITY: {err}") })?;
+    Ok(bytes)
+}
+
+/// The bytes of the archive `claimant` staged by `integrity`, which the
+/// attachment `filename` of a publish references.
+pub(super) async fn claim_staged_archive(
+    storage: &Storage,
+    claimant: Option<&str>,
+    filename: &str,
+    integrity: &str,
+) -> Result<Vec<u8>, RegistryError> {
+    let not_staged = || {
+        bad_request(format!(
+            "{filename} references the staged archive {integrity}, which the publishing account \
+             has not staged or which has expired; upload it again with \
+             PUT /-/pnpr/v0/publish/archives/<integrity> before publishing",
+        ))
+    };
+    let principal = claimant.ok_or_else(not_staged)?;
+    let blob_id = archive_blob_id(integrity)?;
+    storage
+        .read_staged_archive(&StagedArchiveKey { principal, blob_id: &blob_id })
+        .await?
+        .ok_or_else(not_staged)
+}
+
+/// The staged archives one publish request references, checked before any
+/// is read and given back once the request commits.
+#[derive(Default)]
+pub(super) struct StagedReferences {
+    principal: Option<String>,
+    blob_ids: Vec<BlobId>,
+}
+
+impl StagedReferences {
+    /// Check the staged archives `integrities` name, one per referencing
+    /// attachment, against what one request may pull in. Each reference is
+    /// read, written and decoded on its own, so a request naming one archive
+    /// many times costs as much as naming that many archives, and counts so.
+    pub(super) async fn check<'a>(
+        storage: &Storage,
+        identity: &Identity,
+        integrities: impl IntoIterator<Item = &'a str>,
+    ) -> Result<Self, RegistryError> {
+        let integrities: Vec<&str> = integrities.into_iter().collect();
+        if integrities.is_empty() {
+            return Ok(Self::default());
+        }
+        Self::check_within(
+            storage,
+            principal(identity)?,
+            integrities,
+            MAX_STAGED_BYTES_PER_PRINCIPAL,
+        )
+        .await
+    }
+
+    /// [`Self::check`] for `principal`, with `limit` bytes per request.
+    async fn check_within(
+        storage: &Storage,
+        principal: &str,
+        integrities: Vec<&str>,
+        limit: u64,
+    ) -> Result<Self, RegistryError> {
+        if integrities.len() > MAX_STAGED_ARCHIVES_PER_PRINCIPAL {
+            return Err(bad_request(format!(
+                "the publish references {} staged archives, more than the \
+                 {MAX_STAGED_ARCHIVES_PER_PRINCIPAL} an account can hold",
+                integrities.len(),
+            )));
+        }
+        // Each distinct archive is looked up once, and counted once per
+        // reference.
+        let mut references: HashMap<BlobId, u64> = HashMap::new();
+        for integrity in integrities {
+            *references
+                .entry(archive_blob_id(integrity)?)
+                .or_default() += 1;
+        }
+        let mut total = 0_u64;
+        for (blob_id, count) in &references {
+            let key = StagedArchiveKey { principal, blob_id };
+            // One that is missing is reported, with its attachment, when it
+            // is claimed.
+            let size = storage.claimable_staged_archive_size(&key).await?.unwrap_or(0);
+            total = total.saturating_add(size.saturating_mul(*count));
+        }
+        let blob_ids = references.into_keys().collect();
+        if total > limit {
+            return Err(bad_request(format!(
+                "the publish references {total} bytes of staged archives, more than the {limit} \
+                 one publish may take",
+            )));
+        }
+        Ok(Self { principal: Some(principal.to_string()), blob_ids })
+    }
+
+    /// Retire the archives the committed request claimed, so they stop
+    /// counting against their principal. A failure only warns: the archive
+    /// expires anyway.
+    pub(super) async fn release(self, storage: &Storage) {
+        let Some(principal) = self.principal.as_deref() else { return };
+        for blob_id in &self.blob_ids {
+            let key = StagedArchiveKey { principal, blob_id };
+            if let Err(error) = storage.retire_staged_archive(&key).await {
+                tracing::warn!(%error, "a claimed staged archive was not retired");
+            }
+        }
+    }
+}
+
+/// The principal a staged archive belongs to: the caller's stable identity,
+/// the one an idempotent publish is scoped to.
+pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {
+    identity
+        .user_id()
+        .ok_or_else(|| RegistryError::Unauthenticated {
+            resource: "release archive staging".to_string(),
+        })
+}
+
+/// The hosted-store identity a staged archive with `integrity` is stored under.
+pub(super) fn archive_blob_id(integrity: &str) -> Result<BlobId, RegistryError> {
+    let digest = blob_id(integrity).map_err(|err| err.to_string()).map_err(bad_request)?;
+    BlobId::parse(&format!("sha512-{digest}"))
+        .ok_or_else(|| bad_request(format!("invalid staged archive integrity {integrity:?}")))
+}
+
+fn bad_request(reason: String) -> RegistryError {
+    RegistryError::BadRequest { reason }
+}
+
+#[cfg(test)]
+mod tests;

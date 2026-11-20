@@ -1,0 +1,46 @@
+use crate::suffix_index::index_of_dep_path_suffix;
+
+/// Extract the `pkgId` substring from a `dep_path`.
+///
+/// The function combines two transforms:
+///
+/// 1. Strip the peer-graph suffix and the `(patch_hash=…)` segment via
+///    [`index_of_dep_path_suffix`], same balanced-paren scan
+///    [`crate::remove_suffix`] uses.
+/// 2. When the trimmed result contains a `:`, drop the leading
+///    `<name>@` prefix so the returned id is the bare resolution id
+///    (a tarball URL, a git URL, ...). Pnpm keeps the prefix for
+///    `tool:` / `runtime:` entries; those carry their name in the
+///    pkgId by design.
+///
+/// The result is a borrowed slice of `dep_path` when the second
+/// transform doesn't run, or an owned [`String`] when it does. A
+/// borrowed result is always a *prefix* of `dep_path` (the whole of it,
+/// or everything ahead of the suffix) so a caller holding an owned
+/// input can truncate it in place instead of re-allocating. Callers that
+/// always need ownership can `.to_string()`.
+#[must_use]
+pub fn try_get_package_id(dep_path: &str) -> std::borrow::Cow<'_, str> {
+    let suffix_index = index_of_dep_path_suffix(dep_path);
+    let sep_index = suffix_index.patch_hash_index.or(suffix_index.peers_index);
+    let trimmed = match sep_index {
+        Some(idx) => &dep_path[..idx],
+        None => dep_path,
+    };
+    if !trimmed.contains(':') {
+        return std::borrow::Cow::Borrowed(trimmed);
+    }
+    let Some(at_idx) = crate::version_separator_index(trimmed) else {
+        return std::borrow::Cow::Borrowed(trimmed);
+    };
+    let new_pkg_id = &trimmed[at_idx + 1..];
+    if pnpm_tool_protocol::is_tool_specifier(new_pkg_id)
+        || crate::parse_registry_qualified_version(new_pkg_id).is_some()
+    {
+        return std::borrow::Cow::Borrowed(trimmed);
+    }
+    std::borrow::Cow::Owned(new_pkg_id.to_string())
+}
+
+#[cfg(test)]
+mod tests;

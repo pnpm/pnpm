@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/transitive-peer-carrier-a",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/uses-optional-peer": "1.0.0"
+  }
+}

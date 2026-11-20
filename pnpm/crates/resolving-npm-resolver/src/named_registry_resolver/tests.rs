@@ -1,0 +1,785 @@
+use std::{
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
+};
+
+use pnpm_lockfile::LockfileResolution;
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreIndex,
+    store_index_key,
+};
+use pretty_assertions::assert_eq;
+use tempfile::TempDir;
+
+use crate::{
+    ABBREVIATED_META_DIR,
+    NamedRegistryResolver,
+    OfflineStoreView,
+    merge_named_registries,
+    persist_meta_to_mirror,
+    pick_package::{
+        InMemoryPackageMetaCache,
+        shared_packument_fetch_locker,
+        shared_picked_manifest_cache,
+    },
+};
+
+/// Packument for `@acme/private` served under a named registry,
+/// matches the fixture upstream uses in
+/// `resolveNamedRegistry.test.ts`.
+const ACME_PRIVATE_BODY: &str = r#"{
+    "name": "@acme/private",
+    "dist-tags": { "latest": "2.1.0" },
+    "modified": "2025-01-15T12:00:00.000Z",
+    "time": {
+        "1.0.0": "2024-01-10T08:30:00.000Z",
+        "2.0.0": "2024-06-01T08:30:00.000Z",
+        "2.1.0": "2024-12-10T08:30:00.000Z"
+    },
+    "versions": {
+        "1.0.0": {
+            "name": "@acme/private",
+            "version": "1.0.0",
+            "dist": {
+                "integrity": "sha512-EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE==",
+                "shasum": "4444444444444444444444444444444444444444",
+                "tarball": "https://npm.work.example/@acme/private/-/private-1.0.0.tgz"
+            }
+        },
+        "2.0.0": {
+            "name": "@acme/private",
+            "version": "2.0.0",
+            "dist": {
+                "integrity": "sha512-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF==",
+                "shasum": "5555555555555555555555555555555555555555",
+                "tarball": "https://npm.work.example/@acme/private/-/private-2.0.0.tgz"
+            }
+        },
+        "2.1.0": {
+            "name": "@acme/private",
+            "version": "2.1.0",
+            "dist": {
+                "integrity": "sha512-GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG==",
+                "shasum": "6666666666666666666666666666666666666666",
+                "tarball": "https://npm.work.example/@acme/private/-/private-2.1.0.tgz"
+            }
+        }
+    }
+}"#;
+
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "nested test helper called many times; owned arg keeps the call sites and assert ergonomics simple"
+)]
+fn build_resolver(
+    user_registries_by_prefix: HashMap<String, String>,
+) -> (NamedRegistryResolver<InMemoryPackageMetaCache>, TempDir) {
+    let merged = merge_named_registries(&user_registries_by_prefix).expect("URLs are valid");
+    let registry_names: HashSet<String> = merged.keys().cloned().collect();
+    let cache_dir = TempDir::new().expect("tempdir");
+    let resolver = NamedRegistryResolver {
+        registries_by_prefix: merged,
+        registry_names,
+        registries: HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
+        metadata: crate::RegistryMetadataClient {
+            http_client: Arc::new(ThrottledClient::default()),
+            auth_headers: Arc::new(AuthHeaders::default()),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(cache_dir.path().to_path_buf()),
+            retry_opts: RetryOpts::default(),
+        },
+        format: crate::RegistryMetadataFormat {
+            full_metadata: false,
+            needs_full_metadata_for: None,
+            filter_metadata: false,
+            registry_options_by_url: std::sync::Arc::default(),
+            minimum_release_age: None,
+        },
+        cache_policy: crate::MetadataCachePolicy {
+            network: pnpm_resolving_resolver_base::NetworkPolicy::Online,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+    };
+    (resolver, cache_dir)
+}
+
+#[tokio::test]
+async fn resolves_via_builtin_gh_alias() {
+    // Mirrors upstream's first test in `resolveNamedRegistry.test.ts`.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
+    assert_eq!(result.package.latest.as_deref(), Some("2.1.0"));
+    assert_eq!(result.alias.as_deref(), Some("@acme/private"));
+}
+
+#[tokio::test]
+async fn preserves_scoped_pkg_name_when_alias_differs() {
+    // Mirrors upstream's "preserves the scoped package name when the
+    // alias is a different name" test.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("my-private".to_string()),
+        bare_specifier: Some("gh:@acme/private@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:1.0.0");
+    assert_eq!(
+        result.alias.as_deref(),
+        Some("@acme/private"),
+        "alias must follow the registry name, not the local `my-private`",
+    );
+}
+
+#[tokio::test]
+async fn user_config_overrides_builtin_gh_alias() {
+    // GHES users point `gh` at their enterprise host. Mirrors
+    // upstream's "allows user config to override the built-in gh
+    // alias (GHES)" test.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let enterprise_registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), enterprise_registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.1.0");
+}
+
+#[tokio::test]
+async fn resolves_user_defined_named_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), registry.clone());
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("work:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
+    assert_eq!(result.alias.as_deref(), Some("@acme/private"));
+    assert!(matches!(result.resolution, LockfileResolution::Tarball(_)));
+}
+
+#[tokio::test]
+async fn declines_non_named_specifiers() {
+    let (resolver, _tempdir) = build_resolver(HashMap::new());
+
+    // Plain semver, npm's slot, not named-registry's. No mock means
+    // the test fails if the resolver tries to hit the network.
+    for bare in ["^1.0.0", "npm:@acme/private@1.0.0", "jsr:@acme/private"] {
+        let wanted = WantedDependency {
+            alias: Some("@acme/private".to_string()),
+            bare_specifier: Some(bare.to_string()),
+            ..WantedDependency::default()
+        };
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap();
+        assert!(result.is_none(), "expected None for {bare:?}");
+    }
+}
+
+#[tokio::test]
+async fn declines_github_git_shortcut() {
+    // `github:` belongs to the git resolver; `gh:` is the
+    // named-registry alias. The parser keys off the alias set, so
+    // `github:` always falls through here.
+    let (resolver, _tempdir) = build_resolver(HashMap::new());
+
+    for bare in ["github:owner/repo", "github:owner/repo#main", "github:@acme/foo"] {
+        let wanted = WantedDependency {
+            alias: None,
+            bare_specifier: Some(bare.to_string()),
+            ..WantedDependency::default()
+        };
+        let result = resolver
+            .resolve(&wanted, &ResolveOptions::default())
+            .await
+            .unwrap();
+        assert!(result.is_none(), "expected None for {bare:?}");
+    }
+}
+
+#[tokio::test]
+async fn declines_named_alias_for_bare_version_without_package_alias() {
+    // Without any package alias, `gh:<version>` cannot map to a
+    // package name. No mock means the test fails if the resolver
+    // tries to hit the network.
+    let (resolver, _tempdir) = build_resolver(HashMap::new());
+    let wanted = WantedDependency {
+        alias: None,
+        bare_specifier: Some("gh:2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap();
+    assert!(result.is_none());
+}
+
+#[tokio::test]
+async fn errors_on_invalid_scoped_package_name() {
+    let (resolver, _tempdir) = build_resolver(HashMap::new());
+    let wanted = WantedDependency {
+        alias: None,
+        bare_specifier: Some("gh:@acme".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("scope without name must error");
+    assert!(err.to_string().contains("'gh:'"), "got {err}");
+}
+
+#[tokio::test]
+async fn update_requested_keeps_preferred_versions() {
+    // An update target must resolve exactly the way a fresh install
+    // would: preferred versions (manifest pins, versions propagated
+    // down the dependency chain) keep steering the pick even with
+    // `update_requested=true`. The target's own lockfile pins never
+    // reach the resolver (the install layer withholds them from the
+    // seed) so nothing needs bypassing here.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    // Preferred = 2.0.0 (older). Range = ^2.0.0 admits both 2.0.0 and
+    // latest 2.1.0. The picker honors the preferred version, an update
+    // that jumped to 2.1.0 would install a duplicate a reinstall from
+    // scratch would not reproduce.
+    let mut preferred = pnpm_resolving_resolver_base::PreferredVersions::new();
+    preferred.insert("@acme/private".to_string(), {
+        let mut selectors = pnpm_resolving_resolver_base::VersionSelectors::new();
+        selectors.insert(
+            "2.0.0".to_string(),
+            pnpm_resolving_resolver_base::VersionSelectorEntry::Plain(
+                pnpm_resolving_resolver_base::VersionSelectorType::Version,
+            ),
+        );
+        selectors
+    });
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(
+            &wanted,
+            &ResolveOptions {
+                version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+                    preferred_versions: std::sync::Arc::new(preferred),
+                    ..Default::default()
+                },
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    update_requested: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
+}
+
+#[tokio::test]
+async fn update_requested_keeps_non_version_selectors() {
+    // `range`/`tag` selectors steer resolution (e.g. the
+    // vulnerability-avoidance penalties from `pnpm audit --fix`) and
+    // must keep applying to the targeted package. Here a `range`
+    // preference on the older 2.0.0 stands in for any such non-pin
+    // selector: the targeted update honors it instead of jumping to
+    // latest 2.1.0.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let mut preferred = pnpm_resolving_resolver_base::PreferredVersions::new();
+    preferred.insert("@acme/private".to_string(), {
+        let mut selectors = pnpm_resolving_resolver_base::VersionSelectors::new();
+        // A propagated exact pin, dropped, so it can't hold the target down.
+        selectors.insert(
+            "2.1.0".to_string(),
+            pnpm_resolving_resolver_base::VersionSelectorEntry::Plain(
+                pnpm_resolving_resolver_base::VersionSelectorType::Version,
+            ),
+        );
+        // A `range` preference on 2.0.0, must survive update_requested.
+        selectors.insert(
+            "2.0.0".to_string(),
+            pnpm_resolving_resolver_base::VersionSelectorEntry::Weighted(
+                pnpm_resolving_resolver_base::VersionSelectorWithWeight {
+                    selector_type: pnpm_resolving_resolver_base::VersionSelectorType::Range,
+                    weight: pnpm_resolving_resolver_base::DIRECT_DEP_SELECTOR_WEIGHT,
+                },
+            ),
+        );
+        selectors
+    });
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(
+            &wanted,
+            &ResolveOptions {
+                version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+                    preferred_versions: std::sync::Arc::new(preferred),
+                    ..Default::default()
+                },
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    update_requested: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    // The surviving `range` selector steers to 2.0.0; had update_requested
+    // dropped it (alongside the version pin), the picker would have returned
+    // latest 2.1.0.
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
+}
+
+#[tokio::test]
+async fn calculates_prefixed_specifier_for_named_registry_update_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:^2.1.0"));
+}
+
+#[tokio::test]
+async fn calculated_specifier_keeps_the_operator_the_previous_specifier_declared() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:2.1.0".to_string()),
+        prev_specifier: Some("gh:~2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:2.1.0"));
+
+    let wanted_latest = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:latest".to_string()),
+        prev_specifier: Some("gh:~2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result_latest = resolver
+        .resolve(&wanted_latest, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result_latest.normalized_bare_specifier.as_deref(), Some("gh:~2.1.0"));
+}
+
+#[tokio::test]
+async fn calculates_prefixed_specifier_for_aliased_named_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("my-private".to_string()),
+        bare_specifier: Some("gh:@acme/private@^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    let opts = ResolveOptions {
+        specifier: pnpm_resolving_resolver_base::ResolverSpecifierOptions {
+            calc_specifier: true,
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("gh:@acme/private@^1.0.0"));
+}
+
+#[tokio::test]
+async fn latest_is_suppressed_when_published_by_holds_back_raw_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    // ACME_PRIVATE_BODY has 1.0.0 (2024-01-10), 2.0.0 (2024-06-01), 2.1.0
+    // (2024-12-10); dist-tags.latest = 2.1.0. Cutoff 2024-07-01 leaves 2.1.0
+    // immature, so the named-registry path must suppress the hint.
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
+            published_by: Some("2024-07-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap()),
+            ..Default::default()
+        },
+        ..ResolveOptions::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.id.as_str(), "@acme/private@gh:2.0.0");
+    assert!(result.package.latest.is_none(), "immature dist-tags.latest suppresses the hint");
+}
+
+/// The resolution id is registry-qualified so the same name@version
+/// served by different registries stays distinct.
+#[tokio::test]
+async fn resolves_registry_qualified_id() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("work:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions::default();
+    let result = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@work:2.1.0");
+    // `name_ver` keeps the bare `name@version` shape for display / peer
+    // resolution.
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("@acme/private@2.1.0"),
+    );
+}
+
+#[tokio::test]
+async fn update_target_does_not_reuse_a_fresh_mirror_without_etag() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry.clone());
+    let (resolver, cache_dir) = build_resolver(user);
+    let packument: pnpm_registry::Package =
+        serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");
+    let mirror = crate::mirror::get_pkg_mirror_path(
+        cache_dir.path(),
+        crate::mirror::ABBREVIATED_META_DIR,
+        &registry,
+        "@acme/private",
+    )
+    .expect("mirror path");
+    crate::mirror::save_meta_indexed(&mirror, &packument, None, false).expect("warm mirror");
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    resolver
+        .resolve(
+            &wanted,
+            &ResolveOptions {
+                refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
+                    update_requested: true,
+                    ..Default::default()
+                },
+                ..ResolveOptions::default()
+            },
+        )
+        .await
+        .expect("resolve")
+        .expect("resolved");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn offline_named_registry_range_pick_narrows_to_store_held_version() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("work".to_string(), registry.clone());
+    let (mut resolver, tempdir) = build_resolver(user);
+    resolver.cache_policy.network = pnpm_resolving_resolver_base::NetworkPolicy::Offline;
+
+    let preloaded: pnpm_registry::Package =
+        serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");
+    persist_meta_to_mirror(tempdir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm mirror");
+
+    let store_dir = TempDir::new().expect("tempdir");
+    let index = StoreIndex::open(store_dir.path()).expect("open store index");
+    let integrity = "sha512-FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF==";
+    index
+        .set(
+            &store_index_key(integrity, "@acme/private@2.0.0"),
+            &PackageFilesIndex {
+                manifest: Some(serde_json::json!({
+                    "name": "@acme/private",
+                    "version": "2.0.0",
+                })),
+                algo: "sha512".to_string(),
+                files: HashMap::new(),
+                ..Default::default()
+            },
+        )
+        .expect("seed store index");
+    drop(index);
+    let store_view = OfflineStoreView::new(Arc::new(Mutex::new(
+        StoreIndex::open_readonly(store_dir.path()).expect("open store index read-only"),
+    )));
+    resolver.store_view = Some(store_view);
+
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("work:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.resolved_via, "named-registry");
+    assert_eq!(result.id.as_str(), "@acme/private@work:2.0.0");
+    assert_eq!(
+        result.package.name_ver
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("@acme/private@2.0.0"),
+    );
+}

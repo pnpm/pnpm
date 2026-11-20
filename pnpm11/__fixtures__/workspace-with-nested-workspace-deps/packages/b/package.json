@@ -1,0 +1,9 @@
+{
+  "name": "@scope/b",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@scope/c": "workspace:*",
+    "is-positive": "1.0.0"
+  }
+}

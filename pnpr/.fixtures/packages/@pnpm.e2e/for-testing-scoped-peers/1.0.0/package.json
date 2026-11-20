@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/for-testing-scoped-peers",
+  "version": "1.0.0",
+  "dependencies": {
+    "@having/scoped-peer": "*",
+    "@scoped/peer": "*"
+  }
+}

@@ -1,0 +1,10 @@
+extends: existence
+message: "User-facing text names only what the user can reach. Describe the behavior instead of '%s'."
+link: https://github.com/pnpm/pnpm/blob/main/AGENTS.md#user-facing-text
+level: error
+ignorecase: true
+tokens:
+  - pacquet
+  - (?:the )?Rust (?:implementation|CLI|rewrite|port)
+  - (?:the )?TypeScript (?:implementation|CLI)
+  - just recipe

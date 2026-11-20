@@ -1,0 +1,8 @@
+{
+  "name": "@foo/has-dep-from-same-scope",
+  "version": "1.0.0",
+  "dependencies": {
+    "@foo/no-deps": "^1.0.0",
+    "is-negative": "1.0.0"
+  }
+}

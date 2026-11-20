@@ -1,0 +1,318 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { isError } from '@pnpm/error'
+import { withFileLockRetry } from '@pnpm/fs.graceful-fs'
+import { globalWarn, logger } from '@pnpm/logger'
+import type { ResolvedFrom } from '@pnpm/store.controller-types'
+import { sanitizeInline } from '@pnpm/text.sanitize'
+import { rimrafSync } from '@zkochan/rimraf'
+import { makeEmptyDirSync } from 'make-empty-dir'
+import { fastPathTemp as pathTemp } from 'path-temp'
+
+import { copyInternalSymlink, type SymlinkDirs } from './copyInternalSymlink.js'
+import { makeFileMapDirs } from './dirUtils.js'
+import {
+  getUniqueFileMap,
+  moveOrMergeModulesDirs,
+  sanitizeFilenames,
+} from './fileMapUtils.js'
+import { overwriteDirSync } from './overwriteDir.js'
+import {
+  allFilesMatch,
+  allImportedEntriesMatchExactly,
+  allSymlinksMatch,
+  repairIndexedDir,
+} from './repairIndexedDir.js'
+
+const filenameConflictsLogger = logger('_filename-conflicts')
+
+const concurrentImportSettleSleep = new Int32Array(new SharedArrayBuffer(4))
+const CONCURRENT_IMPORT_SETTLE_ATTEMPTS = 5
+const CONCURRENT_IMPORT_SETTLE_DELAY_MS = 20
+
+export type ImportFile = (src: string, dest: string) => void
+
+export interface Importer {
+  importFile: ImportFile
+  // Used for writing package.json, which is the completion marker and must
+  // be written atomically.  For hard links and reflinks importFile is already
+  // atomic so callers pass the same function.  The copy path passes a
+  // temp-file + rename wrapper instead.
+  importFileAtomic: ImportFile
+}
+
+export interface ImportIndexedDirOptions {
+  symlinkTargets?: 'imported' | 'internal'
+  keepModulesDir?: boolean
+  /**
+   * Whether a target that already holds this package is equivalent to the
+   * import, which requires that the target path pin its contents.
+   */
+  safeToSkip?: boolean
+  resolvedFrom?: ResolvedFrom
+  /** Symlinks to create in the package, keyed by their path relative to it, with their targets. */
+  symlinks?: Map<string, string>
+}
+
+// What one call to importIndexedDir is importing, threaded to the helpers that
+// need all of it — including the retries, which re-enter with a rewritten map.
+export interface IndexedDirImport {
+  importer: Importer
+  newDir: string
+  filenames: Map<string, string>
+  opts: ImportIndexedDirOptions
+}
+
+export function importIndexedDir (
+  importer: Importer,
+  newDir: string,
+  filenames: Map<string, string>,
+  opts: ImportIndexedDirOptions
+): void {
+  const dirImport: IndexedDirImport = { importer, newDir, filenames, opts }
+  if (opts.safeToSkip && opts.resolvedFrom !== 'local-dir') {
+    importIntoSharedDir(dirImport)
+    return
+  }
+  if (!opts.keepModulesDir && tryExclusiveImport(importer, newDir, filenames, {
+    links: symlinkDirs(opts, filenames, { writtenDir: newDir, finalDir: newDir }),
+    symlinks: opts.symlinks,
+  })) {
+    return
+  }
+  importWithStaging(dirImport)
+}
+
+function importWithStaging (dirImport: IndexedDirImport): void {
+  const { importer, newDir, filenames, opts } = dirImport
+  const stage = pathTemp(newDir)
+  try {
+    makeEmptyDirSync(stage, { recursive: true })
+    tryImportIndexedDir(
+      { importFile: importer.importFile, importFileAtomic: importer.importFile },
+      stage,
+      filenames,
+      {
+        links: symlinkDirs(opts, filenames, { writtenDir: stage, finalDir: newDir }),
+        symlinks: opts.symlinks,
+      }
+    )
+    if (opts.keepModulesDir) {
+      moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
+    }
+  } catch (err: unknown) {
+    cleanStageDir(stage)
+    if (retryWithFixedFileMap(err, dirImport)) return
+    throw err
+  }
+  commitStagedDir(stage, dirImport)
+}
+
+// A rename that fails because a concurrent import of the same package already
+// completed the target is a success: the target holds exactly this import, and
+// a preserved `node_modules/` moved into the stage goes back where it was.
+function commitStagedDir (stage: string, { newDir, filenames, opts }: IndexedDirImport): void {
+  const keepModulesDir = opts.keepModulesDir === true
+  const entries = { dir: newDir, filenames, symlinks: opts.symlinks, keepModulesDir }
+  try {
+    let attempt = 0
+    withFileLockRetry(() => {
+      if (attempt++ > 0 && allImportedEntriesMatchExactly(entries)) {
+        acceptExistingImport(stage, newDir, keepModulesDir)
+        return
+      }
+      overwriteDirSync(stage, newDir)
+    })
+  } catch (renameErr: unknown) {
+    if (destinationHoldsThisImport(entries)) {
+      acceptExistingImport(stage, newDir, keepModulesDir)
+      return
+    }
+    cleanStageDir(stage)
+    throw renameErr
+  }
+}
+
+function acceptExistingImport (stage: string, newDir: string, keepModulesDir: boolean): void {
+  if (keepModulesDir) {
+    moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
+  }
+  cleanStageDir(stage)
+}
+
+// A concurrent import that is mid-swap leaves the destination absent or
+// incomplete for a moment. Give it that moment before concluding that the
+// destination is not this package.
+function destinationHoldsThisImport (entries: Parameters<typeof allImportedEntriesMatchExactly>[0]): boolean {
+  for (let attempt = 1; ; attempt++) {
+    if (allImportedEntriesMatchExactly(entries)) return true
+    if (attempt === CONCURRENT_IMPORT_SETTLE_ATTEMPTS) return false
+    Atomics.wait(concurrentImportSettleSleep, 0, 0, CONCURRENT_IMPORT_SETTLE_DELAY_MS)
+  }
+}
+
+function cleanStageDir (stage: string): void {
+  try {
+    rimrafSync(stage)
+  } catch {}
+}
+
+function tryExclusiveMkdir (newDir: string): boolean {
+  fs.mkdirSync(path.dirname(newDir), { recursive: true })
+  try {
+    fs.mkdirSync(newDir)
+    return true
+  } catch (err) {
+    if (isError(err) && 'code' in err && err.code === 'EEXIST') return false
+    throw err
+  }
+}
+
+function tryDirectSharedImport (dirImport: IndexedDirImport): boolean {
+  const { importer, newDir, filenames, opts } = dirImport
+  if (!tryExclusiveMkdir(newDir)) return false
+  try {
+    tryImportIndexedDir(importer, newDir, filenames, { symlinks: opts.symlinks })
+    return true
+  } catch (err: unknown) {
+    return retryWithFixedFileMap(err, dirImport)
+  }
+}
+
+function importIntoSharedDir (dirImport: IndexedDirImport): void {
+  if (tryDirectSharedImport(dirImport)) return
+  const { newDir, filenames, opts } = dirImport
+  if (allFilesMatch(newDir, filenames) && allSymlinksMatch(newDir, opts.symlinks)) return
+  try {
+    repairIndexedDir(dirImport)
+  } catch (err: unknown) {
+    if (retryWithFixedFileMap(err, dirImport)) return
+    throw err
+  }
+}
+
+function retryWithFixedFileMap (err: unknown, dirImport: IndexedDirImport): boolean {
+  const { importer, newDir, filenames, opts } = dirImport
+  if (!isError(err) || !('code' in err)) return false
+  if (err.code === 'EEXIST') {
+    const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
+    if (conflictingFileNames.size === 0) return false
+    filenameConflictsLogger.debug({
+      conflicts: Object.fromEntries(conflictingFileNames),
+      writingTo: newDir,
+    })
+    globalWarn(
+      `Not all files were linked to "${path.relative(process.cwd(), newDir)}". ` +
+      'Some of the files have equal names in different case, ' +
+      'which is an issue on case-insensitive filesystems. ' +
+      `The conflicting file names are: ${JSON.stringify(Object.fromEntries(conflictingFileNames))}`
+    )
+    importIndexedDir(importer, newDir, uniqueFileMap, opts)
+    return true
+  }
+  if (err.code === 'ENOENT') {
+    return retryWithSanitizedFilenames(dirImport)
+  }
+  return false
+}
+
+function tryExclusiveImport (
+  importer: Importer,
+  newDir: string,
+  filenames: Map<string, string>,
+  entries: ImportedEntries
+): boolean {
+  if (!tryExclusiveMkdir(newDir)) return false
+  const createdStat = safeLstat(newDir)
+  try {
+    tryImportIndexedDir(importer, newDir, filenames, entries)
+    return true
+  } catch {
+    if (sameCreatedDirectory(newDir, createdStat)) {
+      try {
+        rimrafSync(newDir)
+      } catch {}
+    }
+    return false
+  }
+}
+
+function safeLstat (dir: string): fs.BigIntStats | undefined {
+  try {
+    return fs.lstatSync(dir, { bigint: true })
+  } catch {
+    return undefined
+  }
+}
+
+function sameCreatedDirectory (dir: string, createdStat: fs.BigIntStats | undefined): boolean {
+  if (createdStat == null) return false
+  const currentStat = safeLstat(dir)
+  if (currentStat == null || !currentStat.isDirectory()) return false
+  return currentStat.dev === createdStat.dev &&
+    currentStat.ino === createdStat.ino &&
+    currentStat.birthtimeNs === createdStat.birthtimeNs &&
+    !fs.existsSync(path.join(dir, 'package.json'))
+}
+
+function retryWithSanitizedFilenames ({ importer, newDir, filenames, opts }: IndexedDirImport): boolean {
+  const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
+  if (invalidFilenames.length === 0) return false
+  globalWarn(`\
+The package linked to "${sanitizeInline(path.relative(process.cwd(), newDir))}" had \
+files with invalid names: ${invalidFilenames.map((filename) => sanitizeInline(filename)).join(', ')}. \
+They were renamed.`)
+  importIndexedDir(importer, newDir, sanitizedFilenames, opts)
+  return true
+}
+
+interface ImportedEntries {
+  links?: SymlinkDirs
+  symlinks?: Map<string, string>
+}
+
+function tryImportIndexedDir (
+  { importFile, importFileAtomic }: Importer,
+  newDir: string,
+  filenames: Map<string, string>,
+  { links, symlinks }: ImportedEntries = {}
+): void {
+  makeFileMapDirs(newDir, filenames)
+  let packageJsonSrc: string | undefined
+  for (const [relativePath, src] of filenames) {
+    if (relativePath === 'package.json') {
+      packageJsonSrc = src
+      continue
+    }
+    importEntry(importFile, src, path.join(newDir, relativePath), links)
+  }
+  for (const [relativePath, target] of symlinks ?? []) {
+    const dest = path.join(newDir, relativePath)
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.symlinkSync(target, dest)
+  }
+  if (packageJsonSrc !== undefined) {
+    importEntry(importFileAtomic, packageJsonSrc, path.join(newDir, 'package.json'), links)
+  }
+}
+
+function symlinkDirs (
+  opts: ImportIndexedDirOptions,
+  filenames: Map<string, string>,
+  dirs: Pick<SymlinkDirs, 'writtenDir' | 'finalDir'>
+): SymlinkDirs | undefined {
+  if (opts.resolvedFrom !== 'local-dir') return undefined
+  const imported = new Set<string>([''])
+  for (const relativePath of filenames.keys()) {
+    for (let entry = relativePath; entry !== '' && !imported.has(entry); entry = path.posix.dirname(entry).replace(/^\.$/, '')) {
+      imported.add(entry)
+    }
+  }
+  return { ...dirs, imported, symlinkTargets: opts.symlinkTargets }
+}
+
+function importEntry (importFile: ImportFile, src: string, dest: string, links?: SymlinkDirs): void {
+  if (links != null && fs.lstatSync(src).isSymbolicLink() && copyInternalSymlink(src, dest, links)) return
+  importFile(src, dest)
+}

@@ -1,0 +1,8 @@
+{
+  "name": "create-touch-file-one-bin",
+  "version": "1.0.0",
+  "bin": "cli.js",
+  "dependencies": {
+    "@pnpm.e2e/independent-and-requires-build": "1.0.0"
+  }
+}

@@ -1,0 +1,224 @@
+#[cfg(test)]
+mod tests;
+
+use super::{
+    Config,
+    HoistedLinkerError,
+    NodeLinker,
+    Path,
+    PathBuf,
+    SymlinkDirectDependenciesError,
+    SymlinkPackageError,
+};
+use std::collections::HashSet;
+
+pub(super) fn link_selected_hoisted_direct_dependencies(
+    config: &Config,
+    lockfile_dir: &Path,
+    project_manifests: &[(PathBuf, &pnpm_package_manifest::PackageManifest)],
+    direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
+    initial_sources: &crate::HoistedBinSources,
+    claimed_commands: &mut crate::ClaimedCommands,
+) -> Result<HashSet<PathBuf>, HoistedLinkerError> {
+    let modules_dirs = crate::ImporterModulesDirs::from_config(config, lockfile_dir);
+    let root_modules_dir = modules_dirs.root().to_path_buf();
+    let link_options = crate::shim_link_options(config, NodeLinker::Hoisted);
+    let mut changed_dirs = HashSet::new();
+    for (project_dir, _) in project_manifests {
+        // The workspace root owns the hoisted slot itself, so its own
+        // entries are the real directories rather than links to them.
+        let is_workspace_root =
+            pnpm_fs::lexical_normalize(project_dir) == pnpm_fs::lexical_normalize(lockfile_dir);
+        let scope = HoistedLinkScope {
+            importer_id: pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir),
+            root_modules_dir: &root_modules_dir,
+            modules_dir: modules_dirs.of(project_dir),
+            is_workspace_root,
+        };
+        let (changed, linked_commands) = scope.link_direct_dependencies_claiming(
+            direct_dependencies_by_importer_id,
+            &link_options,
+            initial_sources.get(&scope.modules_dir).map(AsRef::as_ref),
+        )?;
+        if let Some(commands) = linked_commands {
+            claimed_commands.claim(&scope.modules_dir, commands);
+        }
+        if changed {
+            changed_dirs.insert(scope.modules_dir);
+        }
+    }
+    Ok(changed_dirs)
+}
+
+/// One importer's share of the hoisted direct-dependency linking.
+struct HoistedLinkScope<'a> {
+    importer_id: String,
+    /// The workspace root's modules directory, where the hoister put
+    /// the dependency copy every project reaches by walking up.
+    root_modules_dir: &'a Path,
+    modules_dir: PathBuf,
+    is_workspace_root: bool,
+}
+
+/// The outcome of linking one direct dependency. Under
+/// [`DirectLink::RootShadowRemoved`] the alias resolves by walking up out of
+/// the project, so its bins are not this importer's to link.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DirectLink {
+    /// The project's own `node_modules` already resolved the alias.
+    Unchanged,
+    /// A new symlink resolves the alias inside the project.
+    Created,
+    /// The copy that shadowed the workspace root's is gone.
+    RootShadowRemoved,
+}
+
+impl HoistedLinkScope<'_> {
+    #[cfg(test)]
+    fn link_direct_dependencies(
+        &self,
+        direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
+        link_options: &pnpm_cmd_shim::LinkBinsOptions,
+        initial_sources: Option<&[pnpm_cmd_shim::PackageBinSource]>,
+    ) -> Result<bool, HoistedLinkerError> {
+        self.link_direct_dependencies_claiming(
+            direct_dependencies_by_importer_id,
+            link_options,
+            initial_sources,
+        )
+        .map(|(changed, _)| changed)
+    }
+
+    fn link_direct_dependencies_claiming(
+        &self,
+        direct_dependencies_by_importer_id: &crate::DirectDependenciesByImporterId,
+        link_options: &pnpm_cmd_shim::LinkBinsOptions,
+        initial_sources: Option<&[pnpm_cmd_shim::PackageBinSource]>,
+    ) -> Result<(bool, Option<HashSet<String>>), HoistedLinkerError> {
+        let Some(direct_dependencies) = direct_dependencies_by_importer_id.get(&self.importer_id)
+        else {
+            return Ok((false, None));
+        };
+        let mut linked_names = Vec::new();
+        let mut changed = false;
+        for (alias, target) in direct_dependencies {
+            match self.link_one(alias, target)? {
+                DirectLink::Unchanged => linked_names.push(alias.clone()),
+                DirectLink::Created => {
+                    changed = true;
+                    linked_names.push(alias.clone());
+                }
+                DirectLink::RootShadowRemoved => changed = true,
+            }
+        }
+        if !changed && self.already_linked(&linked_names, initial_sources) {
+            return Ok((false, None));
+        }
+        crate::link_bins_dir(
+            &self.modules_dir,
+            crate::BinCandidates::Aliases(&linked_names),
+            crate::BinsDirPass::new(link_options).with_targets(crate::BinTargets::MayBeBuilt),
+        )
+        .map_err(|source| {
+            HoistedLinkerError::SymlinkDirectDependencies(SymlinkDirectDependenciesError::LinkBins(
+                source,
+            ))
+        })
+        .map(|outcome| (changed, Some(outcome.linked_commands)))
+    }
+
+    // Both passes precede lifecycle execution and use identical hoisted shim options.
+    // Candidate order matters when equally ranked packages expose the same command.
+    fn already_linked(
+        &self,
+        linked_names: &[String],
+        initial_sources: Option<&[pnpm_cmd_shim::PackageBinSource]>,
+    ) -> bool {
+        initial_sources.is_some_and(|sources| {
+            sources.len() == linked_names.len()
+                && sources
+                    .iter()
+                    .zip(linked_names)
+                    .all(|(source, alias)| source.location == self.modules_dir.join(alias))
+        })
+    }
+
+    fn link_one(&self, alias: &str, target: &Path) -> Result<DirectLink, HoistedLinkerError> {
+        let link_path =
+            crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias)
+                .map_err(|source| {
+                    self.symlink_failure(alias, SymlinkPackageError::InvalidAlias(source))
+                })?;
+        // A dependency that won the workspace-root slot is reached by
+        // walking up from the project, exactly as it is under pnpm.
+        // Repeating it inside the project would give a build a second
+        // copy to run lifecycle scripts in. Checked after `link_path` so
+        // an unusable alias still reports itself.
+        if !self.is_workspace_root
+            && pnpm_fs::lexical_normalize(target)
+                == pnpm_fs::lexical_normalize(&self.root_modules_dir.join(alias))
+        {
+            self.remove_root_shadow(alias, target, &link_path)?;
+            return Ok(DirectLink::RootShadowRemoved);
+        }
+        if pnpm_fs::lexical_normalize(&link_path) == pnpm_fs::lexical_normalize(target) {
+            return Ok(DirectLink::Unchanged);
+        }
+        crate::symlink_package(target, &link_path)
+            .map_err(|source| self.symlink_failure(alias, source))?;
+        Ok(DirectLink::Created)
+    }
+
+    /// An install that predates the walk-up rule, or one where the
+    /// version had lost the root slot, leaves a link shadowing the root
+    /// copy, the duplicate the rule exists to avoid. A real directory
+    /// is the pruner's to remove, and only ever belongs to a version
+    /// that lost the slot.
+    fn remove_root_shadow(
+        &self,
+        alias: &str,
+        target: &Path,
+        link_path: &Path,
+    ) -> Result<(), HoistedLinkerError> {
+        // `is_symlink_or_junction`, not `Path::is_symlink`, so a failed
+        // `lstat` surfaces instead of reading as "no link".
+        let stale_link = match pnpm_fs::is_symlink_or_junction(link_path) {
+            Ok(is_link) => is_link,
+            // Nothing to clean up, the common case.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => return Err(self.symlink_dir_failure(alias, target, link_path, error)),
+        };
+        if !stale_link {
+            return Ok(());
+        }
+        pnpm_fs::remove_symlink_dir(link_path)
+            .map_err(|error| self.symlink_dir_failure(alias, target, link_path, error))
+    }
+
+    fn symlink_failure(&self, alias: &str, source: SymlinkPackageError) -> HoistedLinkerError {
+        HoistedLinkerError::SymlinkDirectDependencies(
+            SymlinkDirectDependenciesError::SymlinkPackage {
+                importer_id: self.importer_id.clone(),
+                name: alias.to_owned(),
+                source,
+            },
+        )
+    }
+
+    fn symlink_dir_failure(
+        &self,
+        alias: &str,
+        target: &Path,
+        link_path: &Path,
+        error: std::io::Error,
+    ) -> HoistedLinkerError {
+        self.symlink_failure(
+            alias,
+            SymlinkPackageError::SymlinkDir {
+                symlink_target: target.to_path_buf(),
+                symlink_path: link_path.to_path_buf(),
+                error,
+            },
+        )
+    }
+}

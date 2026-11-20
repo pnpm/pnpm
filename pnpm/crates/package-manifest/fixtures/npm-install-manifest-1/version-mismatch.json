@@ -1,0 +1,28 @@
+{
+  "description": "A version that differs beyond cleaning places the package in the wrong slot (npm/feedback#797).",
+  "archive": {
+    "packageJson": {
+      "name": "widgets",
+      "version": "v2.14.2-1.HEAD"
+    },
+    "files": [
+      "package.json"
+    ]
+  },
+  "submitted": {
+    "name": "widgets",
+    "version": "2.14.0"
+  },
+  "expected": {
+    "manifest": {
+      "name": "widgets",
+      "version": "2.14.2-1.HEAD",
+      "hasInstallScript": false,
+      "hasShrinkwrap": false
+    },
+    "mismatched": [
+      "version"
+    ],
+    "tolerated": []
+  }
+}

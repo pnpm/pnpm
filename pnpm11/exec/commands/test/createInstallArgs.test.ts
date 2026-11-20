@@ -1,0 +1,16 @@
+import { describe, expect, test } from '@jest/globals'
+
+import { createInstallArgs } from '../src/runDepsStatusCheck.js'
+
+describe('createInstallArgs', () => {
+  test.each([
+    [{ production: true, optional: true }, ['--prod']],
+    [{ production: true, optional: false }, ['--prod', '--no-optional']],
+    [{ dev: true, optional: true }, ['--dev']],
+    [{ dev: true, optional: false }, ['--dev', '--no-optional']],
+    [{ production: true, dev: true, optional: true }, []],
+    [{ production: true, dev: true, optional: false }, ['--no-optional']],
+  ])('%o -> %o', (opts, expected) => {
+    expect(createInstallArgs(opts)).toStrictEqual(expected)
+  })
+})

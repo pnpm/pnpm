@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/complex-circular-peers-c",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "@pnpm.e2e/complex-circular-peers-a": "*",
+    "@pnpm.e2e/complex-circular-peers-b": "*"
+  }
+}

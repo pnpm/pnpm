@@ -1,0 +1,99 @@
+name: Cargo Equivalence
+
+# Resolves a corpus of Cargo workspaces with both `cargo` and pnpm, against
+# the live crates.io index, and compares what each one locked. pnpm v12
+# resolves Cargo dependencies itself, so it is a second implementation of
+# cargo's resolver and has to produce the versions cargo produces. Runs on a
+# daily cron rather than per-PR: it reads the live index, so an upstream yank
+# or release can change a result without anything in this repo changing. A
+# red run is investigated, not treated as a merge blocker.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-equivalence:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
+    name: Cargo Equivalence
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Bound the blast radius: a hung resolve can't pin a runner indefinitely.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install crates
+        uses: $/.github/actions/install-crates
+
+      - name: Build pnpm and the harness
+        run: cargo build --release --bin pnpm --bin cargo-equivalence
+
+      - name: Compare pnpm's Cargo resolution against cargo's
+        run: |
+          ./target/release/cargo-equivalence \
+            --pnpm "$PWD/target/release/pnpm" \
+            --work-dir "$RUNNER_TEMP/cargo-equivalence-work"
+
+      - name: Upload the lockfiles that differed
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cargo-equivalence-lockfiles
+          path: ${{ runner.temp }}/cargo-equivalence-work/**/Cargo.lock
+          retention-days: 7
+          if-no-files-found: ignore
+
+  packlist-equivalence:
+    if: github.repository == 'pnpm/pnpm' # Only run on the main repository, not forks
+    name: Packlist Equivalence
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install pnpm
+        uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
+        with:
+          install: false
+
+      - name: Install Node.js via pnpm
+        run: pnpm runtime set node 22 --global
+
+      - name: Install just and cargo-nextest
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: just,cargo-nextest
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          just install
+
+      - name: Compare pnpm-fs-packlist against npm-packlist, @pnpm/fs.packlist, and npm pack --dry-run --json
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          PROPTEST_CASES=512 pnpm test:rust -p pnpm-fs-packlist --lib parity

@@ -1,0 +1,458 @@
+{
+  "description": "Shared pin-decision settings list and matrix cases for pnpm v11 (TypeScript) and pnpm v12 (Rust). Covered by pnpm/tasks#222.",
+  "PIN_DECISION_SETTINGS": [
+    "ci",
+    "color",
+    "frozenLockfile",
+    "globalDir",
+    "lockfile",
+    "lockfileDir",
+    "loglevel",
+    "packages",
+    "pmOnFail",
+    "reporter",
+    "runtimeOnFail"
+  ],
+  "cases": [
+    {
+      "id": "pm-global-yaml-readable-command-switch",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "global-config-yaml",
+      "readability": "readable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "command",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "pm-global-yaml-unreadable-command-switch",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "global-config-yaml",
+      "readability": "unreadable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "command",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "pm-global-yaml-unreadable-version-switch",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "global-config-yaml",
+      "readability": "unreadable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "pm-global-yaml-unreadable-unknown-flag-switch",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "global-config-yaml",
+      "readability": "unreadable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "unknown-flag",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "pm-global-yaml-readable-self-update-record",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "global-config-yaml",
+      "readability": "readable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "record", "at": "." }
+    },
+    {
+      "id": "pm-global-yaml-unreadable-self-update-error",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "global-config-yaml",
+      "readability": "unreadable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "devengines-workspace-yaml-readable-command-switch",
+      "pinSource": "devEngines",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "pmOnFail": "download" },
+      "entryPoint": "command",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "devengines-workspace-yaml-unreadable-command-switch",
+      "pinSource": "devEngines",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "download" },
+      "entryPoint": "command",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "devengines-workspace-yaml-unreadable-version-switch",
+      "pinSource": "devEngines",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "download" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "devengines-workspace-yaml-unreadable-unknown-flag-switch",
+      "pinSource": "devEngines",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "download" },
+      "entryPoint": "unknown-flag",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "devengines-workspace-yaml-readable-self-update-record",
+      "pinSource": "devEngines",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "record", "at": "shared-lockfile" }
+    },
+    {
+      "id": "devengines-workspace-yaml-unreadable-self-update-error",
+      "pinSource": "devEngines",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "workspace-package-yaml-cli-config-readable-command-switch",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "9.1.0",
+      "settingLocation": "cli-config",
+      "readability": "readable",
+      "settings": { "pmOnFail": "download" },
+      "entryPoint": "command",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "workspace-package-yaml-cli-config-unreadable-version-switch",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "9.1.0",
+      "settingLocation": "cli-config",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "download" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "workspace-package-yaml-cli-config-unreadable-unknown-flag-switch",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "9.1.0",
+      "settingLocation": "cli-config",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "download" },
+      "entryPoint": "unknown-flag",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "workspace-package-yaml-cli-config-readable-self-update-record",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "9.1.0",
+      "settingLocation": "cli-config",
+      "readability": "readable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "record", "at": "shared-lockfile" }
+    },
+    {
+      "id": "nested-project-npmrc-readable-command-switch",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "npmrc",
+      "readability": "readable",
+      "settings": { "pmOnFail": "ignore", "lockfileDir": "ignored-npmrc-dir" },
+      "entryPoint": "command",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "nested-project-npmrc-unreadable-command-switch",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "npmrc",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "command",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "nested-project-npmrc-unreadable-version-switch",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "npmrc",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "nested-project-npmrc-unreadable-unknown-flag-switch",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "npmrc",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "unknown-flag",
+      "expected": { "outcome": "switch", "version": "9.1.0" }
+    },
+    {
+      "id": "nested-project-npmrc-readable-self-update-record",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "npmrc",
+      "readability": "readable",
+      "settings": { "pmOnFail": "ignore", "lockfileDir": "ignored-npmrc-dir" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "record", "at": "." }
+    },
+    {
+      "id": "nested-project-npmrc-unreadable-self-update-error",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "npmrc",
+      "readability": "unreadable",
+      "settings": {},
+      "entryPoint": "self-update",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "pm-ignore-workspace-yaml-readable-command-nothing",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "command",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "pm-ignore-workspace-yaml-unreadable-command-error",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "command",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "pm-ignore-workspace-yaml-unreadable-version-nothing",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "pm-ignore-workspace-yaml-unreadable-unknown-flag-error",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "unknown-flag",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "pm-ignore-workspace-yaml-readable-self-update-nothing",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "pm-ignore-cli-config-readable-version-nothing",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "cli-config",
+      "readability": "readable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "pm-ignore-cli-config-readable-self-update-nothing",
+      "pinSource": "nested-project",
+      "pinVersion": "9.1.0",
+      "settingLocation": "cli-config",
+      "readability": "readable",
+      "settings": { "pmOnFail": "ignore" },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "pm-error-workspace-yaml-unreadable-version-error",
+      "pinSource": "packageManager",
+      "pinVersion": "9.1.0",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "pmOnFail": "error" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "pm-error-cli-config-readable-command-error",
+      "pinSource": "devEngines",
+      "pinVersion": "9.1.0",
+      "settingLocation": "cli-config",
+      "readability": "readable",
+      "settings": { "pmOnFail": "error" },
+      "entryPoint": "command",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "matching-pin-workspace-yaml-readable-command-record",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "running",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "command",
+      "expected": { "outcome": "record", "at": "shared-lockfile" }
+    },
+    {
+      "id": "matching-pin-workspace-yaml-unreadable-command-error",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "running",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "command",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "matching-pin-workspace-yaml-readable-version-record",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "running",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "record", "at": "shared-lockfile" }
+    },
+    {
+      "id": "matching-pin-workspace-yaml-unreadable-version-nothing",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "running",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "unreadable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "matching-pin-workspace-yaml-readable-unknown-flag-error",
+      "pinSource": "workspace-package-yaml",
+      "pinVersion": "running",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "lockfileDir": "shared-lockfile" },
+      "entryPoint": "unknown-flag",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "matching-pin-cli-config-readable-command-record",
+      "pinSource": "nested-project",
+      "pinVersion": "running",
+      "settingLocation": "cli-config",
+      "readability": "readable",
+      "settings": { "lockfileDir": "cli-lockfile" },
+      "entryPoint": "command",
+      "expected": { "outcome": "record", "at": "packages/app/cli-lockfile" }
+    },
+    {
+      "id": "matching-pin-global-yaml-readable-command-record",
+      "pinSource": "devEngines",
+      "pinVersion": "running",
+      "settingLocation": "global-config-yaml",
+      "readability": "readable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "command",
+      "expected": { "outcome": "record", "at": "." }
+    },
+    {
+      "id": "matching-pin-global-yaml-unreadable-command-error",
+      "pinSource": "devEngines",
+      "pinVersion": "running",
+      "settingLocation": "global-config-yaml",
+      "readability": "unreadable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "command",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "matching-pin-global-yaml-unreadable-version-nothing",
+      "pinSource": "devEngines",
+      "pinVersion": "running",
+      "settingLocation": "global-config-yaml",
+      "readability": "unreadable",
+      "settings": { "globalDir": "custom-global" },
+      "entryPoint": "--version",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "matching-pin-npmrc-unreadable-command-error",
+      "pinSource": "devEngines",
+      "pinVersion": "running",
+      "settingLocation": "npmrc",
+      "readability": "unreadable",
+      "settings": {},
+      "entryPoint": "command",
+      "expected": { "outcome": "error" }
+    },
+    {
+      "id": "matching-pin-npmrc-unreadable-version-nothing",
+      "pinSource": "devEngines",
+      "pinVersion": "running",
+      "settingLocation": "npmrc",
+      "readability": "unreadable",
+      "settings": {},
+      "entryPoint": "--version",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "matching-pin-no-lockfile-workspace-yaml-command-nothing",
+      "pinSource": "devEngines",
+      "pinVersion": "running",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "lockfile": false },
+      "entryPoint": "command",
+      "expected": { "outcome": "nothing" }
+    },
+    {
+      "id": "matching-pin-no-lockfile-workspace-yaml-self-update-nothing",
+      "pinSource": "devEngines",
+      "pinVersion": "running",
+      "settingLocation": "pnpm-workspace-yaml",
+      "readability": "readable",
+      "settings": { "lockfile": false },
+      "entryPoint": "self-update",
+      "expected": { "outcome": "nothing" }
+    }
+  ]
+}

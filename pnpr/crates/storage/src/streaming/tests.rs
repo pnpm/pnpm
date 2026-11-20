@@ -1,0 +1,331 @@
+use super::{
+    BlobStreamError,
+    download_computing_sha512,
+    integrity_checker,
+    parse_integrity,
+    stream_verified_to_cache,
+};
+use crate::Storage;
+use futures_util::StreamExt;
+use pnpr_config::HostedStoreConfig;
+use pnpr_package_name::CanonicalPackageName;
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityOpts,
+};
+use std::{
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
+use tempfile::TempDir;
+use tokio::{
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
+    net::TcpListener,
+    sync::Notify,
+};
+
+#[test]
+fn accepts_integrity_with_supported_hash() {
+    assert!(parse_integrity("sha512-ZGVhZGJlZWY=").is_ok());
+}
+
+#[test]
+fn rejects_integrity_without_hashes() {
+    for value in ["", " \t\n "] {
+        let err = parse_integrity(value).unwrap_err();
+        assert!(err.to_string().contains("no supported hashes"));
+    }
+
+    let zero_hash = Integrity { hashes: Vec::new() };
+    assert!(integrity_checker(&zero_hash).is_err());
+}
+
+#[test]
+fn rejects_malformed_or_unsupported_integrity() {
+    for value in ["not-a-valid-sri", "md5-deadbeef"] {
+        assert!(parse_integrity(value).is_err());
+    }
+}
+
+fn sha512_integrity(bytes: &[u8]) -> String {
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    opts.input(bytes);
+    opts.result().to_string()
+}
+
+async fn spawn_stalled_response() -> (String, Arc<Notify>, tokio::task::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let release = Arc::new(Notify::new());
+    let release_for_server = Arc::clone(&release);
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        let _ = socket.read(&mut request).await;
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\n\
+                  Content-Length: 1048576\r\n\
+                  Content-Type: application/octet-stream\r\n\
+                  Connection: close\r\n\
+                  \r\n",
+            )
+            .await
+            .unwrap();
+        socket
+            .write_all(&vec![0xAA; 64 * 1024])
+            .await
+            .unwrap();
+        socket.flush().await.unwrap();
+        release_for_server.notified().await;
+    });
+    (format!("http://{addr}/foo/-/foo-1.0.0.tgz"), release, server)
+}
+
+async fn spawn_response(bytes: &'static [u8]) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        let _ = socket.read(&mut request).await;
+        let headers = format!(
+            "HTTP/1.1 200 OK\r\n\
+             Content-Length: {}\r\n\
+             Content-Type: application/octet-stream\r\n\
+             Connection: close\r\n\
+             \r\n",
+            bytes.len(),
+        );
+        socket.write_all(headers.as_bytes()).await.unwrap();
+        socket.write_all(bytes).await.unwrap();
+        socket.flush().await.unwrap();
+    });
+    format!("http://{addr}/foo/-/foo-1.0.0.tgz")
+}
+
+fn blob_tmp_entries(dir: &Path) -> Vec<String> {
+    let mut entries = dir
+        .read_dir()
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .filter_map(|entry| {
+                    let name = entry
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned();
+                    name.starts_with("1.0.0.tgz.tmp.").then_some(name)
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    entries.sort();
+    entries
+}
+
+/// Where `foo`'s blobs land in the `~public/test` cache namespace.
+fn cached_blobs_dir(cache: &Path) -> std::path::PathBuf {
+    cache
+        .join("~public/test")
+        .join(crate::layout::PACKAGES_DIR)
+        .join(std::path::PathBuf::from_iter(crate::layout::package_segments(
+            pnpr_package_name::Ecosystem::Npm,
+            "foo",
+        )))
+        .join(crate::layout::BLOBS_DIR)
+}
+
+async fn await_nonempty_blob_tmp(dir: &Path) -> Vec<String> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        let entries = blob_tmp_entries(dir);
+        if entries
+            .iter()
+            .any(|name| std::fs::metadata(dir.join(name)).is_ok_and(|metadata| metadata.len() > 0))
+        {
+            return entries;
+        }
+        assert!(std::time::Instant::now() < deadline, "blob body was not written to tmp");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+#[tokio::test]
+async fn cancelling_in_flight_response_body_removes_tmp_file() {
+    let expected_bytes = vec![0xAA; 1024 * 1024];
+    let integrity = parse_integrity(&sha512_integrity(&expected_bytes)).unwrap();
+    let (url, release, server) = spawn_stalled_response().await;
+    let response = throttled_response(url).await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let write =
+        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+
+    let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
+    let mut chunks = body.into_data_stream();
+    // Pull the first chunk so the tee writes the body's start to the tmp file.
+    chunks
+        .next()
+        .await
+        .expect("first chunk")
+        .expect("first chunk is ok");
+    let blobs_dir = cached_blobs_dir(&cache);
+    let in_flight = await_nonempty_blob_tmp(&blobs_dir).await;
+    assert_eq!(in_flight.len(), 1, "expected one in-flight blob writer");
+
+    // Dropping the body mid-stream models a client disconnect: the tee's
+    // `BlobWrite` is dropped and removes the tmp file.
+    drop(chunks);
+    assert!(blob_tmp_entries(&blobs_dir).is_empty());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
+
+    release.notify_one();
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn oversized_response_is_rejected_and_tmp_is_removed() {
+    let bytes = b"oversized";
+    let integrity = parse_integrity(&sha512_integrity(bytes)).unwrap();
+    let response = throttled_response(spawn_response(bytes).await).await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let write =
+        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+
+    // An upstream that declares an oversize body is rejected up front, before
+    // any bytes stream, so the caller turns it into an error response.
+    let err = stream_verified_to_cache(response, write, &integrity, 3).unwrap_err();
+    assert!(matches!(err, BlobStreamError::TooLarge { limit: 3, received } if received > 3));
+
+    // The temp file the rejected writer held is removed (its `Drop`).
+    let blobs_dir = cached_blobs_dir(&cache);
+    assert!(blob_tmp_entries(&blobs_dir).is_empty());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn download_returns_the_sha512_of_the_staged_bytes() {
+    let bytes = b"computed integrity";
+    let sha1 = {
+        let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
+        opts.input(bytes);
+        opts.result()
+    };
+    for expected in [None, Some(&sha1)] {
+        let response = throttled_response(spawn_response(bytes).await).await;
+        let tmp = TempDir::new().unwrap();
+        let cache = tmp.path().join("cache");
+        let storage = Storage::new(
+            &HostedStoreConfig::Fs,
+            tmp.path().join("hosted"),
+            cache.clone(),
+            &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+        )
+        .unwrap();
+        let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+        let write =
+            storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+
+        let (write, computed) =
+            download_computing_sha512(response, write, expected, u64::MAX).await.unwrap();
+        write.promote().await.unwrap();
+
+        assert_eq!(computed.to_string(), sha512_integrity(bytes), "expected: {expected:?}");
+        assert_eq!(
+            tokio::fs::read(cached_blobs_dir(&cache).join("1.0.0.tgz")).await.unwrap(),
+            bytes,
+        );
+    }
+}
+
+/// A sealed download is invisible to cache readers until it is promoted, and
+/// dropping it leaves nothing behind.
+#[tokio::test]
+async fn a_sealed_download_is_not_in_the_cache_until_promoted() {
+    let bytes = b"sealed";
+    let response = throttled_response(spawn_response(bytes).await).await;
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let write =
+        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+
+    let (sealed, _) = download_computing_sha512(response, write, None, u64::MAX)
+        .await
+        .unwrap();
+
+    let blobs_dir = cached_blobs_dir(&cache);
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
+    assert_eq!(blob_tmp_entries(&blobs_dir).len(), 1);
+    drop(sealed);
+    assert!(blob_tmp_entries(&blobs_dir).is_empty());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn download_stages_nothing_when_the_expected_integrity_mismatches() {
+    let bytes = b"tampered";
+    let expected = parse_integrity(&sha512_integrity(b"original")).unwrap();
+    let response = throttled_response(spawn_response(bytes).await).await;
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage = Storage::new(
+        &HostedStoreConfig::Fs,
+        tmp.path().join("hosted"),
+        cache.clone(),
+        &pnpr_config::DatabaseBackend::Sqlite(tmp.path().join("metadata.sqlite")),
+    )
+    .unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let write =
+        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+
+    let Err(err) = download_computing_sha512(response, write, Some(&expected), u64::MAX).await
+    else {
+        panic!("bytes that contradict the expected integrity must be rejected");
+    };
+
+    assert!(matches!(err, BlobStreamError::Integrity(_)));
+    let blobs_dir = cached_blobs_dir(&cache);
+    assert!(blob_tmp_entries(&blobs_dir).is_empty());
+    assert!(!blobs_dir.join("1.0.0.tgz").exists());
+}
+
+async fn throttled_response(url: String) -> pnpm_network::ThrottledResponse {
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let guard = client.acquire_for_url(&url).await;
+    let response = guard.get(url).send().await.unwrap();
+    guard.retain_for_body(response, Duration::from_secs(30))
+}

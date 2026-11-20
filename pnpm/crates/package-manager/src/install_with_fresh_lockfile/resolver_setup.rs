@@ -1,0 +1,559 @@
+//! Construction of the fresh-install resolver chain and the store-side
+//! handles it shares with the install pass.
+//!
+//! Everything here is in place before the first `resolve_workspace`
+//! call: the resolver chain and the later install pass must share one
+//! store index, writer, and verified-files cache, so the handles are
+//! opened here and lent to both.
+
+use super::InstallWithFreshLockfileError;
+#[cfg(feature = "runtime-provisioning")]
+mod runtime_resolvers;
+use crate::{
+    PrefetchContext,
+    PrefetchingResolver,
+};
+use pnpm_config::Config;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_config::Tool;
+#[cfg(feature = "runtime-provisioning")]
+use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_lockfile::DeclaredRegistryPrefixes;
+use pnpm_resolving_default_resolver::DefaultResolver;
+use pnpm_resolving_git_resolver::{
+    GitFetchContext,
+    GitResolver,
+    RealGitProbe,
+    RealGitRunner,
+};
+use pnpm_resolving_local_resolver::{
+    LocalPathResolver,
+    LocalResolverContext,
+    LocalSchemeResolver,
+};
+use pnpm_resolving_npm_resolver::{
+    InMemoryPackageMetaCache,
+    NamedRegistryResolver,
+    NpmResolver,
+    merge_named_registries,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
+};
+use pnpm_resolving_resolver_base::Resolver;
+use pnpm_resolving_tarball_resolver::{
+    TarballFetchContext,
+    TarballResolver,
+};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+};
+use pnpm_tarball::SharedReportedProgressKeys;
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
+
+/// The store index the resolver chain and the install pass share, plus
+/// the batched writer both feed rows into.
+pub(super) struct StoreIndexHandles {
+    pub index: Option<SharedReadonlyStoreIndex>,
+    pub writer: Arc<StoreIndexWriter>,
+    pub writer_task: tokio::task::JoinHandle<Result<(), pnpm_store_dir::StoreIndexError>>,
+    /// The read-only caches every fetching phase shares. The writer is
+    /// deliberately not among them: its drop is what closes the row
+    /// channel, so it has to be owned and released on its own.
+    pub caches: StoreCaches,
+}
+
+/// What keeps a tarball from being verified, its progress reported, or a
+/// git source checked out twice over one install.
+#[derive(Default)]
+pub(super) struct StoreCaches {
+    pub verified_files: SharedVerifiedFilesCache,
+    pub progress_reported: SharedReportedProgressKeys,
+    pub git_source_cache: Arc<pnpm_git_fetcher::GitSourceCache>,
+}
+
+impl StoreCaches {
+    /// The install's own progress keys, with the verified-files and
+    /// git-source caches of `shared` when it shares them.
+    pub(super) fn new(
+        progress_reported: Option<SharedReportedProgressKeys>,
+        shared: Option<&pnpm_deps_restorer::SharedFetchCaches>,
+    ) -> Self {
+        let shared = shared.cloned().unwrap_or_default();
+        Self {
+            verified_files: shared.verified_files,
+            progress_reported: progress_reported.unwrap_or_default(),
+            git_source_cache: shared.git_sources,
+        }
+    }
+}
+
+/// Open the read-only index and spawn the batched writer *before* the
+/// resolver chain is built: the [`TarballResolver`] (which fetches a
+/// remote tarball direct dep during resolution to learn its
+/// name/version/integrity) and the [`PrefetchingResolver`] both need
+/// them at construction time, so the store index / writer / verify cache
+/// they touch is the same one the install pass uses once resolution is
+/// done.
+///
+/// Under `frozenStore` the store is opened read-only and the writer is
+/// replaced with a drain-and-drop stub that never opens `index.db` (no
+/// WAL / SHM sidecar under the read-only root).
+pub(super) async fn open_store_index_handles(
+    config: &Config,
+    store_dir: &StoreDir,
+    caches: StoreCaches,
+) -> StoreIndexHandles {
+    let index = StoreIndex::open_shared(store_dir, config.frozen_store).await;
+    let (writer, writer_task) =
+        StoreIndexWriter::spawn_for(store_dir, config.frozen_store, config.store_index_format);
+    StoreIndexHandles { index, writer, writer_task, caches }
+}
+
+#[derive(Default)]
+pub(super) struct Registries {
+    /// Scope → registry URL, as `.npmrc` resolves them.
+    pub by_scope: HashMap<String, String>,
+    /// `pnpm-workspace.yaml#namedRegistries` folded together with
+    /// pacquet's built-in aliases, today `gh:` → GitHub Packages.
+    pub named: HashMap<String, String>,
+    /// See [`DeclaredRegistryPrefixes`].
+    pub declared: DeclaredRegistryPrefixes,
+    /// See [`pnpm_lockfile::RegistryContext::locked_registries`].
+    pub locked: Option<HashMap<String, String>>,
+}
+
+/// Resolve the registries every registry-touching resolver consults.
+///
+/// A malformed named-registry URL aborts the install with
+/// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL` rather than surfacing as a
+/// downstream 404.
+pub(super) fn resolve_registries(
+    config: &Config,
+    locked: Option<&std::collections::BTreeMap<String, String>>,
+) -> Result<Registries, InstallWithFreshLockfileError> {
+    let user_registries_by_prefix: HashMap<String, String> = config
+        .registries_by_prefix
+        .iter()
+        .map(|(name, url)| (name.clone(), url.clone()))
+        .collect();
+    Ok(Registries {
+        by_scope: config
+            .resolved_registries()
+            .into_iter()
+            .collect(),
+        named: merge_named_registries(&user_registries_by_prefix)
+            .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?,
+        declared: config.declared_registry_prefixes(),
+        locked: locked.map(|routes| {
+            routes
+                .iter()
+                .map(|(route, url)| (route.clone(), url.clone()))
+                .collect()
+        }),
+    })
+}
+
+/// Everything [`build_resolver_chain`] needs. Borrowed for the duration
+/// of the call: the wrapper clones each field into the owned form a
+/// spawned download task can capture, so the returned chain carries no
+/// lifetime.
+pub(super) struct ResolverChainInputs<'a> {
+    pub fetching: crate::install_with_fresh_lockfile::resolution_inputs::ResolverFetchContext<'a>,
+    pub hooks: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainHooks,
+    pub project: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainProject<'a>,
+    pub registry:
+        crate::install_with_fresh_lockfile::resolution_inputs::ResolverRegistryContext<'a>,
+    pub store: crate::install_with_fresh_lockfile::resolution_inputs::ResolverStoreContext<'a>,
+    pub config: &'a Config,
+}
+
+/// The assembled resolver chain plus the pieces later install phases
+/// still need: the npm resolver (the stale-convergence and fast-override
+/// passes re-query it), the caches the orchestrator drops before the
+/// install pass, and the pnpmfile handles.
+pub(super) struct ResolverChain {
+    pub resolver: Box<dyn Resolver>,
+    pub npm_resolver: Arc<dyn Resolver>,
+    pub fetch_locker: pnpm_resolving_npm_resolver::PackumentFetchLocker,
+    pub picked_manifest_cache: pnpm_resolving_npm_resolver::PickedManifestCache,
+    pub custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>>,
+    pub custom_fetcher_session: Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>,
+    pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+}
+
+/// Build the fresh-install resolver chain.
+///
+/// Chain order: custom resolvers → npm → jsr (folded into npm) → git →
+/// tarball → localScheme → node → deno → bun → namedRegistry →
+/// localPath. Custom resolvers join only when they implement both
+/// `canResolve` and `resolve`; the others are skipped. The local-resolver
+/// split is required by named-registry: a `<alias>:@scope/pkg` specifier
+/// carries an embedded `/`, which the path-shape detector
+/// (`contains_path_sep` in `parse_bare_specifier.rs`) would otherwise
+/// claim and prevent the named-registry resolver from running.
+///
+/// The chain is then wrapped twice: [`PrefetchingResolver`] so each
+/// tarball-shaped result fires a background download while the tree walk
+/// continues, and (for the pnpr server only) [`crate::ObservingResolver`]
+/// so each resolution is reported to the client as it lands.
+pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'static>(
+    mut inputs: ResolverChainInputs<'_>,
+) -> Result<ResolverChain, InstallWithFreshLockfileError> {
+    let caches = PackumentCaches::new();
+    let npm_resolver = inputs.npm_resolver(&caches);
+    let pnpmfile =
+        load_pnpmfile(inputs.config, inputs.project.root, inputs.hooks.pnpmfile.take()).await?;
+    let chain = inputs.chain(&npm_resolver, &pnpmfile.custom_resolvers, &caches);
+    // The install pass later calls `IngestTarballToStore::run_with_mem_cache`
+    // for the same archives and either picks up `CacheValue::Available`
+    // immediately or briefly blocks on the slot's `Notify`. See
+    // `prefetching_resolver.rs` for the full design rationale.
+    let resolver: Box<dyn Resolver> = Box::new(PrefetchingResolver::<Reporter>::new(
+        Box::new(DefaultResolver::new(chain)),
+        inputs.prefetch_context(pnpmfile.custom_fetcher_session.as_ref()),
+    ));
+    // Wrapped last so the observer sees each resolve as the prefetching
+    // wrapper leaves it, integrity included. A no-op for every local
+    // install (`resolution_observer` is `None`).
+    let resolver: Box<dyn Resolver> = match inputs.hooks.observer {
+        Some(observer) => Box::new(crate::ObservingResolver::new(resolver, observer)),
+        None => resolver,
+    };
+    Ok(ResolverChain {
+        resolver,
+        npm_resolver,
+        fetch_locker: caches.fetch_locker,
+        picked_manifest_cache: caches.picked_manifest_cache,
+        custom_resolvers: pnpmfile.custom_resolvers,
+        custom_fetcher_session: pnpmfile.custom_fetcher_session,
+        pnpmfile_hook: pnpmfile.hook,
+    })
+}
+
+/// What the npm and named-registry resolvers share.
+struct PackumentCaches {
+    // One per-cache-key packument fetch serializer shared between the
+    // npm and named-registry resolvers. Concurrent picks for the same
+    // `(registry, name)` coalesce into a single network fetch instead of
+    // firing N parallel HTTP GETs queued behind the `ThrottledClient`
+    // semaphore.
+    fetch_locker: pnpm_resolving_npm_resolver::PackumentFetchLocker,
+    // One per-`(name, version)` JSON manifest cache shared between the
+    // same two resolvers, so duplicate picks of the same package version
+    // reuse the already-serialised `Arc<Value>` instead of re-running
+    // `serde_json::to_value` for every occurrence of a shared dep.
+    picked_manifest_cache: pnpm_resolving_npm_resolver::PickedManifestCache,
+}
+
+impl PackumentCaches {
+    fn new() -> Self {
+        Self {
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+        }
+    }
+}
+
+impl ResolverChainInputs<'_> {
+    fn retry_opts(&self) -> pnpm_network::RetryOpts {
+        self.config.retry_opts()
+    }
+
+    fn npm_resolver(&self, caches: &PackumentCaches) -> Arc<dyn Resolver> {
+        Arc::new(NpmResolver {
+            registries: self.registry.named.clone(),
+            declared_prefixes: self.registry.declared.clone(),
+            metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+                http_client: Arc::clone(self.fetching.http_client),
+                auth_headers: Arc::clone(self.fetching.auth_headers),
+                meta_cache: Arc::clone(self.registry.cache),
+                fetch_locker: Arc::clone(&caches.fetch_locker),
+                picked_manifest_cache: Arc::clone(&caches.picked_manifest_cache),
+                cache_dir: Some(self.config.cache_dir.clone()),
+                retry_opts: self.retry_opts(),
+            },
+            format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+                // Abbreviated metadata at resolve time unless `time-based`
+                // resolution or the `no-downgrade` trust policy needs the
+                // per-version `time` field (and the registry doesn't serve it in
+                // abbreviated form). When `false`, [`pick_package`] still
+                // upgrades per-call where `published_by` / `optional` demand it.
+                full_metadata: self.registry.full_metadata,
+                needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
+                filter_metadata: self.config.requires_filtered_full_metadata(),
+                registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
+                minimum_release_age: self.config.resolved_minimum_release_age(),
+            },
+            cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+                network: self.config.network_policy(),
+                ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
+            },
+            store_view: self.store.index
+                .cloned()
+                .map(pnpm_resolving_npm_resolver::OfflineStoreView::new),
+        })
+    }
+
+    // A git dep's specifier names a repo, not a package, so its name
+    // (the `<name>@` half of every lockfile key it reaches) is only
+    // readable from the package's own `package.json`, in the host's
+    // archive or (for a repo with no archive endpoint) a checkout. Hand
+    // the resolver the handles to read it, on the same rationale as the
+    // remote-tarball fetch below.
+    fn git_resolver(&self) -> GitResolver<RealGitProbe, RealGitRunner> {
+        GitResolver::new(
+            Arc::new(RealGitProbe::new(Arc::clone(self.fetching.http_client))),
+            Arc::new(
+                RealGitRunner::new().with_connect_guard(self.fetching.auth_headers.connect_guard()),
+            ),
+        )
+        .with_fetch_context(GitFetchContext {
+            source_cache: Arc::clone(self.fetching.git_sources),
+            http_client: Arc::clone(self.fetching.http_client),
+            store_dir: std::borrow::Cow::Owned(self.store.dir.clone()),
+            store_index_writer: Some(Arc::clone(self.store.index_writer)),
+            auth_headers: Arc::clone(self.fetching.auth_headers),
+            retry_opts: self.retry_opts(),
+            tar_limits: pnpm_tarball::TarLimits::new(self.config.max_tarball_unpacked_size),
+            git_shallow_hosts: self.config.git_shallow_hosts.clone(),
+        })
+    }
+
+    // A remote (non-registry) tarball *direct* dependency carries no
+    // name/version/integrity at resolve time; they live in the
+    // tarball's `package.json`. The resolver downloads + extracts it here
+    // (warming `tarball_mem_cache` under the hash it settles) so the
+    // lockfile builder gets the manifest + integrity and the install pass
+    // reuses the extraction without a second download. Wired in both the
+    // materializing and `--lockfile-only` paths: the lockfile needs the
+    // integrity regardless of whether `node_modules` is built.
+    fn tarball_resolver(&self) -> TarballResolver {
+        TarballResolver {
+            http_client: Arc::clone(self.fetching.http_client),
+            fetch_context: Some(TarballFetchContext {
+                mem_cache: Some(Arc::clone(self.fetching.tarballs)),
+                auth_headers: Arc::clone(self.fetching.auth_headers),
+                retry_opts: self.retry_opts(),
+                tar_limits: pnpm_tarball::TarLimits::new(self.config.max_tarball_unpacked_size),
+                prior_tarball_entries: Arc::new(prior_tarball_entries(
+                    self.project.lockfile,
+                    self.config.lockfile_integrity_target,
+                )),
+                cache_dir: Some(self.config.cache_dir.clone()),
+                integrity_target: self.config.lockfile_integrity_target,
+                store: pnpm_tarball::ArchiveStoreContext {
+                    strict_pkg_content_check: false,
+                    prefetched_cas_paths: None,
+                    dir: std::borrow::Cow::Owned(self.store.dir.clone()),
+                    index_writer: Some(Arc::clone(self.store.index_writer)),
+                    index: self.store.index.cloned(),
+                    verify_integrity: self.config.verify_store_integrity,
+                    verified_files_cache: Arc::clone(self.store.verified_files_cache),
+                },
+            }),
+        }
+    }
+
+    #[cfg(feature = "runtime-provisioning")]
+    fn node_resolver(&self) -> NodeResolver {
+        let mut node_resolver = NodeResolver::new_with_auth(
+            Arc::clone(self.fetching.http_client),
+            Arc::clone(self.fetching.auth_headers),
+        );
+        node_resolver.node_download_mirrors.clone_from(&self.config.node_download_mirrors);
+        node_resolver.mirror = self.config.tool_mirror(Tool::Node).map(ToString::to_string);
+        node_resolver.channel_mirrors = self.config.tool_channel_mirrors(Tool::Node);
+        node_resolver.offline = self.config.offline;
+        node_resolver.cache_dir = Some(self.config.cache_dir.clone());
+        node_resolver
+    }
+
+    fn named_registry_resolver(
+        &self,
+        caches: &PackumentCaches,
+    ) -> NamedRegistryResolver<InMemoryPackageMetaCache> {
+        NamedRegistryResolver {
+            registries_by_prefix: self.registry.by_prefix.clone(),
+            registry_names: self.registry.by_prefix
+                .keys()
+                .cloned()
+                .collect(),
+            registries: self.registry.named.clone(),
+            declared_prefixes: self.registry.declared.clone(),
+            metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
+                http_client: Arc::clone(self.fetching.http_client),
+                auth_headers: Arc::clone(self.fetching.auth_headers),
+                meta_cache: Arc::clone(self.registry.cache),
+                fetch_locker: Arc::clone(&caches.fetch_locker),
+                picked_manifest_cache: Arc::clone(&caches.picked_manifest_cache),
+                cache_dir: Some(self.config.cache_dir.clone()),
+                retry_opts: self.retry_opts(),
+            },
+            format: pnpm_resolving_npm_resolver::RegistryMetadataFormat {
+                // Same rationale as `NpmResolver.full_metadata` above.
+                full_metadata: self.registry.full_metadata,
+                needs_full_metadata_for: Some(Arc::clone(&self.registry.needs_full_metadata)),
+                filter_metadata: self.config.requires_filtered_full_metadata(),
+                registry_options_by_url: Arc::new(self.config.registry_options_by_url.clone()),
+                minimum_release_age: self.config.resolved_minimum_release_age(),
+            },
+            cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
+                network: self.config.network_policy(),
+                ignore_missing_time_field: self.config.minimum_release_age_ignore_missing_time,
+            },
+            store_view: self.store.index
+                .cloned()
+                .map(pnpm_resolving_npm_resolver::OfflineStoreView::new),
+        }
+    }
+
+    fn chain(
+        &self,
+        npm_resolver: &Arc<dyn Resolver>,
+        custom_resolvers: &[Arc<dyn pnpm_hooks::CustomResolver>],
+        caches: &PackumentCaches,
+    ) -> Vec<Box<dyn Resolver>> {
+        let mut chain: Vec<Box<dyn Resolver>> = Vec::with_capacity(custom_resolvers.len() + 10);
+        chain.extend(
+            custom_resolvers
+                .iter()
+                .filter(|custom| custom.has_can_resolve())
+                .filter(|custom| custom.has_resolve())
+                .map(|custom| {
+                    Box::new(pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
+                        Arc::clone(custom),
+                    )) as Box<dyn Resolver>
+                }),
+        );
+        // Pacquet doesn't expose `preserveAbsolutePaths` yet, so absolute
+        // `file:` / `link:` specs resolve as though it were off.
+        let local_ctx = LocalResolverContext {
+            preserve_absolute_paths: false,
+            integrity_target: self.config.lockfile_integrity_target,
+            filesystem_policy: self.project.local_filesystem_policy,
+        };
+        chain.extend([
+            Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,
+            Box::new(self.git_resolver()),
+            Box::new(self.tarball_resolver()),
+            Box::new(LocalSchemeResolver::new(local_ctx)),
+        ]);
+        #[cfg(feature = "runtime-provisioning")]
+        chain.extend(runtime_resolvers::runtime_resolvers(self, npm_resolver));
+        #[cfg(not(feature = "runtime-provisioning"))]
+        chain.push(Box::new(pnpm_resolving_default_resolver::UnavailableToolResolver));
+        chain.push(Box::new(self.named_registry_resolver(caches)) as Box<dyn Resolver>);
+        match self.project.local_filesystem_policy {
+            pnpm_resolving_local_resolver::LocalFilesystemPolicy::HostFilesystem(_) => {
+                chain.push(Box::new(LocalPathResolver::new(local_ctx)) as Box<dyn Resolver>);
+            }
+            pnpm_resolving_local_resolver::LocalFilesystemPolicy::WorkspaceOnly => {}
+        }
+        chain
+    }
+
+    fn prefetch_context<'p>(
+        &'p self,
+        custom_fetcher_session: Option<&'p Arc<pnpm_deps_restorer::CustomFetcherSession>>,
+    ) -> PrefetchContext<'p> {
+        PrefetchContext {
+            http_client: self.fetching.http_client,
+            mem_cache: self.fetching.tarballs,
+            config: self.config,
+            requester: self.project.requester,
+            supported_architectures: self.project.supported_architectures,
+            progress_reported: self.fetching.progress_reported,
+            store: crate::PrefetchStoreRefs {
+                index: self.store.index,
+                index_writer: Some(self.store.index_writer),
+                verified_files_cache: self.store.verified_files_cache,
+            },
+            policy: crate::PrefetchPolicy {
+                downloads: self.fetching.prefetch && custom_fetcher_session.is_none(),
+                custom_session: custom_fetcher_session,
+                tracked: self.fetching.tracked,
+            },
+        }
+    }
+}
+
+/// The pnpmfile the resolve runs, with its custom resolvers and fetchers.
+struct PnpmfileLoad {
+    hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>>,
+    // Loaded alongside the custom resolvers (same worker, same fatality
+    // rule) and consumed by `CreateVirtualStore`, a custom resolver
+    // typically writes the custom-typed resolutions its sibling fetcher
+    // materializes.
+    custom_fetcher_session: Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>,
+}
+
+/// The override when an embedder supplied one, else the on-disk pnpmfiles
+/// unless `ignorePnpmfile` is set. A hook that fails to hand over its
+/// custom resolvers or fetchers fails the install.
+async fn load_pnpmfile(
+    config: &Config,
+    lockfile_dir: &Path,
+    hook_override: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+) -> Result<PnpmfileLoad, InstallWithFreshLockfileError> {
+    let hook = match hook_override {
+        Some(hook) => Some(hook),
+        None if config.ignore_pnpmfile => None,
+        None => crate::load_install_pnpmfiles(config, lockfile_dir)
+            .map_err(InstallWithFreshLockfileError::MissingPnpmfile)?,
+    };
+    let Some(hook) = hook else {
+        return Ok(PnpmfileLoad {
+            hook: None,
+            custom_resolvers: vec![],
+            custom_fetcher_session: None,
+        });
+    };
+    let custom_resolvers = hook
+        .get_custom_resolvers()
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                target: "pacquet::install",
+                "Failed to get custom resolvers from pnpmfile: {err}",
+            );
+            InstallWithFreshLockfileError::CustomResolverHook(err)
+        })?;
+    let fetchers = hook
+        .get_custom_fetchers()
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                target: "pacquet::install",
+                "Failed to get custom fetchers from pnpmfile: {err}",
+            );
+            InstallWithFreshLockfileError::CustomFetcherHook(err)
+        })?;
+    let custom_fetcher_session = custom_fetcher_session(fetchers, config)?;
+    Ok(PnpmfileLoad { hook: Some(hook), custom_resolvers, custom_fetcher_session })
+}
+
+fn custom_fetcher_session(
+    fetchers: Vec<Arc<dyn pnpm_hooks::CustomFetcher>>,
+    config: &Config,
+) -> Result<Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>, InstallWithFreshLockfileError> {
+    if fetchers.is_empty() {
+        return Ok(None);
+    }
+    pnpm_deps_restorer::CustomFetcherSession::with_config(fetchers, config)
+        .map(Arc::new)
+        .map(Some)
+        .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
+}
+
+mod prior_tarballs;
+
+use prior_tarballs::prior_tarball_entries;

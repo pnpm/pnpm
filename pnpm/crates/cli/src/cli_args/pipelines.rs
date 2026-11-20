@@ -1,0 +1,452 @@
+pub(crate) use configuration::{
+    apply_install_cli_config,
+    derive_config_root,
+    record_no_runtime_flag,
+    warn_about_config_root,
+};
+pub(in crate::cli_args) use dedicated_runs::run_dedicated_lockfile_workspace_install;
+pub(crate) use fetch::run_fetch;
+pub(crate) use install::{
+    InstallPipeline,
+    ensure_project_manifest,
+};
+pub(crate) use maintenance::{
+    DedupePipeline,
+    PrunePipeline,
+};
+pub(crate) use mutation::{
+    AddPipeline,
+    DeployPipeline,
+    RemovePipeline,
+    UpdatePipeline,
+};
+pub(crate) use selection::{
+    WorkspaceScope,
+    select_workspace_projects,
+};
+
+use selection::{
+    InstallFamily,
+    select_install_family,
+    select_install_family_plan,
+};
+
+use super::{
+    add::AddArgs,
+    dedupe::{
+        self,
+        DedupeArgs,
+    },
+    deploy::DeployArgs,
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
+    package_manager::read_manifest_json,
+    prune::PruneArgs,
+    recursive::{
+        discover_workspace_projects,
+        filtered_projects_dependencies,
+    },
+    remove::RemoveArgs,
+    update::UpdateArgs,
+    update_changeset::UpdateChangesetContext,
+};
+use crate::{
+    State,
+    cli_args::{
+        config_warnings::{
+            warn_unapplied_package_configs,
+            warn_unmatched_registry_options,
+        },
+        legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
+        override_version_references::warn_deprecated_override_version_references,
+        reporter::{
+            ReporterType,
+            reporter_emit,
+        },
+    },
+    config_deps,
+    ecosystem_add,
+    ecosystem_install,
+    package_specifier::EcosystemPackageSpecifier,
+    state::check_root_project_engine,
+};
+use indexmap::IndexMap;
+
+use install::init_shared_state;
+
+use miette::Context;
+
+use pnpm_config::{
+    Config,
+    Host,
+};
+use pnpm_injected_deps_syncer::{
+    CopyFiles,
+    injected_source_dirs,
+    sync_injected_deps_of_modules_dir,
+};
+use pnpm_network::ThrottledClient;
+use pnpm_package_manager::{
+    PathNode,
+    graph_sequencer,
+};
+use pnpm_reporter::Reporter;
+use std::{
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::Arc,
+};
+
+pub(crate) struct InstallFamilySelection {
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) projects: Vec<pnpm_workspace::Project>,
+    pub(crate) project_dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
+    pub(crate) ordered_dirs: Vec<PathBuf>,
+    pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
+    pub(crate) install_dirs: Arc<HashSet<PathBuf>>,
+    pub(crate) active_manifest_is_standin: bool,
+    /// `Some` when the plan already ran the install's cycle search over
+    /// the same graph the install would rebuild (the unnarrowed case);
+    /// empty means the projects are orderable. `None`, the install
+    /// searches itself.
+    pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
+}
+
+impl InstallFamilySelection {
+    pub(crate) fn selected_projects(&mut self) -> pnpm_package_manager::SelectedProjects<'_> {
+        pnpm_package_manager::SelectedProjects {
+            projects: &mut self.projects,
+            project_dependencies: &self.project_dependencies,
+            ordered_dirs: &self.ordered_dirs,
+            selected_dirs: self.selected_dirs.as_ref(),
+            install_dirs: self.install_dirs.as_ref(),
+            active_manifest_is_standin: self.active_manifest_is_standin,
+        }
+    }
+}
+
+/// How a recursive / filtered install-family command should be dispatched,
+/// resolved from the config and the workspace selection.
+pub(crate) enum InstallFamilyPlan {
+    /// Not recursive (`!cfg.recursive`): run against the active project only.
+    /// The pipelines keep their own non-recursive handling (the dedicated
+    /// per-project anchor for `add` / `update` / `remove`, and the
+    /// dedicated-lockfile workspace install for `install`).
+    Single,
+    /// Recursive / filtered over a shared workspace lockfile: one mutation
+    /// pass writes every selected importer into the shared `pnpm-lock.yaml`.
+    Shared(Box<InstallFamilySelection>),
+    /// Recursive / filtered with one lockfile per project
+    /// (`sharedWorkspaceLockfile: false`): the selected project directories,
+    /// each installed independently against its own `pnpm-lock.yaml`,
+    /// `node_modules`, and virtual store. Dependency-ready projects run under
+    /// the workspace-concurrency limit.
+    PerProject(Box<DedicatedProjects>),
+}
+
+#[derive(Clone, Copy)]
+enum RuntimePolicy {
+    Config(bool),
+}
+
+async fn prepare_root_config<Reporter>(
+    (manifest_path, config, config_root): (&Path, &mut Config, &Path),
+    (frozen_lockfile, runtime_policy): (bool, RuntimePolicy),
+) -> miette::Result<()>
+where
+    Reporter: self::Reporter,
+{
+    if matches!(runtime_policy, RuntimePolicy::Config(true)) {
+        configuration::record_no_runtime_flag(config);
+    }
+    let may_update_config = config_deps::may_update_config(config, config_root);
+    let has_config_dependencies = config.config_dependencies
+        .as_ref()
+        .is_some_and(|dependencies| !dependencies.is_empty());
+    if !may_update_config && !has_config_dependencies && config.engine_strict {
+        check_root_project_engine(manifest_path, config, Reporter::emit)?;
+    }
+    config_deps::prepare::<Reporter>(config, config_root, frozen_lockfile).await?;
+    check_root_project_engine(manifest_path, config, Reporter::emit)?;
+    Ok(())
+}
+
+/// The projects of a `sharedWorkspaceLockfile: false` workspace that a
+/// recursive / filtered command installs one by one.
+pub(crate) struct DedicatedProjects {
+    /// Which project must finish before which, keyed by project dir.
+    pub(crate) dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
+    /// The name each project is addressed by in `packageConfigs`, taken
+    /// from the manifests the selection already parsed. Empty when the
+    /// setting is unset, which is the only thing the names feed.
+    names: HashMap<PathBuf, String>,
+    /// Whether the selection is every workspace project, so that the run
+    /// leaves no project's lockfile behind its manifest.
+    covers_workspace: bool,
+    /// The sources whose injected copies are synced once every project ran
+    /// its lifecycle scripts, taken from the manifests read before they ran.
+    injected_source_dirs: HashSet<PathBuf>,
+    /// The projects a pipelined run may start ahead of the workspace
+    /// projects they depend on. See [`pipelined_runs::early_starts`].
+    early_starts: HashSet<PathBuf>,
+    /// Every workspace project, as the command discovered them.
+    pub(crate) workspace: pnpm_package_manager::DiscoveredWorkspace,
+}
+
+impl DedicatedProjects {
+    fn new(config: &Config, selection: InstallFamilySelection) -> Self {
+        let names = project_names(config, &selection.projects);
+        let normalized_root = pnpm_fs::lexical_normalize(&selection.workspace_root);
+        let root_is_project =
+            pnpm_package_manifest::project_manifest_path(&normalized_root).is_file();
+        let covers_workspace = selection.projects
+            .iter()
+            .all(|project| selection.selected_dirs.contains(&project.root_dir))
+            && (!root_is_project
+                || selection.selected_dirs
+                    .iter()
+                    .any(|dir| pnpm_fs::lexical_normalize(dir) == normalized_root));
+        let injected_source_dirs = injected_source_dirs(
+            selection.projects
+                .iter()
+                .filter(|project| selection.project_dependencies.contains_key(&project.root_dir))
+                .map(|project| (project.root_dir.as_path(), Some(project.manifest.value()))),
+        );
+        let early_starts = pipelined_runs::early_starts(config, &selection.projects);
+        DedicatedProjects {
+            dependencies: selection.project_dependencies,
+            names,
+            covers_workspace,
+            injected_source_dirs,
+            early_starts,
+            workspace: pnpm_package_manager::DiscoveredWorkspace::new(selection.projects),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dependencies.is_empty()
+    }
+}
+
+/// The declared `"name"` of a workspace project, when it is a string.
+pub(crate) fn project_manifest_name(project: &pnpm_workspace::Project) -> Option<&str> {
+    project.manifest
+        .value()
+        .get("name")?
+        .as_str()
+}
+
+/// The declared name of every project that declares one, keyed by its
+/// directory. Empty when `packageConfigs` is unset: addressing a project
+/// by name is the only thing the map feeds.
+pub(crate) fn project_names(
+    config: &Config,
+    projects: &[pnpm_workspace::Project],
+) -> HashMap<PathBuf, String> {
+    if config.package_configs.is_none() {
+        return HashMap::new();
+    }
+    projects
+        .iter()
+        .filter_map(|project| {
+            let name = project_manifest_name(project)?;
+            Some((project.root_dir.clone(), name.to_string()))
+        })
+        .collect()
+}
+
+/// The name `packageConfigs` addresses the project at `project_dir` by,
+/// for a caller with no parsed manifest in hand. `None` when the setting
+/// is unset: the name would have nothing to look up.
+fn dedicated_project_name(config: &Config, project_dir: &Path) -> Option<String> {
+    config.package_configs.as_ref()?;
+    pnpm_workspace::read_project_name(project_dir)
+}
+
+struct DedicatedProjectRuns<'a> {
+    config: &'a Config,
+    projects: DedicatedProjects,
+    require_lockfile: bool,
+    http_client: Option<Arc<ThrottledClient>>,
+    /// Whether the command may write the workspace manifest, so that the
+    /// exclude-list prune each project's install skipped runs once all of
+    /// them succeeded and they cover the workspace. See
+    /// [`prune_after_dedicated_installs`].
+    prune_excludes: bool,
+    /// Whether the command installs the projects' dependencies, so that
+    /// their injected copies are synced once all of them ran. See
+    /// [`sync_dedicated_injected_deps`].
+    sync_injected_deps: bool,
+    /// Whether the projects run pipelined: each resolves and materializes
+    /// without waiting for the workspace projects it depends on, and waits
+    /// for them only before it links its dependencies and runs its scripts.
+    /// Only an install, which changes no manifest, runs pipelined, so its
+    /// projects also read [`DedicatedProjects::workspace`] instead
+    /// of walking the workspace each.
+    pipelined: bool,
+}
+
+/// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass
+/// of a `sharedWorkspaceLockfile: false` workspace. Each project's install
+/// skips it because its own lockfile cannot prove what a sibling resolves,
+/// so it runs once here, after a run that installed every project. A
+/// filtered run skips it: an unselected project's lockfile may lag behind
+/// its manifest.
+fn prune_after_dedicated_installs(config: &Config) -> miette::Result<()> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(());
+    };
+    pnpm_package_manager::prune_against_project_lockfiles(config, workspace_dir)
+        .wrap_err("prune the workspace manifest")
+}
+
+/// With a shared lockfile, an injected workspace project is synced into its
+/// copies after its own lifecycle scripts run. With a lockfile per project,
+/// every project is installed on its own, so the copies that `project_dirs`
+/// hold of each other are synced once all of them ran their scripts.
+fn sync_dedicated_injected_deps(
+    config: &Config,
+    project_dirs: &[PathBuf],
+    sync: &DedicatedSync<'_>,
+) -> miette::Result<()> {
+    if config.ignore_scripts || config.virtual_store_only {
+        return Ok(());
+    }
+    for project_dir in project_dirs {
+        let modules_dir = config.project_modules_dir(
+            project_dir,
+            sync.names.get(project_dir).map(String::as_str),
+        );
+        sync_injected_deps_of_modules_dir(
+            project_dir,
+            &modules_dir,
+            sync.source_dirs,
+            CopyFiles::from_deploy_all_files(config.deploy_all_files),
+        )?;
+    }
+    Ok(())
+}
+
+/// What [`sync_dedicated_injected_deps`] needs to know about the projects
+/// beyond their directories.
+struct DedicatedSync<'a> {
+    /// See [`DedicatedProjects::names`].
+    names: &'a HashMap<PathBuf, String>,
+    /// See [`injected_source_dirs`].
+    source_dirs: &'a HashSet<PathBuf>,
+}
+
+/// The selection in build order. Sequenced over borrowed paths: cloning a
+/// workspace-scale edge map just to sort it cost more than the sort.
+fn sequence_project_dependencies(
+    project_dependencies: &IndexMap<PathBuf, Vec<PathBuf>>,
+) -> Vec<PathBuf> {
+    graph_sequencer(
+        &project_dependencies
+            .iter()
+            .map(|(key, value)| {
+                (
+                    PathNode(key.as_path()),
+                    value
+                        .iter()
+                        .map(|dir| PathNode(dir))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect(),
+        &project_dependencies
+            .keys()
+            .map(|dir| PathNode(dir))
+            .collect::<Vec<_>>(),
+    )
+    .order
+    .into_iter()
+    .map(|node| node.0.to_path_buf())
+    .collect()
+}
+
+/// The edges the sequencer orders the selection by. Without `--sort`
+/// there are none, and the projects run in directory order.
+fn project_dependencies(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    recursive_sort: bool,
+) -> IndexMap<PathBuf, Vec<PathBuf>> {
+    if recursive_sort {
+        return filtered_projects_dependencies(
+            &selection.selected,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        );
+    }
+    let mut dirs = selection.selected
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    dirs.sort();
+    dirs.into_iter()
+        .map(|dir| (dir, Vec::new()))
+        .collect()
+}
+
+pub(in crate::cli_args) fn anchor_active_project(cfg: &mut Config, manifest_path: &Path) {
+    let manifest_dir = manifest_path
+        .parent()
+        .expect("manifest path always has a parent dir")
+        .to_path_buf();
+    let name = dedicated_project_name(cfg, &manifest_dir);
+    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
+}
+
+/// The config through which a command finds the installed packages of the
+/// active project. In a workspace whose projects keep their own lockfiles,
+/// those are in the active project's modules directory, not the workspace
+/// root's.
+pub(in crate::cli_args) fn installed_project_config(
+    config: &'static Config,
+    manifest_path: &Path,
+) -> &'static Config {
+    if !keeps_project_lockfiles(config) {
+        return config;
+    }
+    let mut config = config.clone();
+    anchor_active_project(&mut config, manifest_path);
+    Config::leak(config)
+}
+
+pub(in crate::cli_args) fn keeps_project_lockfiles(config: &Config) -> bool {
+    !config.shares_one_lockfile() && config.workspace_dir.is_some()
+}
+
+fn precomputed_workspace_cycles(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    cfg: &Config,
+    precompute_workspace_cycles: bool,
+) -> Option<Vec<Vec<PathBuf>>> {
+    (precompute_workspace_cycles && selection.all.is_none() && !cfg.ignore_workspace_cycles).then(
+        || pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default(),
+    )
+}
+
+mod ci_validation;
+mod dedicated_runs;
+mod fetch;
+mod install;
+mod nested_workspace_manifests;
+mod pipelined_runs;
+mod selection;
+
+mod mutation;
+
+mod maintenance;
+
+mod configuration;

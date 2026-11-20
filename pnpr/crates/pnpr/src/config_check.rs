@@ -1,0 +1,263 @@
+use pnpr_config::{
+    BackendConfig,
+    Config,
+    ConfigSource,
+    FeatureOverrides,
+    HostedStoreConfig,
+    MaxUsers,
+    normalize_key_prefix,
+};
+use pnpr_package_name::Ecosystem;
+use pnpr_registry::{
+    Registries,
+    Registry,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+
+#[derive(Debug)]
+pub struct RegistrySummary {
+    pub name: String,
+    pub kind: String,
+    pub details: String,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SurfaceSummary {
+    pub registry: bool,
+    pub resolver: bool,
+    pub artifacts: bool,
+}
+
+#[derive(Debug)]
+pub struct ConfigCheckReport {
+    pub source_description: String,
+    pub registries: Vec<RegistrySummary>,
+    /// The default registry of each ecosystem that has one, as `(ecosystem, registry)`.
+    pub default_registries: Vec<(Ecosystem, String)>,
+    pub storage_backend: String,
+    pub hosted_dir: PathBuf,
+    pub cache_dir: PathBuf,
+    pub auth_summary: String,
+    pub surfaces: SurfaceSummary,
+}
+
+pub fn check_resolved_config(
+    config: &mut Config,
+    source: &ConfigSource,
+) -> pnpr_error::Result<ConfigCheckReport> {
+    crate::config_validation::validate_startup_config(config)?;
+    let source_description = match source {
+        ConfigSource::Cli(cli_path) => format!("--config {}", cli_path.display()),
+        ConfigSource::DefaultPath(default_path) => {
+            format!("default path {}", default_path.display())
+        }
+        ConfigSource::Bundled => "bundled default".to_string(),
+    };
+
+    Ok(build_report(config, source_description))
+}
+
+/// [`check_resolved_config`] that first reads and validates the registries
+/// the database stores.
+pub async fn check_config_and_stored_registries(
+    config: &mut Config,
+    source: &ConfigSource,
+) -> pnpr_error::Result<ConfigCheckReport> {
+    *config = crate::server::with_stored_routing(
+        config,
+        crate::server::Credentials::Skip,
+        crate::server::FileReferences::Refuse,
+    )
+    .await?;
+    check_resolved_config(config, source)
+}
+
+pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckReport> {
+    if let Some(path) = config_path.filter(|item| !item.exists()) {
+        let display_path = path.display();
+        return Err(miette::miette!("config file '{display_path}' does not exist"));
+    }
+
+    let overrides = FeatureOverrides::default();
+    let auto_path = Config::auto_config_path();
+    let (mut config, source) =
+        Config::resolve_with_overrides(config_path, auto_path.as_deref(), None, None, overrides)
+            .map_err(|err| miette::miette!("{err}"))?;
+
+    check_resolved_config(&mut config, &source)
+        .map_err(|error| {
+            let message = error.log_message();
+            miette::miette!("{message}")
+        })
+}
+
+fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {
+    let (kind, details) = match config.routing.registries.get(name) {
+        Some(Registry::Hosted { patterns }) => {
+            let pat_count = patterns.len();
+            let namespace = config.routing.hosted
+                .get(name)
+                .map(|hosted_entry| format!("namespace: {:?}", hosted_entry.namespace))
+                .unwrap_or_default();
+            ("hosted".to_string(), format!("{pat_count} patterns, {namespace}"))
+        }
+        Some(Registry::Upstream { patterns }) => {
+            let url = config.routing.upstreams
+                .get(name)
+                .map(|upstream| sanitize_diagnostic_url(upstream.url.as_str()))
+                .unwrap_or_else(|| "unknown".to_string());
+            ("upstream".to_string(), format!("url: {url}, {} patterns", patterns.len()))
+        }
+        Some(Registry::Router { sources }) => {
+            ("router".to_string(), format!("sources: [{}]", sources.join(", ")))
+        }
+        None => ("unknown".to_string(), String::new()),
+    };
+    RegistrySummary { name: name.to_string(), kind, details }
+}
+
+fn sanitize_diagnostic_url(raw: &str) -> String {
+    let Ok(mut parsed) = url::Url::parse(raw) else {
+        return "<unparsable URL>".to_string();
+    };
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+    parsed.set_fragment(None);
+    if parsed.query().is_some() {
+        redact_sensitive_query(&mut parsed);
+    }
+    parsed.to_string()
+}
+
+fn redact_sensitive_query(parsed: &mut url::Url) {
+    let pairs: Vec<_> = parsed
+        .query_pairs()
+        .map(|(k, v)| {
+            if is_sensitive_param(&k) {
+                (k.into_owned(), "REDACTED".to_string())
+            } else {
+                (k.into_owned(), v.into_owned())
+            }
+        })
+        .collect();
+    parsed
+        .query_pairs_mut()
+        .clear()
+        .extend_pairs(pairs);
+}
+
+fn is_sensitive_param(key: &str) -> bool {
+    let lower = key.to_ascii_lowercase();
+    lower.contains("token")
+        || lower.contains("secret")
+        || lower.contains("key")
+        || lower.contains("auth")
+        || lower.contains("pass")
+        || lower.contains("sig")
+        || lower == "user"
+}
+
+fn describe_storage_backend(config: &Config) -> String {
+    match &config.storage.hosted_backend {
+        HostedStoreConfig::Fs => {
+            let display_path = config.storage.hosted_dir.display();
+            format!("local filesystem ({display_path})")
+        }
+        HostedStoreConfig::S3(settings) => match settings.normalized_prefix().as_str() {
+            "" => format!("S3 (bucket: {})", settings.bucket),
+            prefix => {
+                format!("S3 (bucket: {}, prefix: {})", settings.bucket, prefix.escape_debug())
+            }
+        },
+        HostedStoreConfig::ObjectStore { prefix, .. } => {
+            match normalize_key_prefix(Some(prefix)).as_str() {
+                "" => "custom object store".to_string(),
+                prefix => format!("custom object store (prefix: {})", prefix.escape_debug()),
+            }
+        }
+    }
+}
+
+fn build_report(config: &Config, source_description: String) -> ConfigCheckReport {
+    let registries = config.routing.registries
+        .names()
+        .map(|name| summarize_registry(config, name))
+        .collect();
+
+    let default_registries = Ecosystem::all()
+        .filter_map(|ecosystem| {
+            let key = config.routing.registries.default_for(ecosystem)?;
+            Some((ecosystem, Registries::local_name(key).to_string()))
+        })
+        .collect();
+
+    ConfigCheckReport {
+        source_description,
+        registries,
+        default_registries,
+        storage_backend: describe_storage_backend(config),
+        hosted_dir: config.storage.hosted_dir.clone(),
+        cache_dir: config.storage.cache_dir.clone(),
+        auth_summary: format_auth_summary(config),
+        surfaces: SurfaceSummary {
+            registry: config.features.registry.enabled,
+            resolver: config.features.resolver.enabled,
+            artifacts: config.features.artifacts.enabled,
+        },
+    }
+}
+
+fn format_auth_summary(config: &Config) -> String {
+    let ht = &config.identity.auth.users;
+    let max = match ht.max_users {
+        MaxUsers::Unlimited => "unlimited".to_string(),
+        MaxUsers::Limited(n) => format!("max {n}"),
+        MaxUsers::Disabled => "disabled".to_string(),
+    };
+    let (backend, location) = match &config.identity.backend {
+        BackendConfig::Sqlite(path) => ("sqlite", path.display().to_string()),
+        BackendConfig::Libsql(settings) => {
+            let url = sanitize_diagnostic_url(&settings.url);
+            let location = match &settings.replica_path {
+                Some(replica) => format!("{url}, replica: {}", replica.display()),
+                None => url,
+            };
+            ("libsql", location)
+        }
+        BackendConfig::Postgres(settings) => ("postgres", sanitize_diagnostic_url(&settings.url)),
+        BackendConfig::Mysql(settings) => ("mysql", sanitize_diagnostic_url(&settings.url)),
+    };
+    format!("{backend} ({location}, registration: {max})")
+}
+
+#[must_use]
+pub fn format_report(report: &ConfigCheckReport) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    out.push_str("Configuration check: OK\n");
+    let _ = writeln!(out, "  Source: {}", report.source_description);
+    let _ = writeln!(out, "  Registries ({}):", report.registries.len());
+    for reg in &report.registries {
+        let _ = writeln!(out, "    - {} ({}, {})", reg.name, reg.kind, reg.details);
+    }
+    if !report.default_registries.is_empty() {
+        let defaults: Vec<String> = report.default_registries
+            .iter()
+            .map(|(ecosystem, registry)| format!("{ecosystem}={registry}"))
+            .collect();
+        let _ = writeln!(out, "  Default registries: {}", defaults.join(", "));
+    }
+    let _ = writeln!(out, "  Storage: {}", report.storage_backend);
+    let display_cache = report.cache_dir.display();
+    let _ = writeln!(out, "  Cache: {display_cache}");
+    let _ = writeln!(out, "  Auth: {}", report.auth_summary);
+    let _ = writeln!(
+        out,
+        "  Surfaces: registry={}, resolver={}, artifacts={}",
+        report.surfaces.registry, report.surfaces.resolver, report.surfaces.artifacts,
+    );
+    out
+}

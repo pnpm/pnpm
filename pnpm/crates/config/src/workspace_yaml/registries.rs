@@ -1,0 +1,484 @@
+//! The `registries` setting: one entry per registry, keyed by its URL.
+//!
+//! Every fact in an entry is a fact about that server (how it lays out
+//! tarball URLs, and which routes reach it) so a registry is declared once
+//! and each fact is stated in one place. [`RegistryLookups`] is the inverse of
+//! the routes, because a scope resolves to exactly one registry while a
+//! registry serves many.
+
+pub use pnpm_resolving_resolver_base::{
+    Ecosystem,
+    RegistryDeclaration,
+    RegistryPrefixes,
+};
+
+pub use python::{
+    EcosystemIndex,
+    PythonRegistryRoute,
+};
+
+pub use ecosystems::{
+    serves_another_ecosystem,
+    take_roles_from_earlier_layers,
+};
+
+pub use env_placeholders::{
+    refuse_env_placeholder_entries,
+    retain_without_env_placeholders,
+};
+
+use super::LoadWorkspaceYamlError;
+use crate::workspace_yaml::{
+    redact_registry_url,
+    registry_url_has_userinfo,
+};
+use ecosystems::DeclaredIndexes;
+use indexmap::IndexMap;
+use pnpm_lockfile::RegistryOptions;
+use pnpm_network::normalize_registry_url;
+use serde::{
+    Deserialize,
+    Deserializer,
+    de::{
+        MapAccess,
+        Visitor,
+        value::MapAccessDeserializer,
+    },
+};
+use std::{
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fmt,
+    num::NonZeroUsize,
+};
+
+/// The bare scope standing for the registry that packages resolve from when
+/// no scope matches, the one the `registry` setting names.
+pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
+
+/// Credentials and TLS material stay in `.npmrc`, which is not committed.
+/// `registries` lives in `pnpm-workspace.yaml`, which is, so accepting these
+/// would invite secrets into version control. Rejecting is better than
+/// ignoring: a silently dropped `_authToken` reads as configured.
+const SECRET_REGISTRY_FIELDS: &[&str] = &[
+    "_auth",
+    "_authToken",
+    "_password",
+    "username",
+    "tokenHelper",
+    "ca",
+    "cafile",
+    "cert",
+    "certfile",
+    "key",
+    "keyfile",
+];
+
+/// One entry of the `registries` map.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(untagged)]
+pub enum RegistryEntry {
+    /// The older `<scope>: <url>` shape, which is the scope lookup already.
+    ScopeRoute(String),
+    Declaration(RegistryDeclaration),
+}
+
+impl<'de> Deserialize<'de> for RegistryEntry {
+    fn deserialize<Deser: Deserializer<'de>>(deserializer: Deser) -> Result<Self, Deser::Error> {
+        deserializer.deserialize_any(RegistryEntryVisitor)
+    }
+}
+
+/// Written out rather than derived as `#[serde(untagged)]` so that the error
+/// from a malformed declaration survives: an untagged enum reports only that
+/// no variant matched, which would hide, say, a `scopes` that is not a list.
+struct RegistryEntryVisitor;
+
+impl<'de> Visitor<'de> for RegistryEntryVisitor {
+    type Value = RegistryEntry;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a registry URL or a registry declaration")
+    }
+
+    fn visit_str<Err: serde::de::Error>(self, value: &str) -> Result<Self::Value, Err> {
+        Ok(RegistryEntry::ScopeRoute(value.to_owned()))
+    }
+
+    fn visit_map<Map: MapAccess<'de>>(self, map: Map) -> Result<Self::Value, Map::Error> {
+        RegistryDeclaration::deserialize(MapAccessDeserializer::new(map))
+            .map(RegistryEntry::Declaration)
+    }
+}
+
+/// The lookups the rest of pnpm reads, split out of the declarations.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct RegistryLookups {
+    /// Scope-routed URLs, `@`-prefixed and normalized.
+    pub registries_by_scope: BTreeMap<String, String>,
+    /// The registry a bare `@` routed to, if any.
+    pub default_registry: Option<String>,
+    /// Prefix-addressed URLs, deliberately kept as written: a named
+    /// registry's URL is what a lockfile's recorded tarball URLs are matched
+    /// against, so normalizing it would change what an existing lockfile
+    /// verifies against.
+    pub registries_by_prefix: BTreeMap<String, String>,
+    pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
+    /// Ecosystem indexes and their exclusive Python package routes.
+    pub indexes_by_ecosystem: BTreeMap<Ecosystem, Vec<EcosystemIndex>>,
+    /// Per-registry request caps, keyed by normalized registry URL. A cap is
+    /// about the server's origin, so it applies to an index of any ecosystem.
+    pub network_concurrency_by_registry: BTreeMap<String, NonZeroUsize>,
+}
+
+/// The scopes `entries` routes, `@`-prefixed, with the bare `@` among them
+/// when one names the default registry.
+///
+/// Read without consuming the map, unlike [`into_lookups`], so that a later
+/// layer can tell a route a config file declared from one inferred from a
+/// credential. Both spellings of the default reach it: the `scopes` list of a
+/// declaration, and the older `default:` key that [`into_lookups`] reads as
+/// the same thing.
+#[must_use]
+pub fn routed_scopes(entries: &IndexMap<String, RegistryEntry>) -> BTreeSet<String> {
+    entries
+        .iter()
+        .flat_map(|(key, entry)| match entry {
+            RegistryEntry::ScopeRoute(_) if key == "default" => {
+                vec![DEFAULT_REGISTRY_SCOPE.to_owned()]
+            }
+            RegistryEntry::ScopeRoute(_) => vec![key.clone()],
+            RegistryEntry::Declaration(declaration) => {
+                declaration.scopes.clone().unwrap_or_default()
+            }
+        })
+        .collect()
+}
+
+/// Reject a `registries` map pnpm would otherwise read as something other
+/// than what it says.
+pub fn validate(entries: &IndexMap<String, RegistryEntry>) -> Result<(), LoadWorkspaceYamlError> {
+    let scope_routes: Vec<&String> = entries
+        .iter()
+        .filter(|(_, entry)| matches!(entry, RegistryEntry::ScopeRoute(_)))
+        .map(|(scope, _)| scope)
+        .collect();
+    if scope_routes.len() == entries.len() {
+        for scope in scope_routes {
+            // A scope routes to a registry, so a URL in that position routes
+            // nothing and would sit there inert. It is the declaration shape,
+            // half-written.
+            if looks_like_registry_url(scope) {
+                return Err(LoadWorkspaceYamlError::StringValuedRegistryDeclaration {
+                    registry: redact_registry_url(scope),
+                });
+            }
+        }
+        return Ok(());
+    }
+    if !scope_routes.is_empty() {
+        return Err(LoadWorkspaceYamlError::MixedRegistriesShapes {
+            scopes: quote_and_join(scope_routes.into_iter().map(String::as_str)),
+        });
+    }
+
+    let declarations = entries
+        .iter()
+        .filter_map(|(registry, entry)| match entry {
+            RegistryEntry::Declaration(declaration) => Some((registry, declaration)),
+            RegistryEntry::ScopeRoute(_) => None,
+        });
+    if let Some((registry, _)) = declarations
+        .clone()
+        .find(|(_, declaration)| !declaration.prefixes.aliases.is_empty())
+    {
+        return Err(LoadWorkspaceYamlError::UnknownRegistryDeclarationField {
+            registry: redact_registry_url(registry),
+            field: "aliases".to_owned(),
+        });
+    }
+    validate_declarations(declarations)
+}
+
+/// The per-declaration half of [`validate`], over declarations alone.
+///
+/// A pnpr request carries this shape and no other: its `registries` map is
+/// always keyed by URL, which is what lets the server's boundary checks read
+/// a key as a fetch target.
+pub fn validate_declarations<'a>(
+    entries: impl IntoIterator<Item = (&'a String, &'a RegistryDeclaration)>,
+) -> Result<(), LoadWorkspaceYamlError> {
+    let mut routed_scopes: BTreeMap<&'a str, String> = BTreeMap::new();
+    let mut declared_prefixes: BTreeSet<&'a str> = BTreeSet::new();
+    let mut indexes = DeclaredIndexes::default();
+    for (registry, declaration) in entries {
+        validate_declaration_fields(registry, declaration)?;
+        indexes.add(registry, declaration)?;
+        let normalized = normalize_registry_url(registry);
+        validate_scopes(registry, declaration, &normalized, &mut routed_scopes)?;
+        for prefix in declaration.prefixes.iter() {
+            if !declared_prefixes.insert(prefix) {
+                return Err(LoadWorkspaceYamlError::PrefixDeclaredTwice {
+                    prefix: prefix.to_owned(),
+                });
+            }
+        }
+    }
+    indexes.finish()
+}
+
+/// The declaration's own fields: it carries no credential, in a field or in
+/// its key, and no field this version does not know.
+fn validate_declaration_fields(
+    registry: &str,
+    declaration: &RegistryDeclaration,
+) -> Result<(), LoadWorkspaceYamlError> {
+    let redacted = redact_registry_url(registry);
+    if let Some(field) = declaration.unknown
+        .keys()
+        .find(|field| SECRET_REGISTRY_FIELDS.contains(&field.as_str()))
+    {
+        return Err(LoadWorkspaceYamlError::SecretInRegistryDeclaration {
+            registry: redacted,
+            field: field.clone(),
+        });
+    }
+    if let Some(field) = declaration.unknown.keys().next() {
+        return Err(LoadWorkspaceYamlError::UnknownRegistryDeclarationField {
+            registry: redacted,
+            field: field.clone(),
+        });
+    }
+    // The map lives in the committed pnpm-workspace.yaml, and it already
+    // refuses credential fields for that reason; a credential in the key
+    // is the same secret in the same file.
+    if registry_url_has_userinfo(registry) {
+        return Err(LoadWorkspaceYamlError::CredentialsInRegistryKey { registry: redacted });
+    }
+    Ok(())
+}
+
+/// Each scope the declaration routes: spelled with its `@`, and routed to
+/// this registry alone.
+fn validate_scopes<'a>(
+    registry: &str,
+    declaration: &'a RegistryDeclaration,
+    normalized: &str,
+    routed_scopes: &mut BTreeMap<&'a str, String>,
+) -> Result<(), LoadWorkspaceYamlError> {
+    for scope in declaration.scopes.iter().flatten() {
+        if !scope.starts_with(DEFAULT_REGISTRY_SCOPE) {
+            return Err(LoadWorkspaceYamlError::RegistryScopeWithoutAtSign {
+                registry: redact_registry_url(registry),
+                scope: scope.clone(),
+            });
+        }
+        if let Some(other) = routed_scopes.get(scope.as_str())
+            && other != normalized
+        {
+            return Err(LoadWorkspaceYamlError::ScopeRoutedTwice {
+                scope: scope.clone(),
+                registries: quote_and_join([other.as_str(), normalized]),
+            });
+        }
+        routed_scopes.insert(scope, normalized.to_string());
+    }
+    Ok(())
+}
+
+/// Split validated declarations into the lookups. Infallible: every rejection
+/// happens in [`validate`], at load time, where the offending file is known.
+#[must_use]
+pub fn into_lookups(entries: IndexMap<String, RegistryEntry>) -> RegistryLookups {
+    let mut lookups = RegistryLookups::default();
+    let mut declarations = IndexMap::new();
+    for (registry, entry) in entries {
+        match entry {
+            RegistryEntry::ScopeRoute(url) => {
+                let url = normalize_registry_url(&url).into_owned();
+                if registry == "default" {
+                    lookups.default_registry = Some(url);
+                } else {
+                    lookups.registries_by_scope.insert(registry, url);
+                }
+            }
+            RegistryEntry::Declaration(declaration) => {
+                declarations.insert(registry, declaration);
+            }
+        }
+    }
+    extend_lookups_with_declarations(&mut lookups, declarations);
+    lookups
+}
+
+/// The declarations-only half of [`into_lookups`], for a pnpr request, whose
+/// `registries` map is always keyed by URL.
+#[must_use]
+pub fn declarations_into_lookups(
+    entries: IndexMap<String, RegistryDeclaration>,
+) -> RegistryLookups {
+    let mut lookups = RegistryLookups::default();
+    extend_lookups_with_declarations(&mut lookups, entries);
+    lookups
+}
+
+fn extend_lookups_with_declarations(
+    lookups: &mut RegistryLookups,
+    entries: IndexMap<String, RegistryDeclaration>,
+) {
+    for (registry, declaration) in entries {
+        let normalized = normalize_registry_url(&registry).into_owned();
+        if let Some(limit) = declaration.network_concurrency {
+            lookups.network_concurrency_by_registry
+                .entry(normalized.clone())
+                .and_modify(|smallest| *smallest = (*smallest).min(limit))
+                .or_insert(limit);
+        }
+        if !ecosystems::collect_index(&mut lookups.indexes_by_ecosystem, &normalized, &declaration)
+        {
+            extend_npm_routes(lookups, &registry, &normalized, declaration);
+        }
+    }
+}
+
+/// The routes and server facts an npm registry declares: which scopes reach
+/// it, which bare-specifier prefix addresses it, and how it lays out tarball
+/// URLs. No other ecosystem has them, which is why an entry that names one is
+/// refused rather than read here.
+fn extend_npm_routes(
+    lookups: &mut RegistryLookups,
+    registry: &str,
+    normalized: &str,
+    declaration: RegistryDeclaration,
+) {
+    extend_registry_options(lookups, normalized, &declaration);
+    for scope in declaration.scopes.into_iter().flatten() {
+        if scope == DEFAULT_REGISTRY_SCOPE {
+            lookups.default_registry = Some(normalized.to_owned());
+        } else {
+            lookups.registries_by_scope.insert(scope, normalized.to_owned());
+        }
+    }
+    for prefix in declaration.prefixes.prefix.into_iter().chain(declaration.prefixes.aliases) {
+        lookups.registries_by_prefix.insert(prefix, registry.to_owned());
+    }
+}
+
+/// A declaration that says nothing about the server records no options: an
+/// absent entry is what "assume nothing about this registry" is spelled as.
+fn extend_registry_options(
+    lookups: &mut RegistryLookups,
+    normalized: &str,
+    declaration: &RegistryDeclaration,
+) {
+    if declaration.server_type.is_none() && declaration.supports_time_field.is_none() {
+        return;
+    }
+    lookups.registry_options_by_url.insert(
+        normalized.to_string(),
+        RegistryOptions {
+            server_type: declaration.server_type,
+            supports_time_field: declaration.supports_time_field,
+        },
+    );
+}
+
+/// Rebuild the declarations from the lookups they were split into, for a
+/// client that has to describe its registries to a pnpr server.
+///
+/// The inverse of [`into_lookups`], minus the default registry: that one
+/// travels as the request's own `registry` field, so a bare
+/// [`DEFAULT_REGISTRY_SCOPE`] is not re-emitted here.
+///
+/// Entries are keyed by the URL each lookup holds rather than by a normalized
+/// one, so a registry a prefix addresses without a trailing slash stays the
+/// URL the client resolves against.
+#[must_use]
+pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDeclaration> {
+    let mut declarations: IndexMap<String, RegistryDeclaration> = IndexMap::new();
+    for (scope, registry) in &lookups.registries_by_scope {
+        if scope == "default" {
+            continue;
+        }
+        declarations
+            .entry(registry.clone())
+            .or_default()
+            .scopes
+            .get_or_insert_with(Vec::new)
+            .push(scope.clone());
+    }
+    for (prefix, registry) in &lookups.registries_by_prefix {
+        // The map yields the smallest prefix first: the one the registry's
+        // lockfile keys carry.
+        let prefixes = &mut declarations.entry(registry.clone()).or_default().prefixes;
+        if prefixes.prefix.is_none() {
+            prefixes.prefix = Some(prefix.clone());
+        } else {
+            prefixes.aliases.push(prefix.clone());
+        }
+    }
+    for (registry, options) in &lookups.registry_options_by_url {
+        let declaration = declarations.entry(registry.clone()).or_default();
+        declaration.server_type = options.server_type;
+        declaration.supports_time_field = options.supports_time_field;
+    }
+    ecosystems::extend_with_indexes(&mut declarations, &lookups.indexes_by_ecosystem);
+    declarations
+}
+
+/// [`to_declarations`] plus the default registry declared as the bare `@`
+/// scope and each registry's `networkConcurrency`, the resolved view
+/// `pnpm config get registries` prints, where nothing travels separately.
+/// A pnpr server receives neither: it does not make the client's requests.
+#[must_use]
+pub fn to_resolved_declarations(
+    lookups: &RegistryLookups,
+) -> IndexMap<String, RegistryDeclaration> {
+    let mut declarations = to_declarations(lookups);
+    // A prefix route keeps the URL as written, so one registry can appear
+    // both with and without the trailing slash the cap's key carries. Each
+    // spelling gets the cap.
+    let mut declared_keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for declared in declarations.keys() {
+        declared_keys
+            .entry(normalize_registry_url(declared).into_owned())
+            .or_default()
+            .push(declared.clone());
+    }
+    for (registry, limit) in &lookups.network_concurrency_by_registry {
+        let keys = declared_keys
+            .get(registry)
+            .cloned()
+            .unwrap_or_else(|| vec![registry.clone()]);
+        for key in keys {
+            declarations.entry(key).or_default().network_concurrency = Some(*limit);
+        }
+    }
+    if let Some(default_registry) = &lookups.default_registry {
+        declarations
+            .entry(default_registry.clone())
+            .or_default()
+            .scopes
+            .get_or_insert_with(Vec::new)
+            .insert(0, DEFAULT_REGISTRY_SCOPE.to_string());
+    }
+    declarations
+}
+
+fn looks_like_registry_url(key: &str) -> bool {
+    key.contains("://") || key.starts_with("//")
+}
+
+pub(super) fn quote_and_join<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
+    values
+        .into_iter()
+        .map(|value| format!("{value:?}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+mod ecosystems;
+mod env_placeholders;
+mod python;

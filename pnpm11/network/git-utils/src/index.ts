@@ -1,0 +1,246 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { safeExeca as execa } from 'execa'
+
+// git checks logic is from https://github.com/sindresorhus/np/blob/d63feed61b1d/source/git-tasks.js
+
+export interface GitCwdOptions {
+  cwd?: string
+}
+
+export async function isGitRepo (opts: GitCwdOptions = {}): Promise<boolean> {
+  try {
+    await execa('git', ['rev-parse', '--git-dir'], { cwd: opts.cwd })
+  } catch {
+    return false
+  }
+  return true
+}
+
+export async function getCurrentBranch (opts: GitCwdOptions = {}): Promise<string | null> {
+  const branch = readBranchFromHeadFile(opts.cwd)
+  if (branch !== undefined) return branch
+  try {
+    const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: opts.cwd })
+    return stdout as string
+  } catch {
+    // Command will fail with code 1 if the HEAD is detached.
+    return null
+  }
+}
+
+/**
+ * The branches that contain HEAD, sorted, or an empty array when git cannot
+ * answer — a repository without commits, or no repository at all.
+ *
+ * Remote-tracking branches count under their branch name, because a CI
+ * checkout of a commit SHA usually has no local branch at all. The remote
+ * name is taken to be the first segment after `refs/remotes/`, and symbolic
+ * refs such as `origin/HEAD` are skipped.
+ *
+ * An attached HEAD is contained in its own branch and every ancestor branch,
+ * so a caller that wants "the branch HEAD is on" must ask
+ * {@link getCurrentBranch} first and use this only when it answers null.
+ */
+export async function getBranchesContainingHead (opts: GitCwdOptions = {}): Promise<string[]> {
+  let refList: string
+  try {
+    const { stdout } = await execa('git', ['for-each-ref', 'refs/heads', 'refs/remotes', '--contains', 'HEAD', '--format=%(refname) %(symref)'], { cwd: opts.cwd })
+    refList = String(stdout)
+  } catch {
+    return []
+  }
+  const branches = new Set<string>()
+  for (const line of refList.split('\n')) {
+    const [refName, symref] = line.trim().split(' ')
+    if (!refName || symref) continue
+    const branch = branchNameOfRef(refName)
+    if (branch) {
+      branches.add(branch)
+    }
+  }
+  return [...branches].sort()
+}
+
+function branchNameOfRef (refName: string): string | undefined {
+  if (refName.startsWith('refs/heads/')) {
+    return refName.slice('refs/heads/'.length)
+  }
+  if (refName.startsWith('refs/remotes/')) {
+    const remoteRef = refName.slice('refs/remotes/'.length)
+    const slashIndex = remoteRef.indexOf('/')
+    return slashIndex === -1 ? undefined : remoteRef.slice(slashIndex + 1)
+  }
+  return undefined
+}
+
+/** Returns false when Git cannot verify HEAD or HEAD refers to a branch. */
+export async function isHeadDetached (opts: GitCwdOptions = {}): Promise<boolean> {
+  try {
+    const { stdout } = await execa('git', ['rev-parse', '--verify', '--symbolic-full-name', 'HEAD'], { cwd: opts.cwd })
+    return stdout === 'HEAD'
+  } catch {
+    return false
+  }
+}
+
+export async function isWorkingTreeClean (opts: GitCwdOptions = {}): Promise<boolean> {
+  try {
+    const { stdout: status } = await execa('git', ['status', '--porcelain'], { cwd: opts.cwd })
+    if (status !== '') {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function isRemoteHistoryClean (opts: GitCwdOptions = {}): Promise<boolean> {
+  let history
+  try { // Gracefully handle no remote set up.
+    const { stdout } = await execa('git', ['rev-list', '--count', '--left-only', '@{u}...HEAD'], { cwd: opts.cwd })
+    history = stdout
+  } catch {
+    history = null
+  }
+  if (history && history !== '0') {
+    return false
+  }
+  return true
+}
+
+/**
+ * Reads the current branch name from `.git/HEAD` without spawning a git subprocess.
+ *
+ * Returns:
+ * - `string` — the branch name extracted from `ref: refs/heads/<name>`
+ * - `null` — HEAD is detached (a raw commit SHA, not a symbolic ref)
+ * - `undefined` — `.git/HEAD` could not be read (not a git repo, worktree
+ *   layout not recognized, permissions error, etc.); caller should fall
+ *   back to `git symbolic-ref`.
+ */
+function readBranchFromHeadFile (cwd?: string): string | null | undefined {
+  const baseDir = cwd ?? process.cwd()
+  const dotGitPath = path.join(baseDir, '.git')
+  let gitDir: string
+  try {
+    const stat = fs.statSync(dotGitPath)
+    if (stat.isDirectory()) {
+      gitDir = dotGitPath
+    } else if (stat.isFile()) {
+      // `.git` is a file — worktree or submodule. It contains `gitdir: <path>`.
+      const content = fs.readFileSync(dotGitPath, 'utf8').trim()
+      const match = content.match(/^gitdir:\s*(.+)/)
+      if (!match) return undefined
+      gitDir = path.isAbsolute(match[1]!) ? match[1]! : path.resolve(baseDir, match[1]!)
+    } else {
+      // `.git` is neither a directory nor a regular file (e.g. a FIFO or
+      // device); don't read it. Fall back to `git symbolic-ref`.
+      return undefined
+    }
+  } catch {
+    return undefined
+  }
+  try {
+    const head = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf8').trim()
+    const match = head.match(/^ref:\s*refs\/heads\/(.+)/)
+    if (match) return match[1]!
+    return null
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The environment for a git invocation that must fail fast instead of waiting
+ * on the terminal. pnpm runs git behind a live-updating reporter that repaints
+ * over anything git or ssh prints, so a credential, passphrase, or host-key
+ * prompt would be invisible and the install would look hung.
+ *
+ * `GIT_TERMINAL_PROMPT=0` covers git's own prompts. ssh prompts on the
+ * terminal directly, so it is run with `BatchMode=yes`, unless the user
+ * selected the ssh command themselves through `GIT_SSH_COMMAND`, `GIT_SSH`,
+ * or the `core.sshCommand` git setting in effect in `cwd`, the directory the
+ * invocation runs in.
+ *
+ * The process environment is snapshotted per call, so a change a long-lived
+ * host process makes to auth or proxy variables reaches the next invocation.
+ */
+export async function nonInteractiveGitEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
+  const gitEnv = safeGitEnv()
+  gitEnv.GIT_TERMINAL_PROMPT = '0'
+  if (gitEnv.GIT_SSH_COMMAND === undefined && gitEnv.GIT_SSH === undefined && !(await hasConfiguredSshCommand(opts))) {
+    gitEnv.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes'
+  }
+  return gitEnv
+}
+
+/**
+ * The environment for a noninteractive submodule checkout. Git executes the
+ * submodule URL from repository metadata, so only the supported transports
+ * that the caller's configuration permits are enabled.
+ */
+export async function nonInteractiveGitSubmoduleEnv (opts: GitCwdOptions = {}): Promise<NodeJS.ProcessEnv> {
+  const gitEnv = await nonInteractiveGitEnv(opts)
+  const inheritedProtocols = gitEnv.GIT_ALLOW_PROTOCOL
+  const protocolPolicies = await readGitProtocolPolicies(opts)
+  gitEnv.GIT_ALLOW_PROTOCOL = supportedGitProtocols
+    .filter((protocol) => isGitProtocolEnabled(protocol, protocolPolicies))
+    .filter((protocol) => inheritedProtocols == null || inheritedProtocols.split(':').includes(protocol))
+    .join(':')
+  return gitEnv
+}
+
+const supportedGitProtocols = ['file', 'git', 'http', 'https', 'ssh']
+
+async function readGitProtocolPolicies (opts: GitCwdOptions): Promise<Record<string, string>> {
+  try {
+    const { stdout } = await execa('git', ['config', '--null', '--get-regexp', '^protocol\\.'], { cwd: opts.cwd, env: safeGitEnv() })
+    return Object.fromEntries(
+      String(stdout)
+        .split('\0')
+        .flatMap((entry): Array<[string, string]> => {
+          const separator = entry.indexOf('\n')
+          return separator === -1 ? [] : [[entry.slice(0, separator), entry.slice(separator + 1)]]
+        })
+        .filter(([key]) => key.endsWith('.allow'))
+    )
+  } catch (err: unknown) {
+    if (isMissingGitConfig(err)) return {}
+    throw err
+  }
+}
+
+function isMissingGitConfig (err: unknown): boolean {
+  return typeof err === 'object' && err != null && 'exitCode' in err && err.exitCode === 1
+}
+
+function isGitProtocolEnabled (protocol: string, policies: Record<string, string>): boolean {
+  const defaultPolicy = protocol === 'file' ? 'user' : 'always'
+  const policy = policies[`protocol.${protocol}.allow`] ?? policies['protocol.allow'] ?? defaultPolicy
+  return policy.toLowerCase() === 'always'
+}
+
+/**
+ * Whether git configuration selects the ssh command through `core.sshCommand`.
+ * A missing git reads as not configured; the invocation that follows fails on
+ * the missing executable with its own error.
+ */
+async function hasConfiguredSshCommand (opts: GitCwdOptions): Promise<boolean> {
+  try {
+    await execa('git', ['config', '--get', 'core.sshCommand'], { cwd: opts.cwd, env: safeGitEnv() })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function safeGitEnv (baseEnv: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const gitEnv = { ...baseEnv }
+  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES']) {
+    delete gitEnv[name]
+  }
+  return gitEnv
+}

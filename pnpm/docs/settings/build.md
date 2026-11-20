@@ -1,0 +1,449 @@
+---
+id: build
+title: "Build Settings"
+sidebar_label: "Build"
+---
+
+### ignoreScripts
+
+* Default: **false**
+* Type: **Boolean**
+
+Do not execute any scripts defined in the project `package.json` and its
+dependencies.
+
+:::note
+
+This flag does not prevent the execution of [.pnpmfile.mjs](../pnpmfile.md)
+
+:::
+
+### childConcurrency
+
+* Default: **5**
+* Type: **Number**
+
+The maximum number of child processes to allocate simultaneously to build
+node_modules. A zero or negative value is subtracted from the available
+parallelism, with a minimum of 1.
+
+### sideEffectsCache
+
+* Default: **true**
+* Type: **Boolean or Object**
+
+Use and cache the results of (pre/post)install hooks.
+
+When a pre/post install script modify the contents of a package (e.g. build output), pnpm saves the modified package in the global store. On future installs on the same machine, pnpm reuses this cached, prebuilt version, which makes installs faster.
+
+:::note
+
+You may want to disable this setting if:
+
+1. The install scripts modify files *outside* the package directory (pnpm cannot track or cache these changes).
+1. The scripts perform side effects that are unrelated to building the package.
+
+:::
+
+An object says the same thing in more detail, and is the canonical way to
+declare the remote tier:
+
+```yaml title="pnpm-workspace.yaml"
+sideEffectsCache:
+  read: true
+  write: true
+  remote:
+    org: acme
+    packages:
+      - native-addon
+```
+
+* `read`: restore a build from the cache when one is present. Default **true**.
+* `write`: save a package's build output to the cache. Default **true**.
+* `remote`: reuse builds across machines; see below.
+* `exclude`: packages whose builds never go through the cache; see below.
+
+`sideEffectsCache: true` is the shorthand for reading and writing, and is what
+the setting meant before it grew a remote tier. Writing without reading
+(`read: false, write: true`) populates a cache the run never consumes, which is
+what a job that warms one for others wants.
+
+Since v12.2.0, the `--side-effects-cache` and `--no-side-effects-cache` flags, and
+`PNPM_CONFIG_SIDE_EFFECTS_CACHE`, toggle the **local** cache only. A remote tier
+declared under `sideEffectsCache.remote` is left in place, so a run can turn the
+local cache off without losing the shared one.
+
+### sideEffectsCacheReadonly
+
+* Default: **false**
+* Type: **Boolean**
+
+Only use the side effects cache if present, do not create it for new packages.
+The older spelling of `sideEffectsCache: { read: true, write: false }`.
+
+### sideEffectsCache.remote
+
+Added in: v12.0.0
+
+* Default: **undefined**
+* Type: **Object**
+
+Opt in to reusing a dependency's build output across machines, by restoring
+signed, organization-scoped artifacts instead of running the package's
+lifecycle scripts locally. The artifacts live on the server
+[`remoteCache`](#remotecache) names: a [pnpr](/pnpr) server started with
+`artifacts.enabled: true`, or, since v12.12.0, a server that speaks the
+Turborepo Remote Cache API. This is a proof of concept: it is off unless
+configured, and it restores artifacts on Linux/glibc, macOS, and Windows, on
+x64 and arm64. Other operating systems and libc families build locally.
+
+A repository declares eligibility and nothing else:
+
+```yaml title="pnpm-workspace.yaml"
+pnprServer: http://127.0.0.1:7677
+allowBuilds:
+  native-addon: true
+remoteCache:
+  org: acme
+sideEffectsCache:
+  remote:
+    packages:
+      - native-addon
+```
+
+Declaring only `remote` leaves `read` and `write` at their defaults, so the
+local cache keeps working as it did.
+
+`packages` is an eligibility list, not a permission: a package is only a
+candidate when it also passes [`allowBuilds`](#allowbuilds), has
+`requiresBuild: true`, and has a verified source integrity. Listing a package
+here does not review its build scripts for you. Under the default
+[`strictDepBuilds`](#strictdepbuilds) an install still fails with
+`ERR_PNPM_IGNORED_BUILDS` when it reaches a build nobody has ruled on, and a
+package denied with `allowBuilds: false` is never built, from the cache or
+otherwise.
+
+The organization and the trust material are set under
+[`remoteCache`](#remotecache). They can also be set under
+`sideEffectsCache.remote`, where they lived before v12.12.0, and `remoteCache`
+wins where both set a field. Everything describing the *act of signing*
+(`publish`, `keyId`, `builderId`, `imageDigest`, `architectureBaseline`,
+`buildEnv`, `trustedKeys` and `privateKey`) is refused in
+`pnpm-workspace.yaml` with `ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST`, and
+is read from the [global configuration file](../cli/config.md) or the
+environment instead. A cloned repository is not a trust root, and must not be
+able to turn the machine's signing key into a signing oracle.
+
+Any cache failure (an unreachable server, an unverifiable signature, an
+incompatible platform, a bad blob) falls back to the ordinary local build. See
+[Shared side-effects cache](/pnpr/shared-side-effects-cache) for the full setup,
+including the server flag, the trust material, and how an artifact is published.
+
+Since v12.1.0, a restored artifact is saved in the shared store
+together with its signed origin. Before a later install reuses it, pnpm checks
+the signature again against the machine's current keys and revalidates its
+owner, package and source identity, platform, policy, and stored files. A bad
+remote variant is quarantined for that server and is not selected again.
+
+:::note
+
+`remoteSideEffectsCache` is the older spelling of this setting, and
+`organization` of its `org` field; both still work.
+
+The two spellings are merged, not chosen between: a field set under both takes
+its value from `sideEffectsCache.remote`, and a field set under only one is kept
+either way. That is what lets a repository declare the org in
+`pnpm-workspace.yaml` while the machine supplies the signing key from the global
+config under whichever spelling it already used.
+
+:::
+
+### sideEffectsCache.exclude
+
+Added in: v12.14.0
+
+* Default: **undefined**
+* Type: **String[]**
+
+Packages whose build depends on something pnpm cannot include in the cache key,
+such as the system libraries a native addon links against. pnpm builds a listed package in
+every project and never restores or saves its build through the side-effects
+cache, locally or on a [`remoteCache`](#remotecache) server. Under the
+[global virtual store](../global-virtual-store.md), each project gets its own
+copy of the package, so one project's build never reaches another.
+
+```yaml title="pnpm-workspace.yaml"
+sideEffectsCache:
+  exclude:
+    - java
+    - '@native/*'
+    - 'sharp@1.0.0 || 2.0.0'
+```
+
+Declaring only `exclude` leaves `read` and `write` at their defaults, so the
+cache keeps working for every other package.
+
+Entries use the same patterns as
+[`minimumReleaseAgeExclude`](./dependency-resolution.md#minimumreleaseageexclude):
+a package name, a `@scope/*` wildcard, or `name@version` with one or more exact
+versions. A bare name covers every resolution of the package, git and tarball
+URLs included. A `name@version` entry covers registry versions only.
+
+A package that depends on a listed package gets a project-specific copy under
+the global virtual store as well, since its copy links to the listed package's.
+
+### remoteCache
+
+Added in: v12.12.0
+
+* Default: **undefined**
+* Type: **Object**
+
+The server that shares build output between machines, and the keys every
+shared artifact is signed and verified with. Both
+[`sideEffectsCache.remote`](#sideeffectscacheremote) and the task cache of
+[`pnpm pipeline`](../cli/pipeline.md#sharing-the-cache-between-machines) use
+it.
+
+With `url`, artifacts live on a server that speaks the Turborepo Remote Cache
+API, such as Vercel Remote Cache or a self-hosted implementation. Without it,
+they live on [`pnprServer`](/pnpr/install-acceleration#enabling-it).
+
+```yaml title="pnpm-workspace.yaml"
+remoteCache:
+  org: acme
+```
+
+```yaml title="~/.config/pnpm/config.yaml"
+remoteCache:
+  url: https://vercel.com/api
+  team: team_abc123
+  trustedKeys:
+    ci-2026: <base64 P-256 SubjectPublicKeyInfo DER public key>
+```
+
+| Field | Where it may be set | Meaning |
+| --- | --- | --- |
+| `url` | Global config or environment | The API base URL of a Turborepo Remote Cache server, such as `https://vercel.com/api`. |
+| `team` | Global config or environment | A Vercel team ID (`team_...`) or team slug. |
+| `org` | Anywhere | The organization that owns the artifacts. On a pnpr server, one of the owners it declares under [`artifacts.owners`](/pnpr/configuration#registry-resolver-and-artifact-surfaces). It also names the organization `pnpm pipeline --report` records a run under. |
+| `trustedKeys` | Global config or environment | The public keys an artifact must be signed by, keyed by key id. |
+| `publish` | Global config or environment | `true` publishes what this machine builds: dependency builds and `pnpm pipeline` task results. A task result includes the task's output files and its captured terminal output. Defaults to `false`. Set under `sideEffectsCache.remote`, it publishes dependency builds only. |
+| `privateKey`, `keyId`, `builderId` | Global config or environment | The key that signs published artifacts, the id consumers trust it under, and a label for the builder. Required with `publish`. |
+| `imageDigest`, `architectureBaseline`, `buildEnv` | Global config or environment | Optional provenance recorded in the signed artifact. |
+
+Every field is also read from the environment as `PNPM_REMOTE_CACHE_` followed
+by the field name in upper snake case, such as `PNPM_REMOTE_CACHE_URL`.
+`trustedKeys` and `buildEnv` take a JSON object there. The environment takes
+precedence over both files. A `pnpm-workspace.yaml` that sets a field marked
+"Global config or environment" fails with
+`ERR_PNPM_WORKSPACE_REMOTE_CACHE_TRUST`. A repository that could name the
+server could have the machine's token sent to a server of its choosing.
+
+#### Authenticating with Vercel Remote Cache
+
+`pnpm` sends the server the credential its
+[authentication settings](../npmrc.md) hold for `url`, as it does for a
+registry. Create an access token in your Vercel account settings, under
+Tokens, scoped to the team that owns the cache. On your own machine, store
+it:
+
+```sh
+pnpm config set //vercel.com/api/:_authToken "$VERCEL_TOKEN"
+```
+
+In CI, pass it in the environment for the one command instead:
+
+```sh
+env "pnpm_config_//vercel.com/api/:_authToken=$VERCEL_TOKEN" pnpm pipeline
+```
+
+Use this form rather than [`_auth`](../npmrc.md#_auth). An `_auth` entry also
+routes package requests to its URL.
+
+`pnpm` does not read the token `turbo login` stores. That token expires within
+hours, and only `turbo` renews it.
+
+A Turborepo Remote Cache server holds one build per package for each
+combination of operating system, CPU architecture, and Node.js major, and a
+later publication replaces it. A machine restores a build when it meets the
+build's minimum OS or glibc version, and publishes only when it found none it
+could restore. Publish from the machine with the oldest system you support.
+
+A server that pnpm would send credentials to must use HTTPS or a loopback address. Otherwise the remote cache is not used.
+
+### unsafePerm
+
+* Default: **false** IF running as root, ELSE **true**
+* Type: **Boolean**
+
+When set to `false`, lifecycle scripts run with `TMPDIR` set to the
+package's `node_modules/.tmp` directory.
+
+### nodeOptions
+
+* Default: **NULL**
+* Type: **String**
+
+Options to pass through to Node.js via the `NODE_OPTIONS` environment variable. This does not impact how pnpm itself is executed but it does impact how lifecycle scripts are called.
+
+An empty value, such as `--config.node-options=` or `PNPM_CONFIG_NODE_OPTIONS=`, overrides a value from a lower-priority configuration source. With an empty `nodeOptions`, scripts retain `NODE_OPTIONS` from the parent environment or `extraEnv`.
+
+To preserve existing `NODE_OPTIONS` you can reference the existing environment variable using `${NODE_OPTIONS}` in your configuration:
+
+```yaml title="pnpm-workspace.yaml"
+nodeOptions: "${NODE_OPTIONS:- } --experimental-vm-modules"
+```
+
+### verifyDepsBeforeRun
+
+* Default: **install**
+* Type: **install**, **warn**, **error**, **prompt**, **false**
+
+This setting allows the checking of the state of dependencies before running scripts. The check runs on `pnpm run` and `pnpm exec` commands. The following values are supported:
+
+- `install` - Automatically runs install if `node_modules` is not up to date. If that install fails, for example because the store is read-only or there is no network, pnpm prints a warning and runs the command anyway.
+- `warn` - Prints a warning if `node_modules` is not up to date.
+- `prompt` - Prompts the user for permission to run install if `node_modules` is not up to date.
+- `error` - Throws an error if `node_modules` is not up to date.
+- `false` - Disables dependency checks.
+
+Changing [`trustLockfile`](./dependency-resolution.md#trustlockfile) alone does not trigger a dependency reinstall before a script runs. An explicit `pnpm install` verifies the lockfile when that setting is off.
+
+When the command is filtered, for example `pnpm --filter foo run build`, the check covers the selected projects and the workspace projects they depend on, and the install it runs is filtered the same way.
+
+### strictDepBuilds
+
+* Default: **true**
+* Type: **Boolean**
+
+When `strictDepBuilds` is enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts).
+
+### allowBuilds
+
+A map of package matchers to explicitly allow (`true`) or disallow (`false`) script execution.
+
+```yaml title="pnpm-workspace.yaml"
+allowBuilds:
+  esbuild: true
+  core-js: false
+  # nx versions with build scripts not listed below will
+  # fail by default with ERR_PNPM_IGNORED_BUILDS
+  nx@21.6.4 || 21.6.5: true
+  nx@21.6.0: false
+```
+
+**Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency, because the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or by its repository URL:
+
+```yaml title="pnpm-workspace.yaml"
+allowBuilds:
+  # Approves any commit from this repository
+  'foo@git+ssh://git@example.com/org/foo.git': true
+  # Approves only this exact commit
+  'bar@git+https://github.com/org/bar.git#abc123': true
+```
+
+The repository form lets a trusted git dependency keep running its build scripts across branch updates without re-approving each new commit. The key is the package name, followed by `@` and the git URL, with no `#<ref>` suffix. Matching is exact, so `git+ssh://` and `git+https://` URLs for the same repository are separate keys.
+
+The repository form also approves git-hosted packages that pnpm downloads as a tarball rather than clones, such as `github:` dependencies, which are fetched from `codeload.github.com`. A `foo@git+https://github.com/org/foo.git` entry approves `foo` whether pnpm clones the repository or downloads a tarball. GitLab and Bitbucket tarball downloads are matched the same way. A specific resolved commit can also be approved or denied by its full tarball dep path.
+
+Denials by package name are not restricted this way: `foo: false` blocks `foo` whether it comes from the registry or from git.
+
+**Default behavior:** Packages not listed in `allowBuilds` are disallowed by default and are treated as unreviewed. By default, an error is printed ([`strictDepBuilds`](#strictdepbuilds) defaults to `true`). If `strictDepBuilds` is set to `false`, a warning is printed instead.
+
+During install, dependencies with ignored builds that are not yet listed in `allowBuilds` are automatically added to `pnpm-workspace.yaml` with a placeholder value, so you can manually set them to `true` or `false`. The [`--allow-build`](../cli/add.md#--allow-build) flag on `pnpm add` and `pnpm approve-builds` writes its entries here as well.
+
+**Patched packages:** since v12.4.0, a [patch](../cli/patch.md) that adds an install script or a `binding.gyp` makes the package buildable, and the build goes through the same approval. When `strictDepBuilds` is `false`, an unapproved package appears under "Packages awaiting approval". When `strictDepBuilds` is `true`, the install fails with `ERR_PNPM_IGNORED_BUILDS`.
+
+:::info Migrating from older settings
+
+To migrate these settings automatically, run `pnpx codemod run pnpm-v10-to-v11` from the [Migrating from v10 to v11](../migration.md) guide.
+
+The following settings have been removed in v11 and replaced by `allowBuilds`: `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, `ignoredBuiltDependencies`, and `ignoreDepScripts`.
+
+Before:
+
+```yaml title="pnpm-workspace.yaml"
+onlyBuiltDependencies:
+  - electron
+neverBuiltDependencies:
+  - core-js
+ignoredBuiltDependencies:
+  - esbuild
+```
+
+After:
+
+```yaml title="pnpm-workspace.yaml"
+allowBuilds:
+  electron: true
+  core-js: false
+  esbuild: false
+```
+
+:::
+
+### permissions
+
+Added in: v12.11.0
+
+* Type: **Object**
+
+What each dependency may do, keyed by package. The keys have the same forms as the keys of [`allowBuilds`](#allowbuilds). Each entry decides one or more capabilities:
+
+* `build`: the package may run its build scripts. Outranks the package's `allowBuilds` entry.
+* `skills`: pnpm may link the agent skills the package ships into the project's agent skill directories. `true` links every skill the package ships, `false` links none, and a list of skill names links exactly those. See [Agent skills](../agent-skills.md).
+
+```yaml title="pnpm-workspace.yaml"
+permissions:
+  drizzle-kit:
+    build: true
+    skills: [guide, migrate]
+  esbuild:
+    build: true
+  some-pkg:
+    skills: false
+```
+
+A `skills` list names the only skills of the package that pnpm links, and a skill outside the list is not offered for approval again.
+
+`false` records a denial, so the package is not offered for approval again. [`pnpm approve`](../cli/permissions.md) writes these entries.
+
+A build decision is written to `permissions` only when the file already has a `permissions` setting. Otherwise it is written to `allowBuilds`, which older pnpm versions read too.
+
+### skills.dirs
+
+Added in: v12.11.0
+
+* Default: **the agent skill directories that exist in the workspace root, plus the one of the agent running pnpm**
+* Type: **String[]**
+
+The directories, relative to the workspace root, that pnpm links approved [agent skills](../agent-skills.md) into. When set, it replaces the detected directories, and pnpm creates the ones that are missing. The first time a project approves a skill, `pnpm approve` lists the detected directories and asks which ones to link into, recording the answer here.
+
+```yaml title="pnpm-workspace.yaml"
+skills:
+  dirs:
+    - .claude/skills
+```
+
+An empty list turns agent skills off. pnpm stops offering them for approval and removes the ones it linked.
+
+### dangerouslyAllowAllBuilds
+
+* Default: **false**
+* Type: **Boolean**
+
+If set to `true`, all build scripts (e.g. `preinstall`, `install`, `postinstall`) from dependencies will run automatically, without requiring approval. A package whose build is denied, by `false` in [`allowBuilds`](#allowbuilds) or `build: false` in [`permissions`](#permissions), is still blocked, so this setting allows every build except the denied ones. As everywhere else, a package's `permissions` entry outranks its `allowBuilds` entry.
+
+:::warning
+
+This setting allows all dependencies, including transitive ones, to run install scripts, both now and in the future.
+Even if your current dependency graph appears safe:
+
+* Future updates may introduce new, untrusted dependencies.
+* Existing packages may add scripts in later versions.
+* Packages can be hijacked or compromised and begin executing malicious code.
+
+For maximum safety, only enable this if you're fully aware of the risks and trust the entire ecosystem you're pulling from. It's recommended to review and allow builds explicitly.
+
+:::

@@ -1,0 +1,696 @@
+import os from 'node:os'
+import path from 'node:path'
+
+import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
+import { PnpmError } from '@pnpm/error'
+import type { PathExtenderReport } from '@pnpm/os.env.path-extender'
+
+const actualPathExtender = await import('@pnpm/os.env.path-extender')
+jest.unstable_mockModule('@pnpm/os.env.path-extender', () => ({
+  ...actualPathExtender,
+  addDirToEnvPath: jest.fn(),
+}))
+
+const actualCliMeta = await import('@pnpm/cli.meta')
+jest.unstable_mockModule('@pnpm/cli.meta', () => ({
+  ...actualCliMeta,
+  detectIfCurrentPkgIsExecutable: jest.fn(() => false),
+}))
+
+const actualChildProcess = await import('node:child_process')
+jest.unstable_mockModule('node:child_process', () => ({
+  ...actualChildProcess,
+  spawnSync: jest.fn(() => ({ status: 0 })),
+}))
+
+const actualFs = await import('node:fs')
+jest.unstable_mockModule('fs', () => {
+  return {
+    ...actualFs,
+    promises: {
+      ...actualFs.promises,
+      readFile: jest.fn(),
+      writeFile: jest.fn(),
+    },
+  }
+})
+
+const { addDirToEnvPath } = await import('@pnpm/os.env.path-extender')
+const { detectIfCurrentPkgIsExecutable } = await import('@pnpm/cli.meta')
+const { spawnSync } = await import('node:child_process')
+const { setup, LEGACY_HOME_DIR_SHIM_NAMES } = await import('@pnpm/engine.pm.commands')
+
+const originalGithubActions = process.env.GITHUB_ACTIONS
+const originalGithubEnv = process.env.GITHUB_ENV
+const originalGithubPath = process.env.GITHUB_PATH
+
+function restoreEnvVar (name: string, value: string | undefined): void {
+  if (value == null) {
+    delete process.env[name]
+  } else {
+    process.env[name] = value
+  }
+}
+
+async function withPlatform<Result> (platform: NodeJS.Platform, action: () => Promise<Result>): Promise<Result> {
+  const originalPlatform = process.platform
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
+  try {
+    return await action()
+  } finally {
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+  }
+}
+
+beforeEach(() => {
+  delete process.env.GITHUB_ACTIONS
+  delete process.env.GITHUB_ENV
+  delete process.env.GITHUB_PATH
+})
+
+afterEach(() => {
+  restoreEnvVar('GITHUB_ACTIONS', originalGithubActions)
+  restoreEnvVar('GITHUB_ENV', originalGithubEnv)
+  restoreEnvVar('GITHUB_PATH', originalGithubPath)
+})
+
+test('setup makes no changes', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe('No changes to the environment were made. Everything is already up to date.')
+})
+
+test.each<[NodeJS.Platform, string, string]>([
+  ['linux', ':', "':'"],
+  ['linux', '\n', "'\\n'"],
+  ['linux', '\r', "'\\r'"],
+  ['linux', '\0', "'\\0'"],
+  ['win32', ';', "';'"],
+  ['win32', '%', "'%'"],
+  ['win32', '\n', "'\\n'"],
+  ['win32', '\r', "'\\r'"],
+])(
+  'setup on %s rejects an unsafe PNPM_HOME containing %j before making changes',
+  async (platform, character, renderedCharacter) => {
+    jest.mocked(addDirToEnvPath).mockClear()
+    jest.mocked(spawnSync).mockClear()
+    const pnpmHomeDir = `/pnpm${character}home`
+    await expect(withPlatform(platform, () => setup.handler({ pnpmHomeDir }))).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_PNPM_HOME',
+      message: `The pnpm home directory "${pnpmHomeDir}" contains a character (${renderedCharacter}) that is unsafe for the PATH`,
+    })
+    expect(addDirToEnvPath).not.toHaveBeenCalled()
+    expect(spawnSync).not.toHaveBeenCalled()
+  }
+)
+
+test('setup on Windows accepts a drive-letter colon in PNPM_HOME', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  await expect(withPlatform('win32', () => setup.handler({ pnpmHomeDir: 'C:\\Users\\developer\\pnpm' })))
+    .resolves.toBe('No changes to the environment were made. Everything is already up to date.')
+})
+
+test('setup names the shell config file when it makes no changes', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'skipped',
+      path: '~/.bashrc',
+    },
+    oldSettings: 'export PNPM_HOME=dir',
+    newSettings: 'export PNPM_HOME=dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Configuration already up to date in ~/.bashrc
+
+No changes to the environment were made. Everything is already up to date.`)
+})
+
+test('setup makes changes on POSIX', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'created',
+      path: '~/.bashrc',
+    },
+    oldSettings: 'export PNPM_HOME=dir1',
+    newSettings: 'export PNPM_HOME=dir2',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Created ~/.bashrc
+
+The following configuration changes were made:
+export PNPM_HOME=dir2
+
+To start using pnpm, run:
+source ~/.bashrc
+`)
+})
+
+test('setup tells PowerShell to dot-source the profile', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'created',
+      path: "/home/o'neil/.config/powershell/profile.ps1",
+    },
+    oldSettings: '',
+    newSettings: '$env:PNPM_HOME = dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Created /home/o'neil/.config/powershell/profile.ps1
+
+The following configuration changes were made:
+$env:PNPM_HOME = dir
+
+To start using pnpm, run:
+. '/home/o''neil/.config/powershell/profile.ps1'
+`)
+})
+
+test('setup makes changes on Windows', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'export PNPM_HOME=dir1',
+    newSettings: 'export PNPM_HOME=dir2',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`The following configuration changes were made:
+export PNPM_HOME=dir2
+
+Setup complete. Open a new terminal to start using pnpm.`)
+})
+
+test('setup persists PNPM_HOME and bin path for GitHub Actions', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubEnv, '')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe(`PNPM_HOME=${pnpmHomeDir}\n`)
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup starts GitHub Actions env-file records on a new line', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubEnv, 'EXISTING=value')
+  actualFs.writeFileSync(githubPath, '/existing/bin')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe(`EXISTING=value\nPNPM_HOME=${pnpmHomeDir}\n`)
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`/existing/bin\n${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup ignores GitHub Actions env files outside GitHub Actions', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubEnv, '')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe('')
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe('')
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup writes each available GitHub Actions file independently', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubEnv, '')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  try {
+    process.env.GITHUB_ENV = githubEnv
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe(`PNPM_HOME=${pnpmHomeDir}\n`)
+
+    delete process.env.GITHUB_ENV
+    process.env.GITHUB_PATH = githubPath
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup does not create missing GitHub Actions env files', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'missing-github-env')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.existsSync(githubEnv)).toBeFalsy()
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup skips GitHub Actions env files that are not regular files', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'github-env-dir')
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.mkdirSync(githubEnv)
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readdirSync(githubEnv)).toStrictEqual([])
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup writes the remaining GitHub Actions env files after one target fails', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const pnpmHomeDir = path.join(tmpDir, 'pnpm-home')
+  const githubEnv = path.join(tmpDir, 'a'.repeat(300))
+  const githubPath = path.join(tmpDir, 'github-path')
+  actualFs.writeFileSync(githubPath, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  process.env.GITHUB_PATH = githubPath
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.readFileSync(githubPath, 'utf8')).toBe(`${path.join(pnpmHomeDir, 'bin')}\n`)
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup rejects a line break in PNPM_HOME before writing GitHub Actions files', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const githubEnv = path.join(tmpDir, 'github-env')
+  actualFs.writeFileSync(githubEnv, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  try {
+    await expect(setup.handler({ pnpmHomeDir: `${tmpDir}\nINJECTED=value` }))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_PNPM_HOME' })
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe('')
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup on Windows rejects a NUL in PNPM_HOME before writing GitHub Actions files', async () => {
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-github-actions-'))
+  const githubEnv = path.join(tmpDir, 'github-env')
+  actualFs.writeFileSync(githubEnv, '')
+  process.env.GITHUB_ACTIONS = 'true'
+  process.env.GITHUB_ENV = githubEnv
+  jest.mocked(addDirToEnvPath).mockClear()
+  try {
+    await expect(withPlatform('win32', () => setup.handler({ pnpmHomeDir: `${tmpDir}\0INJECTED=value` })))
+      .rejects.toMatchObject({ code: 'ERR_PNPM_BAD_GITHUB_ACTIONS_ENVIRONMENT_VALUE' })
+    expect(addDirToEnvPath).not.toHaveBeenCalled()
+    expect(actualFs.readFileSync(githubEnv, 'utf8')).toBe('')
+  } finally {
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('hint is added to ERR_PNPM_BAD_ENV_FOUND error object', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('BAD_ENV_FOUND', '')))
+  let err!: PnpmError
+  try {
+    await setup.handler({ pnpmHomeDir: '' })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err?.hint).toBe('If you want to override the existing env variable, use the --force option')
+})
+
+test('hint is added to ERR_PNPM_BAD_SHELL_SECTION error object', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('BAD_SHELL_SECTION', '')))
+  let err!: PnpmError
+  try {
+    await setup.handler({ pnpmHomeDir: '' })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err?.hint).toBe('If you want to override the existing configuration section, use the --force option')
+})
+
+test('setup prints the lines to add by hand when the shell is unknown', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.')))
+  const output = await setup.handler({ pnpmHomeDir: '/root/.pnpm' })
+  expect(output).toBe(`Could not infer shell type. No shell config file was changed.
+
+To start using pnpm, add these lines to your shell config file:
+export PNPM_HOME='/root/.pnpm'
+export PATH="$PNPM_HOME/bin:$PATH"`)
+})
+
+test('setup quotes PNPM_HOME as a literal in the lines to add by hand', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.')))
+  const output = await setup.handler({ pnpmHomeDir: "/home/o'neil/$(touch pwned)" })
+  expect(output).toContain("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n")
+})
+
+test('setup prints the lines to add by hand when sh has no ENV', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(
+    new PnpmError('NO_SHELL_CONFIG', 'Cannot find a config file for sh. The ENV environment variable is not set.')
+  ))
+  const output = await setup.handler({ pnpmHomeDir: '/root/.pnpm' })
+  expect(output.startsWith('Cannot find a config file for sh. The ENV environment variable is not set. No shell config file was changed.\n\n')).toBe(true)
+})
+
+test('setup fails on an unsupported shell', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNSUPPORTED_SHELL', 'Can\'t setup configuration for "tcsh" shell')))
+  await expect(setup.handler({ pnpmHomeDir: '/root/.pnpm' })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_SHELL' })
+})
+
+test.each(['REG_READ', 'FAILED_SET_ENV'])('setup prints PowerShell instructions on %s', async (code) => {
+  jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError(code, 'Registry access denied.'))
+  const output = await withPlatform('win32', () => setup.handler({ pnpmHomeDir: 'C:\\Users\\developer\\pnpm' }))
+  expect(output).toBe(`Registry access denied.
+
+pnpm is installed, but its environment could not be saved in the registry.
+To start using pnpm in this PowerShell session, run:
+$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'
+$env:Path = "$env:PNPM_HOME\\bin;$env:Path"
+
+Add these lines to your PowerShell profile to use pnpm in future sessions.`)
+})
+
+test.each(["'", '\u2018', '\u2019', '\u201a', '\u201b'])('setup escapes %s in PowerShell instructions', async (quote) => {
+  jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError('REG_READ', 'Registry access denied.'))
+  const output = await withPlatform('win32', () => setup.handler({ pnpmHomeDir: `C:\\Users\\o${quote}neil\\$(Write-Error injected)` }))
+  expect(output).toContain(`\n$env:PNPM_HOME = 'C:\\Users\\o${quote}${quote}neil\\$(Write-Error injected)'\n`)
+})
+
+test('global install of the standalone executable skips its build scripts', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir: path.join(tmpDir, 'home') })
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+  expect(spawnSync).toHaveBeenCalledTimes(1)
+  const args = jest.mocked(spawnSync).mock.calls[0][1] as string[]
+  expect(args).toContain('--ignore-scripts')
+  expect(args).toEqual(['add', '-g', '--ignore-scripts', `file:${tmpDir}`])
+})
+
+test('the manifest written next to the standalone executable declares its package files', () => {
+  expect(setup.standaloneManifest('pnpm.exe')).toStrictEqual({
+    name: '@pnpm/exe',
+    version: actualCliMeta.packageManager.version,
+    type: 'module',
+    bin: { pnpm: 'pnpm.exe', pn: 'pnpm.exe' },
+    files: ['pnpm.exe', 'dist/'],
+  })
+})
+
+test('setup removes leftover v10-layout shims at the top of pnpmHomeDir', async () => {
+  // Reproduces pnpm/pnpm#12496: `pnpm setup` migrated PATH to
+  // pnpmHomeDir/bin but left the v10-layout shims (pnpm/pn/pnpx/pnx and
+  // .cmd/.ps1 siblings) at pnpmHomeDir itself. self-update keyed off their
+  // mere existence and re-warned about a v10 layout forever.
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  actualFs.mkdirSync(pnpmHomeDir, { recursive: true })
+  // Pre-create the full set of v10-layout shim names. The cleanup must
+  // tolerate names that don't exist (e.g. .ps1 on POSIX) without error.
+  for (const name of LEGACY_HOME_DIR_SHIM_NAMES) {
+    actualFs.writeFileSync(path.join(pnpmHomeDir, name), 'stale shim\n')
+  }
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+    for (const name of LEGACY_HOME_DIR_SHIM_NAMES) {
+      expect(actualFs.existsSync(path.join(pnpmHomeDir, name))).toBe(false)
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('setup ignores legacy shim cleanup failures', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  actualFs.mkdirSync(pnpmHomeDir, { recursive: true })
+  actualFs.mkdirSync(path.join(pnpmHomeDir, LEGACY_HOME_DIR_SHIM_NAMES[0]))
+  const removableName = LEGACY_HOME_DIR_SHIM_NAMES[1]
+  actualFs.writeFileSync(path.join(pnpmHomeDir, removableName), 'stale shim\n')
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+    expect(actualFs.existsSync(path.join(pnpmHomeDir, removableName))).toBe(false)
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+// The aliases setup writes are `sh` scripts, so this runs where `sh` does. On
+// Windows the .cmd wrappers take over.
+const posixTest = process.platform === 'win32' ? test.skip : test
+
+// Creating a file symlink on Windows needs elevated rights.
+posixTest('setup does not install the CLI globally when pnpm runs through a symlink to its JS entry point', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(false)
+  jest.mocked(spawnSync).mockClear()
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const entryPoint = path.join(tmpDir, 'lib/node_modules/pnpm/bin/pnpm.mjs')
+  actualFs.mkdirSync(path.dirname(entryPoint), { recursive: true })
+  actualFs.writeFileSync(entryPoint, '')
+  const launcher = path.join(tmpDir, 'bin/pnpm')
+  actualFs.mkdirSync(path.dirname(launcher))
+  actualFs.symlinkSync('../lib/node_modules/pnpm/bin/pnpm.mjs', launcher)
+  const originalArgv1 = process.argv[1]
+  process.argv[1] = launcher
+  try {
+    await setup.handler({ pnpmHomeDir: path.join(tmpDir, 'home') })
+  } finally {
+    process.argv[1] = originalArgv1
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+  expect(spawnSync).not.toHaveBeenCalled()
+})
+
+posixTest('the alias scripts run the pnpm beside them, not one earlier on PATH', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  // The backslash is deliberate: it is an ordinary character in a Unix directory
+  // name, and the walk must leave it alone rather than read it as a separator.
+  const pnpmHomeDir = path.join(tmpDir, 'home\\dir')
+  const execPath = path.join(tmpDir, 'pnpm')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+
+    const binDir = path.join(pnpmHomeDir, 'bin')
+    writeStub(path.join(binDir, 'pnpm'), 'sibling')
+    // Earlier on PATH, so it wins any lookup by name.
+    const decoyDir = path.join(tmpDir, 'decoy')
+    writeStub(path.join(decoyDir, 'pnpm'), 'decoy')
+
+    for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
+      // MSYS and Cygwin can hand the script a native Windows path, which has no
+      // slash for ${self%/*} to strip. There is no POSIX shell on Windows to run
+      // this against, so pin the text, as the shim header's tests do. The gate is
+      // what keeps a Unix path holding a backslash off that branch, and pnpmHomeDir
+      // above holds one, so the spawn below is the executable half.
+      const script = actualFs.readFileSync(path.join(binDir, name), 'utf8')
+      expect(script).toContain('  [A-Za-z]:\\\\*|\\\\\\\\*)')
+
+      const result = actualChildProcess.spawnSync(path.join(binDir, name), ['add', 'foo'], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${decoyDir}:/usr/bin:/bin` },
+      })
+      expect({ name, stdout: result.stdout }).toEqual({ name, stdout: `sibling: ${injected}add foo\n` })
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+/** An executable stand-in for pnpm at `file` that echoes `label` and its arguments. */
+function writeStub (file: string, label: string): void {
+  actualFs.mkdirSync(path.dirname(file), { recursive: true })
+  actualFs.writeFileSync(file, `#!/bin/sh\necho "${label}: $*"\n`)
+  actualFs.chmodSync(file, 0o755)
+}
+
+// The Windows counterpart of the test above. The stand-in sibling is named for the
+// pnpm.cmd shim `pnpm add -g` links next to the aliases.
+const winTest = process.platform === 'win32' ? test : test.skip
+// What the stand-in shim exits with, so the wrappers are shown to hand the shim's
+// status back rather than reporting their own success.
+const SHIM_EXIT_CODE = 3
+// cmd.exe needs System32 for its own startup. It follows the decoy on the PATH
+// handed to the child, and the decoy coming first is what this test turns on.
+const SYSTEM32 = path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+
+winTest('the .cmd wrappers call the pnpm shim beside them, not one earlier on PATH', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  const execPath = path.join(tmpDir, 'pnpm.exe')
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: execPath, configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+
+    const binDir = path.join(pnpmHomeDir, 'bin')
+    writeShimStub(path.join(binDir, 'pnpm.cmd'), 'sibling')
+    // Earlier on PATH, so it wins any lookup by name.
+    const decoyDir = path.join(tmpDir, 'decoy')
+    writeShimStub(path.join(decoyDir, 'pnpm.cmd'), 'decoy')
+
+    for (const [name, injected] of [['pn', ''], ['pnpx', 'dlx '], ['pnx', 'dlx ']]) {
+      const result = actualChildProcess.spawnSync('cmd', ['/c', path.join(binDir, `${name}.cmd`), 'add', 'foo'], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${decoyDir};${SYSTEM32}` },
+      })
+      // Otherwise a failure to spawn surfaces as `stdout` being undefined.
+      if (result.error != null) throw result.error
+      expect({ name, stdout: result.stdout.trimEnd(), status: result.status })
+        .toEqual({ name, stdout: `sibling: ${injected}add foo`, status: SHIM_EXIT_CODE })
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+// PowerShell prefers pn.ps1 over pn.cmd, so an unsigned leftover from an earlier
+// setup would keep failing under the default execution policy.
+winTest('setup removes the .ps1 alias wrappers an earlier setup left', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(true)
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const pnpmHomeDir = path.join(tmpDir, 'home')
+  const binDir = path.join(pnpmHomeDir, 'bin')
+  actualFs.mkdirSync(binDir, { recursive: true })
+  for (const name of ['pn', 'pnpx', 'pnx']) {
+    actualFs.writeFileSync(path.join(binDir, `${name}.ps1`), 'stale wrapper\n')
+  }
+  const originalExecPath = process.execPath
+  Object.defineProperty(process, 'execPath', { value: path.join(tmpDir, 'pnpm.exe'), configurable: true })
+  try {
+    await setup.handler({ pnpmHomeDir })
+
+    for (const name of ['pn', 'pnpx', 'pnx']) {
+      expect({ name, ps1: actualFs.existsSync(path.join(binDir, `${name}.ps1`)) }).toEqual({ name, ps1: false })
+      expect({ name, cmd: actualFs.existsSync(path.join(binDir, `${name}.cmd`)) }).toEqual({ name, cmd: true })
+    }
+  } finally {
+    Object.defineProperty(process, 'execPath', { value: originalExecPath, configurable: true })
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+/** A stand-in for pnpm's generated `.cmd` shim at `file`, echoing `label` and its arguments. */
+function writeShimStub (file: string, label: string): void {
+  actualFs.mkdirSync(path.dirname(file), { recursive: true })
+  actualFs.writeFileSync(file, `@echo off\r\necho ${label}: %*\r\nexit /b ${SHIM_EXIT_CODE}\r\n`)
+}

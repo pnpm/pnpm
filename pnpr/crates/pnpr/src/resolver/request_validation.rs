@@ -1,0 +1,357 @@
+pub(super) use local_specs::reject_local_dependency_specs;
+
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
+use pnpm_lockfile::LockfileResolution;
+use pnpm_lockfile_verification::verify_lockfile_dependency_names;
+
+use pnpr_route::RouteContext;
+
+mod local_specs;
+
+use super::{
+    json_error,
+    json_error_with_code,
+    protocol::{
+        INCOMPATIBLE_LOCKFILE_FORMAT_CODE,
+        LockfileFormat,
+        ProjectDeps,
+        ResolveRequest,
+        UNSUPPORTED_REQUEST_FIELD_CODE,
+    },
+};
+
+/// Reject a request that would have pnpr fetch from an origin that is not on
+/// the route allowlist (see [`RouteContext::allows_registry`]), the
+/// resolver's SSRF boundary, run before any server-side fetch. pnpr fetches
+/// only from operator-configured registries, so a caller cannot point it at
+/// cloud instance metadata, an internal service, or any other off-allowlist
+/// host. Beyond the default/named registries this also covers every fetch a
+/// *direct-URL dependency* would trigger: an `http(s)`/`git` dependency spec,
+/// a catalog or package-extension entry, an override URL leaf, or an input
+/// lockfile's tarball URL. A semver range or `npm:`/`workspace:`/`file:` alias
+/// never hits the network, so it is ignored.
+pub(super) fn reject_off_allowlist_fetches(
+    request: &ResolveRequest,
+    context: &RouteContext,
+) -> Option<Response> {
+    // Registries are fetch targets whatever their scheme. The registries the
+    // request *declares* are deliberately not checked here: a client describes
+    // its whole configuration, including scopes this resolve never reaches, and
+    // one of those is refused at the fetch instead (`RouteHook::allows_fetch`)
+    // so configuring a registry pnpr does not serve is not itself an error.
+    let mut registries: Vec<&str> = Vec::new();
+    if let Some(registry) = request.registry.as_deref() {
+        registries.push(registry);
+    }
+    if let Some(off) = registries
+        .into_iter()
+        .find(|registry| !context.allows_registry(registry))
+    {
+        return Some(forbidden_off_allowlist(off));
+    }
+
+    let projects = request.projects_normalized();
+    let url_specs = fetchable_specs(request, &projects);
+    if let Some(off) = url_specs.into_iter().find(|spec| fetch_is_off_allowlist(spec, context)) {
+        return Some(forbidden_off_allowlist(off));
+    }
+
+    // Override leaves can themselves be direct-URL specs.
+    if let Some(off) = request.overrides
+        .as_ref()
+        .and_then(|overrides| first_off_allowlist_override(overrides, context))
+    {
+        return Some(forbidden_off_allowlist(&off));
+    }
+
+    None
+}
+
+/// Every spec of the request that could name a fetch target: direct-URL
+/// dependency specs, catalog and package-extension entries, and input-lockfile
+/// tarball URLs. They reach the network only when they carry an HTTP, HTTPS, or git
+/// URL, which the caller decides.
+fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps]) -> Vec<&'a str> {
+    let mut url_specs: Vec<&str> = Vec::new();
+    for project in projects {
+        for map in [
+            &project.dependencies,
+            &project.dev_dependencies,
+            &project.optional_dependencies,
+            &project.peer_dependencies,
+        ] {
+            url_specs.extend(map.values().map(String::as_str));
+        }
+    }
+    if let Some(catalogs) = request.catalogs.as_ref() {
+        url_specs.extend(
+            catalogs
+                .values()
+                .flat_map(|catalog| catalog.values())
+                .map(String::as_str),
+        );
+    }
+    extend_package_extension_specs(request, &mut url_specs);
+    if let Some(packages) =
+        request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
+    {
+        for package in packages.values() {
+            if let LockfileResolution::Tarball(resolution) = &package.resolution {
+                url_specs.push(resolution.tarball.as_str());
+            }
+        }
+    }
+    url_specs
+}
+
+/// Whether `spec` would trigger a server-side fetch to an origin that is not on
+/// the allowlist. Covers any `scheme://host` URL (an `http(s)` tarball and
+/// every git transport, `git`/`ssh`/`rsync`/`ftp`/`file`/... with a `git+`
+/// prefix stripped) and scp-style git remotes (`[user@]host:path`), which
+/// pacquet routes to the ssh git resolver. Specs that never reach the network,
+/// semver ranges, `npm:`/`workspace:`/`file:`/`link:` aliases (no `://`),
+/// scoped names, return `false`.
+fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
+    let url = match spec.get(..4) {
+        Some(head) if head.eq_ignore_ascii_case("git+") => &spec[4..],
+        _ => spec,
+    };
+    if url.contains("://") {
+        // Gate by origin regardless of scheme: any transport that reaches a
+        // host can be an SSRF vector (every git transport, git/ssh/rsync/ftp/
+        // file/...), and a scheme with no allowlistable host (e.g. `file://`,
+        // which would read a server-local path) nerf-darts to nothing and is
+        // rejected.
+        return !context.allows_registry(url);
+    }
+    // A scp-style git remote carries no scheme, so normalize its host to an
+    // `ssh://host/` origin the allowlist can match (nerf-darting is
+    // scheme-agnostic, so an operator allowlisting `https://host/` covers it).
+    match scp_git_host(url) {
+        Some(host) => !context.allows_registry(&format!("ssh://{host}/")),
+        None => false,
+    }
+}
+
+/// The host of a scp-style git remote (`[user@]host:path`), or `None`. The
+/// distinguishing shape is a `user@host` authority before the first `:` with a
+/// path after it, generalizing the `git@...` form pacquet's git resolver treats
+/// as ssh. A protocol spec (`npm:...`, `file:...`) has no `@` in its authority, and
+/// a `scheme://...` URL is handled before this is reached.
+fn scp_git_host(spec: &str) -> Option<&str> {
+    let (authority, path) = spec.split_once(':')?;
+    if path.is_empty() || authority.contains('/') {
+        return None;
+    }
+    let (_, host) = authority.rsplit_once('@')?;
+    (!host.is_empty()).then_some(host)
+}
+
+/// The first override URL leaf whose origin is off the fetch allowlist, if any.
+fn first_off_allowlist_override(
+    value: &serde_json::Value,
+    context: &RouteContext,
+) -> Option<String> {
+    match value {
+        serde_json::Value::String(spec) => {
+            fetch_is_off_allowlist(spec, context).then(|| spec.clone())
+        }
+        serde_json::Value::Array(items) => {
+            items.iter().find_map(|item| first_off_allowlist_override(item, context))
+        }
+        serde_json::Value::Object(map) => {
+            map.values().find_map(|item| first_off_allowlist_override(item, context))
+        }
+        _ => None,
+    }
+}
+
+/// The `403` a request earns by naming a fetch target the operator's route
+/// policy does not cover. Shared by every ecosystem's request boundary so
+/// one refusal reads the same whatever was being resolved.
+pub(super) fn forbidden_off_allowlist(target: &str) -> Response {
+    json_error(
+        StatusCode::FORBIDDEN,
+        &format!(
+            "{target:?} is not allowed by this pnpr server; the operator must declare its \
+             registry as a public route or an upstream",
+        ),
+    )
+}
+
+/// Reject a `registries` map the client could not have loaded itself.
+///
+/// The same validation the config reader runs on the setting, so a request
+/// cannot route one scope to two registries, or reach the resolver with a
+/// declaration pnpm would have refused on disk. The message is the reader's,
+/// with its registry URLs already redacted.
+pub(super) fn reject_invalid_registries(request: &ResolveRequest) -> Option<Response> {
+    pnpm_config::registries::validate_declarations(request.registries.iter())
+        .err()
+        .map(|error| json_error(StatusCode::BAD_REQUEST, &error.to_string()))
+}
+
+pub(super) fn reject_invalid_patch_hashes(request: &ResolveRequest) -> Option<Response> {
+    let (selector, _) = request.patched_dependencies
+        .as_ref()?
+        .iter()
+        .find(|(_, hash)| {
+            hash.len() != 64
+                || !hash
+                    .bytes()
+                    .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        })?;
+    Some(json_error(
+        StatusCode::BAD_REQUEST,
+        &format!("patchedDependencies entry {selector:?} does not contain a SHA-256 hex digest"),
+    ))
+}
+
+/// Reject a project whose `publishConfig.directory` escapes the project it
+/// belongs to. The resolver joins the value onto the project dir to build a
+/// workspace link, and the request is untrusted, so an absolute, drive- or
+/// UNC-bearing, or `..`-carrying value must not reach that join. Runs before
+/// every resolve path, including the frozen fast path that returns the caller's
+/// input lockfile without walking the tree.
+///
+/// Unlike the importer dir this value is not an identity that two builds have
+/// to agree on, so a benign non-canonical form such as `./dist` stays accepted:
+/// a local install resolves it, and failing only through a server would break
+/// installs that work without one.
+/// Returns a `400` response when one is found.
+pub(super) fn reject_unsafe_publish_directories(request: &ResolveRequest) -> Option<Response> {
+    let directory = request.projects
+        .as_deref()?
+        .iter()
+        .filter_map(|project| project.publish_config.as_ref()?.directory.as_deref())
+        .find(|directory| escapes_its_project(directory))?;
+    Some(json_error(
+        StatusCode::BAD_REQUEST,
+        &format!("publishConfig.directory {directory:?} points outside its project"),
+    ))
+}
+
+/// Whether a client-supplied publish directory could address a path outside the
+/// project it is joined onto: absolute, drive- or UNC-bearing (a backslash or a
+/// colon), or carrying a `..` component.
+fn escapes_its_project(directory: &str) -> bool {
+    directory.starts_with('/')
+        || directory.contains('\\')
+        || directory.contains(':')
+        || directory
+            .split('/')
+            .any(|component| component == "..")
+}
+
+/// Reject a request whose client-supplied URLs carry inline
+/// `user:pass@host` credentials, before any fetch or cache write. Covers
+/// the default and named registries, every dependency spec, catalog and
+/// package-extension value, override values, and the tarball URLs of an input
+/// lockfile; every surface a tarball/registry URL can reach the resolver (or
+/// be echoed back) through.
+/// Returns a `400` response when one is found.
+pub(super) fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
+    let mut specs: Vec<&str> = Vec::new();
+    if let Some(registry) = request.registry.as_deref() {
+        specs.push(registry);
+    }
+    specs.extend(request.registries.keys().map(String::as_str));
+    let projects = request.projects_normalized();
+    specs.extend(fetchable_specs(request, &projects));
+    let inline = specs.iter().any(|spec| pnpr_route::url_has_inline_credentials(spec))
+        || request.overrides.as_ref().is_some_and(overrides_have_inline_url_auth);
+    inline.then(|| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "inline URL credentials (user:pass@host) are not allowed; \
+             configure an upstream credential alias instead",
+        )
+    })
+}
+
+fn extend_package_extension_specs<'a>(request: &'a ResolveRequest, specs: &mut Vec<&'a str>) {
+    let Some(extensions) = request.package_extensions.as_ref() else {
+        return;
+    };
+    for extension in extensions.values() {
+        for dependencies in [
+            extension.dependencies.as_ref(),
+            extension.optional_dependencies.as_ref(),
+            extension.peer_dependencies.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            specs.extend(dependencies.values().map(String::as_str));
+        }
+    }
+}
+
+/// Recursively scan an `overrides` JSON value for any string leaf that is
+/// a URL carrying inline credentials.
+fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::String(spec) => pnpr_route::url_has_inline_credentials(spec),
+        serde_json::Value::Array(items) => items.iter().any(overrides_have_inline_url_auth),
+        serde_json::Value::Object(map) => map.values().any(overrides_have_inline_url_auth),
+        _ => false,
+    }
+}
+
+pub(super) fn reject_invalid_lockfile_dependency_names(
+    request: &ResolveRequest,
+) -> Option<Response> {
+    let lockfile = request.lockfile.as_ref()?;
+    let err = verify_lockfile_dependency_names(lockfile).err()?;
+    Some(json_error_with_code(
+        StatusCode::BAD_REQUEST,
+        &err.to_string(),
+        Some("ERR_PNPR_INVALID_DEPENDENCY_NAME"),
+    ))
+}
+
+pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {
+    let formats = request.accepted_lockfile_formats.as_ref()?;
+    let rendered = LockfileFormat::PnpmLockV9.wire_name();
+    if formats
+        .iter()
+        .any(|format| format == rendered)
+    {
+        return None;
+    }
+    Some(json_error_with_code(
+        StatusCode::BAD_REQUEST,
+        &format!("incompatible lockfile format: pnpr renders {rendered}"),
+        Some(INCOMPATIBLE_LOCKFILE_FORMAT_CODE),
+    ))
+}
+
+/// Read a resolver request body. A field the request type does not declare is
+/// refused with [`UNSUPPORTED_REQUEST_FIELD_CODE`], so the client can
+/// tell a setting this server cannot honor from a malformed body.
+pub(super) fn parse_request<Request: serde::de::DeserializeOwned>(
+    body: &[u8],
+) -> Result<Request, Response> {
+    serde_json::from_slice(body)
+        .map_err(|err| {
+            let message = err.to_string();
+            match unknown_field_name(&message) {
+                Some(field) => json_error_with_code(
+                    StatusCode::BAD_REQUEST,
+                    &format!("pnpr does not support the request field `{field}`"),
+                    Some(UNSUPPORTED_REQUEST_FIELD_CODE),
+                ),
+                None => json_error(StatusCode::BAD_REQUEST, &message),
+            }
+        })
+}
+
+/// The field named by serde's `deny_unknown_fields` error, which reads
+/// ``unknown field `name`, expected …``.
+fn unknown_field_name(message: &str) -> Option<&str> {
+    let rest = message.strip_prefix("unknown field `")?;
+    rest.split_once('`').map(|(field, _)| field)
+}

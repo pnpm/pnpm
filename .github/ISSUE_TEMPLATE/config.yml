@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Feature Request 💡
+    url: https://github.com/pnpm/pnpm/discussions/new?category=ideas
+    about: Suggest a new feature or an improvement. Issues are for bug reports only
   - name: Question 🤷🏻‍♂️
     url: https://github.com/pnpm/pnpm/discussions/new?category=q-a
     about: Ask questions and discuss with other community members

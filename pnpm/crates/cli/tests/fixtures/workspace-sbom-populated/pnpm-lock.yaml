@@ -1,0 +1,61 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies: {}
+
+  app-a:
+    dependencies:
+      is-positive:
+        specifier: 3.1.0
+        version: 3.1.0
+      shared-lib:
+        specifier: workspace:*
+        version: link:../shared-lib
+
+  app-b:
+    dependencies:
+      is-negative:
+        specifier: 2.1.0
+        version: 2.1.0
+
+  shared-lib:
+    dependencies:
+      is-odd:
+        specifier: 3.0.1
+        version: 3.0.1
+
+packages:
+
+  is-negative@2.1.0:
+    resolution: {integrity: sha512-lOLfrmtpmkreuw+9G/zcKnfJGnOPqBvvZqYOaklGJHfyEcEmuItDJee2bDIA9hRK8j0MiYbU5yHEMh0GKG/Ig==}
+    engines: {node: '>=0.10.0'}
+
+  is-number@6.0.0:
+    resolution: {integrity: sha512-Wu1VGGOSKiLJfR2jGNA5W6aDTdEv0yKrZsoKAfEmuB5me6LSrjYbr9MZk0tqzLJKlTQb23osKHLMIR0eG3gc2A==}
+    engines: {node: '>=0.12.0'}
+
+  is-odd@3.0.1:
+    resolution: {integrity: sha512-CQpnWPrDwmP1+SMHXZhtLtCv8v6NvAzZtPbDSHJNGfPBIElLqxmQoM/3FP/qRqP3TERIPAPR94rJ2jCihl+kg==}
+    engines: {node: '>=0.10.0'}
+
+  is-positive@3.1.0:
+    resolution: {integrity: sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==}
+    engines: {node: '>=0.10.0'}
+
+snapshots:
+
+  is-negative@2.1.0: {}
+
+  is-number@6.0.0: {}
+
+  is-odd@3.0.1:
+    dependencies:
+      is-number: 6.0.0
+
+  is-positive@3.1.0: {}

@@ -1,0 +1,127 @@
+import { packageManager } from '@pnpm/cli.meta'
+import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
+import { decide, maturePnpmVersionForRange, type PinDecision } from '@pnpm/engine.pm.commands'
+import { isPackageManagerResolved, type PackageTrustPolicy, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
+import type { EnvLockfile } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
+import { createStoreController } from '@pnpm/store.connection-manager'
+import semver from 'semver'
+
+import { describeFailure } from './describeFailure.js'
+
+/**
+ * Records the currently running pnpm version (see {@link pnpmVersionToRecord})
+ * in the env lockfile's `packageManagerDependencies` entry when the project
+ * opts in to lockfile-pinned versioning (via `devEngines.packageManager`, or a
+ * v12+ `packageManager` pin) and the lockfile doesn't already record a version
+ * that satisfies the wanted range.
+ *
+ * The currently running pnpm version has already been verified by
+ * checkPackageManager to satisfy the wanted range.
+ *
+ * No-op when the project does not pin a pnpm version, when lockfile writing
+ * is turned off, or when the recorded entry both satisfies the wanted range
+ * and pins every package that version is installed from.
+ */
+export async function syncEnvLockfile (config: Config, context: ConfigContext): Promise<void> {
+  const pm = context.wantedPackageManager
+  if (pm == null || pm.name !== 'pnpm' || pm.version == null) return
+  if (!shouldPersistLockfile(pm)) return
+  // The entry lives in pnpm-lock.yaml, which `lockfile: false` opts the
+  // project out of (pnpm/pnpm#14728).
+  if (config.useLockfile === false) return
+  // The currently running pnpm must satisfy the wanted range. Otherwise,
+  // recording it in the lockfile would cement an incompatible resolution —
+  // checkPackageManager has already surfaced the mismatch to the user.
+  if (!semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })) return
+
+  const envLockfile = await readEnvLockfile(envLockfileDir(config, context)) ?? undefined
+  const decision = decide(
+    {
+      wanted: { ...pm, onFail: 'warn' },
+      lockedEnv: envLockfile,
+      runningName: packageManager.name,
+      runningVersion: packageManager.version,
+      underCorepack: true,
+      isResolved: isPackageManagerResolved,
+    },
+    { ...config, ...context, pmOnFail: 'warn' },
+    { entryPoint: 'command', recordPinWithoutSwitch: true }
+  )
+  if (decision.action !== 'record') return
+  await executeRecordDecision({ config, context, decision, envLockfile })
+}
+
+export async function executeRecordDecision ({
+  config,
+  context,
+  decision,
+  envLockfile,
+}: {
+  config: Config
+  context: ConfigContext
+  decision: Extract<PinDecision, { action: 'record' }>
+  envLockfile?: EnvLockfile
+}): Promise<void> {
+  const version = decision.checkMaturity
+    ? await pnpmVersionToRecord(config, decision.specifier)
+    : decision.version
+  if (version == null) return
+  const packageManagerConfig = getPackageManagerBootstrapConfig(config)
+  const store = await createStoreController({ ...config, ...context, ...packageManagerConfig, skipBypassedHomeStoreWarning: true })
+  try {
+    await resolvePackageManagerIntegrities(version, {
+      envLockfile,
+      registriesByScope: packageManagerConfig.registriesByScope,
+      rootDir: decision.at,
+      storeController: store.ctrl,
+      storeDir: store.dir,
+      save: true,
+      specifier: decision.specifier,
+      frozenLockfile: config.frozenLockfile,
+      ...packageManagerTrustPolicy(config),
+    })
+  } finally {
+    await store.ctrl.close()
+  }
+}
+
+/**
+ * The env lockfile is the first document of `pnpm-lock.yaml`, so it follows
+ * `lockfileDir`, which `pnpm-workspace.yaml` may set.
+ */
+export function envLockfileDir (config: Pick<Config, 'lockfileDir'>, context: Pick<ConfigContext, 'rootProjectManifestDir'>): string {
+  return config.lockfileDir ?? context.rootProjectManifestDir
+}
+
+/**
+ * The `trustPolicy` settings the pinned pnpm is resolved under. The pin is a
+ * dependency the project chose, so it gets the same trust checks as the
+ * project's other dependencies.
+ */
+export function packageManagerTrustPolicy (config: Config): PackageTrustPolicy {
+  return {
+    trustPolicy: config.trustPolicy,
+    trustPolicyExclude: config.trustPolicyExclude,
+    trustPolicyIgnoreAfter: config.trustPolicyIgnoreAfter,
+  }
+}
+
+/**
+ * The version to record for a pin the running pnpm satisfies. A range pin
+ * records the running pnpm only when it meets the project's
+ * `minimumReleaseAge`. A frozen lockfile records nothing new, so the lookup
+ * is skipped there. `undefined` when the lookup fails: nothing is recorded.
+ */
+export async function pnpmVersionToRecord (config: Config, wantedVersion: string): Promise<string | undefined> {
+  if (config.frozenLockfile || semver.valid(wantedVersion) != null) return packageManager.version
+  try {
+    return await maturePnpmVersionForRange(config, wantedVersion)
+  } catch (err: unknown) {
+    // Recording the running pnpm unchecked could pin a release every other
+    // contributor's switch refuses. The next command retries the lookup.
+    globalWarn(`Skipped recording pnpm v${packageManager.version} in pnpm-lock.yaml because it could not be checked against minimumReleaseAge: ${describeFailure(err)}`)
+    return undefined
+  }
+}

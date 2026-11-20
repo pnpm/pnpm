@@ -1,0 +1,616 @@
+//! The dispatcher behind context-aware global shims.
+//!
+//! A context-aware shim is the pnpm executable published under the bin's
+//! own name, with the global target recorded beside it (see
+//! [`native_shim`]). Launched under that name, pnpm dispatches instead of
+//! running the CLI: the `globalShims` record decides which providing
+//! packages are eligible, and the managed runtimes are enabled by default.
+//! For a runtime pin, the dispatcher reads the project's
+//! `devEngines.runtime` / `engines.runtime`, `.node-version`, or `.nvmrc`,
+//! materializes the release in pnpm's global virtual store, and executes
+//! it directly, never through the project's `node_modules/.bin`. A
+//! publisher-signature-verified stable Node release runs without prompting.
+//!
+//! Everything else eligible (ordinary package bins, unsigned runtime
+//! channels) is a trust decision, gated twice. First, the
+//! candidate must resolve through its aliases to a package whose manifest
+//! name matches the global provider. Second, the exact candidate must be
+//! approved on the terminal (`Do you trust this project?`). Answers are
+//! persisted in a machine-local registry and bound to the provider manifest,
+//! canonical target, shim contents, and file identity, so a changed checkout
+//! or replacement bin cannot inherit an earlier approval.
+//! Without a terminal the dispatcher falls back to the global target.
+
+pub(crate) mod native_shim;
+pub(crate) mod runtime_env;
+pub(crate) mod rust_toolchain;
+
+pub(crate) use native_shim::{
+    ShimTarget,
+    install_native_shim,
+    is_legacy_context_aware_shim,
+    migrate_legacy_shims,
+    native_shim_is_installed,
+    native_shim_paths,
+    native_shim_target,
+    native_shims,
+    refresh_native_shims,
+    remove_native_shim,
+};
+pub(crate) use runtime_env::{
+    MaterializedRuntime,
+    materialize_runtime,
+};
+pub(crate) use settings::{
+    apply_settings_above_global_config,
+    global_shims_setting,
+};
+
+use crate::{
+    cli_args::{
+        package_manager::wanted_package_manager,
+        reporter::{
+            CliReporter,
+            EventFilter,
+        },
+    },
+    engine_pm::{
+        channel::{
+            Channel,
+            PackageManager,
+        },
+        provision::{
+            ProvisionedEngine,
+            provision,
+        },
+    },
+};
+use derive_more::Display;
+use identity::{
+    local_bin_identity,
+    provider_of_target,
+};
+use native_shim::dispatch_legacy_shim;
+use pnpm_config::{
+    Config,
+    GlobalShims,
+    GlobalShimsSetting,
+    Host,
+    LoadWorkspaceYamlError,
+    MachineSettings,
+    SettingsRead,
+    ShimPolicy,
+    TrustedSettings,
+    default_config_dir,
+    default_pnpm_home_dir,
+    default_state_dir,
+    resolve_configured_state_dir,
+};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_bytes,
+};
+use pnpm_engine_runtime_node_resolver::parse_node_specifier;
+use pnpm_package_manifest::is_runtime_alias;
+use pnpm_rust_toolchain::{
+    ToolchainRequest,
+    rustup_settings_file,
+};
+use run_program::{
+    exec_program,
+    exec_program_with_bin_dirs,
+    run_global_target,
+    run_held_program,
+};
+use runtime_env::{
+    PACKAGE_MANAGER_ENVS_DIR_NAME,
+    trusted_runtime_config,
+};
+use rust_toolchain::{
+    RUST_SHIM_PACKAGE,
+    RustSelection,
+    find_rust_candidate,
+    overrides_toolchain,
+    run_global_rust,
+    run_next_on_path,
+    run_rust_toolchain,
+};
+use serde_json::Value;
+use settings::{
+    is_automatic_runtime,
+    manifest_package_manager_pin,
+    package_manager_runs_promptless,
+    runtime_pin,
+    trusted_package_manager_config,
+    trusted_shim_settings,
+    validate_candidate,
+};
+use std::{
+    ffi::OsString,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
+};
+use trust::is_trusted;
+
+mod identity;
+mod trust;
+
+/// Environment variable that short-circuits the dispatcher to the global
+/// target: a user-facing kill switch that the target's own children, a
+/// sibling `node` shim included, inherit.
+const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
+
+/// Environment variable marking the processes a shim dispatch spawns while
+/// it prepares the program it runs, such as the `node --version` probe of
+/// a runtime install. A shim launched with it set runs its global target:
+/// dispatching again would prepare the same program, and a shim that
+/// prepares a runtime by running that runtime's own shim recurses forever.
+/// The program the dispatch finally runs does not inherit it, so the
+/// project's own nested commands dispatch as usual.
+const PREPARING_ENV: &str = "PNPM_SHIM_PREPARING";
+
+/// Whether this process set [`PREPARING_ENV`], rather than inheriting it
+/// from an enclosing dispatch.
+static SET_PREPARING_ENV: AtomicBool = AtomicBool::new(false);
+
+/// What this process was launched as, resolved once in [`crate::main`].
+///
+/// Classification reads the shim sidecar, so reading it again later in
+/// dispatch could observe a different answer when a shim install, removal,
+/// or migration lands in between: pnpm would then skip `--env-file`
+/// loading and run as the CLI, or inject the loaded environment into a
+/// newly detected shim target. Resolving once and carrying the verdict
+/// into dispatch keeps the `--env-file` gate and the dispatch consistent.
+pub(crate) enum ShimLaunch {
+    /// Plain pnpm; run the CLI.
+    Cli,
+    /// A legacy shim's `--shim` invocation.
+    Legacy,
+    /// A native shim launch with its recorded target.
+    Native { name: String, bin_dir: PathBuf, target: ShimTarget },
+    /// A shim launch whose target cannot be used. The message is already
+    /// formatted for stderr; dispatch prints it and exits 1.
+    Broken(String),
+}
+
+impl ShimLaunch {
+    /// Classify this launch: a legacy shim's `--shim` invocation, or an
+    /// executable carrying a native shim name with a recorded global
+    /// target. Anything else is pnpm itself. When the launch is a shim,
+    /// the arguments belong to the shim target and pnpm must not
+    /// interpret them (in particular, it must not load `--env-file`
+    /// files named there).
+    pub(crate) fn detect(argv: &[OsString]) -> Self {
+        if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
+            return Self::Legacy;
+        }
+        match native_shim::resolve_native_launch() {
+            native_shim::NativeLaunch::Cli => Self::Cli,
+            native_shim::NativeLaunch::Dispatch { name, bin_dir, target } => {
+                Self::Native { name, bin_dir, target }
+            }
+            native_shim::NativeLaunch::Broken(message) => Self::Broken(message),
+        }
+    }
+
+    /// Whether this process was launched as a shim rather than as pnpm
+    /// itself.
+    pub(crate) fn is_shim(&self) -> bool {
+        !matches!(self, Self::Cli)
+    }
+
+    /// Set [`PREPARING_ENV`] for a shim launch that no enclosing dispatch
+    /// has marked. Must run on the main thread before any other thread
+    /// exists (see [`crate::main`]).
+    pub(crate) fn mark_preparation(&self) {
+        if !self.is_shim() || std::env::var_os(PREPARING_ENV).is_some() {
+            return;
+        }
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "the processes the dispatch spawns while it prepares its program have to \
+                      inherit the mark, so it has to be in the environment"
+        )]
+        // SAFETY: `crate::main` calls this before `run_on_big_stack` spawns
+        // the startup thread, so no other thread exists that could access
+        // the environment concurrently.
+        unsafe {
+            std::env::set_var(PREPARING_ENV, "1");
+        }
+        SET_PREPARING_ENV.store(true, Ordering::Relaxed);
+    }
+
+    /// Intercept a launch under a shim name, or a legacy shim's `--shim`
+    /// invocation of the dispatcher it replaced. `None` means this is pnpm
+    /// itself and the regular CLI should proceed; `Some(code)` means the
+    /// dispatch ran (or failed) and the process must exit with `code`. On Unix
+    /// a successful dispatch never returns at all, the target is `exec`ed in
+    /// place.
+    pub(crate) fn dispatch(&self, argv: &[OsString]) -> Option<i32> {
+        match self {
+            Self::Cli => None,
+            Self::Legacy => Some(dispatch_legacy_shim(argv.get(2..).unwrap_or_default())),
+            Self::Native { name, bin_dir, target } => {
+                let invocation = ShimInvocation { name, bin_dir, target };
+                let settings = trusted_shim_settings();
+                let args = argv.get(1..).unwrap_or_default();
+                Some(dispatch_target(&invocation, args, &settings.shims, &settings.state_dir))
+            }
+            Self::Broken(message) => {
+                pnpm_diagnostics::eprintln!("{message}");
+                Some(1)
+            }
+        }
+    }
+}
+
+/// The shim being dispatched: its bin name, the directory it lives in
+/// (where a sibling interpreter such as `node` is looked up first), and
+/// the global target it falls back to.
+struct ShimInvocation<'a> {
+    name: &'a str,
+    bin_dir: &'a Path,
+    target: &'a ShimTarget,
+}
+
+fn dispatch_target(
+    shim: &ShimInvocation<'_>,
+    args: &[OsString],
+    shims: &GlobalShims,
+    state_dir: &Path,
+) -> i32 {
+    let ShimInvocation { name, target, .. } = *shim;
+    if bypass_requested() || inside_preparation() || shims.dispatches_nothing() {
+        return run_global_target(shim, args);
+    }
+    let Some(package) = shim_package(target) else {
+        return run_global_target(shim, args);
+    };
+    let policy = shims.policy(&package);
+    if policy == ShimPolicy::Off {
+        return run_global_target(shim, args);
+    }
+    if package == RUST_SHIM_PACKAGE {
+        return dispatch_rust(shim, args, policy, state_dir);
+    }
+    let candidate = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| find_candidate(&cwd, name, &package))
+        .and_then(|candidate| validate_candidate(candidate, &package, name));
+    match candidate {
+        Some(Candidate::RuntimePin { version_spec, .. })
+            if runtime_runs_promptless(policy, name, &version_spec) =>
+        {
+            run_runtime_from_store(state_dir, name, &version_spec, args)
+        }
+        Some(Candidate::PackageManagerPin { pm, version_spec, .. })
+            if package_manager_runs_promptless(policy, pm, &version_spec) =>
+        {
+            run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
+        }
+        Some(candidate)
+            if policy == ShimPolicy::Always || is_trusted(&candidate, name, state_dir) =>
+        {
+            run_trusted_candidate(shim, candidate, args, state_dir)
+        }
+        _ => run_global_target(shim, args),
+    }
+}
+
+/// Run a Rust tool from the toolchain the project's toolchain file names,
+/// or step aside for the next one on `PATH` where no file applies.
+///
+/// A toolchain file selects only a release the Rust project signed, so
+/// `auto` runs it without the trust gate, as it does a signed Node.js
+/// release.
+fn dispatch_rust(
+    shim: &ShimInvocation<'_>,
+    args: &[OsString],
+    policy: ShimPolicy,
+    state_dir: &Path,
+) -> i32 {
+    if overrides_toolchain(args) {
+        return run_next_on_path(shim, args);
+    }
+    let rustup_settings = rustup_settings_file();
+    let Ok(cwd) = std::env::current_dir() else { return run_next_on_path(shim, args) };
+    match find_rust_candidate(&cwd, rustup_settings.as_deref()) {
+        RustSelection::Managed(candidate)
+            if matches!(policy, ShimPolicy::Auto | ShimPolicy::Always)
+                || is_trusted(&candidate, shim.name, state_dir) =>
+        {
+            run_trusted_candidate(shim, candidate, args, state_dir)
+        }
+        RustSelection::Unpinned => run_global_rust(shim, args, state_dir),
+        // An untrusted project file is not run, and rustup's own choices are
+        // rustup's to act on.
+        RustSelection::Managed(_) | RustSelection::Rustup => run_next_on_path(shim, args),
+    }
+}
+
+/// The package a shim's eligibility is keyed by, so an entry for
+/// `typescript` covers its `tsc` bin. A shim with a global install behind
+/// it takes that package from the target's manifest, which also anchors the
+/// candidate match; a target-less shim declares it.
+fn shim_package(target: &ShimTarget) -> Option<String> {
+    match target {
+        ShimTarget::Virtual(package) => Some(package.clone()),
+        ShimTarget::Installed(path) => provider_of_target(path).map(|provider| provider.name),
+    }
+}
+
+/// Run a candidate the trust gate has cleared.
+fn run_trusted_candidate(
+    shim: &ShimInvocation<'_>,
+    candidate: Candidate,
+    args: &[OsString],
+    state_dir: &Path,
+) -> i32 {
+    let name = shim.name;
+    match candidate {
+        Candidate::LocalBin { bin, identity, .. } => {
+            // The trust prompt leaves a human-scale window between
+            // fingerprinting and execution; revalidate so the approved
+            // bytes are the ones that run. The remaining race is
+            // process-scale and needs an attacker already executing code as
+            // the user, outside this gate's threat model, since a hostile
+            // repository is static.
+            if !local_bin_unchanged(&bin, name, &identity) {
+                return run_global_target(shim, args);
+            }
+            exec_program(&bin, args)
+        }
+        Candidate::RuntimePin { version_spec, .. } => {
+            run_runtime_from_store(state_dir, name, &version_spec, args)
+        }
+        Candidate::PackageManagerPin { pm, version_spec, .. } => {
+            run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
+        }
+        Candidate::RustToolchain { request, .. } => {
+            run_rust_toolchain(state_dir, &request, name, args)
+        }
+    }
+}
+
+/// Whether the bin still carries the fingerprint the trust decision was
+/// made against.
+fn local_bin_unchanged(bin: &Path, name: &str, approved_identity: &str) -> bool {
+    local_bin_identity(bin, name).is_some_and(|current| current.fingerprint == approved_identity)
+}
+
+/// Whether a runtime pin may run without the trust gate.
+fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -> bool {
+    match policy {
+        ShimPolicy::Always => true,
+        ShimPolicy::Auto => is_automatic_runtime(name, version_spec),
+        ShimPolicy::Off | ShimPolicy::Prompt => false,
+    }
+}
+
+/// Whether an enclosing shim dispatch is still preparing what it runs.
+fn inside_preparation() -> bool {
+    !SET_PREPARING_ENV.load(Ordering::Relaxed) && std::env::var_os(PREPARING_ENV).is_some()
+}
+
+/// Keep [`PREPARING_ENV`] out of the program a dispatch finally runs when
+/// this process set it.
+fn unmark_preparation(command: &mut crate::process::Command) {
+    if SET_PREPARING_ENV.load(Ordering::Relaxed) {
+        command.env_remove(PREPARING_ENV);
+    }
+}
+
+fn bypass_requested() -> bool {
+    std::env::var(BYPASS_ENV)
+        .is_ok_and(|value| !value.is_empty() && value != "0" && value != "false")
+}
+
+/// A project-provided replacement for the invoked global bin.
+enum Candidate {
+    /// The project has `node_modules/.bin/<name>`, an installed
+    /// dependency (including a materialized runtime) providing the bin.
+    LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
+    /// The project pins the runtime `<name>` in `devEngines.runtime`,
+    /// `engines.runtime`, `.node-version`, or `.nvmrc`, but has not
+    /// materialized it; the pinned version is fetched into the store on
+    /// demand.
+    RuntimePin { project_dir: PathBuf, version_spec: String, source_hash: String, identity: String },
+    /// The project pins its package manager in `packageManager` /
+    /// `devEngines.packageManager`. Like a runtime pin, the version is
+    /// provisioned on demand rather than expected on the host.
+    PackageManagerPin {
+        project_dir: PathBuf,
+        pm: PackageManager,
+        version_spec: String,
+        manifest_hash: String,
+        identity: String,
+    },
+    /// A rustup toolchain file at `project_dir` names a Rust release, which
+    /// is installed into the store on demand.
+    RustToolchain { project_dir: PathBuf, request: ToolchainRequest, identity: String },
+}
+
+impl Candidate {
+    fn project_dir(&self) -> &Path {
+        match self {
+            Candidate::LocalBin { project_dir, .. }
+            | Candidate::RuntimePin { project_dir, .. }
+            | Candidate::PackageManagerPin { project_dir, .. }
+            | Candidate::RustToolchain { project_dir, .. } => project_dir,
+        }
+    }
+
+    fn identity(&self) -> &str {
+        match self {
+            Candidate::LocalBin { identity, .. }
+            | Candidate::RuntimePin { identity, .. }
+            | Candidate::PackageManagerPin { identity, .. }
+            | Candidate::RustToolchain { identity, .. } => identity,
+        }
+    }
+}
+
+/// Walk up from `cwd` to the nearest directory providing `name`, the bin
+/// that was invoked, on behalf of `package`.
+///
+/// Runtime shims only consider project runtime pins and never inspect `.bin`;
+/// a package manager's pin outranks an installed copy of itself, because
+/// the pin is the project's own statement of what installs it; ordinary
+/// package bins resolve through `node_modules/.bin`. Directories inside
+/// the pnpm home are skipped because global installs are not projects.
+fn find_candidate(cwd: &Path, name: &str, package: &str) -> Option<Candidate> {
+    let pnpm_home = default_pnpm_home_dir::<Host>();
+    let runtime = is_runtime_alias(name);
+    let package_manager = PackageManager::parse(package);
+    cwd.ancestors()
+        .filter(|dir| {
+            !pnpm_home
+                .as_deref()
+                .is_some_and(|home| dir.starts_with(home))
+        })
+        .find_map(|dir| candidate_in(dir, name, runtime, package_manager))
+}
+
+/// The candidate one directory offers, in the precedence
+/// [`find_candidate`] documents.
+fn candidate_in(
+    dir: &Path,
+    name: &str,
+    runtime: bool,
+    package_manager: Option<PackageManager>,
+) -> Option<Candidate> {
+    if runtime && let Some((version_spec, source_hash)) = runtime_pin(dir, name) {
+        return Some(Candidate::RuntimePin {
+            project_dir: dir.to_path_buf(),
+            version_spec,
+            source_hash,
+            identity: String::new(),
+        });
+    }
+    if let Some(pm) = package_manager
+        && let Some((version_spec, manifest_hash)) = manifest_package_manager_pin(dir, pm)
+    {
+        return Some(Candidate::PackageManagerPin {
+            project_dir: dir.to_path_buf(),
+            pm,
+            version_spec,
+            manifest_hash,
+            identity: String::new(),
+        });
+    }
+    if !runtime && let Some(bin) = local_bin_path(dir, name) {
+        return Some(Candidate::LocalBin {
+            project_dir: dir.to_path_buf(),
+            bin,
+            identity: String::new(),
+        });
+    }
+    None
+}
+
+/// The runnable `node_modules/.bin` entry for `name` under `dir`, if any.
+/// A broken symlink does not count, `is_file` follows links.
+fn local_bin_path(dir: &Path, name: &str) -> Option<PathBuf> {
+    let bin_dir = dir.join("node_modules").join(".bin");
+    // No `.exe` candidate: project `.bin` dirs never legitimately carry
+    // one, and provider identity is derived from the extensionless
+    // sibling script, a planted `.exe` would execute while a benign
+    // script passed validation.
+    let candidates: Vec<String> = if cfg!(windows) {
+        vec![format!("{name}.cmd"), name.to_string()]
+    } else {
+        vec![name.to_string()]
+    };
+    candidates
+        .iter()
+        .map(|file_name| bin_dir.join(file_name))
+        .find(|path| path.is_file())
+}
+
+fn run_runtime_from_store(
+    state_dir: &Path,
+    name: &str,
+    version_spec: &str,
+    args: &[OsString],
+) -> i32 {
+    let result = crate::block_on_runtime(
+        "pacquet-global-shim-runtime",
+        materialize_runtime(state_dir, name.to_string(), version_spec.to_string()),
+    );
+    match result {
+        Ok(MaterializedRuntime {
+            bin,
+            private_install: Some(private_install),
+        }) => run_held_program(&bin, &[], args, vec![private_install]),
+        Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
+        Err(error) => {
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
+            );
+            pnpm_diagnostics::eprintln!(
+                "pnpm: global runtime downloads use global configuration and environment settings. pnpm-workspace.yaml is ignored unless PNPM_CONFIG_WORKSPACE_DIR or NPM_CONFIG_WORKSPACE_DIR selects a workspace.",
+            );
+            if name == "node" {
+                pnpm_diagnostics::eprintln!(
+                    "pnpm: for Node.js mirrors, check tools.node, nodeDownloadMirrors, PNPM_CONFIG_TOOLS, and PNPM_CONFIG_NODE_DOWNLOAD_MIRRORS.",
+                );
+            }
+            1
+        }
+    }
+}
+
+/// Provision the package manager a project pins and run it.
+///
+/// The provisioning configuration is pnpm's own, anchored in its state
+/// directory: the project decides *which* package manager runs, never
+/// where its bytes come from.
+fn run_package_manager_from_pin(
+    state_dir: &Path,
+    pm: PackageManager,
+    version_spec: &str,
+    name: &str,
+    args: &[OsString],
+) -> i32 {
+    let spec = version_spec.to_string();
+    let state_dir = state_dir.to_path_buf();
+    let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
+        let config = Config::leak(trusted_package_manager_config(&state_dir)?);
+        let _quiet = EventFilter::All.apply();
+        Box::pin(provision::<CliReporter>(config, pm, &spec)).await
+    });
+    match result {
+        Ok(engine) => {
+            let program = engine.command(name);
+            let ProvisionedEngine {
+                bin_dirs,
+                _private_installs: private_installs,
+                ..
+            } = engine;
+            if private_installs.is_empty() {
+                exec_program_with_bin_dirs(&program, &bin_dirs, args)
+            } else {
+                run_held_program(&program, &bin_dirs, args, private_installs)
+            }
+        }
+        Err(error) => {
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {}@{version_spec}: {error:?}",
+                pm.name(),
+            );
+            1
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+mod run_program;
+mod settings;

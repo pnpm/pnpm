@@ -1,0 +1,926 @@
+use super::tokens::token_timestamp_iso;
+mod compiler_cache;
+mod npm_errors;
+mod observability;
+mod oidc_groups;
+mod schema;
+mod team_members;
+mod web_ui;
+
+use super::{
+    PeerAddr,
+    authentication::token_credentials,
+    restrictions::{
+        cidr_contains,
+        cidr_whitelist_allows,
+        is_write_request,
+    },
+    router_with_auth,
+    tilde_registry,
+};
+use async_trait::async_trait;
+use axum::{
+    body::{
+        Body,
+        to_bytes,
+    },
+    extract::ConnectInfo,
+    http::{
+        Method,
+        Request,
+        StatusCode,
+        header,
+    },
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use pnpr_auth::{
+    AuthState,
+    TokenBackend,
+    TokenRecord,
+};
+use pnpr_config::Config;
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_fixtures::MockConfigPresets;
+use pnpr_policy::{
+    AccessList,
+    PackageRule,
+    PackageRules,
+};
+use std::{
+    net::{
+        IpAddr,
+        Ipv4Addr,
+        Ipv6Addr,
+        SocketAddr,
+    },
+    sync::Arc,
+};
+use tempfile::TempDir;
+use tower::ServiceExt;
+
+#[test]
+fn token_timestamp_iso_formats_millis_and_saturates_overflow() {
+    assert_eq!(token_timestamp_iso(42_123), "1970-01-01T00:00:42.123Z");
+    assert_eq!(token_timestamp_iso(u64::MAX), token_timestamp_iso(i64::MAX as u64));
+}
+
+// CIDR matching
+
+fn ip(addr: &str) -> IpAddr {
+    addr.parse().unwrap()
+}
+
+#[test]
+fn cidr_contains_matches_ipv4_ranges() {
+    assert!(cidr_contains("203.0.113.0/24", ip("203.0.113.7")));
+    assert!(cidr_contains("203.0.113.0/24", ip("203.0.113.0"))); // first address
+    assert!(cidr_contains("203.0.113.0/24", ip("203.0.113.255"))); // last address
+    assert!(!cidr_contains("203.0.113.0/24", ip("203.0.114.1")));
+}
+
+#[test]
+fn cidr_contains_handles_boundary_prefixes() {
+    // /0 matches every IPv4 address.
+    assert!(cidr_contains("0.0.0.0/0", ip("8.8.8.8")));
+    // /32 matches only the exact host.
+    assert!(cidr_contains("10.1.2.3/32", ip("10.1.2.3")));
+    assert!(!cidr_contains("10.1.2.3/32", ip("10.1.2.4")));
+}
+
+#[test]
+fn cidr_contains_treats_bare_address_as_exact_host() {
+    assert!(cidr_contains("198.51.100.9", ip("198.51.100.9")));
+    assert!(!cidr_contains("198.51.100.9", ip("198.51.100.10")));
+}
+
+#[test]
+fn cidr_contains_matches_ipv6_ranges() {
+    assert!(cidr_contains("2001:db8::/32", ip("2001:db8::1")));
+    assert!(!cidr_contains("2001:db8::/32", ip("2001:db9::1")));
+    assert!(cidr_contains("2001:db8::1/128", ip("2001:db8::1")));
+    assert!(cidr_contains("::/0", ip("2001:db8::dead")));
+}
+
+#[test]
+fn cidr_contains_rejects_family_mismatch_and_malformed_entries() {
+    // An IPv4 peer never matches an IPv6 range, and vice versa.
+    assert!(!cidr_contains("203.0.113.0/24", ip("2001:db8::1")));
+    assert!(!cidr_contains("2001:db8::/32", ip("203.0.113.7")));
+    // Malformed entries fail closed.
+    assert!(!cidr_contains("not-an-address", ip("203.0.113.7")));
+    assert!(!cidr_contains("203.0.113.0/33", ip("203.0.113.7")));
+    assert!(!cidr_contains("203.0.113.0/-1", ip("203.0.113.7")));
+    assert!(!cidr_contains("203.0.113.0/abc", ip("203.0.113.7")));
+}
+
+#[test]
+fn canonical_ip_unwraps_ipv4_mapped_v6() {
+    let mapped = IpAddr::V6("::ffff:203.0.113.7".parse::<Ipv6Addr>().unwrap());
+    // A peer arriving as an IPv4-mapped IPv6 address still matches an
+    // IPv4 whitelist range.
+    assert!(cidr_whitelist_allows(&["203.0.113.0/24".to_string()], mapped));
+}
+
+#[test]
+fn cidr_whitelist_allows_requires_some_entry_to_match() {
+    let whitelist = ["10.0.0.0/8".to_string(), "192.168.0.0/16".to_string()];
+    assert!(cidr_whitelist_allows(&whitelist, ip("10.9.9.9")));
+    assert!(cidr_whitelist_allows(&whitelist, ip("192.168.5.5")));
+    assert!(!cidr_whitelist_allows(&whitelist, ip("203.0.113.1")));
+}
+
+// Method classification and header parsing
+
+#[test]
+fn is_write_request_flags_only_mutating_requests() {
+    assert!(is_write_request(&Method::PUT, "/npm/foo"));
+    assert!(is_write_request(&Method::DELETE, "/npm/foo/-rev/1"));
+    assert!(is_write_request(&Method::PATCH, "/npm/foo"));
+    assert!(!is_write_request(&Method::GET, "/npm/foo"));
+    assert!(!is_write_request(&Method::HEAD, "/npm/foo"));
+    assert!(!is_write_request(&Method::OPTIONS, "/npm/foo"));
+
+    // Known read POSTs are allowed:
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/verify-lockfile"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/resolve"));
+    assert!(!is_write_request(&Method::POST, "/-/oidc/handoff"));
+    assert!(!is_write_request(&Method::POST, "/npm/-/npm/v1/security/audits"));
+    assert!(!is_write_request(&Method::POST, "/npm/~local/-/npm/v1/security/advisories/bulk"));
+
+    // All other POSTs (uploads, staging, approval, etc.) are write requests:
+    assert!(is_write_request(&Method::POST, "/pypi/legacy/"));
+    assert!(is_write_request(&Method::POST, "/pypi/legacy"));
+    assert!(is_write_request(&Method::POST, "/npm/legacy/"));
+    assert!(is_write_request(&Method::POST, "/npm/-/stage/package/foo"));
+    assert!(is_write_request(&Method::POST, "/npm/-/stage/123/approve"));
+    assert!(is_write_request(&Method::POST, "/-/npm/v1/security/audits"));
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
+
+    let propfind = Method::from_bytes(b"PROPFIND").unwrap();
+    assert!(!is_write_request(&propfind, "/-/pnpr/v0/compiler-cache/default/key"));
+    assert!(is_write_request(&propfind, "/npm/other/path"));
+}
+
+#[test]
+fn token_credentials_accepts_every_client_token_shape() {
+    assert_eq!(token_credentials("Bearer abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("bearer  abc "), Some("abc".to_string()));
+    // cargo sends the registry token with no scheme at all.
+    assert_eq!(token_credentials("abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("  "), None);
+    // `Basic` carries the token as the password. twine and pip pair it with
+    // pypi.org's `__token__` user, docker and podman with the name the user
+    // typed at login, so the username is not what is checked.
+    let basic = |pair: &str| format!("Basic {}", BASE64_STANDARD.encode(pair));
+    assert_eq!(token_credentials(&basic("__token__:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("alice:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic(":abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("__token__:")), None);
+    assert_eq!(token_credentials(&basic("alice:")), None);
+    assert_eq!(token_credentials("Basic not-base64!"), None);
+    assert_eq!(token_credentials("Digest abc"), None);
+}
+
+// End-to-end restriction enforcement
+
+const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)), 40000);
+const PROXY_PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 40000);
+
+pub(super) fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
+    TokenRecord::new("alice", 1, 1)
+        .with_readonly(readonly)
+        .with_cidr_whitelist(
+            cidr_whitelist
+                .iter()
+                .map(|entry| (*entry).to_string())
+                .collect(),
+        )
+}
+
+/// Token backend that resolves exactly one raw token to a fixed record.
+/// No client endpoint mints read-only or CIDR-restricted tokens, so the
+/// enforcement tests inject one this way.
+struct OneToken {
+    account_reads: std::sync::atomic::AtomicUsize,
+    bulk_reads: std::sync::atomic::AtomicUsize,
+    accounts: std::collections::BTreeSet<String>,
+    raw: String,
+    record: TokenRecord,
+}
+
+#[async_trait]
+impl TokenBackend for OneToken {
+    async fn issue_token(
+        &self,
+        _username: &str,
+        _new_token: pnpr_auth::NewToken,
+    ) -> Result<(String, TokenRecord)> {
+        Err(RegistryError::Internal { reason: "OneToken cannot issue tokens".to_string() })
+    }
+
+    async fn issue(&self, _username: &str) -> Result<String> {
+        // The restriction tests never issue tokens; surface a clear error
+        // rather than a panic if that assumption ever breaks.
+        Err(RegistryError::Internal { reason: "OneToken cannot issue tokens".to_string() })
+    }
+
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+        Ok((raw == self.raw).then(|| self.record.user_id.clone()))
+    }
+
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        Ok((raw == self.raw).then(|| self.record.clone()))
+    }
+
+    async fn find_by_key(&self, _key: &str) -> Result<Option<TokenRecord>> {
+        Ok(None)
+    }
+
+    async fn list_for_user(&self, _username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        Ok(Vec::new())
+    }
+
+    async fn revoke_by_key(&self, _key: &str) -> Result<Option<TokenRecord>> {
+        Ok(None)
+    }
+
+    async fn delete_expired(&self, _now: u64) -> Result<usize> {
+        Ok(0)
+    }
+}
+
+/// Print what the server logs at `warn` and above into the test's captured
+/// output. A 5xx response says only "Internal Server Error", so this is how a
+/// failing test shows the error behind it.
+pub(super) fn capture_server_logs() {
+    let _ = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::WARN)
+        .with_test_writer()
+        .try_init();
+}
+
+pub(super) fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    app_with_config_and_token(Config::static_serve(listen, tmp.path().to_path_buf()), raw, record)
+}
+
+fn app_with_trusted_proxies_and_token(
+    tmp: &TempDir,
+    trusted_proxies: Vec<pnpr_config::IpNetwork>,
+    raw: &str,
+    record: TokenRecord,
+) -> axum::Router {
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    config.http.trusted_proxies = trusted_proxies;
+    app_with_config_and_token(config, raw, record)
+}
+
+pub(super) fn app_with_config_and_token(
+    config: Config,
+    raw: &str,
+    record: TokenRecord,
+) -> axum::Router {
+    capture_server_logs();
+    let mut accounts: std::collections::BTreeSet<String> = TEAMS
+        .iter()
+        .flat_map(|(_, members)| members.iter().map(ToString::to_string))
+        .collect();
+    accounts.insert(record.user_id.clone());
+    let account = Arc::new(OneToken {
+        accounts,
+        raw: raw.to_string(),
+        record,
+        account_reads: std::sync::atomic::AtomicUsize::default(),
+        bulk_reads: std::sync::atomic::AtomicUsize::default(),
+    });
+    let auth = AuthState {
+        users: Arc::clone(&account) as Arc<dyn pnpr_auth::UserBackend>,
+        tokens: account,
+    };
+    router_with_auth(config, auth)
+}
+
+fn signed(method: Method, path: &str, raw: &str) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(path)
+        .header(header::AUTHORIZATION, format!("Bearer {raw}"))
+        .body(Body::empty())
+        .unwrap()
+}
+
+fn signed_json(method: Method, path: &str, raw: &str, body: &'static str) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(path)
+        .header(header::AUTHORIZATION, format!("Bearer {raw}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap()
+}
+
+fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
+    request
+        .extensions_mut()
+        .insert(ConnectInfo(PeerAddr(addr)));
+    request
+}
+
+async fn status(app: axum::Router, request: Request<Body>) -> StatusCode {
+    app.oneshot(request).await
+        .unwrap()
+        .status()
+}
+
+#[tokio::test]
+async fn authenticated_identity_reaches_handlers() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "tok", record(false, &[]));
+    // The middleware resolves the bearer once; whoami reads that identity
+    // back out of request extensions rather than re-parsing the header.
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/-/whoami", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["username"], "alice");
+
+    // An unknown token resolves to anonymous, so whoami is a 401.
+    let anon = app
+        .oneshot(signed(Method::GET, "/-/whoami", "unknown"))
+        .await
+        .unwrap();
+    assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn team_tokens_reach_package_authorization() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    use pnpr_policy::{
+        AccessToken,
+        Identity,
+    };
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+    };
+    config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
+            access: Some(AccessList::new(vec![AccessToken::Team("developers".to_string())])),
+            publish: None,
+            unpublish: None,
+        }],
+        None,
+    );
+    seed_teams(&config).await;
+    // Team membership reaches the per-package rule evaluation.
+    let alice = Identity::member("alice", vec!["developers".to_string()]);
+    let carol = Identity::user("carol");
+    let rules = &config.routing.hosted["local"].rules;
+    assert!(
+        rules
+            .snapshot()
+            .for_package("@team/x")
+            .access
+            .allows(&alice),
+    );
+    assert!(
+        !rules
+            .snapshot()
+            .for_package("@team/x")
+            .access
+            .allows(&carol),
+    );
+
+    // Over HTTP: the team member reaches storage (404, the package is
+    // absent); a caller denied by the *explicit* `@team/*` entry is
+    // rejected loudly (401 for anonymous, so clients can prompt for
+    // credentials) rather than masked (masking is the registry-level
+    // default's behavior, not an explicit entry's).
+    let app = app_with_config_and_token(config, "tok", record(false, &[]));
+    let allowed = app
+        .clone()
+        .oneshot(signed(Method::GET, "/npm/@team/missing", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
+    let anonymous = app
+        .oneshot(signed(Method::GET, "/npm/@team/missing", "unknown"))
+        .await
+        .unwrap();
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn readonly_token_is_refused_for_writes() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "ro", record(true, &[]));
+    // Publish (PUT), unpublish (DELETE), and token creation (POST) are rejected
+    // before the handler ever reads the body.
+    assert_eq!(
+        status(app.clone(), signed(Method::PUT, "/npm/foo", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
+    assert_eq!(
+        status(app.clone(), signed(Method::DELETE, "/npm/foo/-rev/1", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
+    assert_eq!(
+        status(app, signed(Method::POST, "/-/npm/v1/tokens", "ro")).await,
+        StatusCode::FORBIDDEN,
+    );
+}
+
+#[tokio::test]
+async fn readonly_token_still_reads() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "ro", record(true, &[]));
+    // A GET is not a write, so the read-only gate lets it through; the
+    // package isn't published, so it 404s rather than 403s.
+    assert_eq!(
+        status(app.clone(), signed(Method::GET, "/npm/foo", "ro")).await,
+        StatusCode::NOT_FOUND,
+    );
+    // Audit endpoints are read-only queries despite using HTTP POST.
+    assert_eq!(
+        status(
+            app.clone(),
+            signed_json(Method::POST, "/npm/-/npm/v1/security/advisories/bulk", "ro", "{}")
+        )
+        .await,
+        StatusCode::OK,
+    );
+    assert_eq!(
+        status(
+            app,
+            signed_json(Method::POST, "/npm/~local/-/npm/v1/security/advisories/bulk", "ro", "{}")
+        )
+        .await,
+        StatusCode::OK,
+    );
+}
+
+#[tokio::test]
+async fn unrestricted_token_passes_the_gate_for_writes() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "rw", record(false, &[]));
+    // The gate doesn't block an unrestricted token's write: the request
+    // reaches the publish handler (which then rejects the empty body on
+    // its own terms). The point is that it is not a 403 from the gate.
+    let status = status(app, signed(Method::PUT, "/npm/foo", "rw")).await;
+    assert_ne!(status, StatusCode::FORBIDDEN);
+    assert_ne!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn cidr_token_is_refused_when_peer_is_unknown() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
+    // No ConnectInfo on the request: the restriction can't be checked, so
+    // it fails closed even for a read.
+    assert_eq!(status(app, signed(Method::GET, "/npm/foo", "pinned")).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn cidr_token_is_refused_from_outside_the_range() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
+    let outside = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 5)), 40000);
+    assert_eq!(
+        status(app, with_peer(signed(Method::GET, "/npm/foo", "pinned"), outside)).await,
+        StatusCode::FORBIDDEN,
+    );
+}
+
+#[tokio::test]
+async fn cidr_token_is_allowed_from_inside_the_range() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
+    assert_eq!(
+        status(app, with_peer(signed(Method::GET, "/npm/foo", "pinned"), PEER)).await,
+        StatusCode::NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
+    // A spoofed X-Forwarded-For for an in-range address must not help: the
+    // gate reads the socket peer (here absent), never the header.
+    let request = signed(Method::GET, "/npm/foo", "pinned");
+    let request = {
+        let mut request = request;
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+        request
+    };
+    assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn trusted_proxy_forwards_client_ip_satisfying_cidr() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn trusted_proxy_rejects_client_ip_outside_cidr() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "192.168.1.1".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn untrusted_peer_cannot_spoof_client_ip() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let untrusted_peer = SocketAddr::new(ip("192.168.1.5"), 40000);
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), untrusted_peer);
+    req.headers_mut()
+        .insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn client_injected_forwarded_header_is_ignored_when_proxy_uses_x_forwarded_for() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app =
+        app_with_trusted_proxies_and_token(&tmp, trusted, "pinned", record(false, &["10.0.0.0/8"]));
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "192.168.1.1".parse().unwrap());
+    req.headers_mut()
+        .insert("forwarded", "for=10.1.2.3".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn malformed_forwarding_header_from_trusted_proxy_does_not_bypass_proxy_cidr() {
+    let tmp = TempDir::new().unwrap();
+    let trusted = vec![pnpr_config::IpNetwork::parse("127.0.0.1/32").unwrap()];
+    let app = app_with_trusted_proxies_and_token(
+        &tmp,
+        trusted,
+        "pinned",
+        record(false, &["127.0.0.1/32"]),
+    );
+    let mut req = with_peer(signed(Method::GET, "/npm/foo", "pinned"), PROXY_PEER);
+    req.headers_mut()
+        .insert("x-forwarded-for", "bad_client_ip, 127.0.0.1".parse().unwrap());
+    assert_eq!(status(app, req).await, StatusCode::FORBIDDEN);
+}
+
+#[test]
+fn access_log_uri_redacts_the_logout_token_segment() {
+    let redact = |raw: &str| super::loggable_uri(&raw.parse().unwrap());
+    assert_eq!(redact("/-/user/token/npm_secret-token-value"), "/-/user/token/<redacted>");
+    assert_eq!(
+        redact("/~corp/-/user/token/npm_secret-token-value"),
+        "/~corp/-/user/token/<redacted>",
+    );
+    assert_eq!(redact("/-/v1/login/poll/secret-poll-token"), "/-/v1/login/poll/<redacted>");
+    assert_eq!(
+        redact("/~corp/-/v1/login/poll/secret-poll-token"),
+        "/~corp/-/v1/login/poll/<redacted>",
+    );
+    // Everything else is logged verbatim, query string included.
+    assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
+    assert_eq!(redact("/-/npm/v1/search?text=foo"), "/-/npm/v1/search?text=foo");
+}
+
+// npm team API: listings of the instance's teams, not-found masking for
+// callers the registry-level `access` denies.
+
+/// The teams [`seed_teams`] stores, each under the ID of its name.
+const TEAMS: [(&str, &[&str]); 2] = [("developers", &["bob", "alice"]), ("admins", &["alice"])];
+
+/// Store [`TEAMS`] in the database `config` names.
+async fn seed_teams(config: &Config) {
+    let storage = pnpr_storage::Storage::from_config(&config.storage).unwrap();
+    for (team, members) in TEAMS {
+        storage.create_team(team, team).await.unwrap();
+        for member in members {
+            assert!(storage.add_team_member(team, member).await.unwrap());
+        }
+    }
+}
+
+async fn config_with_teams(tmp: &TempDir) -> Config {
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let config = Config::static_serve(listen, tmp.path().to_path_buf());
+    seed_teams(&config).await;
+    config
+}
+
+async fn body_json(response: axum::response::Response) -> serde_json::Value {
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    serde_json::from_slice(&body).unwrap()
+}
+
+#[tokio::test]
+async fn team_listing_serves_config_declared_teams() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_config_and_token(config_with_teams(&tmp).await, "tok", record(false, &[]));
+    // Sorted by name; the shape is what `pnpm team ls` consumes.
+    let expected = serde_json::json!([{ "id": "admins", "name": "admins" }, { "id": "developers", "name": "developers" }]);
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_json(response).await, expected);
+    // The same listing through the registry-addressed endpoint.
+    let prefixed = app
+        .oneshot(signed(Method::GET, "/npm/~local/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(prefixed.status(), StatusCode::OK);
+    assert_eq!(body_json(prefixed).await, expected);
+}
+
+#[tokio::test]
+async fn team_members_are_listed_sorted() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_config_and_token(config_with_teams(&tmp).await, "tok", record(false, &[]));
+    // Members come from a sorted set, not declaration order.
+    let expected =
+        serde_json::json!([{ "id": "alice", "name": "alice" }, { "id": "bob", "name": "bob" }]);
+    let response = app
+        .clone()
+        .oneshot(signed(Method::GET, "/npm/-/team/myorg/developers/user", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_json(response).await, expected);
+    let prefixed = app
+        .clone()
+        .oneshot(signed(Method::GET, "/npm/~local/-/team/myorg/developers/user", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(prefixed.status(), StatusCode::OK);
+    assert_eq!(body_json(prefixed).await, expected);
+    // A team that does not exist is a definitive not-found.
+    let missing = app
+        .oneshot(signed(Method::GET, "/npm/-/team/myorg/nope/user", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn team_listing_masks_callers_the_registry_denies() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_with_teams(&tmp).await;
+    // Registry-level default access admits only authenticated callers.
+    config.routing.hosted.get_mut("local").unwrap().rules =
+        PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
+    let app = app_with_config_and_token(config, "tok", record(false, &[]));
+    // An anonymous caller gets the not-found mask on reads and mutations
+    // alike, team names must not become an existence probe.
+    for (method, path) in [
+        (Method::GET, "/npm/-/org/myorg/team"),
+        (Method::GET, "/npm/-/team/myorg/developers/user"),
+        (Method::PUT, "/npm/-/org/myorg/team"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(signed(method.clone(), path, "unknown"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
+    }
+    // The authenticated caller passes the gate.
+    let allowed = app
+        .oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok"))
+        .await
+        .unwrap();
+    assert_eq!(allowed.status(), StatusCode::OK);
+}
+
+#[test]
+fn packument_last_modified_formats_the_documents_modified_time() {
+    // Fractional seconds round up: the header is an upper bound on
+    // the publish time for release-age checks.
+    let doc = serde_json::json!({
+        "name": "acme",
+        "time": { "modified": "2024-01-02T03:04:05.678Z" },
+    });
+    assert_eq!(
+        super::package_responses::packument_last_modified(&doc).as_deref(),
+        Some("Tue, 02 Jan 2024 03:04:06 GMT"),
+    );
+    let whole = serde_json::json!({
+        "name": "acme",
+        "time": { "modified": "2024-01-02T03:04:05.000Z" },
+    });
+    assert_eq!(
+        super::package_responses::packument_last_modified(&whole).as_deref(),
+        Some("Tue, 02 Jan 2024 03:04:05 GMT"),
+    );
+    // No / malformed time.modified omits the header instead of guessing.
+    assert_eq!(
+        super::package_responses::packument_last_modified(&serde_json::json!({"name": "acme"})),
+        None,
+    );
+    assert_eq!(
+        super::package_responses::packument_last_modified(
+            &serde_json::json!({"time": {"modified": "not-a-date"}}),
+        ),
+        None,
+    );
+}
+
+/// Every `/~<name>/` route reads its segment through this, so the two edges
+/// are worth stating once: a bare `~` names no registry and must read as an
+/// ordinary segment rather than as an empty name, and a `~` anywhere but the
+/// front is part of a package name.
+#[test]
+fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
+    assert_eq!(tilde_registry("~corp"), Some("corp"));
+    assert_eq!(tilde_registry("~a"), Some("a"));
+
+    assert_eq!(tilde_registry("~"), None, "a bare tilde names no registry");
+    assert_eq!(tilde_registry("corp"), None);
+    assert_eq!(tilde_registry(""), None);
+    assert_eq!(tilde_registry("pkg~name"), None, "a tilde inside a name is part of it");
+    assert_eq!(tilde_registry("@scope/pkg"), None);
+}
+
+#[tokio::test]
+async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
+    config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
+        "name": "github", "issuer": "https://token.actions.githubusercontent.com", "audience": "pnpr",
+        "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "userId": "ci"},
+            "registry": "local", "packages": ["foo"]}]
+    }])).unwrap();
+    let token = "header.payload.signature";
+    let app = app_with_config_and_token(config, token, record(true, &[]));
+    assert_eq!(status(app.clone(), signed(Method::GET, "/-/whoami", token)).await, StatusCode::OK);
+    assert_eq!(status(app, signed(Method::PUT, "/npm/foo", token)).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn workload_namespace_does_not_consult_the_token_backend() {
+    let tmp = TempDir::new().unwrap();
+    let raw = "pnpr_workload_not-a-jwt";
+    let app = app_with_token(&tmp, raw, record(false, &[]));
+    assert_eq!(status(app, signed(Method::GET, "/-/whoami", raw)).await, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn post_v1_login_uses_peer_addr_fallback_for_rate_limiting() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
+    config.http.public_url = "https://registry.example".to_string();
+    config.identity.auth.oidc = serde_json::from_value(serde_json::json!([{
+        "name": "login_provider", "issuer": "https://login.example", "audience": "pnpr",
+        "login": { "users": [{ "subject": "alice", "userId": "alice" }] },
+    }]))
+    .unwrap();
+    let app = crate::router(config);
+
+    let peer_a: SocketAddr = "192.168.1.1:12345".parse().unwrap();
+    let peer_b: SocketAddr = "192.168.1.2:12345".parse().unwrap();
+
+    // 20 requests from peer A succeed
+    for _ in 0..20 {
+        let req = with_peer(
+            Request::post("/-/v1/login")
+                .body(Body::empty())
+                .unwrap(),
+            peer_a,
+        );
+        assert_eq!(
+            app.clone()
+                .oneshot(req)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::ACCEPTED,
+        );
+    }
+
+    // 21st request from peer A is throttled (429)
+    let req_a = with_peer(
+        Request::post("/-/v1/login")
+            .body(Body::empty())
+            .unwrap(),
+        peer_a,
+    );
+    assert_eq!(
+        app.clone()
+            .oneshot(req_a)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::TOO_MANY_REQUESTS,
+    );
+
+    // Request from peer B is still allowed under its own peer quota
+    let req_b = with_peer(
+        Request::post("/-/v1/login")
+            .body(Body::empty())
+            .unwrap(),
+        peer_b,
+    );
+    assert_eq!(
+        app.oneshot(req_b).await
+            .unwrap()
+            .status(),
+        StatusCode::ACCEPTED,
+    );
+}
+
+#[async_trait]
+impl pnpr_auth::UserBackend for OneToken {
+    async fn account_id(&self, name: &str) -> Result<Option<String>> {
+        Ok(self.accounts.contains(name).then(|| name.to_string()))
+    }
+    async fn account_name(&self, id: &str) -> Result<Option<String>> {
+        self.account_reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(self.accounts.contains(id).then(|| id.to_string()))
+    }
+    async fn accounts_by_id(&self, ids: &[String]) -> Result<Vec<pnpr_auth::UserAccount>> {
+        self.bulk_reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(ids
+            .iter()
+            .filter(|id| self.accounts.contains(*id))
+            .map(|id| pnpr_auth::UserAccount { id: id.clone(), username: id.clone() })
+            .collect())
+    }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        Ok(vec![self.record.user_id.clone()])
+    }
+    async fn credential(&self, _name: &str) -> Result<Option<pnpr_auth::AccountCredential>> {
+        Ok(None)
+    }
+    async fn active_account_id(&self, name: &str) -> Result<Option<String>> {
+        self.account_id(name).await
+    }
+    async fn active_account_name(&self, id: &str) -> Result<Option<String>> {
+        self.account_name(id).await
+    }
+    async fn account_status(&self, id: &str) -> Result<Option<pnpr_auth::AccountStatus>> {
+        Ok(self.accounts.contains(id).then_some(pnpr_auth::AccountStatus::Active))
+    }
+    async fn add_or_login(
+        &self,
+        _name: &str,
+        _password: &str,
+    ) -> Result<(pnpr_auth::UpsertOutcome, String)> {
+        unreachable!()
+    }
+    async fn create_user(&self, _name: &str, _password: &str) -> Result<pnpr_auth::UserCreation> {
+        unreachable!()
+    }
+    async fn set_password(&self, _id: &str, _password: &str) -> Result<pnpr_auth::PasswordChange> {
+        unreachable!()
+    }
+    async fn clear_password(&self, _id: &str) -> Result<pnpr_auth::PasswordChange> {
+        unreachable!()
+    }
+    async fn delete_user(&self, _id: &str) -> Result<pnpr_auth::UserRemoval> {
+        unreachable!()
+    }
+    async fn rename_user(&self, _id: &str, _name: &str) -> Result<()> {
+        unreachable!()
+    }
+    async fn provision_user(&self, _name: &str) -> Result<String> {
+        unreachable!()
+    }
+}

@@ -1,0 +1,507 @@
+pub(super) mod npm_errors;
+
+pub(super) use super::{
+    Action,
+    AppInner,
+    AppState,
+    AuthedCaller,
+    CanonicalPackageName,
+    MAX_LOGIN_BODY_BYTES,
+    MAX_PUBLISH_BODY_BYTES,
+    MAX_TEAM_BODY_BYTES,
+    RegistrySource,
+    TargetRegistry,
+    authenticate,
+    authorize_package,
+    authorize_package_write,
+    batch,
+    caller_scoped,
+    cargo,
+    check_publish_tombstone,
+    delete_package,
+    delete_tarball,
+    get_dist_tags,
+    get_org_teams,
+    get_team_members,
+    health::{
+        serve_live,
+        serve_ping,
+        serve_ready,
+    },
+    hosted_storage,
+    not_found,
+    oci,
+    pnpr_protocols_disabled,
+    private_no_cache,
+    publish_package,
+    pypi,
+    remove_dist_tag,
+    resolve_write_target,
+    serve_metrics,
+    serve_org_packages,
+    serve_package_tarball,
+    serve_packument,
+    serve_pnpr_handshake,
+    serve_search,
+    serve_tarball,
+    serve_version_manifest,
+    set_dist_tag,
+    split_package_identifier,
+    staged,
+    team_access::{
+        grant_team_access,
+        list_team_packages,
+        revoke_team_access,
+    },
+    team_mutations::{
+        TeamScope,
+        add_team_member,
+        create_team,
+        destroy_team,
+        remove_team_member,
+    },
+    update_packument,
+};
+pub(crate) use request_timeout::RequestDeadline;
+
+mod account_handlers;
+use account_handlers::account_routes;
+
+mod protocol_routes;
+use protocol_routes::{
+    artifacts_routes,
+    pipeline_routes,
+    resolver_routes,
+    staged_archive_routes,
+};
+
+mod team_handlers;
+use team_handlers::team_routes;
+
+mod note_handlers;
+mod npm_handlers;
+use npm_handlers::{
+    delete_package_dist_tag,
+    delete_scoped_package,
+    get_package_dist_tags,
+    get_packument,
+    get_packument_or_version_manifest,
+    get_scoped_tarball,
+    get_search,
+    get_tarball,
+    put_package,
+    put_package_dist_tag,
+    put_packument_revision,
+    put_scoped_package,
+    put_scoped_packument_revision,
+    unpublish_package,
+    unpublish_scoped_package,
+    unpublish_scoped_tarball,
+    unpublish_tarball,
+};
+
+mod observability;
+use observability::with_observability_layers;
+
+mod request_timeout;
+use request_timeout::apply_request_timeout;
+
+use std::sync::Arc;
+
+use axum::{
+    Router,
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        RawQuery,
+        State,
+    },
+    http::{
+        HeaderMap,
+        HeaderValue,
+        Method,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        any,
+        delete,
+        get,
+        post,
+        put,
+    },
+};
+use pnpr_storage::database::MAX_NOTE_BYTES;
+use tower_http::cors::{
+    AllowOrigin,
+    CorsLayer,
+};
+
+use pnpr_auth::AuthState;
+use pnpr_config::{
+    Config,
+    RoutingConfig,
+};
+use pnpr_registry::Ecosystem;
+use serde::Deserialize;
+
+pub(super) fn router_with_auth_and_osv(
+    config: Config,
+    auth: AuthState,
+    osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
+) -> pnpr_error::Result<Router> {
+    state_and_router(config, auth, osv_index).map(|(_, router)| router)
+}
+
+/// The main router and the state it serves, which [`metrics_listener_router`]
+/// shares.
+pub(crate) fn state_and_router(
+    config: Config,
+    auth: AuthState,
+    osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
+) -> pnpr_error::Result<(AppState, Router)> {
+    let cors_origins = cors_origins(&config)?;
+    let surfaces = EnabledSurfaces {
+        resolver: config.features.resolver.enabled,
+        registry: config.features.registry.enabled,
+        artifacts: config.features.artifacts.enabled,
+        pipeline: config.features.pipeline.enabled,
+    };
+    let ui_dir = if surfaces.registry { super::web_ui::locate(&config.http.ui)? } else { None };
+    let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
+    let router = finish_router(state.clone(), surfaces, cors_origins, ui_dir.as_deref())?;
+    // Every router, also one an embedder builds directly, picks up what an
+    // interrupted integration of the release record logs left.
+    super::release_record_logs::integrate_sequenced_logs(&state);
+    super::cdn::start(&state)?;
+    Ok((state, router))
+}
+
+fn finish_router(
+    state: AppState,
+    surfaces: EnabledSurfaces,
+    cors_origins: Vec<HeaderValue>,
+    ui_dir: Option<&std::path::Path>,
+) -> pnpr_error::Result<Router> {
+    let mut router = surface_routes(&state, surfaces, ui_dir.is_some());
+    if let Some(dir) = ui_dir {
+        tracing::info!(dir = %dir.display(), "serving the web UI at /-/ui/");
+        router = router.merge(super::web_ui::routes(dir));
+    }
+    let router = router
+        .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
+        // Authenticate once, ahead of every handler: resolve the caller,
+        // enforce bearer-token read-only / CIDR restrictions (so a
+        // restricted token is rejected before a write handler buffers its
+        // up-to-100-MiB body), and stash the identity for handlers to read.
+        // Inside the trace layer below, so a rejection is still one record.
+        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
+        .merge(main_listener_metrics_routes(&state));
+    let mut router =
+        apply_request_timeout(router, surfaces, state.inner.config.http.request_timeout)
+            .layer(axum::middleware::from_fn(npm_errors::render));
+    if !cors_origins.is_empty() {
+        router = router.layer(
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(cors_origins))
+                .allow_methods([
+                    Method::GET,
+                    Method::HEAD,
+                    Method::OPTIONS,
+                    Method::PUT,
+                    Method::POST,
+                    Method::DELETE,
+                ])
+                .allow_headers([
+                    header::AUTHORIZATION,
+                    header::ACCEPT,
+                    header::CONTENT_TYPE,
+                    header::IF_MATCH,
+                ])
+                .expose_headers([header::ETAG]),
+        );
+    }
+    Ok(with_observability_layers(router, state.clone()).with_state(state))
+}
+
+/// Health probes, each with a `/~<name>/`-addressed twin.
+fn probe_routes() -> Router<AppState> {
+    let mut router: Router<AppState> = Router::new();
+    for base in ["", "/~{registry}"] {
+        let path = |tail: &str| format!("{base}{tail}");
+        router = router
+            .route(&path("/-/ping"), get(serve_ping))
+            .route(&path("/-/ready"), get(serve_ready))
+            .route(&path("/-/live"), get(serve_live));
+    }
+    router
+}
+
+/// The main listener's metrics routes, each with a `/~<name>/`-addressed twin.
+/// It serves them only to a scraper that sends `metrics.token`, and never when
+/// `metrics.listen` gives them their own listener. They sit outside
+/// [`authenticate`], so a scrape never looks its token up as a user token and
+/// still answers while the auth backend is down.
+fn main_listener_metrics_routes(state: &AppState) -> Router<AppState> {
+    let served = state.inner.config.http.metrics
+        .as_ref()
+        .is_some_and(|metrics| metrics.token.is_some() && metrics.listen.is_none());
+    let mut router: Router<AppState> = Router::new();
+    if served {
+        for base in ["", "/~{registry}"] {
+            router = router
+                .route(&format!("{base}/-/metrics"), get(serve_metrics))
+                .route(&format!("{base}/metrics"), get(serve_metrics));
+        }
+    }
+    router
+}
+
+/// The router for `metrics.listen`, sharing `state` with the main router so
+/// both report the same counters, with the main router's access log and
+/// request IDs.
+pub(super) fn metrics_listener_router(state: AppState) -> Router {
+    let router = Router::new().route("/metrics", get(serve_metrics));
+    with_observability_layers(router, state.clone()).with_state(state)
+}
+
+fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
+    config.http.cors
+        .allowed_origins()
+        .iter()
+        .map(|origin| {
+            HeaderValue::from_str(origin)
+                .map_err(|_| pnpr_error::RegistryError::InvalidConfig {
+                    reason: format!(
+                        "CORS allowed origin {origin:?} is not a valid HTTP header value",
+                    ),
+                })
+        })
+        .collect()
+}
+
+/// Which of the configurable surfaces this server mounts.
+#[derive(Clone, Copy)]
+pub(super) struct EnabledSurfaces {
+    resolver: bool,
+    registry: bool,
+    artifacts: bool,
+    pipeline: bool,
+}
+
+fn surface_routes(
+    state: &AppState,
+    surfaces: EnabledSurfaces,
+    ui_served: bool,
+) -> Router<AppState> {
+    // Health and probe endpoints (`/-/ping`, `/-/ready`, `/-/live`) are always served.
+    // The configurable surfaces are mounted only when their feature is enabled,
+    // so resolver, registry, and artifacts can be deployed independently.
+    // The config guarantees at least one is enabled.
+    let mut router = probe_routes();
+    router = router
+        .merge(super::oidc::routes(ui_served))
+        .merge(account_routes())
+        .merge(super::user_admin::user_admin_routes())
+        .merge(super::registry_graph::registry_admin_routes())
+        .merge(super::grant_admin::grant_admin_routes());
+    if state.inner.config.identity.auth.scim.is_some() {
+        router = router.merge(super::scim::scim_routes());
+    }
+    // The install-accelerator and shared-artifact surfaces live under the
+    // reserved `/-/pnpr` namespace. The handshake advertises each protocol
+    // independently, so either surface can be mounted on its own.
+    //
+    // When both protocol surfaces are disabled, only `/-/pnpr` gets a 404
+    // stub: it is the capability-probe path and overlaps the registry catch-all
+    // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
+    // would be proxied upstream, giving a confusing 502 where a client
+    // expects the "no pnpr protocols here" 404. The `/-/pnpr/v0/*` endpoints
+    // carry no capability probe, so they are left unmounted rather than
+    // stubbed.
+    if surfaces.resolver || surfaces.artifacts || surfaces.registry || surfaces.pipeline {
+        router = router.route("/-/pnpr", get(serve_pnpr_handshake));
+    } else {
+        router = router.route("/-/pnpr", any(pnpr_protocols_disabled));
+    }
+    if surfaces.resolver {
+        router = resolver_routes(state, router);
+    }
+    if surfaces.artifacts {
+        router = artifacts_routes(state, router);
+    }
+    if surfaces.pipeline {
+        router = pipeline_routes(state, router);
+    }
+    if surfaces.registry {
+        router = registry_routes(router);
+    }
+
+    router
+}
+
+/// Mount the npm-compatible registry surface and every other ecosystem. The
+/// stored graph can gain an ecosystem at any time, so all are mounted.
+fn registry_routes(router: Router<AppState>) -> Router<AppState> {
+    let npm = npm_registry_routes();
+    // One publish transaction for packages of any ecosystem. It answers here
+    // rather than inside the npm surface.
+    let router = staged_archive_routes(router, "")
+        .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+        .route("/-/pnpr/v0/registries", get(super::registry_directory::serve))
+        .route("/-/publications/{namespace}", get(super::publications::serve_member_publication))
+        .route(
+            "/-/publications/{namespace}/{publication}",
+            get(super::publications::serve_publication),
+        )
+        .route(
+            "/-/publications/{namespace}/{publication}/notes",
+            get(super::publications::serve_publication_note)
+                .put(super::publications::serve_publication_note)
+                .delete(super::publications::serve_publication_note)
+                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
+        );
+    router
+        .nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm))
+        .merge(cargo::routes())
+        .merge(pypi::routes())
+        .merge(oci::routes())
+}
+
+/// The npm-registry surface: every packument/tarball read, publish,
+/// unpublish, dist-tag, and search. Mounted only when the registry feature is
+/// on (registries declared and not `--disable-registry`), so resolver- and
+/// artifacts-only tiers expose no registry surface at all.
+///
+/// Every route is registered twice: bare, addressing the default target
+/// through the path-less base, and under `/~<name>/`, addressing one named
+/// registry. [`TargetRegistry`] is what tells a handler which of the two it
+/// was reached through.
+fn npm_registry_routes() -> Router<AppState> {
+    // Batch publish: one request carrying many packages' publish documents.
+    // Mounted at the server root (`registry_routes`), the path-less npm base
+    // (`/npm/-/pnpr/v0/publish`), and a named registry's base, so `pnpm
+    // publish --batch` can resolve it relative to the configured npm
+    // registry URL; under a named registry, its npm entries are addressed
+    // through that registry. The archives a publish references are staged
+    // beside it, under the same base.
+    let mut router = Router::new()
+        .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+        .route("/~{registry}/-/pnpr/v0/publish", put(batch::serve_registry_publish));
+    router = staged_archive_routes(router, "");
+    router = staged_archive_routes(router, "/~{registry}");
+    for base in ["", "/~{registry}"] {
+        let path = |tail: &str| format!("{base}{tail}");
+        let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);
+        let with_audit = super::security_audit::routes(with_teams, base)
+            .route(&path("/-/pnpr"), get(super::serve_npm_handshake))
+            .route(&path("/-/v1/search"), get(get_search))
+            .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
+            .route(&path("/-/log/{*resource}"), get(super::log_routes::get_log_resource))
+            .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
+            .route(
+                &path("/-/package/{name}/dist-tags/{tag}"),
+                put(put_package_dist_tag).delete(delete_package_dist_tag),
+            );
+        router = npm_package_routes(with_audit, base);
+    }
+    router
+}
+
+/// Package addresses. npm spells a scoped name either as two literal segments
+/// (`/@scope/name`) or as one percent-encoded segment (`/@scope%2Fname`), so a
+/// path's segment count never says on its own which resource it names. The `-`
+/// and `-rev` markers do: whatever stands to their left is the package.
+fn npm_package_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    npm_version_routes(router, base)
+        .route(&path("/{name}"), get(get_packument).put(put_package).delete(unpublish_package))
+        .route(
+            &path("/{first}/{second}"),
+            get(get_packument_or_version_manifest)
+                .put(put_scoped_package)
+                .delete(delete_scoped_package),
+        )
+        .route(&path("/{name}/-/{filename}"), get(get_tarball).delete(unpublish_tarball))
+        .route(&path("/{name}/-rev/{rev}"), put(put_packument_revision).delete(unpublish_package))
+        .route(
+            &path("/{scope}/{name}/-rev/{rev}"),
+            put(put_scoped_packument_revision).delete(unpublish_scoped_package),
+        )
+        .route(
+            &path("/{scope}/{name}/{version}"),
+            get(note_handlers::three_segments)
+                .put(note_handlers::three_segments)
+                .delete(note_handlers::three_segments)
+                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
+        )
+        .route(&path("/{name}/-/notes"), get(note_handlers::package_notes))
+        .route(&path("/{scope}/{name}/-/notes"), get(note_handlers::scoped_package_notes))
+        .route(
+            &path("/{scope}/{name}/-/{filename}"),
+            get(get_scoped_tarball).delete(unpublish_scoped_tarball),
+        )
+        .route(&path("/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_tarball))
+        .route(&path("/{scope}/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_scoped_tarball))
+}
+
+/// What a scoped version address of two literal segments is followed by:
+/// its release record's evidence and its note.
+fn npm_version_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(&path("/-/npm/v1/attestations/{*spec}"), get(super::attestations::get_attestations))
+        .route(
+            &path("/-/package/{name}/visibility"),
+            axum::routing::any(note_handlers::unsupported_npm_route),
+        )
+        .route(
+            &path("/-/package/{name}/collaborators"),
+            axum::routing::any(note_handlers::unsupported_npm_route),
+        )
+        .route(
+            &path("/{scope}/{name}/{version}/evidence"),
+            get(note_handlers::scoped_record_evidence),
+        )
+        .route(
+            &path("/{scope}/{name}/{version}/notes"),
+            get(note_handlers::scoped_version_note)
+                .put(note_handlers::scoped_version_note)
+                .delete(note_handlers::scoped_version_note)
+                .route_layer(DefaultBodyLimit::max(MAX_NOTE_BYTES)),
+        )
+}
+
+/// `npm ping` asks the registry URL, not the server root.
+fn ping_route(router: Router<AppState>, base: &str) -> Router<AppState> {
+    router.route(&format!("{base}/-/ping"), get(serve_ping))
+}
+
+fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {
+    let path = |tail: &str| format!("{base}{tail}");
+    router
+        .route(&path("/-/stage"), get(staged::list_staged))
+        .route(&path("/-/stage/package/{name}"), post(staged::post_staged_publish))
+        .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
+        .route(
+            &path("/-/stage/{id}/approve"),
+            post(staged::approve_staged).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+}
+
+pub(super) fn local_registry_router(config: &Config, routing: &RoutingConfig) -> Router<AppState> {
+    if config.features.registry.enabled && routing.registries.has_ecosystem(Ecosystem::Npm) {
+        let mut packages = Router::new();
+        for base in ["", "/~{registry}"] {
+            packages = npm_package_routes(packages, base);
+        }
+        Router::new().nest(&Ecosystem::Npm.base_path(), packages)
+    } else {
+        Router::new()
+    }
+}

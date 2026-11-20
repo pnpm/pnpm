@@ -1,0 +1,45 @@
+[package]
+name = "pnpm-lockfile-verification"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pnpm-package-name = { workspace = true }
+pnpm-diagnostics = { workspace = true }
+pnpm-lockfile = { workspace = true }
+pnpm-reporter = { workspace = true }
+pnpm-resolving-resolver-base = { workspace = true }
+pnpm-time = { workspace = true }
+
+jiff = { workspace = true }
+derive_more = { workspace = true }
+futures-util = { workspace = true }
+miette = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["sync", "time"] }
+
+[dev-dependencies]
+insta = { workspace = true }
+pretty_assertions = { workspace = true }
+serde-saphyr = { workspace = true }
+ssri = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "test-util"] }
+
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+pnpm-wasm-host = { path = "../wasm-host" }
+
+[lints]
+workspace = true

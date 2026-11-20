@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/postinstall-calls-pnpm",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "$npm_execpath run create-file",
+    "create-file": "node create-file"
+  }
+}

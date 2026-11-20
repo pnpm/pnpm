@@ -1,0 +1,84 @@
+mod reporting;
+
+mod store;
+
+mod hardlinks;
+mod workspace;
+
+mod runtimes;
+
+mod builds;
+
+mod installation;
+
+mod links;
+
+use super::ImportIndexedDirOpts;
+use std::{
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+fn write_source(dir: &Path, rel: &str, contents: &[u8]) -> PathBuf {
+    let path = dir.join(rel);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create source parent");
+    }
+    fs::write(&path, contents).expect("write source file");
+    path
+}
+
+fn cas_map(entries: &[(&str, PathBuf)]) -> pnpm_fs::CasPaths {
+    entries
+        .iter()
+        .map(|(k, v)| ((*k).to_string(), v.clone().into()))
+        .collect()
+}
+
+const FORCE_KEEP: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
+    force: true,
+    reuse_hardlinks: false,
+    keep_modules_dir: true,
+    safe_to_skip: false,
+    symlink_targets: None,
+    swap_lock: None,
+};
+const FORCE_ONLY: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
+    force: true,
+    reuse_hardlinks: false,
+    keep_modules_dir: false,
+    safe_to_skip: false,
+    symlink_targets: None,
+    swap_lock: None,
+};
+const FORCE_SHARED: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
+    force: true,
+    reuse_hardlinks: false,
+    keep_modules_dir: false,
+    safe_to_skip: true,
+    symlink_targets: None,
+    swap_lock: None,
+};
+// The shape the isolated linker uses for a shared slot: no force, since a warm slot is
+// short-circuited by its marker before the import runs.
+const SHARED: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
+    force: false,
+    reuse_hardlinks: false,
+    keep_modules_dir: false,
+    safe_to_skip: true,
+    symlink_targets: None,
+    swap_lock: None,
+};
+// The shape the isolated linker uses for a shared slot whose build was interrupted.
+#[cfg(unix)]
+const FORCE_SHARED_KEEP: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
+    force: true,
+    reuse_hardlinks: false,
+    keep_modules_dir: true,
+    safe_to_skip: true,
+    symlink_targets: None,
+    swap_lock: None,
+};

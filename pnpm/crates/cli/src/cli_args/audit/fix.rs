@@ -1,0 +1,527 @@
+//! Applying fixes: overrides, ignores, and dependency updates.
+
+pub(super) mod overrides;
+pub(super) mod update;
+
+pub(crate) use overrides::{
+    create_overrides_from_pruned,
+    prune_subsumed_advisories,
+};
+pub(crate) use update::{
+    AuditFixObserver,
+    VulnerabilityGuard,
+    fix_with_update,
+    format_fix_with_update_output,
+};
+
+use super::{
+    Arc,
+    AuditAdvisory,
+    AuditError,
+    AuditReport,
+    BTreeMap,
+    Config,
+    ConfigAuditLevel,
+    DependencyGroup,
+    Deserialize,
+    FixContext,
+    HashMap,
+    HashSet,
+    IntoDiagnostic,
+    Lockfile,
+    MultiSelect,
+    PackageVersionGuard,
+    Range,
+    RangeSpecStyle,
+    ReleaseAgeExclusions,
+    Reporter,
+    ResolutionObserver,
+    State,
+    Timestamp,
+    Update,
+    Version,
+    blue,
+    color_severity,
+    encode_package_name,
+    green,
+    normalize_ghsa_id,
+    package_semver,
+    parse_packument_timestamp,
+    red,
+    satisfies_including_prerelease,
+    send_with_retry,
+    severity_name,
+    severity_number,
+};
+use pnpm_network::{
+    normalize_registry_url,
+    redact_url_credentials,
+};
+use update::advisory_choices;
+
+/// Filter `report`'s advisories down to the set both fix methods and the
+/// interactive prompt operate on: severity at or above `audit_level` and
+/// not suppressed by `auditConfig.ignoreGhsas`. Mirrors pnpm's
+/// `filterAdvisoriesForFix`.
+pub(crate) fn filter_advisories_for_fix(
+    report: &AuditReport,
+    audit_level: ConfigAuditLevel,
+    config: &Config,
+) -> BTreeMap<String, AuditAdvisory> {
+    let ignore_set = config.audit_config.ignore_ghsas
+        .iter()
+        .filter_map(|ghsa| {
+            let ghsa = normalize_ghsa_id(ghsa);
+            (!ghsa.is_empty()).then_some(ghsa)
+        })
+        .collect::<HashSet<_>>();
+    report.advisories
+        .iter()
+        .filter(|(_, advisory)| severity_number(advisory.severity) >= severity_number(audit_level))
+        .filter(|(_, advisory)| {
+            let ghsa = normalize_ghsa_id(&advisory.github_advisory_id);
+            ghsa.is_empty() || !ignore_set.contains(&ghsa)
+        })
+        .map(|(id, advisory)| (id.clone(), advisory.clone()))
+        .collect()
+}
+
+/// `auditConfig.ignoreGhsas` entries split by whether their GHSA id still
+/// appears in the audit report.
+pub(crate) struct PruneIgnoredGhsasResult {
+    pub(crate) pruned: Vec<String>,
+    pub(crate) retained: Vec<String>,
+}
+
+/// Split `ignored_ghsas` into those still present in `report` (normalized
+/// to their canonical spelling and deduplicated (`retained`)) and those
+/// that aren't, in their original spelling (`pruned`). Mirrors pnpm's
+/// `pruneIgnoredGhsas`.
+pub(crate) fn prune_ignored_ghsas(
+    ignored_ghsas: &[String],
+    report: &AuditReport,
+) -> PruneIgnoredGhsasResult {
+    let advisory_ghsa_ids = report.advisories
+        .values()
+        .filter(|advisory| !advisory.github_advisory_id.is_empty())
+        .map(|advisory| normalize_ghsa_id(&advisory.github_advisory_id))
+        .collect::<HashSet<_>>();
+
+    let mut retained_seen = HashSet::new();
+    let mut retained = Vec::new();
+    let mut pruned = Vec::new();
+    for ghsa in ignored_ghsas {
+        let normalized = normalize_ghsa_id(ghsa);
+        if advisory_ghsa_ids.contains(&normalized) {
+            if retained_seen.insert(normalized.clone()) {
+                retained.push(normalized);
+            }
+        } else {
+            pruned.push(ghsa.clone());
+        }
+    }
+    PruneIgnoredGhsasResult { pruned, retained }
+}
+
+/// Write the override-method fixes to `pnpm-workspace.yaml` and return the
+/// user-facing summary. Mirrors the override branch of pnpm's audit handler.
+/// `publish_infos` reuses the packument data the report validation already
+/// fetched so the age-gate check doesn't request it again.
+pub(super) async fn fix_override(
+    advisories: &BTreeMap<String, AuditAdvisory>,
+    config: &Config,
+    context: &FixContext<'_>,
+    release_age_exclusions: ReleaseAgeExclusions,
+) -> miette::Result<String> {
+    let pruned_advisories = prune_subsumed_advisories(advisories);
+    let overrides = create_overrides_from_pruned(
+        &pruned_advisories,
+        RangeSpecStyle::from_save_options(config.save_exact, config.save_prefix.as_deref()),
+    );
+    if overrides.is_empty() {
+        return Ok("No fixes were made".to_string());
+    }
+    let entries = overrides
+        .iter()
+        .map(|(key, value)| (key.as_str(), value.as_str()));
+    pnpm_workspace_manifest_writer::set_overrides(context.settings_dir, entries)
+        .map_err(|err| {
+            miette::Report::new(err).wrap_err("write overrides to pnpm-workspace.yaml")
+        })?;
+    let json = serde_json::to_string_pretty(&overrides).into_diagnostic()?;
+    let mut output = format!(
+        "{} overrides were added to pnpm-workspace.yaml to fix vulnerabilities.\nRun \"pnpm install\" to apply the fixes.\n\nThe added overrides:\n{json}",
+        overrides.len(),
+    );
+    let minimum_release_age = match release_age_exclusions {
+        ReleaseAgeExclusions::AddForPatches => config.resolved_minimum_release_age(),
+        ReleaseAgeExclusions::SkipAdditions => None,
+    };
+    if let Some(minimum_release_age) = minimum_release_age {
+        let added = resolve_minimum_release_age_excludes(
+            &pruned_advisories,
+            context.publish_infos,
+            minimum_release_age,
+        )?;
+        append_override_age_excludes(&mut output, context.settings_dir, &added)?;
+    }
+    Ok(output)
+}
+
+fn append_override_age_excludes(
+    output: &mut String,
+    settings_dir: &std::path::Path,
+    added: &[String],
+) -> miette::Result<()> {
+    if !added.is_empty() {
+        use std::fmt::Write as _;
+
+        write_age_excludes(settings_dir, added)?;
+        write!(
+            output,
+            "\n\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}",
+            added.len(),
+            added.join("\n"),
+        )
+        .expect("writing to a string cannot fail");
+    }
+    Ok(())
+}
+
+/// Outcome of looking up a package's packument publish info during advisory
+/// patched-range validation.
+#[derive(Debug, Clone)]
+pub(crate) enum PublishInfoLookup {
+    Resolved(PackumentPublishInfo),
+    /// Packument fetch failed or returned malformed JSON; age-gate exclusions
+    /// fail open so a genuinely fresh fix remains installable.
+    Unavailable,
+    /// Multiple registries or an undeclared named-registry prefix serve the
+    /// package name, so no single packument can authorize an age-gate bypass.
+    AmbiguousOrigin,
+}
+
+/// The packument publish info of one package: the `time` map plus the set of
+/// deprecated versions.
+#[derive(Debug, Clone)]
+pub(crate) struct PackumentPublishInfo {
+    /// The packument `time` map: version → raw publish timestamp. Includes
+    /// the `created` and `modified` metadata keys alongside version keys.
+    pub(crate) time: HashMap<String, String>,
+    /// Versions the packument marks as deprecated. Deprecated versions are
+    /// excluded from patched-version validation, a deprecated release is
+    /// not a viable fix even though it exists on the registry. Parsed rather
+    /// than kept as raw keys, because the `time` and `versions` maps may spell
+    /// the same release differently (`v1.2.3` vs `1.2.3`).
+    pub(crate) deprecated: HashSet<Version>,
+}
+
+impl PackumentPublishInfo {
+    /// The lowest non-deprecated published version satisfying `range` (the
+    /// version an inferred patched range actually resolves to) paired with
+    /// its `time` key, which the registry may spell in a non-normalized form
+    /// (e.g. `v1.2.3`) that the parsed version drops. `None` when no published
+    /// version satisfies the range, whether it was never published, skipped,
+    /// yanked, or deprecated.
+    ///
+    /// Stable releases outrank prereleases regardless of order, so a
+    /// `4.18.0-beta.1` published before `4.18.0` is never advertised as the
+    /// fix. A prerelease still wins when nothing else satisfies the range.
+    pub(crate) fn lowest_non_deprecated_version(&self, range: &Range) -> Option<(&str, Version)> {
+        self.time
+            .keys()
+            .filter(|key| key.as_str() != "created" && key.as_str() != "modified")
+            .filter_map(|key| Some((key.as_str(), key.parse::<Version>().ok()?)))
+            .filter(|(_, version)| !self.deprecated.contains(version))
+            .filter(|(_, version)| satisfies_including_prerelease(version, range))
+            .min_by(|(_, a), (_, b)| {
+                a.is_prerelease()
+                    .cmp(&b.is_prerelease())
+                    .then_with(|| a.cmp(b))
+            })
+    }
+}
+
+/// The packument publish info of one package, or `None` when the packument
+/// could not be fetched or carries no usable `time` field. Ports pnpm's
+/// `createPublishTimesFetcher`; `None` must read as "no information", not
+/// "old", so a genuinely fresh fix keeps its exclusion.
+pub(crate) async fn fetch_publish_times(
+    name: &str,
+    registry: &str,
+    config: &Config,
+    http_client: &pnpm_network::ThrottledClient,
+) -> Option<PackumentPublishInfo> {
+    #[derive(Deserialize)]
+    struct PackumentTimes {
+        time: Option<HashMap<String, serde_json::Value>>,
+        versions: Option<HashMap<String, PackumentVersion>>,
+    }
+
+    #[derive(Deserialize)]
+    struct PackumentVersion {
+        deprecated: Option<String>,
+    }
+
+    let registry = normalize_registry_url(registry);
+    let url = format!("{registry}{}", encode_package_name(name));
+    // The URL is user-configured and may embed credentials; keep only the
+    // redacted form, like the audit request does, so retry diagnostics never
+    // print them (auth travels in the header instead).
+    let url = redact_url_credentials(&url);
+    let authorization = config.auth_headers.for_url_with_package(&registry, Some(name));
+    let retry_opts = config.retry_opts();
+    let (_guard, response) = send_with_retry(http_client, &url, retry_opts, |client| {
+        // Full metadata: the abbreviated packument has no `time` field.
+        let mut request = client.get(&url).header("accept", "application/json; q=1.0, */*");
+        if let Some(value) = &authorization {
+            request = request.header("authorization", value);
+        }
+        request
+    })
+    .await
+    .ok()?;
+    if response.status().as_u16() != 200 {
+        return None;
+    }
+    fn deprecated_versions(versions: HashMap<String, PackumentVersion>) -> HashSet<Version> {
+        versions
+            .into_iter()
+            .filter(|(_, manifest)| manifest.deprecated.is_some())
+            .filter_map(|(version, _)| version.parse::<Version>().ok())
+            .collect()
+    }
+
+    let body = response.json::<PackumentTimes>().await.ok()?;
+    Some(PackumentPublishInfo {
+        time: publish_timestamps(body.time?)?,
+        deprecated: deprecated_versions(body.versions.unwrap_or_default()),
+    })
+}
+
+/// The publish timestamps of a packument `time` map. Non-version entries
+/// that are not strings, such as an `unpublished` marker that is `null` or an
+/// object, are dropped. `None` when a version's timestamp is not a string, so
+/// a malformed map is not mistaken for the complete list of releases.
+fn publish_timestamps(time: HashMap<String, serde_json::Value>) -> Option<HashMap<String, String>> {
+    let mut timestamps = HashMap::with_capacity(time.len());
+    for (key, value) in time {
+        match value {
+            serde_json::Value::String(published_at) => {
+                timestamps.insert(key, published_at);
+            }
+            _ if key.parse::<Version>().is_ok() => return None,
+            _ => {}
+        }
+    }
+    Some(timestamps)
+}
+
+/// Compute the age-gate exclusions for `advisories` using the publish-time
+/// maps the report validation already fetched, so a patched version published
+/// long before the cutoff gets no pointless `minimumReleaseAgeExclude` entry.
+/// Ports the publish-time lookup of pnpm's `createMinimumReleaseAgeExcludes`.
+fn resolve_minimum_release_age_excludes(
+    advisories: &BTreeMap<String, AuditAdvisory>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
+    minimum_release_age: u64,
+) -> miette::Result<Vec<String>> {
+    // On overflow leave the cutoff uncomputable, as `PickPolicy::from_config`
+    // does; with no effective gate no bypass entries are needed.
+    let Some(cutoff) = i64::try_from(minimum_release_age)
+        .ok()
+        .and_then(pnpm_time::duration_minutes)
+        .and_then(|age| Timestamp::now().checked_sub(age).ok())
+    else {
+        return Ok(Vec::new());
+    };
+    minimum_release_age_excludes(advisories, publish_infos, cutoff)
+}
+
+/// The `minimumReleaseAgeExclude` entries needed to keep the age gate from
+/// blocking the patched versions: one `name@version` spec per fixable
+/// advisory whose fix, the version
+/// [`PackumentPublishInfo::lowest_non_deprecated_version`] resolves the
+/// patched range to, is younger than `cutoff`. A version published at or
+/// before the cutoff doesn't need a bypass, and a version whose publish time
+/// is unknown keeps its entry so a genuinely fresh fix stays installable. An
+/// advisory the packument offers no fix for, or whose registry origin is
+/// ambiguous, gets no entry. Ports pnpm's `createMinimumReleaseAgeExcludes`.
+pub(crate) fn minimum_release_age_excludes(
+    advisories: &BTreeMap<String, AuditAdvisory>,
+    publish_infos: &HashMap<String, PublishInfoLookup>,
+    cutoff: Timestamp,
+) -> miette::Result<Vec<String>> {
+    let specs: Vec<String> = advisories
+        .values()
+        .filter_map(|advisory| {
+            let patched = advisory.patched_versions.as_deref()?;
+            let min = patched
+                .strip_prefix(">=")
+                .map(str::trim)
+                .map(str::parse::<Version>)
+                .and_then(Result::ok)?;
+            let name = advisory.module_name.trim();
+            let info = match publish_infos.get(name) {
+                Some(PublishInfoLookup::Resolved(info)) => info,
+                Some(PublishInfoLookup::AmbiguousOrigin) => return None,
+                Some(PublishInfoLookup::Unavailable) | None => {
+                    return Some(format!("{name}@{min}"));
+                }
+            };
+            let range = patched.parse::<Range>().ok()?;
+            let (key, lowest) = info.lowest_non_deprecated_version(&range)?;
+            match info.time.get(key).and_then(|raw| parse_packument_timestamp(raw)) {
+                Some(published_at) if published_at <= cutoff => None,
+                // A present-but-unparsable timestamp fails open like unknown
+                // publish times.
+                _ => Some(format!("{name}@{lowest}")),
+            }
+        })
+        .collect();
+    pnpm_config::version_policy::merge_package_version_specs(&specs).map_err(miette::Report::new)
+}
+
+/// Merge `added` into the project-local `minimumReleaseAgeExclude` and persist
+/// the canonical result. Mirrors pnpm's `writeSettings` re-merge of
+/// `[...existing, ...added]`.
+pub(crate) fn write_age_excludes(
+    settings_dir: &std::path::Path,
+    added: &[String],
+) -> miette::Result<()> {
+    pnpm_workspace_manifest_writer::update_workspace_manifest(
+        settings_dir,
+        &pnpm_workspace_manifest_writer::UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: added,
+            ..Default::default()
+        },
+    )
+    .map_err(|err| {
+        miette::Report::new(err).wrap_err("write minimumReleaseAgeExclude to pnpm-workspace.yaml")
+    })
+}
+
+/// What [`ignore_vulnerabilities`] persisted.
+pub(crate) struct IgnoredVulnerabilities {
+    /// The user-facing summary of the newly ignored GHSA ids.
+    pub summary: String,
+    /// The merged `auditConfig.ignoreGhsas` list that was written.
+    pub ignore_ghsas: Vec<String>,
+}
+
+/// Merge the requested ignores into `auditConfig.ignoreGhsas` and persist
+/// them. Mirrors pnpm's `ignore()`:
+/// `--ignore-unfixable` adds every advisory with no inferable fix (erroring
+/// when one lacks a GHSA id); otherwise the `--ignore` GHSA ids are added.
+pub(crate) fn ignore_vulnerabilities(
+    report: &AuditReport,
+    config: &Config,
+    settings_dir: &std::path::Path,
+    ignore: &[String],
+    ignore_unfixable: bool,
+) -> miette::Result<IgnoredVulnerabilities> {
+    let mut ordered: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for ghsa in config.audit_config.ignore_ghsas.iter().map(|ghsa| normalize_ghsa_id(ghsa)) {
+        if !ghsa.is_empty() && seen.insert(ghsa.clone()) {
+            ordered.push(ghsa);
+        }
+    }
+
+    let requested = if ignore_unfixable {
+        unfixable_ghsa_ids(report)?
+    } else {
+        ignore
+            .iter()
+            .map(|ghsa| normalize_ghsa_id(ghsa))
+            .collect()
+    };
+    let mut new_ignores: Vec<String> = Vec::new();
+    for ghsa in requested {
+        if seen.insert(ghsa.clone()) {
+            ordered.push(ghsa.clone());
+            new_ignores.push(ghsa);
+        }
+    }
+
+    pnpm_workspace_manifest_writer::set_audit_ignore_ghsas(settings_dir, &ordered)
+        .map_err(|err| {
+            miette::Report::new(err)
+                .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
+        })?;
+
+    Ok(IgnoredVulnerabilities { summary: ignored_summary(&new_ignores), ignore_ghsas: ordered })
+}
+
+fn ignored_summary(new_ignores: &[String]) -> String {
+    if new_ignores.is_empty() {
+        return "No new vulnerabilities were ignored".to_string();
+    }
+    format!("{} new vulnerabilities were ignored:\n{}", new_ignores.len(), new_ignores.join("\n"))
+}
+
+/// The GHSA ids of every advisory with no inferable fix. An advisory
+/// that carries no GHSA id cannot be ignored, so it is an error rather
+/// than a silent omission.
+fn unfixable_ghsa_ids(report: &AuditReport) -> miette::Result<Vec<String>> {
+    report.advisories
+        .values()
+        .filter(|advisory| advisory.patched_versions.is_none())
+        .map(|advisory| {
+            if advisory.github_advisory_id.is_empty() {
+                return Err(AuditError::MissingGhsa {
+                    id: advisory.id.clone(),
+                    module_name: advisory.module_name.clone(),
+                }
+                .into());
+            }
+            Ok(normalize_ghsa_id(&advisory.github_advisory_id))
+        })
+        .collect()
+}
+
+/// Prompt the user to choose which fixable vulnerabilities to fix and return
+/// the chosen subset. `Ok(None)` means "nothing to do", the prompt was
+/// cancelled or no row was selected; an `Err` means the prompt itself failed
+/// (e.g. a non-TTY/CI stdin) and must surface rather than read as a clean
+/// audit. Ports pnpm's `interactiveAuditFix`, with the flat `dialoguer`
+/// multi-select pacquet's `update --interactive` also uses in place of pnpm's
+/// severity-grouped table.
+pub(crate) fn interactive_select(
+    advisories: BTreeMap<String, AuditAdvisory>,
+    range_spec_style: RangeSpecStyle,
+) -> miette::Result<Option<BTreeMap<String, AuditAdvisory>>> {
+    let (keys, labels) = advisory_choices(&advisories, range_spec_style);
+
+    // Nothing fixable: mirror pnpm returning the report unchanged (the fix
+    // method then makes no changes).
+    if keys.is_empty() {
+        return Ok(Some(advisories));
+    }
+
+    let selected = MultiSelect::new()
+        .with_prompt("Choose which vulnerabilities to fix (space to select, enter to confirm)")
+        .items(&labels)
+        .interact_opt()
+        .into_diagnostic()
+        .map_err(|err| err.wrap_err("interactive audit selection failed"))?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    if selected.is_empty() {
+        return Ok(None);
+    }
+    let chosen: HashSet<&String> = selected
+        .iter()
+        .map(|&index| &keys[index])
+        .collect();
+    Ok(Some(
+        advisories
+            .into_iter()
+            .filter(|(_, advisory)| {
+                let key = format!("{}@{}", advisory.module_name, advisory.vulnerable_versions);
+                chosen.contains(&key)
+            })
+            .collect(),
+    ))
+}

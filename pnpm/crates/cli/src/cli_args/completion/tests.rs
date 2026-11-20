@@ -1,0 +1,297 @@
+use super::{
+    CompletionError,
+    CompletionShell,
+    SUPPORTED_SHELLS,
+    paths::{
+        PathCompletionKind,
+        complete_paths,
+        resolve_directory_arg,
+    },
+    shell_from_args,
+};
+use crate::cli_args::CliArgs;
+use clap::Parser as _;
+use miette::Diagnostic as _;
+use tempfile::TempDir;
+
+fn strings(values: &[&str]) -> Vec<String> {
+    values
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect()
+}
+
+fn diagnostic_code(err: &CompletionError) -> Option<String> {
+    err.code().map(|code| code.to_string())
+}
+
+#[test]
+fn supported_shells_are_pnpm_compatible() {
+    assert_eq!(SUPPORTED_SHELLS, &["bash", "fish", "pwsh", "zsh"]);
+}
+
+#[test]
+fn missing_shell_errors_like_pnpm() {
+    let err = shell_from_args(None, &[]).expect_err("missing shell rejected");
+    assert_eq!(err.to_string(), "`pnpm completion` requires a shell name");
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()));
+}
+
+#[test]
+fn empty_shell_errors_like_pnpm() {
+    let err = shell_from_args(Some(" \n"), &[]).expect_err("blank shell rejected");
+    assert_eq!(err.to_string(), "`pnpm completion` requires a shell name");
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_MISSING_SHELL_NAME".to_string()));
+}
+
+#[test]
+fn unsupported_shell_lists_supported_shells() {
+    let err = shell_from_args(Some("elvish"), &[]).expect_err("unsupported shell rejected");
+    assert_eq!(err.to_string(), "'elvish' is not supported");
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_UNSUPPORTED_SHELL".to_string()));
+    assert_eq!(
+        err.help().map(|help| help.to_string()),
+        Some("Supported shells are: bash, fish, pwsh, zsh".to_string()),
+    );
+}
+
+#[test]
+fn redundant_parameters_are_rejected_before_shell_validation() {
+    let extra = strings(&["fish", "pwsh", "zsh"]);
+    let err = shell_from_args(Some("elvish"), &extra).expect_err("redundant params rejected");
+    assert_eq!(err.to_string(), "The 3 parameters after shell is not necessary");
+    assert_eq!(diagnostic_code(&err), Some("ERR_PNPM_REDUNDANT_PARAMETERS".to_string()));
+}
+
+#[test]
+fn supported_shells_parse_after_trimming() {
+    assert_eq!(shell_from_args(Some(" bash\n"), &[]).expect("bash"), CompletionShell::Bash);
+    assert_eq!(shell_from_args(Some("fish"), &[]).expect("fish"), CompletionShell::Fish);
+    assert_eq!(shell_from_args(Some("pwsh"), &[]).expect("pwsh"), CompletionShell::Pwsh);
+    assert_eq!(shell_from_args(Some("zsh"), &[]).expect("zsh"), CompletionShell::Zsh);
+}
+
+#[test]
+fn generated_scripts_call_completion_server() {
+    let shells =
+        [CompletionShell::Bash, CompletionShell::Fish, CompletionShell::Pwsh, CompletionShell::Zsh];
+
+    for shell in shells {
+        let mut output = Vec::new();
+        super::generate_completion(shell, &mut output).expect("generate completion");
+        let script = String::from_utf8(output).expect("script is utf8");
+        assert!(script.contains("pnpm completion-server"), "{script}");
+    }
+}
+
+#[test]
+fn generated_scripts_register_pn_alias() {
+    let cases = [
+        (CompletionShell::Bash, &["complete -F _pnpm_completion pnpm pn"][..]),
+        (
+            CompletionShell::Fish,
+            &[
+                r#"complete -c pnpm -f -a "(__pnpm_completion)""#,
+                r#"complete -c pn -f -a "(__pnpm_completion)""#,
+            ],
+        ),
+        (
+            CompletionShell::Pwsh,
+            &["Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock"],
+        ),
+        (CompletionShell::Zsh, &["#compdef pnpm pn", "compdef _pnpm_completion pnpm pn"]),
+    ];
+
+    for (shell, snippets) in cases {
+        let mut output = Vec::new();
+        super::generate_completion(shell, &mut output).expect("generate completion");
+        let script = String::from_utf8(output).expect("script is utf8");
+        for snippet in snippets {
+            assert!(
+                script.contains(snippet),
+                "{shell:?} script should contain {snippet:?}: {script}",
+            );
+        }
+    }
+}
+
+#[test]
+fn pn_is_stripped_like_the_other_pnpm_binary_names() {
+    for binary in ["pnpm", "pn", "pacquet", "/usr/local/bin/pn", "pn.exe"] {
+        assert_eq!(
+            super::words_without_binary(&strings(&[binary, "add", ""])),
+            strings(&["add", ""]),
+            "{binary} should be dropped",
+        );
+    }
+
+    assert_eq!(super::words_without_binary(&strings(&["npm", ""])), strings(&["npm", ""]));
+}
+
+#[test]
+fn completion_server_treats_pn_as_the_pnpm_binary() {
+    let pnpm = super::complete_words(&strings(&["pnpm", ""])).unwrap();
+    let pn = super::complete_words(&strings(&["pn", ""])).unwrap();
+
+    assert_eq!(pnpm, pn);
+    assert!(
+        pn.iter()
+            .any(|completion| completion == "install"),
+        "{pn:?}",
+    );
+}
+
+#[test]
+fn completion_can_run_before_async_runtime_setup() {
+    let args = CliArgs::parse_from(["pnpm", "completion-server", "--", "pnpm", "completion", ""]);
+
+    assert!(args.run_completion_if_requested().expect("completion dispatch succeeds"));
+}
+
+#[test]
+fn complete_paths_completes_directories_and_files_by_kind() {
+    let temp = TempDir::new().expect("temp dir");
+    std::fs::create_dir_all(temp.path().join("alpha/nested")).expect("create alpha/nested");
+    std::fs::create_dir(temp.path().join("beta")).expect("create beta");
+    std::fs::create_dir(temp.path().join(".hidden-dir")).expect("create .hidden-dir");
+    std::fs::write(temp.path().join("gamma.txt"), "").expect("write gamma.txt");
+    std::fs::write(temp.path().join(".env"), "").expect("write .env");
+
+    let home = TempDir::new().expect("home dir");
+    std::fs::create_dir_all(home.path().join("projects/demo")).expect("create projects/demo");
+
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "", PathCompletionKind::Directories),
+        strings(&["alpha/", "beta/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "./", PathCompletionKind::Directories),
+        strings(&["./alpha/", "./beta/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "./al", PathCompletionKind::Directories),
+        strings(&["./alpha/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "alpha/", PathCompletionKind::Directories),
+        strings(&["alpha/nested/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), ".", PathCompletionKind::Directories),
+        strings(&[".hidden-dir/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "~/pr", PathCompletionKind::Directories),
+        strings(&["~/projects/"]),
+    );
+    assert_eq!(
+        complete_paths(
+            temp.path(),
+            Some(home.path()),
+            "~/projects/",
+            PathCompletionKind::Directories,
+        ),
+        strings(&["~/projects/demo/"]),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), None, "~/pr", PathCompletionKind::Directories),
+        Vec::<String>::new(),
+    );
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "missing/", PathCompletionKind::Directories),
+        Vec::<String>::new(),
+    );
+
+    assert_eq!(
+        complete_paths(temp.path(), Some(home.path()), "", PathCompletionKind::FilesAndDirectories),
+        strings(&["alpha/", "beta/", "gamma.txt"]),
+    );
+    assert_eq!(
+        complete_paths(
+            temp.path(),
+            Some(home.path()),
+            ".",
+            PathCompletionKind::FilesAndDirectories,
+        ),
+        strings(&[".env", ".hidden-dir/"]),
+    );
+
+    assert_eq!(resolve_directory_arg(temp.path(), Some(home.path()), "~"), home.path());
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), "~/projects"),
+        home.path().join("projects"),
+    );
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), r#""~/projects""#),
+        temp.path().join("~/projects"),
+    );
+    assert_eq!(
+        resolve_directory_arg(temp.path(), Some(home.path()), "'~/projects'"),
+        temp.path().join("~/projects"),
+    );
+
+    #[cfg(windows)]
+    {
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r"alpha\",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r"alpha\nested/"]),
+        );
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r".\al",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r".\alpha/"]),
+        );
+        assert_eq!(
+            complete_paths(
+                temp.path(),
+                Some(home.path()),
+                r"~\pr",
+                PathCompletionKind::Directories,
+            ),
+            strings(&[r"~\projects/"]),
+        );
+        assert_eq!(
+            resolve_directory_arg(temp.path(), Some(home.path()), r"~\projects"),
+            home.path().join("projects"),
+        );
+    }
+
+    let large = TempDir::new().expect("large dir");
+    for index in 0..super::paths::MAX_PATH_CANDIDATES + 10 {
+        std::fs::create_dir(
+            large
+                .path()
+                .join(format!("dir-{index:04}")),
+        )
+        .expect("create dir");
+    }
+    assert_eq!(
+        complete_paths(large.path(), None, "", PathCompletionKind::Directories).len(),
+        super::paths::MAX_PATH_CANDIDATES,
+    );
+}
+
+#[test]
+fn non_enum_options_do_not_fall_back_to_commands_or_shells() {
+    for words in [
+        &["pnpm", "--registry", ""][..],
+        &["pnpm", "--registry", "in"],
+        &["pnpm", "--registry=in"],
+        &["pnpm", "completion", "--registry", ""],
+    ] {
+        assert_eq!(
+            super::complete_words(&strings(words)).expect("complete words"),
+            Vec::<String>::new(),
+            "{words:?}",
+        );
+    }
+}
