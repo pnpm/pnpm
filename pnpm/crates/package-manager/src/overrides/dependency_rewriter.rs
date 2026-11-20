@@ -1,4 +1,5 @@
 use crate::overrides::VersionsOverrider;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::ParseOverridesError;
@@ -21,13 +22,49 @@ pub fn overrides_dependency_rewriter(
     catalogs: &Catalogs,
     workspace_dir: &Path,
 ) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
+    build_overrides_rewriter(config, catalogs, workspace_dir, CatalogValues::Dereference)
+}
+
+/// [`overrides_dependency_rewriter`] for finding the projects that use a
+/// changed catalog entry. An override whose value is a `catalog:` reference
+/// rewrites the dependency to that reference, not to the entry's specifier,
+/// so the rewritten dependencies name the catalog entries they resolve
+/// through. A convergence override still writes the entry's version, which
+/// it needs to match declared ranges.
+pub fn overrides_catalog_reference_rewriter(
+    config: &Config,
+    catalogs: &Catalogs,
+    workspace_dir: &Path,
+) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
+    build_overrides_rewriter(config, catalogs, workspace_dir, CatalogValues::Keep)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CatalogValues {
+    Dereference,
+    Keep,
+}
+
+fn build_overrides_rewriter(
+    config: &Config,
+    catalogs: &Catalogs,
+    workspace_dir: &Path,
+    catalog_values: CatalogValues,
+) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
     let Some(map) = config.overrides
         .as_ref()
         .filter(|map| !map.is_empty())
     else {
         return Ok(None);
     };
-    let parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
+    let mut parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
+    if catalog_values == CatalogValues::Keep {
+        for (entry, raw_value) in parsed.iter_mut().zip(map.values()) {
+            if !entry.converge && parse_catalog_protocol(raw_value).is_some() {
+                entry.new_bare_specifier.clone_from(raw_value);
+            }
+        }
+    }
     let root_dir = config.root_project_manifest_dir(workspace_dir);
     Ok(Some(VersionsOverrider::new(&parsed, root_dir).with_catalogs(catalogs)))
 }

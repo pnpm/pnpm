@@ -15,7 +15,7 @@ pub use create_projects_graph::{
     CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, WorkspaceCatalogs,
     create_projects_graph,
 };
-pub use dependency_rewriter::DependencyRewriter;
+pub use dependency_rewriter::{DependencyRewriter, rewritten_dependencies};
 pub use graph::{ProjectGraph, ProjectGraphNode};
 pub use pnpm_fs::lexical_normalize;
 

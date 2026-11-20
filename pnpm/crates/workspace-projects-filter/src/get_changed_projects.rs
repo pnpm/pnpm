@@ -12,6 +12,10 @@ mod catalogs;
 #[cfg(test)]
 mod tests;
 
+/// Each project's `(name, specifier)` dependency pairs, keyed by root
+/// directory.
+pub type ProjectDependencies = HashMap<PathBuf, Vec<(String, String)>>;
+
 /// Options for [`get_changed_projects`].
 pub struct GetChangedProjectsOptions<'a> {
     /// Workspace root directory where `pnpm-workspace.yaml` resides.
@@ -21,7 +25,7 @@ pub struct GetChangedProjectsOptions<'a> {
     pub working_dir: Option<&'a Path>,
     pub test_pattern: &'a [String],
     pub changed_files_ignore_pattern: &'a [String],
-    pub project_dependencies: Option<&'a HashMap<PathBuf, Vec<(String, String)>>>,
+    pub project_dependencies: Option<&'a ProjectDependencies>,
     pub use_glob_dir_filtering: bool,
 }
 

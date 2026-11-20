@@ -2,7 +2,10 @@ use super::{
     Command, Config, GetChangedProjectsOptions, GraphPkg, HashMap, HashSet, LogEvent, LogLevel,
     Path, PathBuf, PnpmLog, Project, ProjectGraph, get_changed_projects,
 };
-use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
+use crate::cli_args::{
+    catalogs::{configured_catalogs, workspace_catalogs},
+    recursive::overridden_project_dependencies,
+};
 use miette::{Context, IntoDiagnostic};
 use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, create_projects_graph,
@@ -218,11 +221,14 @@ fn select_changed_projects(
     all_dirs: &[PathBuf],
     merge_base: String,
 ) -> miette::Result<Selection> {
-    let project_dependencies: HashMap<PathBuf, Vec<(String, String)>> = options
-        .graph
-        .iter()
-        .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
-        .collect();
+    let project_dependencies =
+        overridden_project_dependencies(options.graph, options.config, options.workspace_root)?
+            .unwrap_or_else(|| {
+                options.graph
+                    .iter()
+                    .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
+                    .collect()
+            });
     let changed = get_changed_projects(
         options.graph.keys().cloned().collect(),
         &merge_base,

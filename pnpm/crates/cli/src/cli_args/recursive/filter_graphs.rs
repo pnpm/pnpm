@@ -4,10 +4,16 @@ use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
 use miette::{Context, IntoDiagnostic};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_package_manager::{VersionsOverrider, overrides_dependency_rewriter};
+use pnpm_package_manager::{
+    VersionsOverrider, overrides_catalog_reference_rewriter, overrides_dependency_rewriter,
+};
 use pnpm_workspace::{GraphPkg, Project};
+use pnpm_workspace_projects_filter::{
+    FilterWorkspaceProjectsOptions, ProjectDependencies, ProjectSelector,
+};
 use pnpm_workspace_projects_graph::{
     CreateProjectsGraphOptions, DependencyRewriter, ProjectGraph, create_projects_graph,
+    rewritten_dependencies,
 };
 use std::path::Path;
 
@@ -73,4 +79,47 @@ fn build_graph<'p>(
         &options,
     )
     .graph
+}
+
+/// [`super::recursive_filter_options`] for evaluating `selectors` against
+/// `graph`. A `[<since>]` selector among them reads the dependencies from
+/// [`overridden_project_dependencies`].
+pub(super) fn selector_filter_options(
+    graph: &ProjectGraph<GraphPkg<'_>>,
+    selectors: &[ProjectSelector],
+    config: &Config,
+    prefix: &Path,
+) -> miette::Result<FilterWorkspaceProjectsOptions> {
+    let mut options = super::recursive_filter_options(config, prefix);
+    if selectors.iter().any(|selector| selector.diff.is_some()) {
+        let workspace_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
+        options.project_dependencies =
+            overridden_project_dependencies(graph, config, workspace_dir)?;
+    }
+    Ok(options)
+}
+
+/// Each project's dependencies with the overrides applied, keyed by root
+/// directory, for finding the projects that use a changed catalog entry.
+/// `None` when no overrides are configured.
+pub(crate) fn overridden_project_dependencies(
+    graph: &ProjectGraph<GraphPkg<'_>>,
+    config: &Config,
+    workspace_dir: &Path,
+) -> miette::Result<Option<ProjectDependencies>> {
+    let catalogs = configured_catalogs(config)?;
+    let Some(rewriter) = overrides_catalog_reference_rewriter(config, &catalogs, workspace_dir)
+        .into_diagnostic()
+        .wrap_err("parsing the overrides")?
+    else {
+        return Ok(None);
+    };
+    Ok(Some(
+        graph
+            .iter()
+            .map(|(dir, node)| {
+                (dir.clone(), rewritten_dependencies(&node.package, false, Some(&rewriter)))
+            })
+            .collect(),
+    ))
 }

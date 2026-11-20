@@ -1301,6 +1301,46 @@ catalogs:
   }
 })
 
+test('selects projects whose dependencies an override points at a changed catalog entry', async () => {
+  if (isCI && isWindows()) {
+    return
+  }
+
+  const workspaceDir = temporaryDirectory()
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
+  await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
+
+  const appDir = path.join(workspaceDir, 'packages/app') as ProjectRootDir
+  const otherDir = path.join(workspaceDir, 'packages/other') as ProjectRootDir
+  const writeWorkspaceManifest = (lib: string) => fs.promises.writeFile(
+    path.join(workspaceDir, 'pnpm-workspace.yaml'),
+    `packages:\n  - 'packages/*'\ncatalogs:\n  local:\n    lib: ${lib}\n`
+  )
+  await writeWorkspaceManifest('^1.0.0')
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '-m', 'initial commit', '--no-gpg-sign'], { cwd: workspaceDir })
+  await writeWorkspaceManifest('^1.1.0')
+
+  const projects: BaseProject[] = [
+    { rootDir: appDir, manifest: { name: 'app', version: '1.0.0', dependencies: { lib: '^1.0.0' } } },
+    { rootDir: otherDir, manifest: { name: 'other', version: '1.0.0', dependencies: { lib: 'catalog:local' } } },
+  ]
+  const catalogs = { local: { lib: '^1.1.0' } }
+  const select = async (overrides: Record<string, string>) => {
+    const { selectedProjectsGraph } = await filterProjectsBySelectorObjects(projects, [{ diff: 'HEAD' }], {
+      catalogs,
+      overrides: { overrides, catalogs, lockfileDir: workspaceDir },
+      workspaceDir,
+    })
+    return Object.keys(selectedProjectsGraph)
+  }
+
+  expect(await select({})).toStrictEqual([otherDir])
+  expect(await select({ lib: 'catalog:local' })).toStrictEqual([appDir, otherDir])
+  expect(await select({ 'other>lib': '^2.0.0', 'app>lib': 'catalog:local' })).toStrictEqual([appDir])
+})
+
 test('selects projects using catalog dependencies when workspace is nested in a repository subdirectory', async () => {
   if (isCI && isWindows()) {
     return

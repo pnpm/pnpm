@@ -187,3 +187,40 @@ fn pipeline_dry_run_json_routes_selection_warnings_to_stderr() {
         serde_json::from_slice(&missing_base.get_output().stdout).expect("valid dry-run JSON");
     assert_eq!(base_doc["tasks"][0]["project"], "pkg");
 }
+
+#[test]
+fn affected_selection_follows_overrides_to_a_changed_catalog_entry() {
+    let root = tempfile::tempdir().unwrap();
+    let fixture = GitRepoFixture::init(root.path(), "demo");
+    let workspace_manifest = |lib: &str| {
+        format!(
+            "packages: [app, other]\npipelines:\n  default: [build]\nchangedFilesIgnorePattern: [pnpm-workspace.yaml]\noverrides:\n  lib: 'catalog:local'\ncatalogs:\n  local:\n    lib: {lib}\n",
+        )
+    };
+    fixture.write_file("package.json", ROOT_MANIFEST);
+    fixture.write_file("pnpm-workspace.yaml", &workspace_manifest("^1.0.0"));
+    fixture.write_file(
+        "app/package.json",
+        r#"{"name":"app","version":"1.0.0","scripts":{"build":"echo app"},"dependencies":{"lib":"^1.0.0"}}"#,
+    );
+    fixture.write_file(
+        "other/package.json",
+        r#"{"name":"other","version":"1.0.0","scripts":{"build":"echo other"}}"#,
+    );
+    let base = fixture.commit("initial");
+    fixture.write_file("pnpm-workspace.yaml", &workspace_manifest("^1.1.0"));
+
+    let result = pipeline(
+        &root.path().join("demo-src"),
+        &root.path().join("config"),
+        &["--base", &base, "--dry-run", "--json"],
+    );
+    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    let projects: Vec<&str> = document["tasks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|task| task["project"].as_str())
+        .collect();
+    assert_eq!(projects, ["app"], "{document}");
+}

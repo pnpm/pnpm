@@ -6535,6 +6535,7 @@ snapshots:
 		"pnpm11/workspace/projects-graph": {
 			"name": "@pnpm/workspace.projects-graph",
 			"dependencies": {
+				"@pnpm/catalogs.protocol-parser": "workspace:*",
 				"@pnpm/catalogs.resolver": "workspace:*",
 				"@pnpm/catalogs.types": "workspace:*",
 				"@pnpm/config.parse-overrides": "workspace:*",

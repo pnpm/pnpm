@@ -3,8 +3,8 @@
 //! order, and the workspace dependencies a selection reaches.
 
 use super::{
-    RecursiveSelection, filter_graphs, linked_dependencies::LinkedEdgesConfig,
-    recursive_filter_options,
+    RecursiveSelection, filter_graphs, filter_graphs::selector_filter_options,
+    linked_dependencies::LinkedEdgesConfig,
 };
 use crate::cli_args::verify_deps::with_dependencies;
 use indexmap::IndexMap;
@@ -195,7 +195,6 @@ fn install_selected_projects(
     config: &Config,
     prefix: &Path,
 ) -> miette::Result<HashSet<PathBuf>> {
-    let walk_opts = recursive_filter_options(config, prefix);
     let selectors: Vec<_> = config
         .ordered_filters()
         .into_iter()
@@ -207,6 +206,7 @@ fn install_selected_projects(
             selector
         })
         .collect();
+    let walk_opts = selector_filter_options(selection.full_graph(), &selectors, config, prefix)?;
     let filtered =
         filter_graphs(selection.full_graph(), selection.prod_all.as_ref(), &selectors, &walk_opts)?;
     Ok(filtered.selected_projects.into_iter().collect())
