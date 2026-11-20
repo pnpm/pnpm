@@ -501,12 +501,16 @@ async fn ignores_quoted_and_str_tagged_merge_lookalikes_while_honoring_explicit_
             "  uses: actions/cache@{0} # v4.1.0\n",
             "active_step: &active_step\n",
             "  uses: actions/checkout@{0} # v4.1.0\n",
+            "plain_merge_step: &plain_merge_step\n",
+            "  uses: actions/setup-node@{0} # v4.1.0\n",
             "active_jobs: &active_jobs\n",
             "  build:\n",
             "    runs-on: ubuntu-latest\n",
             "    steps:\n",
             "      - \"<<\": *inactive_step\n",
             "        !!merge <<: *active_step\n",
+            "      - \"<<\": *inactive_step\n",
+            "        <<: *plain_merge_step\n",
             "      - '<<': *inactive_step\n",
             "        run: echo single-quoted\n",
             "      - !!str <<: *inactive_step\n",
@@ -530,18 +534,27 @@ async fn ignores_quoted_and_str_tagged_merge_lookalikes_while_honoring_explicit_
     )
     .await
     .expect("update workflow with literal << keys and !!merge");
-    assert_eq!(
-        updated_actions
-            .into_iter()
-            .map(|action| action.name)
-            .collect::<Vec<_>>(),
-        vec!["actions/checkout".to_string()],
-    );
+    let mut names = updated_actions
+        .into_iter()
+        .map(|action| action.name)
+        .collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["actions/checkout".to_string(), "actions/setup-node".to_string()]);
 
     let updated = fs::read_to_string(&workflow).expect("read updated workflow");
-    assert!(updated.contains(&format!("uses: actions/setup-python@{SHA_V4_1_0} # v4.1.0")));
-    assert!(updated.contains(&format!("uses: actions/cache@{SHA_V4_1_0} # v4.1.0")));
-    assert!(updated.contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")));
+    assert!(
+        updated.contains(&format!("uses: actions/setup-python@{SHA_V4_1_0} # v4.1.0")),
+        "{updated}",
+    );
+    assert!(updated.contains(&format!("uses: actions/cache@{SHA_V4_1_0} # v4.1.0")), "{updated}");
+    assert!(
+        updated.contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")),
+        "{updated}",
+    );
+    assert!(
+        updated.contains(&format!("uses: actions/setup-node@{SHA_V4_2_0} # v4.2.0")),
+        "{updated}",
+    );
 }
 
 #[tokio::test]
@@ -552,7 +565,7 @@ async fn updates_escaped_job_keys_and_next_line_anchored_uses_scalars() {
     let workflow = workflows.join("ci.yml");
     let source = format!(
         concat!(
-            "pin: &pin\n",
+            "\"pin#id\": &pin # explanation\n",
             "  actions/checkout@{0} # v4.1.0\n",
             "shared_jobs: &shared_jobs\n",
             "  \"bu\\u0069ld\":\n",
@@ -592,9 +605,17 @@ async fn updates_escaped_job_keys_and_next_line_anchored_uses_scalars() {
     assert_eq!(names, vec!["actions/checkout".to_string(), "actions/setup-node".to_string()]);
 
     let updated = fs::read_to_string(&workflow).expect("read updated workflow");
-    assert!(updated.contains(&format!("pin: &pin\n  actions/checkout@{SHA_V4_2_0} # v4.2.0\n")));
-    assert!(updated.contains(&format!("uses: actions/cache@{SHA_V4_1_0} # v4.1.0")));
-    assert!(updated.contains(&format!("uses: actions/setup-node@{SHA_V4_2_0} # v4.2.0")));
+    assert!(
+        updated.contains(&format!(
+            "\"pin#id\": &pin # explanation\n  actions/checkout@{SHA_V4_2_0} # v4.2.0\n",
+        )),
+        "{updated}",
+    );
+    assert!(updated.contains(&format!("uses: actions/cache@{SHA_V4_1_0} # v4.1.0")), "{updated}");
+    assert!(
+        updated.contains(&format!("uses: actions/setup-node@{SHA_V4_2_0} # v4.2.0")),
+        "{updated}",
+    );
 }
 
 #[tokio::test]
@@ -654,7 +675,98 @@ async fn stops_fallback_after_merge_depth_cutoff_while_keeping_direct_overrides(
     );
 
     let updated = fs::read_to_string(&workflow).expect("read updated workflow");
-    assert!(updated.contains(&format!("actions/setup-node@{SHA_V4_1_0}")));
-    assert!(updated.contains(&format!("actions/setup-python@{SHA_V4_1_0}")));
-    assert!(updated.contains(&format!("actions/cache@{SHA_V4_2_0} # v4.2.0")));
+    assert!(updated.contains(&format!("actions/setup-node@{SHA_V4_1_0}")), "{updated}");
+    assert!(updated.contains(&format!("actions/setup-python@{SHA_V4_1_0}")), "{updated}");
+    assert!(updated.contains(&format!("actions/cache@{SHA_V4_2_0} # v4.2.0")), "{updated}");
+}
+
+#[test]
+fn bounds_cyclic_shared_yaml_merge_graphs_in_lookup_and_collection() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let workflow = workflows.join("ci.yml");
+
+    let mut step_layers = vec![
+        "linear_cycle: &linear_cycle { <<: *linear_cycle }".to_string(),
+        "step_cycle: &step_cycle".to_string(),
+        "  m1: &sm1 { <<: *step_cycle }".to_string(),
+    ];
+    for level in 2..=7 {
+        let step_refs =
+            std::iter::repeat_n(format!("*sm{}", level - 1), 10).collect::<Vec<_>>().join(", ");
+        step_layers.push(format!("  m{level}: &sm{level} {{ <<: [{step_refs}] }}"));
+    }
+    step_layers.push("  <<: *sm7".to_string());
+
+    let mut active_jobs_cycle = vec!["  self_m1: &jm1 { <<: *jobs_self }".to_string()];
+    for level in 2..=7 {
+        let job_refs =
+            std::iter::repeat_n(format!("*jm{}", level - 1), 10).collect::<Vec<_>>().join(", ");
+        active_jobs_cycle.push(format!("  self_m{level}: &jm{level} {{ <<: [{job_refs}] }}"));
+    }
+
+    let source = format!(
+        concat!(
+            "{0}\n",
+            "inherited_jobs: &inherited_jobs\n",
+            "  lint:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - uses: actions/setup-node@{2} # v4.1.0\n",
+            "fallback_step: &fallback_step\n",
+            "  uses: actions/checkout@{2} # v4.1.0\n",
+            "jobs: &jobs_self\n",
+            "{1}\n",
+            "  <<: [*linear_cycle, *jm7, *inherited_jobs]\n",
+            "  build:\n",
+            "    runs-on: ubuntu-latest\n",
+            "    steps:\n",
+            "      - <<: [*linear_cycle, *step_cycle]\n",
+            "        run: echo empty-cycle\n",
+            "      - <<: [*step_cycle, *fallback_step]\n",
+        ),
+        step_layers.join("\n"),
+        active_jobs_cycle.join("\n"),
+        SHA_V4_1_0,
+    );
+    fs::write(&workflow, &source).expect("write cyclic workflow");
+
+    let root_path = root.path().to_path_buf();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build current-thread runtime");
+        let result = runtime.block_on(update_with_runner::<SilentReporter, _>(
+            &root_path,
+            false,
+            None,
+            "https://github.com",
+            &FakeGitRunner,
+            None,
+        ));
+        let _ = sender.send(result);
+    });
+
+    let updated_actions = receiver
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("cyclic shared merge graph scan must not hang")
+        .expect("update cyclic shared merge workflow");
+    let mut names = updated_actions
+        .into_iter()
+        .map(|action| action.name)
+        .collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["actions/checkout".to_string(), "actions/setup-node".to_string()]);
+    let updated = fs::read_to_string(&workflow).expect("read updated workflow");
+    assert!(
+        updated.contains(&format!("uses: actions/checkout@{SHA_V4_2_0} # v4.2.0")),
+        "{updated}",
+    );
+    assert!(
+        updated.contains(&format!("uses: actions/setup-node@{SHA_V4_2_0} # v4.2.0")),
+        "{updated}",
+    );
 }

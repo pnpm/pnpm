@@ -1,6 +1,5 @@
 use super::{
-    ActionReference, Component, Document, HashSet, Path, PathBuf, QueryError, Range, Route,
-    VecDeque, fs, parse_comment_version,
+    ActionReference, HashSet, Path, PathBuf, QueryError, Range, VecDeque, fs, parse_comment_version,
 };
 
 mod graph;
@@ -212,11 +211,10 @@ struct UsesValue<'a> {
 }
 
 fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
-    let document = Document::new(text)?;
     let mut seen_ranges = HashSet::new();
     let mut values = Vec::new();
-    for route in routes::uses_routes(text)? {
-        if let Some(uses) = uses_value_at(text, &document, &route)?
+    for scalar_span in routes::uses_spans(text)? {
+        if let Some(uses) = uses_value_at(text, scalar_span)
             && seen_ranges.insert(uses.range.clone())
         {
             values.push(uses);
@@ -225,99 +223,22 @@ fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
     Ok(values)
 }
 
-/// The `uses:` scalar at `route` with its byte range in `text`, or `None`
-/// when the route names no plain `key: value` scalar.
-fn uses_value_at<'text>(
-    text: &'text str,
-    document: &Document,
-    route: &Route<'_>,
-) -> Result<Option<UsesValue<'text>>, QueryError> {
-    let Some(feature) = (match document.query_exact(route) {
-        Ok(feature) => feature,
-        Err(QueryError::ExhaustedMapping(_) | QueryError::UnexpectedNode(_)) => return Ok(None),
-        Err(error) => return Err(error),
-    }) else {
-        return Ok(None);
-    };
-    let key = match document.query_key_only(route) {
-        Ok(key) => key,
-        Err(QueryError::ExhaustedMapping(_) | QueryError::UnexpectedNode(_)) => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let (start, scalar_end) = feature.location.byte_span;
-    let (Some(before_start), Some(raw_scalar), Some(end_info)) =
-        (text.get(..start), text.get(start..scalar_end), uses_scalar_end(text, scalar_end))
-    else {
-        return Ok(None);
-    };
+/// The single-line `uses:` scalar at `scalar_span` with any trailing same-line
+/// comment included in its byte range.
+fn uses_value_at(text: &str, scalar_span: Range<usize>) -> Option<UsesValue<'_>> {
+    let before_start = text.get(..scalar_span.start)?;
+    let end_info = uses_scalar_end(text, scalar_span.end)?;
+    let value = text.get(scalar_span.start..end_info.end)?;
     let line_start = before_start
         .rfind('\n')
         .map(|line_break| line_break + 1)
         .unwrap_or(0);
-    if !is_inline_uses_target(text, key.location.byte_span.1, start, raw_scalar) {
-        return Ok(None);
-    }
-    let Some(value) = text.get(start..end_info.end) else {
-        return Ok(None);
-    };
-    Ok(Some(UsesValue {
+    Some(UsesValue {
         flow_style: end_info.flow_style,
-        indentation: " ".repeat(start - line_start),
-        range: start..end_info.end,
+        indentation: " ".repeat(scalar_span.start - line_start),
+        range: scalar_span.start..end_info.end,
         value,
-    }))
-}
-
-fn is_inline_uses_target(text: &str, key_end: usize, start: usize, raw_scalar: &str) -> bool {
-    if raw_scalar.contains('\n') || raw_scalar.starts_with(['|', '>']) {
-        return false;
-    }
-    text.get(key_end..start)
-        .is_some_and(is_inline_uses_separator)
-        || text
-            .get(..start)
-            .is_some_and(|before_start| {
-                ends_with_anchor_token(strip_trailing_yaml_trivia(before_start))
-            })
-}
-
-fn is_inline_uses_separator(separator: &str) -> bool {
-    let Some(after_colon) = separator.strip_prefix(':') else {
-        return false;
-    };
-    let trimmed = strip_trailing_yaml_trivia(after_colon);
-    trimmed.is_empty() || (trimmed.trim_start().starts_with('&') && ends_with_anchor_token(trimmed))
-}
-
-fn strip_trailing_yaml_trivia(mut prefix: &str) -> &str {
-    loop {
-        prefix = prefix.trim_end();
-        let line_start = prefix
-            .rfind('\n')
-            .map_or(0, |index| index + 1);
-        let Some((before_comment, _)) = prefix[line_start..].split_once('#') else {
-            return prefix;
-        };
-        if !before_comment.is_empty() && !before_comment.ends_with(char::is_whitespace) {
-            return prefix;
-        }
-        prefix = &prefix[..line_start + before_comment.len()];
-    }
-}
-
-fn ends_with_anchor_token(trimmed: &str) -> bool {
-    let Some((before_amp, anchor_name)) = trimmed.rsplit_once('&') else {
-        return false;
-    };
-    let valid_boundary = before_amp
-        .chars()
-        .next_back()
-        .is_none_or(|ch| ch.is_whitespace() || matches!(ch, ':' | '[' | '{' | ',' | '-' | '?'));
-    valid_boundary
-        && !anchor_name.is_empty()
-        && !anchor_name
-            .chars()
-            .any(|ch| ch.is_whitespace() || matches!(ch, '[' | ']' | '{' | '}' | ','))
+    })
 }
 
 struct UsesScalarEnd {

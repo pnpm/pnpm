@@ -1,4 +1,4 @@
-use super::QueryError;
+use super::{QueryError, Range};
 use serde_saphyr::granit_parser::{Event, Parser, ScalarStyle, Span, Tag};
 use std::collections::HashMap;
 
@@ -9,21 +9,21 @@ pub(super) type NodeId = usize;
 
 pub(super) struct StringScalar {
     pub(super) decoded: String,
-    pub(super) route_key: String,
+    pub(super) inline_span: Option<Range<usize>>,
 }
 
 pub(super) enum KeyKind<'graph> {
-    Merge { route_key: &'graph str },
-    String { decoded: &'graph str, route_key: &'graph str },
+    Merge,
+    String(&'graph str),
 }
 
 pub(super) enum YamlNode {
     Mapping(Vec<(NodeId, NodeId)>),
     Sequence(Vec<NodeId>),
-    MergeKey { route_key: String },
+    MergeKey,
     StringScalar(StringScalar),
     OtherScalar,
-    Alias { anchor_id: usize, raw_text: String },
+    Alias { anchor_id: usize },
 }
 
 #[derive(Default)]
@@ -74,10 +74,11 @@ impl YamlGraph {
                 self.push_and_attach(node, anchor_id, stack);
             }
             Event::Alias(anchor_id) => {
-                let raw_text = slice_span(text, span).unwrap_or_default().to_owned();
-                self.push_and_attach(YamlNode::Alias { anchor_id, raw_text }, 0, stack);
+                self.push_and_attach(YamlNode::Alias { anchor_id }, 0, stack);
             }
-            Event::UnresolvedAlias(_) => return Err(QueryError::InvalidInput(0, 0)),
+            Event::UnresolvedAlias(_) => {
+                return Err(QueryError::InvalidInput(span.start.line(), span.start.col() + 1));
+            }
             Event::MappingStart(_, anchor_id, _) => {
                 stack.push(OpenContainer::new_mapping(anchor_id));
             }
@@ -119,7 +120,7 @@ impl YamlGraph {
     pub(super) fn deref(&self, mut node_id: NodeId) -> Option<(NodeId, &YamlNode)> {
         for _ in 0..MAX_MERGE_DEPTH {
             match self.nodes.get(node_id)? {
-                YamlNode::Alias { anchor_id, .. } => node_id = *self.anchors.get(anchor_id)?,
+                YamlNode::Alias { anchor_id } => node_id = *self.anchors.get(anchor_id)?,
                 node => return Some((node_id, node)),
             }
         }
@@ -129,26 +130,17 @@ impl YamlGraph {
         }
     }
 
-    pub(super) fn string_at(&self, node_id: NodeId) -> Option<&str> {
+    pub(super) fn inline_string_span_at(&self, node_id: NodeId) -> Option<Range<usize>> {
         match self.deref(node_id)?.1 {
-            YamlNode::StringScalar(scalar) => Some(scalar.decoded.as_str()),
+            YamlNode::StringScalar(scalar) => scalar.inline_span.clone(),
             _ => None,
         }
     }
 
     pub(super) fn key_at(&self, key_id: NodeId) -> Option<KeyKind<'_>> {
-        let alias_route = match self.nodes.get(key_id)? {
-            YamlNode::Alias { raw_text, .. } if !raw_text.is_empty() => Some(raw_text.as_str()),
-            _ => None,
-        };
         match self.deref(key_id)?.1 {
-            YamlNode::MergeKey { route_key } => {
-                Some(KeyKind::Merge { route_key: alias_route.unwrap_or(route_key.as_str()) })
-            }
-            YamlNode::StringScalar(scalar) => Some(KeyKind::String {
-                decoded: scalar.decoded.as_str(),
-                route_key: alias_route.unwrap_or(scalar.route_key.as_str()),
-            }),
+            YamlNode::MergeKey => Some(KeyKind::Merge),
+            YamlNode::StringScalar(scalar) => Some(KeyKind::String(scalar.decoded.as_str())),
             _ => None,
         }
     }
@@ -174,17 +166,27 @@ fn classify_scalar(
     tag: Option<&Tag>,
 ) -> YamlNode {
     if is_merge_scalar(value, style, tag) {
-        let route_key = extract_merge_route_key(text, span);
-        return YamlNode::MergeKey { route_key };
+        return YamlNode::MergeKey;
     }
     if !is_string_scalar(value, style, tag) {
         return YamlNode::OtherScalar;
     }
-    let decoded = value.to_owned();
-    let route_key = extract_string_route_key(text, span, style)
-        .map(str::to_owned)
-        .unwrap_or_else(|| decoded.clone());
-    YamlNode::StringScalar(StringScalar { decoded, route_key })
+    YamlNode::StringScalar(StringScalar {
+        decoded: value.to_owned(),
+        inline_span: extract_inline_span(text, span, style),
+    })
+}
+
+fn extract_inline_span(text: &str, span: Span, style: ScalarStyle) -> Option<Range<usize>> {
+    if !matches!(style, ScalarStyle::Plain | ScalarStyle::SingleQuoted | ScalarStyle::DoubleQuoted)
+    {
+        return None;
+    }
+    let range = span
+        .byte_range()
+        .filter(|range| !range.is_empty())?;
+    let raw = text.get(range.clone())?;
+    (!raw.contains('\n')).then_some(range)
 }
 
 fn is_merge_scalar(value: &str, style: ScalarStyle, tag: Option<&Tag>) -> bool {
@@ -202,60 +204,6 @@ fn is_merge_tag(tag: &Tag) -> bool {
         .strip_prefix(YAML_CORE_TAG_PREFIX)
         .and_then(|tail| "merge".strip_prefix(tail))
         .is_some_and(|expected| tag.suffix() == expected)
-}
-
-fn extract_merge_route_key(text: &str, span: Span) -> String {
-    if let Some(tag_token) = extract_tag_token(text, span) {
-        return tag_token.to_owned();
-    }
-    slice_span(text, span).unwrap_or("<<").to_owned()
-}
-
-fn extract_string_route_key(text: &str, span: Span, style: ScalarStyle) -> Option<&str> {
-    if let Some(tag_token) = extract_tag_token(text, span) {
-        return Some(tag_token);
-    }
-    let raw = slice_span(text, span)?;
-    match style {
-        ScalarStyle::SingleQuoted | ScalarStyle::DoubleQuoted => {
-            let mut chars = raw.chars();
-            chars.next()?;
-            chars.next_back()?;
-            Some(chars.as_str())
-        }
-        ScalarStyle::Plain => Some(raw),
-        _ => None,
-    }
-}
-
-fn extract_tag_token(text: &str, span: Span) -> Option<&str> {
-    let tag_offset = span.tag_start.and_then(|mark| mark.byte_offset())?;
-    let rest = text.get(tag_offset..)?;
-    if rest.starts_with("!<") {
-        let close = rest.find('>')?;
-        return rest.get(..=close);
-    }
-    let end = rest
-        .char_indices()
-        .find_map(|(idx, ch)| is_tag_terminator(rest, idx, ch).then_some(idx))
-        .unwrap_or(rest.len());
-    (!rest[..end].is_empty()).then_some(&rest[..end])
-}
-
-fn is_tag_terminator(rest: &str, idx: usize, ch: char) -> bool {
-    ch.is_whitespace()
-        || matches!(ch, ',' | '[' | ']' | '{' | '}')
-        || (ch == ':'
-            && rest[idx + 1..]
-                .chars()
-                .next()
-                .is_none_or(char::is_whitespace))
-}
-
-fn slice_span(text: &str, span: Span) -> Option<&str> {
-    let start = span.start.byte_offset()?;
-    let end = span.end.byte_offset()?;
-    text.get(start..end)
 }
 
 fn is_string_scalar(value: &str, style: ScalarStyle, tag: Option<&Tag>) -> bool {

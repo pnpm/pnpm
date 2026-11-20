@@ -21,7 +21,7 @@ use std::{
 use tokio::fs;
 use versions::{find_current, parse_comment_version, replaces_comment_version, repo_versions};
 use workflow::discover;
-use yamlpath::{Component, Document, QueryError, Route};
+use yamlpath::QueryError;
 
 #[derive(Clone)]
 pub struct OutdatedGitHubAction {

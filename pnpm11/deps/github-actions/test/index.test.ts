@@ -250,16 +250,19 @@ jobs:
         - uses: actions/setup-python@${shaOld} # v4.1.0
 inactive_step: &inactive_step
   uses: actions/cache@${shaOld} # v4.1.0
-pin: &pin
+"pin#id": &pin # explanation
   actions/checkout@${shaOld} # v4.1.0
 active_step: &active_step
   uses: *pin
+plain_merge_step: &plain_merge_step
+  uses: owner/plain-merge@${shaOld} # v4.1.0
 active_jobs: &active_jobs
   "bu\\u0069ld":
     runs-on: ubuntu-latest
     steps:
       - "<<": *inactive_step
         !!merge <<: *active_step
+      - <<: *plain_merge_step
       - '<<': *inactive_step
         run: echo single-quoted
       - !!str <<: *inactive_step
@@ -285,11 +288,16 @@ jobs:
         ['v4.2.0', shaNew],
       ]),
     })
-    expect(updated.map((action) => action.name).sort()).toEqual(['actions/checkout', 'actions/setup-node'])
+    expect(updated.map((action) => action.name).sort()).toEqual([
+      'actions/checkout',
+      'actions/setup-node',
+      'owner/plain-merge',
+    ])
     const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
     expect(content).toContain(`uses: actions/setup-python@${shaOld} # v4.1.0`)
     expect(content).toContain(`uses: actions/cache@${shaOld} # v4.1.0`)
-    expect(content).toContain(`pin: &pin\n  actions/checkout@${shaNew} # v4.2.0`)
+    expect(content).toContain(`"pin#id": &pin # explanation\n  actions/checkout@${shaNew} # v4.2.0`)
+    expect(content).toContain(`uses: owner/plain-merge@${shaNew} # v4.2.0`)
     expect(content).toContain(`uses: actions/setup-node@${shaNew} # v4.2.0`)
   })
 
@@ -340,6 +348,59 @@ jobs:
     expect(content).toContain(`actions/setup-node@${shaOld}`)
     expect(content).toContain(`actions/setup-python@${shaOld}`)
     expect(content).toContain(`actions/cache@${shaNew} # v4.2.0`)
+  })
+
+  test('bounds cyclic shared YAML merge graphs in lookup and job collection', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const branches = Array.from({ length: 10 }, (_, idx) => idx)
+    const stepLayers = [
+      'linear_cycle: &linear_cycle { <<: *linear_cycle }',
+      'step_cycle: &step_cycle',
+      '  m1: &sm1 { <<: *step_cycle }',
+    ]
+    const activeJobsCycle = [
+      '  self_m1: &jm1 { <<: *jobs_self }',
+    ]
+    for (let level = 2; level <= 7; level++) {
+      const stepRefs = branches.map(() => `*sm${level - 1}`).join(', ')
+      stepLayers.push(`  m${level}: &sm${level} { <<: [${stepRefs}] }`)
+      const jobRefs = branches.map(() => `*jm${level - 1}`).join(', ')
+      activeJobsCycle.push(`  self_m${level}: &jm${level} { <<: [${jobRefs}] }`)
+    }
+    stepLayers.push('  <<: *sm7')
+
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `${stepLayers.join('\n')}
+inherited_jobs: &inherited_jobs
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@${shaOld} # v4.1.0
+fallback_step: &fallback_step
+  uses: actions/checkout@${shaOld} # v4.1.0
+jobs: &jobs_self
+${activeJobsCycle.join('\n')}
+  <<: [*linear_cycle, *jm7, *inherited_jobs]
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - <<: [*linear_cycle, *step_cycle]
+        run: echo empty-cycle
+      - <<: [*step_cycle, *fallback_step]
+`,
+    })
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name).sort()).toEqual(['actions/checkout', 'actions/setup-node'])
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`uses: actions/checkout@${shaNew} # v4.2.0`)
+    expect(content).toContain(`uses: actions/setup-node@${shaNew} # v4.2.0`)
   })
 
   test('finds actions in workflows and referenced local composite actions', async () => {
