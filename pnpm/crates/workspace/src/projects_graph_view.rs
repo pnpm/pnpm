@@ -6,7 +6,7 @@
 //! a workspace graph.
 
 use crate::Project;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::DependencyGroup;
 use pnpm_workspace_projects_graph::{BaseProject, DependencyGroups, GraphProject};
 use std::path::Path;
 
@@ -42,27 +42,17 @@ impl GraphProject for GraphPkg<'_> {
     }
 
     fn dependency_groups(&self, ignore_dev_deps: bool) -> DependencyGroups {
-        manifest_dependency_groups(&self.project.manifest, ignore_dev_deps)
-    }
-}
-
-/// `manifest`'s declared dependencies per group, as
-/// [`GraphProject::dependency_groups`] returns them.
-#[must_use]
-pub fn manifest_dependency_groups(
-    manifest: &PackageManifest,
-    ignore_dev_deps: bool,
-) -> DependencyGroups {
-    let declared = |group: DependencyGroup| {
-        manifest
-            .dependencies([group])
-            .map(|(name, spec)| (name.to_string(), spec.to_string()))
-            .collect()
-    };
-    DependencyGroups {
-        peer: declared(DependencyGroup::Peer),
-        dev: (!ignore_dev_deps).then(|| declared(DependencyGroup::Dev)),
-        optional: declared(DependencyGroup::Optional),
-        prod: declared(DependencyGroup::Prod),
+        let declared = |group: DependencyGroup| {
+            self.project.manifest
+                .dependencies([group])
+                .map(|(name, spec)| (name.to_string(), spec.to_string()))
+                .collect()
+        };
+        DependencyGroups {
+            peer: declared(DependencyGroup::Peer),
+            dev: (!ignore_dev_deps).then(|| declared(DependencyGroup::Dev)),
+            optional: declared(DependencyGroup::Optional),
+            prod: declared(DependencyGroup::Prod),
+        }
     }
 }

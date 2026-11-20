@@ -36,7 +36,7 @@ pub use projects::{
     find_workspace_projects, find_workspace_projects_no_check, is_workspace_project_dir,
     needs_package_patterns, read_workspace_projects,
 };
-pub use projects_graph_view::{GraphPkg, manifest_dependency_groups};
+pub use projects_graph_view::GraphPkg;
 pub use root_finder::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, WORKSPACE_DIR_ENV_VARS,
     find_workspace_dir, find_workspace_dir_from_env,
