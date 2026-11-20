@@ -1,12 +1,23 @@
 use super::{
     super::{
         super::{
-            Arc, CheckLockfileSettingsDriftOptions, InstallError, Lockfile, Path,
-            PnpmfileChecksumCheck, VerifyLockfileResolutionsOptions, check_lockfile_settings_drift,
-            parse_config_overrides, verify_lockfile_resolutions,
+            Arc,
+            CheckLockfileSettingsDriftOptions,
+            InstallError,
+            Lockfile,
+            Path,
+            PnpmfileChecksumCheck,
+            VerifyLockfileResolutionsOptions,
+            check_lockfile_settings_drift,
+            parse_config_overrides,
+            verify_lockfile_resolutions,
         },
-        InstallScope, RunExecution,
-        dispatch::{FrozenDispatch, decide_frozen_path},
+        InstallScope,
+        RunExecution,
+        dispatch::{
+            FrozenDispatch,
+            decide_frozen_path,
+        },
         frozen_local_tarballs::local_tarballs_keep_frozen_path,
         manifests::resolve_pnpmfile_hook,
         settled::Settled,

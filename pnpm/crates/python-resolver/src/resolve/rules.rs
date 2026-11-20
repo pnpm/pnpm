@@ -1,6 +1,13 @@
-use super::{Needed, Provider};
+use super::{
+    Needed,
+    Provider,
+};
 use pep440_rs::Version;
-use pep508_rs::{ExtraName, Requirement, VersionOrUrl};
+use pep508_rs::{
+    ExtraName,
+    Requirement,
+    VersionOrUrl,
+};
 use pubgrub::Ranges;
 
 impl Provider<'_> {
@@ -40,9 +47,9 @@ impl Provider<'_> {
         Ok(matched
             .into_iter()
             .filter(|version| allow_prerelease || !version.any_prerelease())
-            .fold(Ranges::empty(), |range, version| {
-                range.union(&Ranges::singleton(version.clone()))
-            }))
+            .cloned()
+            .map(Ranges::singleton)
+            .fold(Ranges::empty(), |range, empty| range.union(&empty)))
     }
 
     pub(super) fn requirement_extras(

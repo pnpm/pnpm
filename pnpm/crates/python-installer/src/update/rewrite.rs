@@ -1,14 +1,33 @@
-use std::{collections::BTreeSet, fs, ops::Range, path::Path};
+use std::{
+    collections::BTreeSet,
+    fs,
+    ops::Range,
+    path::Path,
+};
 
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pep508_rs::{PackageName, Requirement};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
 use pnpm_python_resolver::parse_requirement;
 use toml::{
     Spanned,
-    de::{DeTable, DeValue},
+    de::{
+        DeTable,
+        DeValue,
+    },
 };
 
-use crate::{manifest, outdated::PythonDependencyGroup, workspace::Workspace};
+use crate::{
+    manifest,
+    outdated::PythonDependencyGroup,
+    workspace::Workspace,
+};
 
 #[cfg(test)]
 mod tests;
@@ -66,7 +85,8 @@ fn collect_pyproject_edits(
     transform: &mut impl FnMut(PythonDependencyGroup, Requirement) -> Result<Option<Vec<Requirement>>>,
 ) -> Result<Vec<(Range<usize>, String)>> {
     let mut edits = Vec::new();
-    if let Some(project) = table_entry(document, "project").and_then(|val| val.get_ref().as_table())
+    if let Some(project) =
+        table_entry(document, "project").map(Spanned::get_ref).and_then(DeValue::as_table)
     {
         collect_project_edits(project, original, non_index, transform, &mut edits)?;
     }
@@ -150,7 +170,8 @@ fn collect_array_edits(
     }
     if outcomes
         .iter()
-        .any(|outcome| outcome.as_ref().is_some_and(Vec::is_empty))
+        .map(Option::as_ref)
+        .any(|value| value.is_some_and(Vec::is_empty))
     {
         edits.push((spanned.span(), render_filtered_array(entries, &outcomes, original)));
         return Ok(());

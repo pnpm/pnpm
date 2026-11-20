@@ -1,8 +1,22 @@
-use super::super::{LoginReturn, OidcState, SessionUser};
-use crate::{AuthState, NewToken, SqliteAuth, TokenBackend, TokenRecord, UserBackend};
+use super::super::{
+    LoginReturn,
+    OidcState,
+    SessionUser,
+};
+use crate::{
+    AuthState,
+    NewToken,
+    SqliteAuth,
+    TokenBackend,
+    TokenRecord,
+    UserBackend,
+};
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::sync::Arc;
 
 struct FailedRevocation(Arc<SqliteAuth>);

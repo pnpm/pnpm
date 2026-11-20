@@ -1,7 +1,25 @@
 use super::{
-    Empty, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions,
-    Path, PathBuf, create_dir_all, empty, json, link_bins, tempdir, write_file,
+    Empty,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadDir,
+    FsReadFile,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    Path,
+    PathBuf,
+    create_dir_all,
+    empty,
+    json,
+    link_bins,
+    tempdir,
+    write_file,
 };
 
 #[test]

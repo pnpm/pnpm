@@ -4,10 +4,22 @@
 //! `time` stay in [`PackumentRows::state`] as placeholders that mark where
 //! [`super::render`] puts them back.
 
-use crate::{database::ARCHIVE_MANIFEST_FIELD, publish::PACKUMENT_FORMAT_VERSION};
-use pnpr_error::{RegistryError, Result};
-use serde_json::{Map, Value};
-use std::{collections::BTreeMap, sync::Arc};
+use crate::{
+    database::ARCHIVE_MANIFEST_FIELD,
+    publish::PACKUMENT_FORMAT_VERSION,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 pub(super) const TAGS: &str = "dist-tags";
 pub(super) const VERSIONS: &str = "versions";

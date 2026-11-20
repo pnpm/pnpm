@@ -1,4 +1,8 @@
-use super::{PublicationArchiveError, read_publication_archive, read_publication_archive_within};
+use super::{
+    PublicationArchiveError,
+    read_publication_archive,
+    read_publication_archive_within,
+};
 use pretty_assertions::assert_eq;
 use std::collections::BTreeSet;
 

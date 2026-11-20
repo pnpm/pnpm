@@ -1,18 +1,41 @@
 use super::{
-    Arc, Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, EnvVar, FeatureOverrides,
-    GraphSource, HostedStoreConfig, Path, PathBuf, RegistryError, RoutingConfig, SocketAddr,
-    SystemEnv, build_features, build_identity_config, build_log_config, build_osv_config,
-    config_file_in, http_config::build_http_config, parse_allowed_private_networks,
-    resolve_secrets, resolve_storage_paths,
+    Arc,
+    Config,
+    ConfigFile,
+    ConfigSource,
+    DEFAULT_CONFIG_YAML,
+    EnvVar,
+    FeatureOverrides,
+    GraphSource,
+    HostedStoreConfig,
+    Path,
+    PathBuf,
+    RegistryError,
+    RoutingConfig,
+    SocketAddr,
+    SystemEnv,
+    build_features,
+    build_identity_config,
+    build_log_config,
+    build_osv_config,
+    config_file_in,
+    http_config::build_http_config,
+    parse_allowed_private_networks,
+    resolve_secrets,
+    resolve_storage_paths,
 };
-use crate::{RegistryGraphDocument, RoutingOptions, graph_document::is_env_name};
+use crate::{
+    RegistryGraphDocument,
+    RoutingOptions,
+    graph_document::is_env_name,
+};
 
 impl Config {
     /// Load YAML from `path`. `listen` and `public_url` override the file's
     /// `listen:` and `publicUrl:` keys.
     ///
     /// `storage` from the YAML is resolved relative to the config
-    /// file's parent directory when not absolute — same convention
+    /// file's parent directory when not absolute, same convention
     /// verdaccio uses for `./storage`.
     pub fn from_yaml(
         path: &Path,
@@ -45,11 +68,11 @@ impl Config {
     /// Parse [`DEFAULT_CONFIG_YAML`] (the verdaccio-shaped YAML
     /// bundled into the binary) and merge it with the given runtime
     /// values. Relative `storage:` paths in the bundled YAML are
-    /// resolved against `base_dir` — pass `Path::new(".")` to mirror
+    /// resolved against `base_dir`, pass `Path::new(".")` to mirror
     /// verdaccio's CWD-relative behaviour, or an absolute path when
     /// the caller knows where the storage should live.
     ///
-    /// Panics if the bundled YAML fails to parse — that would be a
+    /// Panics if the bundled YAML fails to parse, that would be a
     /// build-time bug since the file is compiled in.
     #[must_use]
     pub fn from_default_yaml(
@@ -59,7 +82,7 @@ impl Config {
     ) -> Self {
         // With default (no) overrides the bundled config keeps both
         // surfaces enabled, so the only way this errors is a malformed
-        // compiled-in YAML — a build-time bug, hence the `expect`. The
+        // compiled-in YAML, a build-time bug, hence the `expect`. The
         // override-taking variant returns `Result` because overrides can
         // disable every surface (a runtime input error).
         Self::from_default_yaml_with_overrides(
@@ -132,7 +155,7 @@ impl Config {
 
     /// Like [`Self::resolve`] but applies CLI [`FeatureOverrides`] during
     /// parse, so a surface disabled on the command line skips its parse-time
-    /// work (e.g. strict upstream token resolution) — not just its routes.
+    /// work (e.g. strict upstream token resolution), not just its routes.
     /// `listen` is `None` unless the command line sets it, so the file's
     /// `listen:` applies. The binary uses this; tests and embedders that don't
     /// override features call [`Self::resolve`].

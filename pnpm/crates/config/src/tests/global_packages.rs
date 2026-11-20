@@ -1,8 +1,24 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, LinkProbe, OsString, Path, PathBuf,
-    TrustPolicy, assert_eq, fs, io, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    TrustPolicy,
+    assert_eq,
+    fs,
+    io,
+    tempdir,
+    write_file,
 };
-use crate::{CliLayer, CommandTarget};
+use crate::{
+    CliLayer,
+    CommandTarget,
+};
 
 const GLOBAL_CONFIG: &str = "\
 trustPolicy: no-downgrade

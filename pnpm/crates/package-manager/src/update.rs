@@ -1,58 +1,102 @@
-pub use selectors::{ParsedSelector, parse_update_param, reject_versioned_selectors};
+pub use selectors::{
+    ParsedSelector,
+    parse_update_param,
+    reject_versioned_selectors,
+};
 
 pub(crate) use latest::is_workspace_local_path_specifier;
 
 mod install;
 use install::{
-    UnsavedManifests, UpdateSeed, hook_selected_manifests, nothing_to_update,
-    run_prepared_selected_update, run_prepared_update,
+    UnsavedManifests,
+    UpdateSeed,
+    hook_selected_manifests,
+    nothing_to_update,
+    run_prepared_selected_update,
+    run_prepared_update,
 };
 
 mod hook;
-use hook::{ReadPackageHook, apply_read_package_hook_to_update_manifest, update_read_package_hook};
+use hook::{
+    ReadPackageHook,
+    apply_read_package_hook_to_update_manifest,
+    update_read_package_hook,
+};
 
 mod prepare;
 use prepare::{
-    prepare_manifest, prepare_selected_manifests, selection::selection_matches_ignored_direct,
+    prepare_manifest,
+    prepare_selected_manifests,
+    selection::selection_matches_ignored_direct,
 };
 
 mod workspace;
-use workspace::{WorkspaceLinkTarget, workspace_specifier};
+use workspace::{
+    WorkspaceLinkTarget,
+    workspace_specifier,
+};
 
 mod latest;
 
 use latest::{
-    LatestResolverChain, LatestRewriteCtx, emit_range_flag_ignored, latest_specifier,
-    latest_version_for_spec, tag_version,
+    LatestResolverChain,
+    LatestRewriteCtx,
+    emit_range_flag_ignored,
+    latest_specifier,
+    latest_version_for_spec,
+    tag_version,
 };
 
 mod catalogs;
 use catalogs::CatalogCtx;
 
 mod overrides;
-use overrides::{override_governed, warn_pinned_override};
+use overrides::{
+    override_governed,
+    warn_pinned_override,
+};
 
 mod rewrite;
-use rewrite::{MatchedRewriteInputs, record_matched_direct_update, tag_rewrite};
+use rewrite::{
+    MatchedRewriteInputs,
+    record_matched_direct_update,
+    tag_rewrite,
+};
 
 mod seed_policy;
 
 mod latest_subtree;
 
 mod selectors;
-use selectors::{parse_selectors, reject_versions_of_indirect_update_specs};
+use selectors::{
+    parse_selectors,
+    reject_versions_of_indirect_update_specs,
+};
 
 use crate::{
-    CatalogVersionMismatchError, CommandLockfile, InstallError, ProjectMutation, ResolvedPackages,
-    WorkspaceInstallSelection, catalog_cleanup::WriteWorkspaceCatalogsError,
-    package_manifest_prefix, selected_project_indices,
+    CatalogVersionMismatchError,
+    CommandLockfile,
+    InstallError,
+    ProjectMutation,
+    ResolvedPackages,
+    WorkspaceInstallSelection,
+    catalog_cleanup::WriteWorkspaceCatalogsError,
+    package_manifest_prefix,
+    selected_project_indices,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_deps_resolver::UpdateTargets;
@@ -60,7 +104,10 @@ use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -79,7 +126,7 @@ use std::{
 ///   tag reaches past the declared range. The follow-up install then
 ///   resolves the new range.
 /// * **`--tag <tag>`**: the same rewrite, except the dependency moves to
-///   the version behind the given dist-tag — exactly what a `<name>@<tag>`
+///   the version behind the given dist-tag, exactly what a `<name>@<tag>`
 ///   selector asks for, applied to every matched dependency.
 /// * **`--workspace`** ([`UpdateSelection::workspace_packages`]): each matched
 ///   direct dependency that a workspace project publishes is re-pointed
@@ -94,8 +141,8 @@ use std::{
 ///
 /// A dependency a bare-name override governs answers to the override, not its
 /// declaration: the declaration never moves, and an update that names the
-/// dependency moves the override with it — keeping the override's own range
-/// shape — or reports an override it cannot move
+/// dependency moves the override with it (keeping the override's own range
+/// shape) or reports an override it cannot move
 /// ([pnpm/pnpm#8701](https://github.com/pnpm/pnpm/issues/8701)). Under
 /// `--latest` or `--tag`, a range-scoped override leaves the declaration to
 /// move past its range, where the override stops matching.
@@ -223,7 +270,7 @@ pub enum UpdateError {
 
 /// pnpm's mutation for an update: a full install of the projects it was
 /// pointed at when the user named nothing, and `installSome` once the
-/// update targets specific dependencies — either by selector or through
+/// update targets specific dependencies; either by selector or through
 /// `--latest` / `--tag`, which expand to every direct dependency's spec.
 ///
 /// `--workspace` does not enter into it: pnpm picks the mutation from the
@@ -349,7 +396,7 @@ pub struct UpdateSelection<'a> {
     pub depth: usize,
     /// `--workspace`: what the workspace projects publish, as built by
     /// [`crate::build_workspace_packages_map`]. `Some` turns the update
-    /// into a workspace-link update — the matched direct dependencies
+    /// into a workspace-link update, the matched direct dependencies
     /// are re-pointed at the workspace copies through the `workspace:`
     /// protocol instead of the registry. `None` is a plain update.
     pub workspace_packages: Option<&'a WorkspacePackages>,

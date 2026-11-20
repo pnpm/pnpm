@@ -2,11 +2,21 @@
 //! reaches every attached process at once, so nothing is relayed, and a
 //! child that would sit on the interrupt forever is ended by pnpm.
 
-use super::{RELAYED_INTERRUPTS, RelayEntry, visit_targets};
+use super::{
+    RELAYED_INTERRUPTS,
+    RelayEntry,
+    visit_targets,
+};
 use std::{
     ptr,
-    sync::{Once, atomic::Ordering},
-    time::{Duration, Instant},
+    sync::{
+        Once,
+        atomic::Ordering,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::PROCESSENTRY32W;
 
@@ -40,7 +50,10 @@ pub(super) fn install_handler() {
 /// interrupt that a running command has outlasted every escalation of is
 /// the user forcing pnpm down, and that takes the process tree with it.
 unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::BOOL {
-    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    use windows_sys::Win32::System::Console::{
+        CTRL_BREAK_EVENT,
+        CTRL_C_EVENT,
+    };
 
     if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
         crate::job_control::release_process_tree_cleanup();
@@ -122,7 +135,10 @@ const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
 /// console callback, and waiting out a stuck child is the one outcome to
 /// preclude.
 fn end_child_once_idle(entry: &RelayEntry, pid: i32) {
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Foundation::{
+        CloseHandle,
+        HANDLE,
+    };
 
     let Some(handle) = duplicate_child_handle(entry, pid) else {
         return;
@@ -151,7 +167,10 @@ fn end_child_once_idle(entry: &RelayEntry, pid: i32) {
 fn watch_until_idle(process: windows_sys::Win32::Foundation::HANDLE, pid: u32) {
     use windows_sys::Win32::{
         Foundation::WAIT_TIMEOUT,
-        System::Threading::{TerminateProcess, WaitForSingleObject},
+        System::Threading::{
+            TerminateProcess,
+            WaitForSingleObject,
+        },
     };
 
     let mut idle_since = Instant::now();
@@ -174,7 +193,11 @@ fn watch_until_idle(process: windows_sys::Win32::Foundation::HANDLE, pid: u32) {
 /// raw handle cannot cross threads.
 fn duplicate_child_handle(entry: &RelayEntry, pid: i32) -> Option<usize> {
     use windows_sys::Win32::{
-        Foundation::{DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE},
+        Foundation::{
+            DUPLICATE_SAME_ACCESS,
+            DuplicateHandle,
+            HANDLE,
+        },
         System::Threading::GetCurrentProcess,
     };
 
@@ -229,9 +252,15 @@ fn has_child_processes(pid: u32) -> bool {
 /// cannot be read.
 fn any_process(mut matches: impl FnMut(&PROCESSENTRY32W) -> bool) -> Option<bool> {
     use windows_sys::Win32::{
-        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
+        Foundation::{
+            CloseHandle,
+            INVALID_HANDLE_VALUE,
+        },
         System::Diagnostics::ToolHelp::{
-            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
+            CreateToolhelp32Snapshot,
+            Process32FirstW,
+            Process32NextW,
+            TH32CS_SNAPPROCESS,
         },
     };
 

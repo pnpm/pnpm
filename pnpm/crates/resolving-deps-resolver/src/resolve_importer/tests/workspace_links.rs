@@ -1,6 +1,15 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ResolveDependencyTreeError, ResolveImporterError,
-    ResolveImporterOptions, StubResolver, assert_eq, default_opts, fake_manifest, fake_result,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeError,
+    ResolveImporterError,
+    ResolveImporterOptions,
+    StubResolver,
+    assert_eq,
+    default_opts,
+    fake_manifest,
+    fake_result,
     resolve_importer,
 };
 

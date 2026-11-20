@@ -2,7 +2,10 @@ use pretty_assertions::assert_eq;
 
 use crate::VersionsByPackageName;
 
-use super::{YarnSyntaxError, collect_yarn_lockfile_versions};
+use super::{
+    YarnSyntaxError,
+    collect_yarn_lockfile_versions,
+};
 
 fn collect(contents: &str) -> Vec<(String, Vec<String>)> {
     let mut versions = VersionsByPackageName::new();

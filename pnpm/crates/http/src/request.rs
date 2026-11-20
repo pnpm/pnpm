@@ -1,16 +1,35 @@
 use crate::{
-    Client, Error, Method, Response, Result, Url,
+    Client,
+    Error,
+    Method,
+    Response,
+    Result,
+    Url,
     error::Kind,
     header::{
-        AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, COOKIE, HeaderMap, HeaderName, HeaderValue,
-        LOCATION, PROXY_AUTHORIZATION, WWW_AUTHENTICATE,
+        AUTHORIZATION,
+        CONTENT_LENGTH,
+        CONTENT_TYPE,
+        COOKIE,
+        HeaderMap,
+        HeaderName,
+        HeaderValue,
+        LOCATION,
+        PROXY_AUTHORIZATION,
+        WWW_AUTHENTICATE,
     },
     redirect::Action,
 };
-use base64::{Engine, engine::general_purpose::STANDARD};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD,
+};
 use serde::Serialize;
 use serde_json::json;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 #[derive(Clone, Debug)]
 pub struct Request {

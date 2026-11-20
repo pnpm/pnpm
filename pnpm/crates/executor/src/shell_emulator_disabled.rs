@@ -1,7 +1,13 @@
-pub use crate::shell_emulator_types::{EmulatedOutput, ShellEmulatorError};
+pub use crate::shell_emulator_types::{
+    EmulatedOutput,
+    ShellEmulatorError,
+};
 
 use crate::ProcessTracker;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 pub fn execute_emulated(
     _script: &str,

@@ -2,7 +2,12 @@ use std::sync::Arc;
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_network::ThrottledClient;
-use pnpm_resolving_resolver_base::{LatestQuery, ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    LatestQuery,
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
 use pretty_assertions::assert_eq;
 
 use crate::TarballResolver;

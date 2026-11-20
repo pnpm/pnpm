@@ -1,29 +1,53 @@
 //! Free functions backing the local-filesystem resolver. They all
-//! funnel into [`resolve_spec`], which reads the package's manifest —
-//! out of the archive for a tarball, off disk for a directory — once a
+//! funnel into [`resolve_spec`], which reads the package's manifest
+//! (out of the archive for a tarball, off disk for a directory) once a
 //! [`LocalPackageSpec`] has been chosen.
 
 pub use filesystem_policy::LocalFilesystemPolicy;
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
-use derive_more::{Display, Error};
-use filesystem_policy::{check_scheme_spec_allowed, find_bounded_parent_publish_manifest};
+use derive_more::{
+    Display,
+    Error,
+};
+use filesystem_policy::{
+    check_scheme_spec_allowed,
+    find_bounded_parent_publish_manifest,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{DirectoryResolution, IntegrityTarget, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    IntegrityTarget,
+    LockfileResolution,
+};
 use pnpm_package_manifest::{
-    PackageManifestError, publishes_from_directory, safe_read_package_json_from_dir,
+    PackageManifestError,
+    publishes_from_directory,
+    safe_read_package_json_from_dir,
     safe_read_project_manifest_from_dir,
 };
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveResult, UnsupportedProtocolError,
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveResult,
+    UnsupportedProtocolError,
 };
 use pnpm_tarball::TarballError;
 use tarball::resolve_file_spec;
 
 use crate::parse_bare_specifier::{
-    LocalPackageSpec, LocalSpecKind, ParseOptions, PathProtocolNotSupportedError,
-    WantedLocalDependency, parse_local_path, parse_local_scheme,
+    LocalPackageSpec,
+    LocalSpecKind,
+    ParseOptions,
+    PathProtocolNotSupportedError,
+    WantedLocalDependency,
+    parse_local_path,
+    parse_local_scheme,
 };
 
 /// Per-install knobs the dispatcher threads into every resolver call.
@@ -120,7 +144,7 @@ impl From<LocalResolveResult> for ResolveResult {
             alias: None,
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-                // Local resolutions don't have a `name@version` shape —
+                // Local resolutions don't have a `name@version` shape,
                 // the canonical name lives in the fetched manifest, not
                 // the resolver-time signal. Leave `name_ver` empty so
                 // downstream consumers fall back to reading
@@ -172,8 +196,8 @@ pub enum ResolveLocalError {
     #[diagnostic(transparent)]
     UnsupportedProtocol(#[error(source)] UnsupportedProtocolError),
 
-    /// Reading a `file:` tarball — its bytes, its sha512 integrity, or
-    /// the `package.json` bundled inside it — failed.
+    /// Reading a `file:` tarball (its bytes, its sha512 integrity, or
+    /// the `package.json` bundled inside it) failed.
     ReadTarball(#[error(source)] TarballError),
 
     /// A `file:` tarball bundles a `package.json` that names no package.
@@ -243,7 +267,7 @@ pub async fn resolve_from_local_scheme(
     resolve_spec(ctx, spec, opts, None).await
 }
 
-/// Resolve a wanted dep by path shape alone — no scheme prefix.
+/// Resolve a wanted dep by path shape alone, no scheme prefix.
 pub async fn resolve_from_local_path(
     ctx: &LocalResolverContext,
     wanted_dependency: &WantedLocalDependency,
@@ -416,7 +440,8 @@ fn synthesize_fallback_manifest(
     }
     let name = spec.fetch_spec
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .unwrap_or_default();
     Ok(serde_json::json!({ "name": name }))
 }

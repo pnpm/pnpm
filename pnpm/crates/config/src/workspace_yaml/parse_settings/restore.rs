@@ -4,8 +4,12 @@ mod visitor;
 use self::visitor::RestoringVisitor;
 use super::DocumentPlaceholders;
 use serde::{
-    Deserialize, Deserializer,
-    de::{DeserializeOwned, Visitor},
+    Deserialize,
+    Deserializer,
+    de::{
+        DeserializeOwned,
+        Visitor,
+    },
 };
 use std::collections::HashSet;
 

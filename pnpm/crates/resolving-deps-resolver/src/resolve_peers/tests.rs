@@ -16,22 +16,45 @@ mod tarball_peers;
 mod snapshot_budget;
 
 use super::{
-    ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult, WorkspacePeerSettings,
+    ImporterPeerInput,
+    ResolvePeersOptions,
+    ResolvePeersResult,
+    WorkspacePeerSettings,
     context::peer_id_pair,
-    resolve_peers, resolve_peers_workspace,
+    resolve_peers,
+    resolve_peers_workspace,
     test_support::{
-        add_lazy_direct_dep, child_edge, linked_package, package, package_with_peer_dependencies,
-        resolve_result, tree_node, walker_for_tests,
+        add_lazy_direct_dep,
+        child_edge,
+        linked_package,
+        package,
+        package_with_peer_dependencies,
+        resolve_result,
+        tree_node,
+        walker_for_tests,
     },
 };
 use crate::{
     node_id::NodeId,
-    resolved_tree::{DirectDep, ResolvedTree, TreeChildren},
+    resolved_tree::{
+        DirectDep,
+        ResolvedTree,
+        TreeChildren,
+    },
 };
-use pnpm_deps_path::{DepPath, PeerId};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+};
 use pnpm_resolving_resolver_base::PkgResolutionId;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// A tree with a `consumer` whose peer on `types@1.0.0` is declared with the
 /// given named-registry specifier. Returns the tree and the expected dep path.
@@ -163,10 +186,27 @@ fn assert_cyclic_alias_peer_graph_is_closed(result: &ResolvePeersResult) {
 /// preferences` suite: a second resolution pass receives the first
 /// pass's `paths_by_node_id` and re-pins compatible locked providers.
 mod locked_peer_provider_preferences {
-    use super::{DepPath, DirectDep, NodeId, ResolvePeersOptions, ResolvedTree, resolve_peers};
-    use crate::resolve_peers::test_support::{package, package_with_peer_dependencies, tree_node};
-    use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-    use std::{collections::BTreeMap, sync::Arc};
+    use super::{
+        DepPath,
+        DirectDep,
+        NodeId,
+        ResolvePeersOptions,
+        ResolvedTree,
+        resolve_peers,
+    };
+    use crate::resolve_peers::test_support::{
+        package,
+        package_with_peer_dependencies,
+        tree_node,
+    };
+    use rustc_hash::{
+        FxHashMap as HashMap,
+        FxHashSet as HashSet,
+    };
+    use std::{
+        collections::BTreeMap,
+        sync::Arc,
+    };
 
     struct LockedTreeIds {
         current_peer: NodeId,
@@ -375,7 +415,7 @@ mod locked_peer_provider_preferences {
     }
 }
 
-/// A graph node carrying nothing but its identity — enough for the
+/// A graph node carrying nothing but its identity, enough for the
 /// pending-edge tests, which only read and write `children`.
 fn graph_node(dep_path: &DepPath) -> crate::dependencies_graph::DependenciesGraphNode {
     crate::dependencies_graph::DependenciesGraphNode {
@@ -427,14 +467,14 @@ impl Default for PeerCycleShape {
 /// A ring of `ring_len` packages (`ring00 → ring01 → … → ring00`), with
 /// a consumer of peer `w` hanging off the `wc_members`. Each entry in
 /// `entries` is a direct dep
-/// `(alias, ring index it points at, its own w version)` — the
+/// `(alias, ring index it points at, its own w version)`, the
 /// per-entry `w` keeps one entry's untruncated ring verdicts from
 /// plainly matching another's, which is what forces the walk onto the
 /// cycle-verdict cache. Everything realizes lazily from
 /// `children_by_id`, the way production trees reach the peer walk.
 ///
 /// The shape matters: `ring00` re-entered through the full lap has its
-/// `ring01` edge cut — no `w` in that subtree — while `ring00` reached
+/// `ring01` edge cut (no `w` in that subtree) while `ring00` reached
 /// under a `ring02` entry keeps `ring01` and resolves `w`. Same
 /// package, same `p` context, different truncation, different verdict:
 /// the pair a cycle-verdict cache must never merge.
@@ -512,7 +552,7 @@ fn ring_member_edges(
         if index.is_multiple_of(2) {
             if index != 0 {
                 // Every even member also re-enters the ring's entry, so one
-                // lap re-enters the cycle many times — each re-entry a
+                // lap re-enters the cycle many times; each re-entry a
                 // truncated verdict whose subtree the cache can skip.
                 edges.push(child_edge("home", &ring_id(0)));
             }
@@ -520,8 +560,8 @@ fn ring_member_edges(
         }
     }
     if shape.wc_members.contains(&index) {
-        // A `wc` member consumes `w`, so its untruncated verdicts —
-        // and every keyless cached item covering it — carry the
+        // A `wc` member consumes `w`, so its untruncated verdicts
+        // (and every keyless cached item covering it) carry the
         // entry's own `w` and never transfer across entries.
         edges.push(child_edge("wc", "wc@1.0.0"));
     }
@@ -555,7 +595,8 @@ fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: &PeerCycleShape
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|path| path.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(std::string::ToString::to_string)
         .collect();
     keys.sort_unstable();
     keys

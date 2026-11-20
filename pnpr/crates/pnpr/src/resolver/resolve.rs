@@ -3,12 +3,15 @@
 //! Writes a throwaway project, resolves it lockfile-only (so
 //! `node_modules` is never linked and no tarball is fetched), then reads
 //! the produced lockfile back. pnpr serves no files, so the store is
-//! never populated with package contents — the client fetches every
+//! never populated with package contents, the client fetches every
 //! tarball itself.
 
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -16,16 +19,32 @@ use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    Lockfile, LockfileSettingsCheck, PnpmfileChecksumCheck, check_lockfile_settings,
+    Lockfile,
+    LockfileSettingsCheck,
+    PnpmfileChecksumCheck,
+    check_lockfile_settings,
     satisfies_package_manifest,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_package_manager::{Install, ResolutionObserver, ResolvedPackages};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_package_manager::{
+    Install,
+    ResolutionObserver,
+    ResolvedPackages,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use tokio::io::AsyncWriteExt;
 
-use super::protocol::{ProjectDeps, ResolveRequest};
+use super::protocol::{
+    ProjectDeps,
+    ResolveRequest,
+};
 
 use install::ResolutionInstall;
 
@@ -75,9 +94,9 @@ struct Workspace<'a> {
 /// tarball downloads happen later from upstream URLs or an upstream's
 /// `/~<name>/` registry endpoint.
 ///
-/// A request is reconstructed as a real workspace in the temp dir — a
+/// A request is reconstructed as a real workspace in the temp dir (a
 /// `package.json` per requested project and, when there are members, a
-/// `pnpm-workspace.yaml` listing their dirs — so pacquet's install path
+/// `pnpm-workspace.yaml` listing their dirs) so pacquet's install path
 /// discovers and resolves every importer in one pass, producing a lockfile
 /// keyed by the same POSIX importer dirs the client sent.
 pub async fn resolve(
@@ -104,7 +123,8 @@ pub async fn resolve(
         })?;
 
     Lockfile::load_wanted_from_dir(dir)
-        .map_err(|err| ResolveError::install(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?
         .ok_or(ResolveError::NoLockfile)
 }
 
@@ -126,7 +146,8 @@ fn write_input_lockfile(
     if let Some(lockfile) = input_lockfile {
         lockfile
             .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
-            .map_err(|err| ResolveError::install(err.to_string()))?;
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::install)?;
     }
     Ok(lockfile_path)
 }
@@ -138,7 +159,8 @@ fn root_manifest(dir: &Path, wrote_root: bool) -> Result<PackageManifest, Resolv
     let manifest_path = dir.join("package.json");
     if wrote_root {
         return PackageManifest::from_path(manifest_path)
-            .map_err(|err| ResolveError::Manifest(err.to_string()));
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::Manifest);
     }
     Ok(PackageManifest::from_value(
         manifest_path,
@@ -158,8 +180,9 @@ async fn write_workspace_manifest(dir: &Path, member_dirs: &[&str]) -> Result<()
         // YAML) so a dir with YAML-significant characters (`:`, `#`, leading
         // `-`, ...) stays a plain string instead of being reparsed as a
         // mapping or breaking the document.
-        let quoted =
-            serde_json::to_string(member).map_err(|err| ResolveError::install(err.to_string()))?;
+        let quoted = serde_json::to_string(member)
+            .map_err(|err| err.to_string())
+            .map_err(ResolveError::install)?;
         yaml.push_str("  - ");
         yaml.push_str(&quoted);
         yaml.push('\n');
@@ -201,7 +224,7 @@ async fn write_importer_manifests<'a>(
 ///
 /// The temp dir starts empty and the caller already rejected byte-equal dirs,
 /// so an existing `package.json` means two importer dirs addressed the same
-/// directory — `packages/Foo` and `packages/foo` on a case-insensitive
+/// directory, `packages/Foo` and `packages/foo` on a case-insensitive
 /// filesystem. Creating the file exclusively lets the host's own path
 /// semantics catch that, which a string comparison here cannot do portably.
 async fn write_importer_manifest(
@@ -210,8 +233,9 @@ async fn write_importer_manifest(
     project: &ProjectDeps,
 ) -> Result<(), ResolveError> {
     let manifest_json = importer_manifest_json(project, rel);
-    let manifest_bytes =
-        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::install(err.to_string()))?;
+    let manifest_bytes = serde_json::to_vec(&manifest_json)
+        .map_err(|err| err.to_string())
+        .map_err(ResolveError::install)?;
     let opened = tokio::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -253,7 +277,7 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
     if request.update_patches
         || request.fix_lockfile
         || !request.frozen_lockfile
-        || request.prefer_frozen_lockfile == Some(false)
+        || !request.prefer_frozen_lockfile.unwrap_or(true)
     {
         return None;
     }

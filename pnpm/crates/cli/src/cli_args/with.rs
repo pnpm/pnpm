@@ -1,4 +1,4 @@
-//! `pacquet with <version|current> <args...>` — run pnpm at a specific
+//! `pacquet with <version|current> <args...>`: run pnpm at a specific
 //! version (or the currently running one) for a single invocation,
 //! ignoring the project's `packageManager` / `devEngines.packageManager`
 //! pin.
@@ -14,18 +14,38 @@
 //! global virtual store, and spawns.
 
 use crate::{
-    cli_args::{dlx::exit_unless_success, package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS},
-    engine_pm::{channel::PackageManager, provision::provision},
-    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
+    cli_args::{
+        dlx::exit_unless_success,
+        package_manager::PACKAGE_MANAGER_SWITCH_ENV_VARS,
+    },
+    engine_pm::{
+        channel::PackageManager,
+        provision::provision,
+    },
+    path_env::{
+        BadPathDir,
+        prepend_dirs_to_path,
+        set_command_path,
+    },
     process::Command,
 };
 
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Errors specific to `pacquet with`. The codes carry the shared
 /// `ERR_PNPM_` prefix.
@@ -54,8 +74,8 @@ impl From<BadPathDir> for WithError {
 
 #[derive(Debug, Args)]
 pub struct WithArgs {
-    /// The pnpm version, range, or dist-tag to run — or `current` to use
-    /// the pnpm that is already running — followed by the pnpm command and
+    /// The pnpm version, range, or dist-tag to run (or `current` to use
+    /// the pnpm that is already running) followed by the pnpm command and
     /// its arguments.
     #[clap(trailing_var_arg = true, allow_hyphen_values = true)]
     pub params: Vec<String>,

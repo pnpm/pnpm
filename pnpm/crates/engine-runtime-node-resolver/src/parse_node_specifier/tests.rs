@@ -1,6 +1,9 @@
 use pretty_assertions::assert_eq;
 
-use super::{ParseNodeSpecifierError, parse_node_specifier};
+use super::{
+    ParseNodeSpecifierError,
+    parse_node_specifier,
+};
 
 #[test]
 fn matches_upstream_table() {

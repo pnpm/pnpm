@@ -42,7 +42,7 @@ fn uppercase_outside_file_scheme_forces_hash_suffix() {
 
 #[test]
 fn uppercase_in_file_scheme_is_preserved_untouched() {
-    // `file+...` is excluded from the case-mismatch branch — the
+    // `file+...` is excluded from the case-mismatch branch, the
     // filesystem casing of `file:` paths is part of the install
     // address, so hashing it would split the cache.
     assert_eq!(dep_path_to_filename("file:Pkg", 120), "file+Pkg");

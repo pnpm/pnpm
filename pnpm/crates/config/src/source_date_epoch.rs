@@ -1,10 +1,16 @@
 //! The [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/specs/source-date-epoch/)
 //! convention for reproducible output.
 
-use crate::api::{EnvVar, Host};
+use crate::api::{
+    EnvVar,
+    Host,
+};
 use std::{
     sync::OnceLock,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// The time `SOURCE_DATE_EPOCH` sets, read once per process. `None` when the

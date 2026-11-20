@@ -1,10 +1,21 @@
 //! The pre-run dependency-status check behind `verifyDepsBeforeRun`.
 
 use super::{
-    Config, LockfileConflictCheckFailure, NodeLinker, OptimisticRepeatInstallCheck, Path, Scope,
+    Config,
+    LockfileConflictCheckFailure,
+    NodeLinker,
+    OptimisticRepeatInstallCheck,
+    Path,
+    Scope,
     WorkspaceState,
     freshness::{
-        Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+        Gate,
+        GatePolicy,
+        MissingWantedLockfile,
+        NewerPatch,
+        RecordedGroups,
+        Stale,
+        check_freshness,
     },
     relocation::relocated_state,
     wanted_lockfile_file_has_content,
@@ -51,7 +62,7 @@ pub enum RunDepsStatus {
 
 /// The verify-deps-before-run twin of
 /// [`crate::optimistic_repeat_install::check_optimistic_repeat_install`]: the same freshness checks, with
-/// the differences pnpm's run gate carries over its install fast path —
+/// the differences pnpm's run gate carries over its install fast path;
 /// it runs regardless of `optimisticRepeatInstall`, never treats local
 /// file dependencies as outdated, ignores `dev`/`optional`/`production`
 /// drift (scripts always run with the default groups), and reports drift

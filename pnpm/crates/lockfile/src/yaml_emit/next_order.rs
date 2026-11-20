@@ -1,6 +1,13 @@
 //! The key order of the next lockfile format's `packages` entries.
 
-use super::{Map, Value, map_values, sort_by_priority, sort_deep_keys, sort_direct_keys};
+use super::{
+    Map,
+    Value,
+    map_values,
+    sort_by_priority,
+    sort_deep_keys,
+    sort_direct_keys,
+};
 
 /// The key order of a `packages` entry in the next lockfile format, which
 /// has no `snapshots`: metadata, then the resolved graph. Nested maps are

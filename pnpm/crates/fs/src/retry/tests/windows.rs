@@ -1,19 +1,41 @@
-use crate::{remove_dir_all_with_retry, remove_file_with_retry, rename_with_retry};
+use crate::{
+    remove_dir_all_with_retry,
+    remove_file_with_retry,
+    rename_with_retry,
+};
+use command_extra::CommandExtra;
 use std::{
-    fs, io,
-    os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle},
+    fs,
+    io,
+    os::windows::io::{
+        AsRawHandle,
+        FromRawHandle,
+        OwnedHandle,
+    },
     path::Path,
     process::Command,
-    ptr::{null, null_mut},
-    time::{Duration, Instant},
+    ptr::{
+        null,
+        null_mut,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::tempdir;
 use windows_sys::Win32::{
     Security::{
-        AdjustTokenPrivileges, ImpersonateSelf, RevertToSelf, SecurityImpersonation,
+        AdjustTokenPrivileges,
+        ImpersonateSelf,
+        RevertToSelf,
+        SecurityImpersonation,
         TOKEN_ADJUST_PRIVILEGES,
     },
-    System::Threading::{GetCurrentThread, OpenThreadToken},
+    System::Threading::{
+        GetCurrentThread,
+        OpenThreadToken,
+    },
 };
 
 fn assert_fails_promptly(operation: impl FnOnce() -> io::Result<()>) {
@@ -48,8 +70,8 @@ fn readonly_destination_rename_fails_promptly() {
 
 fn icacls(path: &Path, arguments: &[&str]) {
     let output = Command::new("icacls")
-        .arg(path)
-        .args(arguments)
+        .with_arg(path)
+        .with_args(arguments)
         .output()
         .unwrap();
     eprintln!("icacls {path:?} {arguments:?}: {output:?}");

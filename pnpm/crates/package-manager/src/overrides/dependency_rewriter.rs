@@ -4,7 +4,11 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::ParseOverridesError;
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_workspace_projects_graph::{DependencyGroups, DependencyRewriter, GraphProject};
+use pnpm_workspace_projects_graph::{
+    DependencyGroups,
+    DependencyRewriter,
+    GraphProject,
+};
 use serde_json::Value;
 use std::path::Path;
 

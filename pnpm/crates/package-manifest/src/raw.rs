@@ -1,12 +1,17 @@
 use super::{
     PackageManifestError,
     serialization::{
-        ManifestFormatting, invalid_root_error, map_not_found_to_missing_manifest,
+        ManifestFormatting,
+        invalid_root_error,
+        map_not_found_to_missing_manifest,
         read_raw_project_manifest,
     },
 };
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Unnormalized `package.json`, `package.json5`, or `package.yaml` manifest
 /// and its source formatting.

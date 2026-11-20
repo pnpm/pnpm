@@ -1,11 +1,21 @@
 use super::super::{
     cas_paths_key,
-    cold::{ColdCapture, add_cold_cas_paths},
+    cold::{
+        ColdCapture,
+        add_cold_cas_paths,
+    },
     warm::warm_cas_paths_by_pkg_id,
 };
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[test]
 fn warm_cas_paths_share_prefetch_maps_and_deduplicate_peer_variants() {

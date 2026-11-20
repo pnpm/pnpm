@@ -1,10 +1,14 @@
 use super::{
-    ProbeOnce, detect_node_major, detect_node_version, engine_name, parse_node_version_output,
+    ProbeOnce,
+    detect_node_major,
+    detect_node_version,
+    engine_name,
+    parse_node_version_output,
 };
 use pretty_assertions::assert_eq;
 
-/// Format matches pnpm's `${platform};${arch};node${major}`
-/// — required for the side-effects cache to interop.
+/// Format matches pnpm's `${platform};${arch};node${major}`,
+/// required for the side-effects cache to interop.
 #[test]
 fn engine_name_matches_pnpm_format() {
     assert_eq!(engine_name(20, Some("darwin"), Some("arm64")), "darwin;arm64;node20");
@@ -25,7 +29,7 @@ fn parse_node_version_handles_common_shapes() {
 
 /// Defaults route through the host mapping. Just assert the
 /// shape (three semicolon-separated parts ending in
-/// `node<digits>`) — the exact OS/arch depends on where the
+/// `node<digits>`), the exact OS/arch depends on where the
 /// test is run.
 #[test]
 fn engine_name_host_default_has_expected_shape() {
@@ -36,7 +40,7 @@ fn engine_name_host_default_has_expected_shape() {
     assert!(parts[2][4..].parse::<u32>().is_ok(), "node version must be numeric: {name:?}");
 }
 
-/// `node` is a hard prerequisite for the test suite — if it isn't on
+/// `node` is a hard prerequisite for the test suite, if it isn't on
 /// `PATH` that's a test-env bug, so we `expect` rather than skip.
 #[test]
 fn detect_node_version_strips_leading_v() {
@@ -67,8 +71,12 @@ fn detect_node_major_matches_detect_node_version_leading_component() {
 #[test]
 fn probe_once_runs_the_probe_once_across_threads() {
     use std::sync::{
-        Arc, Barrier,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Barrier,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     };
 
     let probe_once = Arc::new(ProbeOnce::new());

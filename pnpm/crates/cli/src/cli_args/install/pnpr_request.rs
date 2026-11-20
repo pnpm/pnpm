@@ -1,8 +1,24 @@
 use super::{
-    Catalogs, Context, DependencyGroup, Diagnostic, Display, Error, InstallFamilySelection,
-    IntoDiagnostic, Lockfile, LockfileResolution, PathBuf, PnprLink, PnprSession, PublishConfig,
-    ResolveProject, ResolveProjectsOptions, State, discover_workspace_projects,
-    get_catalogs_from_workspace_manifest, prefetch_allowed,
+    Catalogs,
+    Context,
+    DependencyGroup,
+    Diagnostic,
+    Display,
+    Error,
+    InstallFamilySelection,
+    IntoDiagnostic,
+    Lockfile,
+    LockfileResolution,
+    PathBuf,
+    PnprLink,
+    PnprSession,
+    PublishConfig,
+    ResolveProject,
+    ResolveProjectsOptions,
+    State,
+    discover_workspace_projects,
+    get_catalogs_from_workspace_manifest,
+    prefetch_allowed,
 };
 use pnpm_network::normalize_registry_url;
 
@@ -64,7 +80,7 @@ pub(super) async fn pnpr_request_inputs(
 /// the client never runs `verify_lockfile_resolutions` on the pnpr
 /// path ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
 /// `trustPolicy: no-downgrade` is enforced
-/// server-side — both for reused entries (the input-lockfile
+/// server-side; both for reused entries (the input-lockfile
 /// verifier) and freshly-resolved ones (the resolver's pick-time
 /// gate, since the policy is wired into the server's config).
 pub(super) fn resolve_projects_options(
@@ -307,7 +323,8 @@ impl PnprBenchmarkRegistryOverride {
     pub(super) fn client_tarball_url(&self, url: &str) -> String {
         self.tarball_rewrite
             .as_ref()
-            .map_or_else(|| url.to_string(), |rewrite| rewrite.url(url))
+            .map(|rewrite| rewrite.url(url))
+            .unwrap_or_else(|| url.to_string())
     }
 
     pub(super) fn rewrite_lockfile(&self, lockfile: &mut Lockfile) {
@@ -345,7 +362,8 @@ impl BenchmarkRegistryRewrite {
         self.from
             .iter()
             .find_map(|from| url.strip_prefix(from))
-            .map_or_else(|| url.to_string(), |suffix| format!("{}{}", self.to, suffix))
+            .map(|suffix| format!("{}{}", self.to, suffix))
+            .unwrap_or_else(|| url.to_string())
     }
 }
 
@@ -365,7 +383,7 @@ pub(super) fn rewrite_resolution_registry(
                 rewrite_resolution_registry(&mut variant.resolution, rewrite);
             }
         }
-        // Custom resolutions are opaque — the benchmark rewrite can't
+        // Custom resolutions are opaque, the benchmark rewrite can't
         // know which of their fields (if any) is a registry URL.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)

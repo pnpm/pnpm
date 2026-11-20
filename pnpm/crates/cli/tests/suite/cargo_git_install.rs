@@ -1,9 +1,23 @@
-use super::cargo_install::{cargo_workspace, crate_archive, install_in};
+use super::cargo_install::{
+    cargo_workspace,
+    crate_archive,
+    install_in,
+};
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
-use pnpm_testing_utils::{diagnostics::assert_diagnostic_contains, git_repo::GitRepoFixture};
-use sha2::{Digest, Sha256};
-use std::{fs, process::Command};
+use pnpm_testing_utils::{
+    diagnostics::assert_diagnostic_contains,
+    git_repo::GitRepoFixture,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn git_workspace() -> (TempDir, TempDir, GitRepoFixture) {
@@ -70,20 +84,19 @@ fn patched_path_workspace() -> (TempDir, TempDir, GitRepoFixture) {
 fn cargo_check(root: &TempDir) {
     let cargo_home = TempDir::new().unwrap();
     Command::new("cargo")
-        .current_dir(root.path())
-        .env("CARGO_HOME", cargo_home.path())
-        .args(["check", "--locked", "--offline"])
+        .with_current_dir(root.path())
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_args(["check", "--locked", "--offline"])
         .assert()
         .success();
 }
 
 fn pnpm(root: &TempDir) -> Command {
-    let mut command = Command::cargo_bin("pnpm").unwrap();
-    command
-        .current_dir(root.path())
-        .env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
-        .env("PNPM_CONFIG_STORE_DIR", root.path().join("store"));
-    command
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
 }
 
 fn registry_cargo_home(registry: &mockito::ServerGuard) -> TempDir {
@@ -100,8 +113,8 @@ fn registry_cargo_home(registry: &mockito::ServerGuard) -> TempDir {
 fn frozen_install_vendors_versionless_git_members_and_path_dependencies() {
     let (root, _parent, _repository) = git_workspace();
     Command::new("cargo")
-        .current_dir(root.path())
-        .arg("generate-lockfile")
+        .with_current_dir(root.path())
+        .with_arg("generate-lockfile")
         .assert()
         .success();
     let lock = fs::read(root.path().join("Cargo.lock")).unwrap();
@@ -168,7 +181,7 @@ fn frozen_install_does_not_generate_a_missing_cargo_lockfile() {
         let config = fs::read(root.path().join(".cargo/config.toml")).unwrap();
 
         let output = pnpm(&root)
-            .args(["install", "--frozen-lockfile"])
+            .with_args(["install", "--frozen-lockfile"])
             .output()
             .unwrap();
 
@@ -238,8 +251,8 @@ fn adding_a_registry_crate_preserves_git_dependencies_and_source_overrides() {
             .create();
 
         pnpm(&root)
-            .env("CARGO_HOME", cargo_home.path())
-            .args(["add", "crate:extra@1", "--lockfile-only"])
+            .with_env("CARGO_HOME", cargo_home.path())
+            .with_args(["add", "crate:extra@1", "--lockfile-only"])
             .assert()
             .success();
 
@@ -306,8 +319,8 @@ fn failed_resolution_restores_manifest_lockfile_and_sources() {
             .create();
 
         let output = pnpm(&root)
-            .env("CARGO_HOME", cargo_home.path())
-            .args(["add", "crate:missing-crate@1", "--lockfile-only"])
+            .with_env("CARGO_HOME", cargo_home.path())
+            .with_args(["add", "crate:missing-crate@1", "--lockfile-only"])
             .output()
             .unwrap();
 
@@ -392,8 +405,8 @@ fn lockfile_generation_preserves_legacy_path_replacements() {
         .create();
 
     pnpm(&root)
-        .env("CARGO_HOME", cargo_home.path())
-        .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
         .assert()
         .success();
 
@@ -403,7 +416,8 @@ fn lockfile_generation_preserves_legacy_path_replacements() {
         .unwrap();
     let original = lock.packages
         .iter()
-        .find(|package| package.name.as_str() == "demo" && package.source.is_some())
+        .filter(|package| package.name.as_str() == "demo")
+        .find(|package| package.source.is_some())
         .unwrap();
     assert_eq!(
         original.replace
@@ -421,9 +435,9 @@ fn lockfile_generation_preserves_legacy_path_replacements() {
             .any(|package| package.name.as_str() == "demo" && package.source.is_none()),
     );
     Command::new("cargo")
-        .current_dir(root.path())
-        .env("CARGO_HOME", cargo_home.path())
-        .args(["check", "--offline", "--locked"])
+        .with_current_dir(root.path())
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_args(["check", "--offline", "--locked"])
         .assert()
         .success();
     index.assert();
@@ -470,16 +484,16 @@ fn path_patched_dependencies_cannot_execute_git_transport_helpers() {
         .create();
 
     let output = pnpm(&root)
-        .env("CARGO_HOME", cargo_home.path())
-        .env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
-        .env("CARGO_NET_RETRY", "0")
-        .env("GIT_EXEC_PATH", helpers.path())
-        .env("HELPER_MARKER", &marker)
-        .env("GIT_CONFIG_COUNT", "1")
-        .env("GIT_CONFIG_KEY_0", "protocol.pnpm-test.allow")
-        .env("GIT_CONFIG_VALUE_0", "always")
-        .env("GIT_ALLOW_PROTOCOL", "file:pnpm-test")
-        .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
+        .with_env("CARGO_NET_RETRY", "0")
+        .with_env("GIT_EXEC_PATH", helpers.path())
+        .with_env("HELPER_MARKER", &marker)
+        .with_env("GIT_CONFIG_COUNT", "1")
+        .with_env("GIT_CONFIG_KEY_0", "protocol.pnpm-test.allow")
+        .with_env("GIT_CONFIG_VALUE_0", "always")
+        .with_env("GIT_ALLOW_PROTOCOL", "file:pnpm-test")
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
         .output()
         .unwrap();
 
@@ -493,7 +507,7 @@ fn path_patched_dependencies_cannot_execute_git_transport_helpers() {
 fn path_patched_lockfile_resolution_does_not_require_git() {
     let (root, _parent, _repository) = patched_path_workspace();
     let sysroot = Command::new("rustc")
-        .args(["--print", "sysroot"])
+        .with_args(["--print", "sysroot"])
         .output()
         .unwrap();
     assert!(sysroot.status.success());
@@ -510,14 +524,14 @@ fn path_patched_lockfile_resolution_does_not_require_git() {
         .create();
 
     pnpm(&root)
-        .env("CARGO_HOME", cargo_home.path())
-        .env("PATH", std::path::Path::new(sysroot.trim()).join("bin"))
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_env("PATH", std::path::Path::new(sysroot.trim()).join("bin"))
         // The PATH above carries `cargo` and `rustc` and nothing else. A
         // `build.rustc-wrapper` in the developer's own Cargo configuration
         // reaches this far as `RUSTC_WRAPPER`, and its binary is not on that
         // PATH; an empty value turns it off.
-        .env("RUSTC_WRAPPER", "")
-        .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .with_env("RUSTC_WRAPPER", "")
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
         .assert()
         .success();
     cargo_check(&root);
@@ -529,19 +543,19 @@ fn cargo_resolution_preserves_workspace_local_protocol_bans() {
     let setup: [&[&str]; 2] = [&["init", "--quiet"], &["config", "protocol.file.allow", "never"]];
     for args in setup {
         Command::new("git")
-            .current_dir(root.path())
-            .args(args)
+            .with_current_dir(root.path())
+            .with_args(args)
             .assert()
             .success();
     }
     let cargo_home = TempDir::new().unwrap();
 
     let output = pnpm(&root)
-        .env("CARGO_HOME", cargo_home.path())
-        .env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
-        .env("CARGO_NET_RETRY", "0")
-        .env("GIT_ALLOW_PROTOCOL", "file")
-        .args(["install", "--lockfile-only", "--no-frozen-lockfile"])
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_env("CARGO_NET_GIT_FETCH_WITH_CLI", "true")
+        .with_env("CARGO_NET_RETRY", "0")
+        .with_env("GIT_ALLOW_PROTOCOL", "file")
+        .with_args(["install", "--lockfile-only", "--no-frozen-lockfile"])
         .output()
         .unwrap();
 
@@ -552,12 +566,12 @@ fn cargo_resolution_preserves_workspace_local_protocol_bans() {
 
 fn add_submodule(parent: &TempDir, name: &str, url: &str, path: &str) {
     Command::new("git")
-        .current_dir(
+        .with_current_dir(
             parent
                 .path()
                 .join(format!("{name}-src")),
         )
-        .args(["-c", "protocol.file.allow=always", "submodule", "add", "--", url, path])
+        .with_args(["-c", "protocol.file.allow=always", "submodule", "add", "--", url, path])
         .assert()
         .success();
 }
@@ -585,10 +599,10 @@ fn recursive_submodules_are_pinned_checksummed_and_reused_offline() {
     )).unwrap();
 
     pnpm(&root)
-        .env("GIT_CONFIG_COUNT", "1")
-        .env("GIT_CONFIG_KEY_0", "protocol.file.allow")
-        .env("GIT_CONFIG_VALUE_0", "always")
-        .args(["install", "--no-frozen-lockfile"])
+        .with_env("GIT_CONFIG_COUNT", "1")
+        .with_env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .with_env("GIT_CONFIG_VALUE_0", "always")
+        .with_args(["install", "--no-frozen-lockfile"])
         .assert()
         .success();
     let slot = root.path().join(".pnpm/crates/git/demo-0.0.0");
@@ -609,10 +623,10 @@ fn recursive_submodules_are_pinned_checksummed_and_reused_offline() {
     fs::write(slot.join("native/leaf/answer.rs"), "tampered").unwrap();
     let cargo_home = TempDir::new().unwrap();
     Command::new("cargo")
-        .current_dir(root.path())
-        .env("CARGO_HOME", cargo_home.path())
-        .env("CARGO_TARGET_DIR", root.path().join("tampered-target"))
-        .args(["check", "--locked", "--offline"])
+        .with_current_dir(root.path())
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_env("CARGO_TARGET_DIR", root.path().join("tampered-target"))
+        .with_args(["check", "--locked", "--offline"])
         .assert()
         .failure();
 }
@@ -622,9 +636,9 @@ fn submodule_fetching_preserves_the_callers_transport_allowlist() {
     let (root, parent, repository) = git_workspace();
     let cargo_home = TempDir::new().unwrap();
     Command::new("cargo")
-        .current_dir(root.path())
-        .env("CARGO_HOME", cargo_home.path())
-        .arg("generate-lockfile")
+        .with_current_dir(root.path())
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_arg("generate-lockfile")
         .assert()
         .success();
     let old_commit = repository.head();
@@ -645,8 +659,8 @@ fn submodule_fetching_preserves_the_callers_transport_allowlist() {
     }
 
     let output = pnpm(&root)
-        .env("GIT_ALLOW_PROTOCOL", "file")
-        .args(["install", "--frozen-lockfile"])
+        .with_env("GIT_ALLOW_PROTOCOL", "file")
+        .with_args(["install", "--frozen-lockfile"])
         .output()
         .unwrap();
 

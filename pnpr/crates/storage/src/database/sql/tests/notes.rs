@@ -1,8 +1,19 @@
 //! Notes stored with a publication and changed after it.
 
-use super::{Db, npm, packument, storage, write};
+use super::{
+    Db,
+    npm,
+    packument,
+    storage,
+    write,
+};
 use crate::database::{
-    BatchDocument, NoteChange, PublishNotes, ReleaseRecords, VersionNote, note_digest,
+    BatchDocument,
+    NoteChange,
+    PublishNotes,
+    ReleaseRecords,
+    VersionNote,
+    note_digest,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;

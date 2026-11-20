@@ -1,12 +1,43 @@
 use super::{
-    BinLinkSettings, CacheDisposition, Config, CopyFiles, ExecutionStatus, GraphPkg, HashMap,
-    Instant, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog,
-    ProjectGraph, RunContext, RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskCachePlan,
-    TaskNode, Value, cache_tiers::CacheTiers, capture, cargo_cache, env,
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
-    pnp_path_for_execution, run_stages, sync_injected_deps,
+    BinLinkSettings,
+    CacheDisposition,
+    Config,
+    CopyFiles,
+    ExecutionStatus,
+    GraphPkg,
+    HashMap,
+    Instant,
+    IntoDiagnostic,
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    PipelineInvocation,
+    PnpmLog,
+    ProjectGraph,
+    RunContext,
+    RunReport,
+    ScriptOutput,
+    Status,
+    SyncInjectedDeps,
+    TaskCachePlan,
+    TaskNode,
+    Value,
+    cache_tiers::CacheTiers,
+    capture,
+    cargo_cache,
+    env,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
+    pnp_path_for_execution,
+    run_stages,
+    sync_injected_deps,
 };
-use crate::cli_args::{reporter::script_output_colors, run::project_modules_dirs};
+use crate::cli_args::{
+    reporter::script_output_colors,
+    run::project_modules_dirs,
+};
 
 #[derive(Clone, Copy)]
 pub(super) struct RunTaskOptions<'a, 'graph> {
@@ -178,7 +209,7 @@ fn execute_task_with_cargo_cache(
         cargo_cache::prepend_path(&mut environment, rust);
     }
     let cargo_cacheable = !options.invocation.no_cache
-        && settings.is_some_and(|settings| settings.cache != Some(false));
+        && settings.is_some_and(|settings| settings.cache.unwrap_or(true));
     let snapshot = cargo_cacheable
         .then(|| options.task_key())
         .flatten()
@@ -237,7 +268,7 @@ fn cargo_build_env(
     extra_env
 }
 
-/// Save the build directory as this task key's snapshot — but only when
+/// Save the build directory as this task key's snapshot, but only when
 /// the inputs still hash to the key the run started with, since a
 /// concurrent edit would otherwise be published under the wrong key.
 fn publish_cargo_snapshot(
@@ -362,7 +393,7 @@ fn runnable_script(
 }
 
 /// A cache hit skips the script but must not skip the injected-deps sync
-/// that would have followed it — consumers of an injected dependency
+/// that would have followed it, consumers of an injected dependency
 /// would otherwise keep seeing the previous build.
 fn sync_injected_deps_if_configured(
     config: &Config,
@@ -397,7 +428,7 @@ fn sync_injected_deps_if_configured(
 pub(super) fn is_output_cacheable(settings: Option<&pnpm_config::TaskSettings>) -> bool {
     settings.is_some_and(|settings| {
         settings.outputs.is_some()
-            && settings.cache != Some(false)
+            && settings.cache.unwrap_or(true)
             && settings.cargo_target_dir.is_none()
     })
 }

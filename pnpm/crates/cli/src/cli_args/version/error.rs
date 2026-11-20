@@ -1,4 +1,7 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// Errors of `pnpm version`. Those of the forms the TypeScript CLI also has

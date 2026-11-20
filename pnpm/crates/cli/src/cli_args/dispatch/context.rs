@@ -1,16 +1,32 @@
 use super::{
-    CliArgs, Invocation,
-    configuration::{RunAnchors, RunSetup, apply_update_config},
+    CliArgs,
+    Invocation,
+    configuration::{
+        RunAnchors,
+        RunSetup,
+        apply_update_config,
+    },
     seed_config,
 };
-use crate::{State, cli_args::reporter::ReporterFlags, config_overrides::ConfigOverrides};
+use crate::{
+    State,
+    cli_args::reporter::ReporterFlags,
+    config_overrides::ConfigOverrides,
+};
 use miette::Context;
-use pnpm_config::{Config, ConfigLoadFailure, Host};
+use pnpm_config::{
+    Config,
+    ConfigLoadFailure,
+    Host,
+};
 use std::{
     future::Future,
     path::Path,
     pin::Pin,
-    sync::{Mutex, atomic::AtomicBool},
+    sync::{
+        Mutex,
+        atomic::AtomicBool,
+    },
 };
 
 pub(crate) type CommandFuture<'a, Output = ()> =
@@ -41,7 +57,7 @@ pub(crate) struct RunCtx<'a> {
 pub(crate) struct CommandLocations<'a> {
     pub(crate) dir: &'a Path,
     /// The `--dir` as the command line gave it, or the process cwd when it
-    /// gave none — pnpm's `cliOptions.dir ?? process.cwd()`. `init`
+    /// gave none, pnpm's `cliOptions.dir ?? process.cwd()`. `init`
     /// scaffolds here and a non-recursive `exec` runs here, rather than at
     /// the local prefix [`Self::dir`] resolves to.
     pub(crate) cli_dir: &'a Path,

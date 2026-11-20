@@ -5,7 +5,10 @@
 //! the download tasks themselves, waits for them, and hears their failures.
 
 use pnpm_tarball::TarballError;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{
+    Mutex,
+    PoisonError,
+};
 use tokio::task::JoinHandle;
 
 /// The result of one tracked download.

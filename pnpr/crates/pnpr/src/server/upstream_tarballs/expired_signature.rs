@@ -1,6 +1,13 @@
 use super::{
-    AppState, FetchOutcome, RegistryError, TarballDist, Upstream, UpstreamTarball,
-    UpstreamTarballRoute, parse_tarball_dist, timed,
+    AppState,
+    FetchOutcome,
+    RegistryError,
+    TarballDist,
+    Upstream,
+    UpstreamTarball,
+    UpstreamTarballRoute,
+    parse_tarball_dist,
+    timed,
 };
 
 pub(super) fn should_refresh_signed_tarball_url(
@@ -74,5 +81,6 @@ async fn rotated_tarball_dist(
 ) -> Result<Option<TarballDist>, RegistryError> {
     Ok(parse_tarball_dist(state, packument, tarball.name, tarball.filename)
         .await?
-        .filter(|dist| dist.integrity == *tarball.integrity && dist.route != *tarball.route))
+        .filter(|dist| dist.integrity == *tarball.integrity)
+        .filter(|dist| dist.route != *tarball.route))
 }

@@ -1,27 +1,52 @@
 //! Publish several packed packages through pnpr's atomic batch endpoint.
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network_web_auth::{Host as WebAuthHost, WithOtpError};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network_web_auth::{
+    Host as WebAuthHost,
+    WithOtpError,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
     PublishFailure,
     failed_to_publish_error::FailedToPublishError,
-    global_log::{global_info, global_warn},
+    global_log::{
+        global_info,
+        global_warn,
+    },
     publish_options::{
-        PublishUnsupportedRegistryProtocolError, find_registry_info, resolve_access,
+        PublishUnsupportedRegistryProtocolError,
+        find_registry_info,
+        resolve_access,
     },
     publish_packed_pkg::{
-        DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
-        PublishPackedPkgOptions, build_publish_document, join_registry, publish_with_otp_handling,
-        registry_for_display, web_auth_fetch_options,
+        DistHashes,
+        PackedPkg,
+        PublishHttpError,
+        PublishNetwork,
+        PublishPackedPkgError,
+        PublishPackedPkgOptions,
+        build_publish_document,
+        join_registry,
+        publish_with_otp_handling,
+        registry_for_display,
+        web_auth_fetch_options,
     },
     publish_summary::PublishSummary,
-    publish_wait::{PublishWaitError, wait_for_published_packages},
+    publish_wait::{
+        PublishWaitError,
+        wait_for_published_packages,
+    },
     registry_config_keys::NormalizedRegistryUrl,
     staged_archives::{
-        MAX_STAGED_ARCHIVES_PER_PUBLISH, StagedArchive, StagingError, reference_staged_archive,
+        MAX_STAGED_ARCHIVES_PER_PUBLISH,
+        StagedArchive,
+        StagingError,
+        reference_staged_archive,
         stage_archives,
     },
 };
@@ -65,7 +90,7 @@ pub fn validate_batch_publish_options(
     if opts.stage {
         return Err(BatchPublishError::Stage);
     }
-    if opts.registry.provenance == Some(true) {
+    if opts.registry.provenance.unwrap_or(false) {
         return Err(BatchPublishError::Provenance);
     }
     Ok(())

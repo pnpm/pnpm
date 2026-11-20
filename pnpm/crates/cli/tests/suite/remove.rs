@@ -1,8 +1,18 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -186,7 +196,7 @@ fn should_report_project_has_no_dependencies() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // A manifest with no dependency fields at all, removed without a
-    // `--save-*` flag, hits the "no dependencies of any kind" branch —
+    // `--save-*` flag, hits the "no dependencies of any kind" branch,
     // a missing-deps error with no hint.
     fs::write(
         workspace.join("package.json"),

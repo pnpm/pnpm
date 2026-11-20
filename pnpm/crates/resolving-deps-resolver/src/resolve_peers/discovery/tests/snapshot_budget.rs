@@ -1,6 +1,12 @@
 use super::{
-    Arc, DepPath, PeerHoistDiscovery, ResolvePeersOptions, WorkspaceTreeCtx, add_lazy_direct_dep,
-    child_edge, package,
+    Arc,
+    DepPath,
+    PeerHoistDiscovery,
+    ResolvePeersOptions,
+    WorkspaceTreeCtx,
+    add_lazy_direct_dep,
+    child_edge,
+    package,
 };
 
 #[test]

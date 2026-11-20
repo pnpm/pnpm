@@ -1,5 +1,9 @@
 use super::{
-    CustomFetchOutcome, NativeFetcherResult, Verified, callbacks, callbacks::WalkedDirectory,
+    CustomFetchOutcome,
+    NativeFetcherResult,
+    Verified,
+    callbacks,
+    callbacks::WalkedDirectory,
     failure,
 };
 use crate::InstallPackageBySnapshotError;
@@ -7,7 +11,11 @@ use pnpm_lockfile::LockfileResolution;
 use pnpm_tarball::FetchedTarball;
 use serde_json::Value;
 use ssri::Integrity;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
 pub(super) fn decode_fetch_outcome(
     result: Value,

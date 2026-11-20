@@ -5,14 +5,20 @@
 //! Catalog protocol: when the override value uses the `catalog:` form
 //! it is resolved against the workspace's named catalogs before being
 //! stored on the parsed entry. Pass an empty
-//! [`Catalogs`] map when the caller has no catalogs configured — any
+//! [`Catalogs`] map when the caller has no catalogs configured, any
 //! `catalog:` value will then fall through to the missing-entry branch.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -119,7 +125,7 @@ pub enum ParseOverridesError {
 ///
 /// Iteration follows the input map's iterator order. `HashMap` is
 /// unordered, so the returned `Vec` is *not* guaranteed to match
-/// the input's insertion order — for that, use
+/// the input's insertion order, for that, use
 /// [`parse_overrides_iter`] with an ordered map (e.g. `IndexMap`)
 /// or pre-sort by key.
 pub fn parse_overrides(

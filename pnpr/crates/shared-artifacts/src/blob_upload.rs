@@ -1,17 +1,44 @@
-use std::{fmt::Display, time::Instant};
+use std::{
+    fmt::Display,
+    time::Instant,
+};
 
 use bytes::Bytes;
-use futures_util::{Stream, StreamExt as _};
-use object_store::{ObjectStoreExt as _, PutPayload, WriteMultipart};
-use pnpm_shared_artifact_protocol::{
-    ArtifactBlobRequest, MAX_BLOB_SIZE, OwnerScope, blob_id, verify_blob_digest,
+use futures_util::{
+    Stream,
+    StreamExt as _,
 };
-use pnpr_error::{RegistryError, Result};
-use sha2::{Digest as _, Sha512};
+use object_store::{
+    ObjectStoreExt as _,
+    PutPayload,
+    WriteMultipart,
+};
+use pnpm_shared_artifact_protocol::{
+    ArtifactBlobRequest,
+    MAX_BLOB_SIZE,
+    OwnerScope,
+    blob_id,
+    verify_blob_digest,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 
 use super::{
-    ACTIVE_PUBLICATION_EXPIRY, OwnerAccess, PUBLICATION_RENEWAL_INTERVAL, SharedArtifactStore,
-    artifact_operation_id, bad_request, owner_key, protocol_error, publisher_owner_key,
+    ACTIVE_PUBLICATION_EXPIRY,
+    OwnerAccess,
+    PUBLICATION_RENEWAL_INTERVAL,
+    SharedArtifactStore,
+    artifact_operation_id,
+    bad_request,
+    owner_key,
+    protocol_error,
+    publisher_owner_key,
     staged_record_path,
 };
 
@@ -192,18 +219,13 @@ impl SharedArtifactStore {
     ) -> std::result::Result<bool, WriteFailure> {
         let mut received = ReceivedBlob { integrity, size, hasher: Sha512::new(), bytes: 0 };
         if size <= SINGLE_WRITE_LIMIT {
-            let mut collected = Vec::with_capacity(usize::try_from(size).unwrap_or_default());
-            while let Some(chunk) = body.next().await {
-                let chunk = received.accept(chunk).map_err(WriteFailure::Rejected)?;
-                collected.extend_from_slice(&chunk);
-            }
-            received.finish().map_err(WriteFailure::Rejected)?;
-            return self.create_object(path, collected).await.map_err(WriteFailure::Store);
+            return self.write_whole_blob(path, received, body).await;
         }
         let upload = self.store
             .put_multipart(&self.object_path(path))
             .await
-            .map_err(|error| WriteFailure::Rejected(error.into()))?;
+            .map_err(Into::into)
+            .map_err(WriteFailure::Rejected)?;
         let mut writer = WriteMultipart::new(upload);
         let streamed = async {
             while let Some(chunk) = body.next().await {
@@ -227,8 +249,28 @@ impl SharedArtifactStore {
             }
             return stored_meanwhile.map(|_| false).map_err(WriteFailure::Rejected);
         }
-        writer.finish().await.map_err(|error| WriteFailure::Store(error.into()))?;
+        writer
+            .finish()
+            .await
+            .map_err(Into::into)
+            .map_err(WriteFailure::Store)?;
         Ok(true)
+    }
+
+    /// Write a blob small enough to collect in memory with one store write.
+    async fn write_whole_blob<StreamError: Display>(
+        &self,
+        path: &str,
+        mut received: ReceivedBlob<'_>,
+        mut body: impl Stream<Item = std::result::Result<Bytes, StreamError>> + Unpin,
+    ) -> std::result::Result<bool, WriteFailure> {
+        let mut collected = Vec::with_capacity(usize::try_from(received.size).unwrap_or_default());
+        while let Some(chunk) = body.next().await {
+            let chunk = received.accept(chunk).map_err(WriteFailure::Rejected)?;
+            collected.extend_from_slice(&chunk);
+        }
+        received.finish().map_err(WriteFailure::Rejected)?;
+        self.create_object(path, collected).await.map_err(WriteFailure::Store)
     }
 
     pub(super) async fn stored_size(&self, relative: &str) -> Result<Option<u64>> {

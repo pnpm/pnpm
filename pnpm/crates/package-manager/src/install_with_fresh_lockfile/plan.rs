@@ -1,16 +1,29 @@
-pub(super) use scope::{FinalScope, MaterializationScope};
+pub(super) use scope::{
+    FinalScope,
+    MaterializationScope,
+};
 
 mod scope;
 
-use super::{FreshInputs, errors::InstallWithFreshLockfileError};
-use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+use super::{
+    FreshInputs,
+    errors::InstallWithFreshLockfileError,
+};
+use crate::{
+    AllowBuildPolicy,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
 /// The lockfiles the materialization plan reads: the one the selected
 /// importers materialize, and the full one the skip set's closure walks.

@@ -2,15 +2,26 @@ pub(crate) mod admission;
 
 use super::{
     super::{
-        describe_tars, filter_osv_vulnerable_versions, rewrite_tarball_urls,
+        describe_tars,
+        filter_osv_vulnerable_versions,
+        rewrite_tarball_urls,
         rewrite_upstream_tarball_urls,
     },
-    AppState, CanonicalPackageName, DistView, HeaderMap, RegistryError, Representation, Value,
+    AppState,
+    CanonicalPackageName,
+    DistView,
+    HeaderMap,
+    RegistryError,
+    Representation,
+    Value,
 };
 use axum::body::Bytes;
 use jiff::Timestamp;
 use pnpr_storage::BoundedCache;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 /// Rendered response bytes retained by one server instance.
 const CACHE_BUDGET: usize = 128 * 1024 * 1024;
@@ -287,7 +298,8 @@ fn next_precision_change(doc: &Value, now: Timestamp) -> Option<Timestamp> {
         .as_object()?
         .values()
         .filter_map(Value::as_str)
-        .filter_map(|value| pnpm_time::parse_rfc3339(value).ok())
+        .map(pnpm_time::parse_rfc3339)
+        .filter_map(Result::ok)
         .filter_map(|time| {
             time.checked_add(jiff::SignedDuration::from_hours(
                 24 * pnpr_upstream::TIME_PRECISION_HORIZON_DAYS,

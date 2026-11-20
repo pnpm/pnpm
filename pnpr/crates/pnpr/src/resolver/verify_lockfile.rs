@@ -1,21 +1,56 @@
 pub(super) mod cached_verdict;
 
-use self::cached_verdict::{apply_cached_verdict, compute_verdict_hash, record_verdict};
+use self::cached_verdict::{
+    apply_cached_verdict,
+    compute_verdict_hash,
+    record_verdict,
+};
 use super::{
-    Arc, AuthHeaders, Bytes, Footprint, Identity, InMemoryPackageMetaCache, Lockfile, Mutex,
-    ObservedDistStats, OsvIndex, PackageMetaCache, PacquetConfig, ResolutionVerifier,
-    ResolveRequest, Resolver, Response, StatusCode, StreamedResolveInputs, TarballRouter,
-    VerificationArtifacts, build_resolution_verifiers_with_artifacts,
-    collect_resolution_policy_violations, collect_resolution_shape_violations,
-    extract_admitted_body, json_error,
+    Arc,
+    AuthHeaders,
+    Bytes,
+    Footprint,
+    Identity,
+    InMemoryPackageMetaCache,
+    Lockfile,
+    Mutex,
+    ObservedDistStats,
+    OsvIndex,
+    PackageMetaCache,
+    PacquetConfig,
+    ResolutionVerifier,
+    ResolveRequest,
+    Resolver,
+    Response,
+    StatusCode,
+    StreamedResolveInputs,
+    TarballRouter,
+    VerificationArtifacts,
+    build_resolution_verifiers_with_artifacts,
+    collect_resolution_policy_violations,
+    collect_resolution_shape_violations,
+    extract_admitted_body,
+    json_error,
     limits::{
-        AdmittedResolve, CancelToken, ResolvePermit, reject_oversized_graph,
+        AdmittedResolve,
+        CancelToken,
+        ResolvePermit,
+        reject_oversized_graph,
         request_timeout_response,
     },
-    ndjson_single_frame, observed_dist_stats_sink, osv_violations_for_lockfile_until,
-    parse_request, reject_inline_url_auth, reject_invalid_lockfile_dependency_names,
-    reject_invalid_registries, reject_off_allowlist_fetches, request_tarball_router, verdict_cache,
-    verify_done_frame, violations_frame, with_offline_check_cache_identities,
+    ndjson_single_frame,
+    observed_dist_stats_sink,
+    osv_violations_for_lockfile_until,
+    parse_request,
+    reject_inline_url_auth,
+    reject_invalid_lockfile_dependency_names,
+    reject_invalid_registries,
+    reject_off_allowlist_fetches,
+    request_tarball_router,
+    verdict_cache,
+    verify_done_frame,
+    violations_frame,
+    with_offline_check_cache_identities,
 };
 
 /// Admit `POST /-/pnpr/v0/verify-lockfile` before buffering or parsing the
@@ -312,7 +347,7 @@ async fn collect_policy_violations_until(
         return Err(VerifyFailure::Internal(request_timeout_response()));
     };
     // A transport failure verifying an entry (the upstream registry couldn't be
-    // reached/authorized) is a gateway error, not a policy violation — surface
+    // reached/authorized) is a gateway error, not a policy violation, surface
     // the registry's own (credential-redacted) message to the client.
     result.map_err(|message| VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)))
 }

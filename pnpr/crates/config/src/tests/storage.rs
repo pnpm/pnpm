@@ -1,6 +1,16 @@
 use super::{
-    BackendConfig, Config, Ecosystem, FeatureOverrides, HostedStoreConfig, Path, PathBuf,
-    RegistryError, S3Settings, listen, load_with_graph, s3_settings_for,
+    BackendConfig,
+    Config,
+    Ecosystem,
+    FeatureOverrides,
+    HostedStoreConfig,
+    Path,
+    PathBuf,
+    RegistryError,
+    S3Settings,
+    listen,
+    load_with_graph,
+    s3_settings_for,
 };
 use std::fmt::Write as _;
 
@@ -235,7 +245,7 @@ storage:
 
 #[test]
 fn yaml_with_no_storage_uses_default_storage_string() {
-    // `storage:` is absent entirely — `default_storage_string`
+    // `storage:` is absent entirely, `default_storage_string`
     // supplies `"./storage"`, which `resolve_relative` then joins
     // to the config-file's parent dir.
     let yaml = "cors: {}\n";

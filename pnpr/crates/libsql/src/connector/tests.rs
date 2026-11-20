@@ -1,17 +1,33 @@
-use super::{LibsqlConnector, dial};
-use crate::testing::{EXECUTE_RESPONSE, serve_plain_http};
+use super::{
+    LibsqlConnector,
+    dial,
+};
+use crate::testing::{
+    EXECUTE_RESPONSE,
+    serve_plain_http,
+};
 use http_0_2::Uri;
 use pnpr_config::LibsqlSettings;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     net::TcpListener,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
-use tower_0_4::{ServiceExt, service_fn};
+use tower_0_4::{
+    ServiceExt,
+    service_fn,
+};
 
 /// Open the database `settings` name and run one statement on it.
 async fn query_once(settings: &LibsqlSettings) -> Result<()> {

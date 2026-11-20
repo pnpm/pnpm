@@ -1,4 +1,7 @@
-use super::{notify_attempt, with_retry_observer};
+use super::{
+    notify_attempt,
+    with_retry_observer,
+};
 use std::panic::catch_unwind;
 use tempfile::tempdir;
 

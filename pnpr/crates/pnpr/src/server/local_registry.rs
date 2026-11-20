@@ -1,9 +1,22 @@
-use super::{AppInner, AppState, AuthedCaller, RoutingSnapshot, routing::local_registry_router};
-use axum::{Router, body::Body, http::Request};
+use super::{
+    AppInner,
+    AppState,
+    AuthedCaller,
+    RoutingSnapshot,
+    routing::local_registry_router,
+};
+use axum::{
+    Router,
+    body::Body,
+    http::Request,
+};
 use pnpr_policy::Identity;
 use pnpr_route::LocalFetch;
 use reqwest::ResponseBuilderExt;
-use std::sync::{Arc, Weak};
+use std::sync::{
+    Arc,
+    Weak,
+};
 use tower::ServiceExt;
 use url::Url;
 

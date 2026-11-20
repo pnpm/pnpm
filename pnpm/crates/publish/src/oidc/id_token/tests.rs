@@ -1,12 +1,29 @@
-use super::{GetIdTokenError, IdTokenError, get_id_token};
+use super::{
+    GetIdTokenError,
+    IdTokenError,
+    get_id_token,
+};
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcRequest,
+        OidcResponse,
+    },
     oidc::OidcHttpOptions,
 };
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::{
+    Engine,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 const REGISTRY: &str = "https://registry.npmjs.org/";
 

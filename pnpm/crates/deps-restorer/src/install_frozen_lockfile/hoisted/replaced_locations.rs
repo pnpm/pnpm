@@ -4,8 +4,14 @@
 #[cfg(test)]
 mod tests;
 
-use super::{HoistedLinkerError, HoistedLinkerInputs};
-use crate::{DependenciesGraph, HoistedLocations};
+use super::{
+    HoistedLinkerError,
+    HoistedLinkerInputs,
+};
+use crate::{
+    DependenciesGraph,
+    HoistedLocations,
+};
 use std::path::Path;
 
 /// Remove from `.modules.yaml` every recorded location this install does not

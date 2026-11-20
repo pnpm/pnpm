@@ -2,8 +2,14 @@
 //! publishes, the registry it goes to, and the checks that keep its name
 //! and note within the release they were composed for.
 
-use super::{notes_registry_of_manifest, package_id};
-use crate::cli_args::{changelog::published_name, publish::PackedDirectory};
+use super::{
+    notes_registry_of_manifest,
+    package_id,
+};
+use crate::cli_args::{
+    changelog::published_name,
+    publish::PackedDirectory,
+};
 use pnpm_config::Config;
 use pnpm_publish::PublicationNotes;
 use pnpm_versioning::read_parked_publications;

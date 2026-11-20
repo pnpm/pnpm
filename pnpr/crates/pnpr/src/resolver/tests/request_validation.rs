@@ -1,10 +1,18 @@
 use super::{
-    ResolveRequest, RouteContext, StatusCode, registry_config, reject_off_allowlist_fetches,
-    reject_unsafe_publish_directories, reject_unusable_resolve,
+    ResolveRequest,
+    RouteContext,
+    StatusCode,
+    registry_config,
+    reject_off_allowlist_fetches,
+    reject_unsafe_publish_directories,
+    reject_unusable_resolve,
 };
 use crate::resolver::{
     parse_request,
-    protocol::{CargoResolveRequest, PypiResolveRequest},
+    protocol::{
+        CargoResolveRequest,
+        PypiResolveRequest,
+    },
     request_validation::reject_local_dependency_specs,
 };
 

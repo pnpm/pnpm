@@ -1,18 +1,37 @@
-use super::{SnapshotPlan, SnapshotPlanInputs, optional_children_match, plan_snapshots};
+use super::{
+    SnapshotPlan,
+    SnapshotPlanInputs,
+    optional_children_match,
+    plan_snapshots,
+};
 use crate::{
-    CreateVirtualStoreError, SkippedSnapshots, VirtualStoreLayout,
+    CreateVirtualStoreError,
+    SkippedSnapshots,
+    VirtualStoreLayout,
     create_virtual_store::{
-        SnapshotCacheKey, snapshot_plan::children::optional_children_match_with,
+        SnapshotCacheKey,
+        snapshot_plan::children::optional_children_match_with,
     },
 };
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry,
+    DirectoryResolution,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_reporter::SilentReporter;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
     path::Path,
 };
 

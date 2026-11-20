@@ -4,13 +4,16 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
 /// Canonicalize a path the way the production CLI does (`dunce::canonicalize`
-/// on `--dir`), so the expected value matches the resolved form pacquet prints
-/// — e.g. on macOS a `/var/folders/...` temp dir surfaces as `/private/var/...`.
+/// on `--dir`), so the expected value matches the resolved form pacquet prints,
+/// e.g. on macOS a `/var/folders/...` temp dir surfaces as `/private/var/...`.
 fn canonicalize(path: &Path) -> PathBuf {
     dunce::canonicalize(path).expect("canonicalize path")
 }

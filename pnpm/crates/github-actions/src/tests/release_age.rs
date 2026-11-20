@@ -1,13 +1,29 @@
-use super::{FakeGitRunner, SHA_V4_1_0, SHA_V4_2_0, SilentReporter};
+use super::{
+    FakeGitRunner,
+    SHA_V4_1_0,
+    SHA_V4_2_0,
+    SilentReporter,
+};
 use crate::{
-    ReleaseAge, ReleaseAgeCheck, find_outdated_with_runner,
-    release_age::{TagDateReader, TagDates},
+    ReleaseAge,
+    ReleaseAgeCheck,
+    find_outdated_with_runner,
+    release_age::{
+        TagDateReader,
+        TagDates,
+    },
     update_with_runner,
 };
 use jiff::Timestamp;
 use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
-use std::{fs, future::Future, path::Path, pin::Pin, sync::Mutex};
+use std::{
+    fs,
+    future::Future,
+    path::Path,
+    pin::Pin,
+    sync::Mutex,
+};
 
 const CUTOFF: i64 = 1_700_000_000;
 

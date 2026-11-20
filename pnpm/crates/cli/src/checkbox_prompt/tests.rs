@@ -1,7 +1,15 @@
 use super::{
-    CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome, in_active_cyan,
+    CheckboxChoice,
+    CheckboxItem,
+    CheckboxPrompt,
+    CheckboxTheme,
+    KeyOutcome,
+    in_active_cyan,
 };
-use console::{Key, strip_ansi_codes};
+use console::{
+    Key,
+    strip_ansi_codes,
+};
 
 fn separator(text: &str) -> CheckboxItem<&'static str> {
     CheckboxItem::Separator(text.to_string())
@@ -194,8 +202,8 @@ fn the_active_row_cyan_survives_the_rows_own_resets() {
 }
 
 /// The page scrolls to keep the cursor on it. When the rows directly
-/// above the cursor are separators — a group's heading and column
-/// header — they scroll on with it, so a group is never shown without
+/// above the cursor are separators (a group's heading and column
+/// header) they scroll on with it, so a group is never shown without
 /// its title.
 #[test]
 fn the_page_follows_the_cursor_and_keeps_the_headings_above_it() {

@@ -1,15 +1,43 @@
-use super::{DirectByImporter, PeerSuffixes, dedupe_peer_dependents, deduplicate_dep_paths};
+use super::{
+    DirectByImporter,
+    PeerSuffixes,
+    dedupe_peer_dependents,
+    deduplicate_dep_paths,
+};
 use crate::{
     PeerDependentsDedupe,
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
-    peer_dependents_dedupe::{OptionalPeerScope, UnboundOptionalPeers},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
+    peer_dependents_dedupe::{
+        OptionalPeerScope,
+        UnboundOptionalPeers,
+    },
     resolve_peers::split_peer_suffix_segments,
 };
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, sync::Arc};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    create_peer_dep_graph_hash,
+    index_of_dep_path_suffix,
+};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// The peer ids the peer resolution records for every node that resolved
 /// peers, read back from the depPath's text.
@@ -22,7 +50,8 @@ fn recorded_peer_ids(graph: &DependenciesGraph) -> HashMap<DepPath, Vec<PeerId>>
             let segments = split_peer_suffix_segments(&dep_path.as_str()[peers_index..])?;
             let peer_ids = segments
                 .into_iter()
-                .map(|segment| PeerId::DepPath(DepPath::from(segment)))
+                .map(DepPath::from)
+                .map(PeerId::DepPath)
                 .collect();
             Some((dep_path.clone(), peer_ids))
         })
@@ -231,7 +260,7 @@ fn does_not_collapse_across_incompatible_peer_versions() {
 
 /// Every reference to a collapsed variant is rewritten, including a
 /// consumer's child edge whose own peer suffix names the collapsed
-/// variant — pnpm's `deduplicateAll` rewrites `node.children`
+/// variant, pnpm's `deduplicateAll` rewrites `node.children`
 /// unconditionally, and leaving one edge behind keeps the collapsed
 /// variant alive in the lockfile. The consumer is renamed after the
 /// variant its peer now resolves to (pnpm/pnpm#16356).

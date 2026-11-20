@@ -8,7 +8,10 @@
 //! waits for the worker and the worker waits for pnpm.
 
 use crate::async_process::Command;
-use std::{io, mem::size_of};
+use std::{
+    io,
+    mem::size_of,
+};
 
 /// Room for the descriptors pnpm opens between sizing the list and forking.
 const SPARE_DESCRIPTORS: usize = 256;

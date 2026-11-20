@@ -1,4 +1,10 @@
-use super::{HeaderMap, TarCoding, decode::tar_integrity_within, header, preferred_coding};
+use super::{
+    HeaderMap,
+    TarCoding,
+    decode::tar_integrity_within,
+    header,
+    preferred_coding,
+};
 use std::io::Write;
 
 fn gzip(bytes: &[u8]) -> Vec<u8> {

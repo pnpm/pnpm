@@ -1,4 +1,8 @@
-use super::{ContentCoding, MAX_UNTRUSTED_PREALLOC_BYTES, decode_buffered_body};
+use super::{
+    ContentCoding,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    decode_buffered_body,
+};
 
 #[test]
 fn a_body_declared_larger_than_the_buffer_limit_is_not_decoded_here() {

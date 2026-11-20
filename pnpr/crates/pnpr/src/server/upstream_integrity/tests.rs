@@ -1,7 +1,21 @@
-use super::{MissingIntegrityTarball, pin_still_applies, set_integrity};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
-use ssri::{Algorithm, Integrity, IntegrityOpts};
+use super::{
+    MissingIntegrityTarball,
+    pin_still_applies,
+    set_integrity,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityOpts,
+};
 
 fn digest(algorithm: Algorithm, bytes: &[u8]) -> Integrity {
     let mut opts = IntegrityOpts::new().algorithm(algorithm);

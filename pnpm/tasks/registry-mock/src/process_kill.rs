@@ -1,5 +1,11 @@
 use pipe_trait::Pipe;
-use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, Signal, System};
+use sysinfo::{
+    Pid,
+    ProcessRefreshKind,
+    RefreshKind,
+    Signal,
+    System,
+};
 
 /// Send `signal` to the process at `pid`. Returns `true` if the
 /// process existed and the signal was delivered, `false` if the

@@ -1,4 +1,7 @@
-use super::{Deserialize, LogEntryFile};
+use super::{
+    Deserialize,
+    LogEntryFile,
+};
 
 /// Runtime logging configuration. Mirrors the YAML `log:` object
 /// (Verdaccio 6+ shape). Drives the `tracing-subscriber` init in the
@@ -12,7 +15,7 @@ pub struct LogConfig {
 
 /// Wire format for log records. `Pretty` is human-readable with
 /// colors when stdout is a TTY; `Json` is NDJSON (one JSON object
-/// per record) suitable for log shippers — the same shape pino
+/// per record) suitable for log shippers, the same shape pino
 /// emits.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]

@@ -1,10 +1,20 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, AuthHeadersByScope, NoProxySetting};
+use pnpm_network::{
+    AuthHeaders,
+    AuthHeadersByScope,
+    NoProxySetting,
+};
 use pretty_assertions::assert_eq;
 
-use super::{import_method_name, project_config};
+use super::{
+    import_method_name,
+    project_config,
+};
 
 fn config_with_auth(by_scope: AuthHeadersByScope) -> Config {
     Config {
@@ -125,7 +135,7 @@ fn import_method_names_round_trip_through_the_install_parser() {
 }
 
 /// End-to-end through the real resolver: a project `.npmrc` cascade must
-/// surface in the projection. Asserts only the fixture's own keys — the
+/// surface in the projection. Asserts only the fixture's own keys, the
 /// process environment and user config may add entries, never remove
 /// these.
 #[test]

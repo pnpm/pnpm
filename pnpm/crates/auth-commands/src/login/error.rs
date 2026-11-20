@@ -1,8 +1,17 @@
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::PathBuf,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_network_web_auth::{WebAuthTimeoutError, WithOtpError};
+use pnpm_network_web_auth::{
+    WebAuthTimeoutError,
+    WithOtpError,
+};
 use pnpm_workspace_manifest_writer::EditManifestFieldError;
 
 use super::classic_login::ClassicLoginOpError;

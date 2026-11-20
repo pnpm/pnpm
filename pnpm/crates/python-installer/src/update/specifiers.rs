@@ -1,6 +1,17 @@
-use miette::{IntoDiagnostic, Result};
-use pep440_rs::{Operator, Version, VersionSpecifier, VersionSpecifiers};
-use pep508_rs::{Requirement, VersionOrUrl};
+use miette::{
+    IntoDiagnostic,
+    Result,
+};
+use pep440_rs::{
+    Operator,
+    Version,
+    VersionSpecifier,
+    VersionSpecifiers,
+};
+use pep508_rs::{
+    Requirement,
+    VersionOrUrl,
+};
 use pnpm_python_resolver::LockedPin;
 
 pub(super) fn compute_saved_specifiers_for_pins(
@@ -171,6 +182,7 @@ fn updated_single_specifier(
         _ => (force_bump && !existing.contains(version)).then(|| format!(">={version}")),
     };
     formatted
-        .map(|text| text.parse().into_diagnostic())
+        .map(|text| text.parse())
+        .map(miette::IntoDiagnostic::into_diagnostic)
         .transpose()
 }

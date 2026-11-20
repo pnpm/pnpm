@@ -1,11 +1,19 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 use serde_json::json;
 use tempfile::tempdir;
 
 use super::{
-    MAX_PRECALCULATED_BINS, PackageBin, normalize_package_relative_path, parse_shebang_from_bytes,
-    resolve_package_bins, serialize_precalculated_bins, verify_package_bins,
+    MAX_PRECALCULATED_BINS,
+    PackageBin,
+    normalize_package_relative_path,
+    parse_shebang_from_bytes,
+    resolve_package_bins,
+    serialize_precalculated_bins,
+    verify_package_bins,
 };
 
 #[test]

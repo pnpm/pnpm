@@ -1,16 +1,30 @@
 use pnpm_cmd_shim::{
-    LinkBinsOptions, PackageBinSource, get_bins_from_package_manifest, link_bins,
-    link_bins_of_packages, remove_bin,
+    LinkBinsOptions,
+    PackageBinSource,
+    get_bins_from_package_manifest,
+    link_bins,
+    link_bins_of_packages,
+    remove_bin,
 };
 use pnpm_package_manifest::safe_read_package_json_from_dir;
-use pnpm_workspace::{FindWorkspaceProjectsOpts, find_workspace_projects_no_check};
+use pnpm_workspace::{
+    FindWorkspaceProjectsOpts,
+    find_workspace_projects_no_check,
+};
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use crate::{BinLinkSettings, SyncInjectedDepsError, injection_records::InjectedCopy};
+use crate::{
+    BinLinkSettings,
+    SyncInjectedDepsError,
+    injection_records::InjectedCopy,
+};
 
 /// Package and workspace locations for updating binary links.
 pub(crate) struct SyncBinLinks<'a> {

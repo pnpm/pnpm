@@ -1,4 +1,12 @@
-use super::{Envelope, IgnoredScriptsLog, LogEvent, LogLevel, Pipe, Value, assert_eq};
+use super::{
+    Envelope,
+    IgnoredScriptsLog,
+    LogEvent,
+    LogLevel,
+    Pipe,
+    Value,
+    assert_eq,
+};
 
 /// `pnpm:ignored-scripts` carries a single field: `packageNames` (camelCase).
 /// Default-reporter needs the camelCase spelling.

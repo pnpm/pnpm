@@ -1,6 +1,17 @@
 use super::{
-    BlankLines, DEFAULT_INDENT, InitOptions, PackageManifest, PackageManifestError, Path, PathBuf,
-    Serialize, Value, Write, convert_engines_runtime_to_dependencies, fs, io,
+    BlankLines,
+    DEFAULT_INDENT,
+    InitOptions,
+    PackageManifest,
+    PackageManifestError,
+    Path,
+    PathBuf,
+    Serialize,
+    Value,
+    Write,
+    convert_engines_runtime_to_dependencies,
+    fs,
+    io,
 };
 
 #[derive(Clone)]
@@ -116,8 +127,8 @@ fn detect_indent(contents: &str) -> &str {
 
 /// Serialize with the manifest's own indentation unit; an empty unit
 /// produces a compact single-line document. At most the first 10
-/// characters of the unit are used — the cap `JSON.stringify` applies to
-/// its `space` argument, which pnpm writes manifests through — so a
+/// characters of the unit are used (the cap `JSON.stringify` applies to
+/// its `space` argument, which pnpm writes manifests through) so a
 /// pathologically indented source file can't amplify the output.
 pub(super) fn serialize_with_indent(
     value: &Value,

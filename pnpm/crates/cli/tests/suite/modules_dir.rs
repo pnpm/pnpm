@@ -4,15 +4,27 @@
 //! so tools the project installs can load its plugins. Mirrors
 //! `pnpm11/installing/deps-installer/test/install/modulesDir.ts`.
 
-use crate::_utils::{append_workspace_yaml_key, pacquet_in};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
 };
 
 #[test]
@@ -259,8 +271,8 @@ fn assert_symlinked_bins_load_plugins_per_project(
         assert!(stdout.contains("project-2: plugin loaded"), "{args:?}: {stdout}");
     }
     let direct = Command::new(&bin)
-        .current_dir(workspace.join("project-2"))
-        .env_remove("NODE_PATH")
+        .with_current_dir(workspace.join("project-2"))
+        .without_env("NODE_PATH")
         .output()
         .expect("run the bin");
     assert_eq!(String::from_utf8_lossy(&direct.stdout).trim_end(), "project-2: missing");
@@ -414,8 +426,8 @@ fn set_extend_node_path(workspace: &Path, from: &str, to: &str) {
 fn run_tool(project_dir: &Path) -> Output {
     let shim = if cfg!(windows) { "vendor/.bin/tool.cmd" } else { "vendor/.bin/tool" };
     Command::new(project_dir.join(shim))
-        .current_dir(project_dir)
-        .env_remove("NODE_PATH")
+        .with_current_dir(project_dir)
+        .without_env("NODE_PATH")
         .output()
         .expect("run the tool shim")
 }

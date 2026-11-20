@@ -1,16 +1,33 @@
 mod yarn_patches;
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 use crate::State;
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pnpm_lockfile::{EnvLockfile, Lockfile, SymlinkedLockfile, lockfile_write_target};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    Lockfile,
+    SymlinkedLockfile,
+    lockfile_write_target,
+};
 use pnpm_lockfile_import::{
-    YARN_LOCKFILE_NAME, read_foreign_lockfile_versions, to_preferred_versions,
+    YARN_LOCKFILE_NAME,
+    read_foreign_lockfile_versions,
+    to_preferred_versions,
 };
 use pnpm_network::redact_url_for_display;
-use pnpm_package_manager::{Install, PreferredVersionsOverride, ProjectMutation};
+use pnpm_package_manager::{
+    Install,
+    PreferredVersionsOverride,
+    ProjectMutation,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;

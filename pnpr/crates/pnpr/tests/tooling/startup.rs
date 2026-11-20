@@ -1,4 +1,8 @@
-use super::{Config, TempDir, check_config};
+use super::{
+    Config,
+    TempDir,
+    check_config,
+};
 
 #[tokio::test]
 async fn config_check_rejects_insecure_database_tokens() {

@@ -1,6 +1,14 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions, ResolveResult,
-    StubResolver, assert_eq, fake_manifest, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    ResolveResult,
+    StubResolver,
+    assert_eq,
+    fake_manifest,
+    resolve_dependency_tree,
 };
 
 /// Regression for [#11939](https://github.com/pnpm/pnpm/issues/11939):
@@ -13,7 +21,10 @@ use super::{
 /// `link:<rel-path>` with no peer-graph suffix.
 #[tokio::test]
 async fn workspace_link_node_is_short_circuited_in_tree() {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
     use pnpm_resolving_resolver_base::PkgResolutionId;
 
     let link_id = "link:../shared";
@@ -69,11 +80,11 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
     assert_eq!(link_node.depth, -1, "link node must carry depth = -1");
     assert!(
         link_node.children.realized().is_empty(),
-        "link node must have empty children — link target resolves its own deps separately",
+        "link node must have empty children, link target resolves its own deps separately",
     );
     let pkg = tree.packages.get(link_id).expect("link package entry");
     assert!(
         pkg.peer_set.taken().is_empty(),
-        "link node's ResolvedPackage must carry no peer_dependencies — peer matching is the linked importer's responsibility",
+        "link node's ResolvedPackage must carry no peer_dependencies, peer matching is the linked importer's responsibility",
     );
 }

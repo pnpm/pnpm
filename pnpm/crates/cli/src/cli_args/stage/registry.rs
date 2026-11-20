@@ -1,9 +1,29 @@
 use super::{
-    Diagnostic, Display, Error, OtpChallenge, OtpError, OtpErrorBody, OtpSession, PER_PAGE,
-    Reporter, RetryOpts, STAGE_BODY_LIMIT, STAGE_ERROR_BODY_LIMIT, STAGE_LIST_MAX_PAGES,
-    STAGE_TARBALL_BODY_LIMIT, StageError, StageListResponse, ThrottledClient, Value,
-    WebAuthFetchOptions, WebAuthHost, WithOtpError, body_display_string, read_limited_body,
-    redact_url_credentials, send_with_retry,
+    Diagnostic,
+    Display,
+    Error,
+    OtpChallenge,
+    OtpError,
+    OtpErrorBody,
+    OtpSession,
+    PER_PAGE,
+    Reporter,
+    RetryOpts,
+    STAGE_BODY_LIMIT,
+    STAGE_ERROR_BODY_LIMIT,
+    STAGE_LIST_MAX_PAGES,
+    STAGE_TARBALL_BODY_LIMIT,
+    StageError,
+    StageListResponse,
+    ThrottledClient,
+    Value,
+    WebAuthFetchOptions,
+    WebAuthHost,
+    WithOtpError,
+    body_display_string,
+    read_limited_body,
+    redact_url_credentials,
+    send_with_retry,
 };
 use crate::cli_args::registry_client::apply_auth_and_otp;
 
@@ -128,7 +148,7 @@ pub(super) async fn stage_request_in_session<Reporter: self::Reporter>(
         .run::<WebAuthHost, Reporter, (), StageHttpError, _, _>(
             // A plain `FnMut` returning an `async move` block (not an
             // `AsyncFnMut`) so the produced future carries an ordinary `Send`
-            // obligation — see `with_otp_handling`'s `Operation` bound.
+            // obligation; see `with_otp_handling`'s `Operation` bound.
             move |challenge_otp: Option<String>| {
                 // The web-auth-provided OTP (a fresh challenge) takes precedence
                 // over any statically configured one.
@@ -176,7 +196,8 @@ async fn stage_mutation(
     let www_authenticate = response
         .headers()
         .get(reqwest::header::WWW_AUTHENTICATE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .map(str::to_owned);
     let body = read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await
         .map_err(|source| {
@@ -297,8 +318,9 @@ fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Opt
     let auth_url = read("authUrl");
     let done_url = read("doneUrl");
     let has_web_auth_urls = auth_url.is_some() && done_url.is_some();
-    let header_mentions_otp =
-        www_authenticate.is_some_and(|value| value.to_lowercase().contains("otp"));
+    let header_mentions_otp = www_authenticate
+        .map(str::to_lowercase)
+        .is_some_and(|lowercase| lowercase.contains("otp"));
     if !has_web_auth_urls && !header_mentions_otp {
         return None;
     }

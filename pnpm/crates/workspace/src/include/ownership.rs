@@ -1,5 +1,10 @@
 use super::{
-    Delegation, INCLUDE_KEY, Include, IncludeError, IncludeSource, SettingSlot,
+    Delegation,
+    INCLUDE_KEY,
+    Include,
+    IncludeError,
+    IncludeSource,
+    SettingSlot,
     selector::defined_slots,
 };
 use std::collections::BTreeMap;

@@ -9,13 +9,19 @@
 //! gives users a release to migrate.
 
 #[cfg(unix)]
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 #[cfg(unix)]
 use miette::Diagnostic;
 
 use super::cli_command::CliCommand;
 #[cfg(unix)]
-use super::config::{ConfigArgs, ConfigSubcommand};
+use super::config::{
+    ConfigArgs,
+    ConfigSubcommand,
+};
 
 pub(crate) fn check_sudo(command: &CliCommand) -> miette::Result<()> {
     #[cfg(unix)]
@@ -50,7 +56,10 @@ fn check_sudo_as(
     if euid != 0 {
         return Ok(());
     }
-    if !sudo_user.is_some_and(|user| !user.is_empty() && user != "root") {
+    if sudo_user
+        .filter(|user| !user.is_empty())
+        .is_none_or(|user| user == "root")
+    {
         return Ok(());
     }
     match sudo_blocked_operation(command) {

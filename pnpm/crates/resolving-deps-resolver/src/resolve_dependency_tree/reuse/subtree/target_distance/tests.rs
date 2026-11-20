@@ -1,9 +1,16 @@
 use pipe_trait::Pipe;
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+};
 use std::path::Path;
 
 use super::TargetDistances;
-use crate::{UpdateReuseScope, UpdateTargets, VersionLine};
+use crate::{
+    UpdateReuseScope,
+    UpdateTargets,
+    VersionLine,
+};
 
 /// `a` depends on `b`, which depends on `c`. `d` depends on `c` through
 /// a `link:`, which the snapshot graph does not follow.

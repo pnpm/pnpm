@@ -1,19 +1,47 @@
 use crate::{
     extend_path::extend_path,
-    lifecycle::{StreamedScript, push_script_arg},
-    make_env::{EnvOptions, build_env, is_path_key, path_value},
-    process::{Command, Stdio},
-    process_tracker::{ProcessTracker, spawn_child},
-    script_args::{ArgQuoting, build_command},
+    lifecycle::{
+        StreamedScript,
+        push_script_arg,
+    },
+    make_env::{
+        EnvOptions,
+        build_env,
+        is_path_key,
+        path_value,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
+    process_tracker::{
+        ProcessTracker,
+        spawn_child,
+    },
+    script_args::{
+        ArgQuoting,
+        build_command,
+    },
     script_exit::ScriptExit,
     shell::{
-        ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell,
+        ScriptShellError,
+        SelectedShell,
+        missing_script_shell,
+        script_body,
+        select_shell,
         use_shell_emulator,
     },
-    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
+    shell_emulator::{
+        EmulatedOutput,
+        ShellEmulatorError,
+        execute_emulated,
+    },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_reporter::LogEvent;
 use serde_json::Value;
@@ -21,11 +49,14 @@ use std::{
     collections::HashMap,
     env,
     ffi::OsString,
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
 };
 
-/// Error from running a user script through [`run_script`] — the
+/// Error from running a user script through [`run_script`], the
 /// failure modes of the `stdio: 'inherit'` foreground path.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -60,7 +91,7 @@ pub enum ScriptOutput<'a> {
     /// terminal.
     Inherit,
     /// Pipe the child and republish its output as `pnpm:lifecycle`
-    /// events, one per line — pnpm's `--stream`. The reporter renders
+    /// events, one per line, pnpm's `--stream`. The reporter renders
     /// each line under the project it came from, which is what makes
     /// concurrent projects' output readable.
     Streamed {
@@ -75,7 +106,7 @@ pub enum ScriptOutput<'a> {
     },
 }
 
-/// Inputs for [`run_script`] — the subset of lifecycle-hook options a
+/// Inputs for [`run_script`], the subset of lifecycle-hook options a
 /// foreground `pnpm run` invocation needs.
 pub struct RunScript<'a> {
     /// The package manifest, used to stamp `npm_package_*` env vars.
@@ -231,7 +262,7 @@ fn run_streamed(
 
 /// The script is appended through `push_script_arg` (not a chained
 /// `.arg`) so the Windows `cmd /d /s /c` verbatim path can use
-/// `raw_arg` and keep embedded quoting like `node -e "..."` intact —
+/// `raw_arg` and keep embedded quoting like `node -e "..."` intact,
 /// matching the lifecycle runner.
 fn run_in_shell(
     opts: &RunScript<'_>,

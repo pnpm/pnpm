@@ -1,10 +1,20 @@
-use super::{InstallArgs, InstallDependencyOptions, NodeLinkerArg, PnprBenchmarkRegistryOverride};
+use super::{
+    InstallArgs,
+    InstallDependencyOptions,
+    NodeLinkerArg,
+    PnprBenchmarkRegistryOverride,
+};
 use crate::cli_args::install::pnpr_request::{
-    BenchmarkRegistryRewrite, check_pnpr_applied_settings, rewrite_resolution_registry,
+    BenchmarkRegistryRewrite,
+    check_pnpr_applied_settings,
+    rewrite_resolution_registry,
 };
 use clap::Parser;
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
@@ -12,7 +22,11 @@ use pretty_assertions::assert_eq;
 /// resolution in `config/reader/src/index.ts`.
 #[test]
 fn dependency_options_to_dependency_groups() {
-    use DependencyGroup::{Dev, Optional, Prod};
+    use DependencyGroup::{
+        Dev,
+        Optional,
+        Prod,
+    };
     let create_list =
         |opts: InstallDependencyOptions| opts.dependency_groups(true).collect::<Vec<_>>();
 
@@ -222,7 +236,7 @@ fn slow_fetch_warning_flags_parse() {
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
 /// canonical `pnpm_config::NodeLinker` enum. Tied to the
-/// `ValueEnum` derive's kebab-case rename — if a future variant
+/// `ValueEnum` derive's kebab-case rename, if a future variant
 /// is added, this test starts failing at compile time as a
 /// reminder to update the mapping.
 #[test]

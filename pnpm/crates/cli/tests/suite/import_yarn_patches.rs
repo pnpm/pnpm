@@ -1,12 +1,25 @@
 //! `pnpm import` of dependencies Yarn declares with its `patch:` protocol.
 
-use crate::{_utils::append_workspace_yaml_key, patch::MARKER_PATCH};
+use crate::{
+    _utils::append_workspace_yaml_key,
+    patch::MARKER_PATCH,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"

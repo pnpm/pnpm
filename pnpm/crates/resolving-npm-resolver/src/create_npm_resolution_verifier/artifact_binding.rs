@@ -1,8 +1,16 @@
 use super::{
-    JsonValue, LockfileResolution, PublishedTarballUrlMapper, RegistryArtifact,
-    RegistryArtifactHistory, ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-    TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision, has_complete_sha512_digest,
-    is_revision_registry_tarball_url, redact_url_for_display,
+    JsonValue,
+    LockfileResolution,
+    PublishedTarballUrlMapper,
+    RegistryArtifact,
+    RegistryArtifactHistory,
+    ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    TARBALL_URL_MISMATCH_VIOLATION_CODE,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    redact_url_for_display,
 };
 
 pub(super) fn same_tarball_url(left: &str, right: &str) -> bool {
@@ -97,7 +105,8 @@ pub(super) fn current_revision_number(
     };
     let revision = raw_revision
         .as_u64()
-        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok)
         .map(TarballRevision::get);
     revision.ok_or_else(|| ResolutionVerification::Err {
         code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
@@ -207,7 +216,7 @@ pub(super) fn lockfile_revision(resolution: &LockfileResolution) -> Option<u64> 
 
 /// Canonicalize a tarball URL: parse-and-reserialize to drop default
 /// ports (`:443`/`:80`), decode the `%2f` scoped-name separator, then
-/// ignore the scheme — so a benign http/https, default-port, or
+/// ignore the scheme, so a benign http/https, default-port, or
 /// encoding difference between the lockfile URL and the registry
 /// metadata isn't read as tampering.
 pub(super) fn canonical_tarball_url(url: &str) -> String {

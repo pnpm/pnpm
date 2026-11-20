@@ -1,11 +1,31 @@
 use super::{
-    AllVersionsBlockedError, Arc, GuardExhaustionPolicy, GuardRepickLimitError, Package,
-    PackageMetaCache, PackageVersion, PackageVersionGuardDecision, PickPackageContext,
-    PickPackageError, PickPackageOptions, RegistryPackageSpec, RegistryResponseError,
-    RegistryResponseErrorOptions, ResolveError, ResolveOptions, UpdateBehavior, pick_package,
-    redact_and_sanitize, registry_response_status, to_registry_url,
+    AllVersionsBlockedError,
+    Arc,
+    GuardExhaustionPolicy,
+    GuardRepickLimitError,
+    Package,
+    PackageMetaCache,
+    PackageVersion,
+    PackageVersionGuardDecision,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    RegistryPackageSpec,
+    RegistryResponseError,
+    RegistryResponseErrorOptions,
+    ResolveError,
+    ResolveOptions,
+    UpdateBehavior,
+    pick_package,
+    redact_and_sanitize,
+    registry_response_status,
+    to_registry_url,
 };
-use crate::trust_checks::{TrustCheckOptions, TrustViolation, fail_if_trust_downgraded};
+use crate::trust_checks::{
+    TrustCheckOptions,
+    TrustViolation,
+    fail_if_trust_downgraded,
+};
 
 /// Picker output threaded through to [`build_resolve_result`](super::resolution_result::build_resolve_result).
 /// `meta` is shared as [`Arc<Package>`] to avoid deep-cloning the
@@ -174,7 +194,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         // Block by the *packument key*, which the next pick filters on. It
         // usually equals the parsed manifest version, but a registry that
         // serves a key differing from the manifest's `version` field would
-        // otherwise never get the candidate excluded — re-selecting it
+        // otherwise never get the candidate excluded, re-selecting it
         // forever and wrongly reporting every version blocked when a lower
         // one is still fine.
         let blocked_key = blocked_packument_key(&pick_result.meta, &version, &version_str);
@@ -381,8 +401,8 @@ pub(super) fn blocked_packument_key(
         .unwrap_or_else(|| version_str.to_string())
 }
 
-/// Answer a request the picker gave up on — every matching version rejected,
-/// or the re-pick cap reached first — per the guard's
+/// Answer a request the picker gave up on (every matching version rejected,
+/// or the re-pick cap reached first) per the guard's
 /// [`GuardExhaustionPolicy`]. `fail` builds the error naming which of the two
 /// it was, for a guard whose rejections are a hard requirement.
 pub(super) fn exhausted(

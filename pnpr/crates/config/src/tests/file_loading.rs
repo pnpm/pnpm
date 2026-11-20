@@ -1,6 +1,17 @@
 use super::{
-    Config, DEFAULT_CONFIG_YAML, Ecosystem, LogFormat, LogLevel, Path, RegistryError,
-    bundled_registries, config_file_in, listen, load_with_graph, parse_interval, write_yaml,
+    Config,
+    DEFAULT_CONFIG_YAML,
+    Ecosystem,
+    LogFormat,
+    LogLevel,
+    Path,
+    RegistryError,
+    bundled_registries,
+    config_file_in,
+    listen,
+    load_with_graph,
+    parse_interval,
+    write_yaml,
 };
 
 #[test]
@@ -68,7 +79,10 @@ storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
 
 #[test]
 fn from_default_yaml_parses_bundled_file() {
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     let routing = bundled_registries();
     assert_eq!(routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
@@ -95,7 +109,7 @@ fn from_default_yaml_parses_bundled_file() {
 #[test]
 fn default_yaml_const_matches_what_from_default_parses() {
     // Sanity check: the const is non-empty and round-trips through
-    // the parser without panicking — i.e. `from_default_yaml`'s
+    // the parser without panicking, i.e. `from_default_yaml`'s
     // `expect(...)` is not a tripwire under future edits.
     assert!(!DEFAULT_CONFIG_YAML.is_empty());
     let _ = Config::from_default_yaml(Path::new("."), listen(), None);
@@ -276,7 +290,7 @@ fn resolve_propagates_parse_error_for_cli_path() {
 
 #[test]
 fn resolve_propagates_missing_file_error_for_default_path() {
-    // Symmetric to the CLI case — a bad default path is just as
+    // Symmetric to the CLI case, a bad default path is just as
     // fatal as a bad CLI path. (In practice callers only pass a
     // default path that already passed `config_file_in`'s
     // `is_file()` check, so this is a defense-in-depth assertion.)

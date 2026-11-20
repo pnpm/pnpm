@@ -3,7 +3,7 @@
 //! Dependency resolution for an install pass.
 //!
 //! The public entry point for an install pass is
-//! [`fn@resolve_workspace`] — it loops over every workspace project,
+//! [`fn@resolve_workspace`]; it loops over every workspace project,
 //! drives [`fn@resolve_importer`] per importer, merges the per-importer
 //! trees, and finishes with one [`fn@resolve_peers_workspace`] pass that
 //! shares peer caches across importers and applies
@@ -16,11 +16,11 @@
 //!    and recurses on every resolved package's own manifest
 //!    dependencies. Produces:
 //!
-//!    - [`ResolvedTree::packages`] — flat dedup map keyed by
+//!    - [`ResolvedTree::packages`], flat dedup map keyed by
 //!      `pkgIdWithPatchHash`.
-//!    - [`ResolvedTree::dependencies_tree`] — per-occurrence tree
+//!    - [`ResolvedTree::dependencies_tree`], per-occurrence tree
 //!      keyed by [`NodeId`].
-//!    - [`ResolvedTree::all_peer_dep_names`] — names every visited
+//!    - [`ResolvedTree::all_peer_dep_names`], names every visited
 //!      package declares as a peer, used by the peer pass as the
 //!      `parentPkgs` filter.
 //!
@@ -30,7 +30,7 @@
 //!
 //! 2. **Peer pass** ([`fn@resolve_peers`]). Walks the tree, matches each
 //!    package's peer requirements against the parent chain, and
-//!    produces [`DependenciesGraph`] — keyed by `DepPath` (one entry per
+//!    produces [`DependenciesGraph`], keyed by `DepPath` (one entry per
 //!    `(pkgIdWithPatchHash, peer-suffix)` combination) and the entry
 //!    point for the install layer.
 //!
@@ -60,52 +60,120 @@
 //! - **No catalog / hook / lockfile-pinned-version bias.** The
 //!   resolver is fed each child's manifest range verbatim. Lockfile-
 //!   seeded preferred versions arrive via the orchestrator's
-//!   `all_preferred_versions` option — callers pre-seed with the
+//!   `all_preferred_versions` option, callers pre-seed with the
 //!   `pnpm-lockfile-preferred-versions` crate.
 
 pub use dependencies_graph::{
-    DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
-    PeerDependencyIssue, PeerDependencyIssues, ResolvedDependencyEdges,
+    DependenciesGraph,
+    DependenciesGraphNode,
+    MissingPeer,
+    ParentChain,
+    ParentPackageRef,
+    PeerDependencyIssue,
+    PeerDependencyIssues,
+    ResolvedDependencyEdges,
 };
 pub use lockfile_reuse::locked_child_admits;
 pub use node_id::NodeId;
-pub use parent_pkg_aliases::{ParentPkgAliases, declared_peer_dependencies, own_dependency_names};
+pub use parent_pkg_aliases::{
+    ParentPkgAliases,
+    declared_peer_dependencies,
+    own_dependency_names,
+};
 pub use peer_dependents_dedupe::PeerDependentsDedupe;
 pub use peer_provider::{
-    DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-    get_hoistable_optional_peers, hoist_peers, peer_shadowed_dependency_names,
+    DependencyOverrider,
+    HoistPeersOptions,
+    MissingPeerInfo,
+    WorkspaceRootDep,
+    get_hoistable_optional_peers,
+    hoist_peers,
+    peer_shadowed_dependency_names,
 };
 pub use pnpm_deps_path::DepPath;
 pub use pnpm_package_name::is_valid_dependency_alias;
 pub use resolve_dependency_tree::{
-    ChildCatalogs, DependencyResolutionError, DependencySpec, Deprecation, DeprecationLogFn,
-    FinalizedChild, FinalizedPackage, FinalizedPackageFn, LockedRuntimeReuse, ManifestHook,
-    OverrideEntry, OverrideNoMatchingVersionError, ResolutionCancel, ResolveDependencyTreeError,
-    ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
-    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
-    WorkspaceTreeCtx, declared_specifiers, dependency_is_injected, dependency_meta_is_injected,
-    directory_package_dir, extend_tree, local_directory_child_specs, manifest_child_specs,
-    real_package_name_of, resolve_dependency_tree,
+    ChildCatalogs,
+    DependencyResolutionError,
+    DependencySpec,
+    Deprecation,
+    DeprecationLogFn,
+    FinalizedChild,
+    FinalizedPackage,
+    FinalizedPackageFn,
+    LockedRuntimeReuse,
+    ManifestHook,
+    OverrideEntry,
+    OverrideNoMatchingVersionError,
+    ResolutionCancel,
+    ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions,
+    SkippedOptionalDependency,
+    SkippedOptionalDependencyParent,
+    SkippedOptionalLogFn,
+    TreeCtx,
+    UpdateDepth,
+    UpdateReuseScope,
+    UpdateTargets,
+    VersionLine,
+    WorkspaceTreeCtx,
+    declared_specifiers,
+    dependency_is_injected,
+    dependency_meta_is_injected,
+    directory_package_dir,
+    extend_tree,
+    local_directory_child_specs,
+    manifest_child_specs,
+    real_package_name_of,
+    resolve_dependency_tree,
 };
 pub use resolve_importer::{
-    ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
-    ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
+    ImporterPeerOptions,
+    ImporterResolutionInputs,
+    ManifestTransformHooks,
+    PeerLinkOptions,
+    ResolveImporterError,
+    ResolveImporterOptions,
+    ResolveImporterResult,
+    resolve_importer,
     resolve_importer_with_workspace,
 };
 pub use resolve_peers::{
-    HoistMissingScope, ImporterPeerInput, PeerResolutionScope, PeerWalkAbort, ResolvePeersOptions,
-    ResolvePeersResult, WorkspacePeerSettings, WorkspaceResolvePeersResult, resolve_peers,
+    HoistMissingScope,
+    ImporterPeerInput,
+    PeerResolutionScope,
+    PeerWalkAbort,
+    ResolvePeersOptions,
+    ResolvePeersResult,
+    WorkspacePeerSettings,
+    WorkspaceResolvePeersResult,
+    resolve_peers,
     resolve_peers_workspace,
 };
 pub use resolve_workspace::{
-    ResolveWorkspaceResult, ResolvedWorkspaceDependencies, WorkspaceImporter,
-    WorkspaceLockfileReuse, WorkspacePeerResolutionOptions, WorkspaceResolveHooks,
-    WorkspaceResolveOptions, WorkspaceVersionResolution, resolve_workspace,
+    ResolveWorkspaceResult,
+    ResolvedWorkspaceDependencies,
+    WorkspaceImporter,
+    WorkspaceLockfileReuse,
+    WorkspacePeerResolutionOptions,
+    WorkspaceResolveHooks,
+    WorkspaceResolveOptions,
+    WorkspaceVersionResolution,
+    resolve_workspace,
     resolve_workspace_dependencies,
 };
 pub use resolved_tree::{
-    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, LockfilePeerBlocks, PeerDep,
-    PeerSet, ResolvedPackage, ResolvedPackageInput, ResolvedTree, TreeChildren,
+    ChildEdge,
+    DependenciesTree,
+    DependenciesTreeNode,
+    DirectDep,
+    LockfilePeerBlocks,
+    PeerDep,
+    PeerSet,
+    ResolvedPackage,
+    ResolvedPackageInput,
+    ResolvedTree,
+    TreeChildren,
     lockfile_peer_blocks,
 };
 

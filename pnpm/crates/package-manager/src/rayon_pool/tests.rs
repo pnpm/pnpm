@@ -1,4 +1,8 @@
-use super::{configure_rayon_pool, rayon_pool_size};
+use super::{
+    configure_rayon_pool,
+    rayon_pool_size,
+};
+use command_extra::CommandExtra;
 
 #[test]
 fn rayon_pool_is_the_scaled_parallelism_between_4_and_16_threads() {
@@ -12,8 +16,8 @@ fn configure_rayon_pool_is_idempotent() {
     const CHILD: &str = "PNPM_RAYON_POOL_TEST_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "rayon_pool::tests::configure_rayon_pool_is_idempotent"])
-            .env(CHILD, "1")
+            .with_args(["--exact", "rayon_pool::tests::configure_rayon_pool_is_idempotent"])
+            .with_env(CHILD, "1")
             .output()
             .unwrap();
         assert!(output.status.success(), "{output:?}");
@@ -27,7 +31,8 @@ fn configure_rayon_pool_is_idempotent() {
         std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1);
     let override_threads = std::env::var("RAYON_NUM_THREADS")
         .ok()
-        .and_then(|value| value.parse::<usize>().ok());
+        .map(|value| value.parse::<usize>())
+        .and_then(Result::ok);
     let expected = match override_threads {
         Some(0) => parallelism,
         Some(threads) => threads,

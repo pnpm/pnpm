@@ -1,14 +1,28 @@
 //! Answer the workspace-membership question for a single directory.
 
 use super::{
-    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, PROJECT_MANIFEST_BASENAMES, Path,
-    WorkspacePattern, dot_pruning_ignore_template,
-    managed::{is_under_ignored_directory, resolve_ignored_directories},
+    FindWorkspaceProjectsError,
+    FindWorkspaceProjectsOpts,
+    PROJECT_MANIFEST_BASENAMES,
+    Path,
+    WorkspacePattern,
+    dot_pruning_ignore_template,
+    managed::{
+        is_under_ignored_directory,
+        resolve_ignored_directories,
+    },
     negations::compile_negations,
     split_include_patterns,
-    walk::{has_always_ignored_component, manifest_walk_ignores, split_parent_prefix},
+    walk::{
+        has_always_ignored_component,
+        manifest_walk_ignores,
+        split_parent_prefix,
+    },
 };
-use wax::{Glob, Program as _};
+use wax::{
+    Glob,
+    Program as _,
+};
 
 /// A project that the workspace does not include stands on its own, so pnpm
 /// acts on that project alone instead of on the whole workspace: no shared
@@ -29,7 +43,9 @@ pub fn belongs_to_workspace(
     if !needs_package_patterns(workspace_dir, dir) {
         return Ok(true);
     }
-    let patterns = patterns.map_or_else(|| vec![".".to_string()], <[String]>::to_vec);
+    let patterns = patterns
+        .map(<[String]>::to_vec)
+        .unwrap_or_else(|| vec![".".to_string()]);
     is_workspace_project_dir(
         workspace_dir,
         dir,

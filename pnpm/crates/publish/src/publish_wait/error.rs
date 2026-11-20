@@ -1,6 +1,9 @@
 use std::time::Duration;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 
 use crate::registry_config_keys::NormalizedRegistryUrl;
 

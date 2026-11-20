@@ -1,4 +1,8 @@
-use super::{BinaryChannel, Channel, PackageManager};
+use super::{
+    BinaryChannel,
+    Channel,
+    PackageManager,
+};
 
 fn yarn_channel_of(version_spec: &str) -> Channel {
     PackageManager::Yarn.channel(version_spec)
@@ -50,7 +54,7 @@ fn yarn_6_and_above_come_from_release_archives() {
     }
 }
 
-/// A specifier that names no major at all must not fall to Yarn 1 — a
+/// A specifier that names no major at all must not fall to Yarn 1, a
 /// dist-tag or wildcard means "the current line", which is Berry.
 #[test]
 fn uncommitted_yarn_specifiers_fall_to_the_current_line() {

@@ -1,16 +1,28 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_network::redact_and_sanitize;
 use pnpm_patching::PatchKeyConflictError;
 use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::{
-    GitResolveError, NoMatchingVersionError, RegistryResponseError, ResolveError,
+    GitResolveError,
+    NoMatchingVersionError,
+    RegistryResponseError,
+    ResolveError,
     UnsupportedProtocolError,
 };
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::Arc,
+};
 
-use super::{OverrideNoMatchingVersionError, SkippedOptionalDependencyParent};
+use super::{
+    OverrideNoMatchingVersionError,
+    SkippedOptionalDependencyParent,
+};
 
 /// Cooperative cancellation probe polled during synchronous and multi-pass
 /// dependency resolution stages.
@@ -127,7 +139,7 @@ pub enum ResolveDependencyTreeError {
     #[diagnostic(transparent)]
     UnsupportedProtocol(#[error(source)] UnsupportedProtocolError),
 
-    /// The npm resolver's cache/fetch orchestration failed — most often
+    /// The npm resolver's cache/fetch orchestration failed, most often
     /// `ERR_PNPM_NO_OFFLINE_META`, raised with whatever code and help
     /// [`PickPackageError`] itself carries.
     #[diagnostic(transparent)]

@@ -1,11 +1,18 @@
 use crate::{
-    api::{EnvVar, GetCurrentDir, GetHomeDir},
+    api::{
+        EnvVar,
+        GetCurrentDir,
+        GetHomeDir,
+    },
     windows_path_env::read_dir_env,
 };
 use pnpm_store_dir::StoreDir;
 use std::{
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(windows)]
@@ -151,7 +158,9 @@ where
     Some(match env::consts::OS {
         "macos" => home_dir.join("Library/pnpm"),
         "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
-            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
+            .map(PathBuf::from)
+            .map(|joined| joined.join("pnpm"))
+            .unwrap_or_else(|| home_dir.join(".pnpm")),
         // pnpm treats every non-Windows platform as Unix here.
         _ => home_dir.join(".local/share/pnpm"),
     })
@@ -164,8 +173,8 @@ pub fn default_modules_dir() -> PathBuf {
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
 /// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
-/// into [`pnpm_config_dir::config_dir`] — the shared resolver, also
-/// used by the registry server — under the `pnpm` leaf.
+/// into [`pnpm_config_dir::config_dir`] (the shared resolver, also
+/// used by the registry server) under the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
@@ -319,9 +328,9 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
     60_000
 }
 
-/// The CLI's user-facing release version — the same value
+/// The CLI's user-facing release version, the same value
 /// `pnpm --version` prints. Single source of truth so the CLI
-/// version string and the default `User-Agent` (`default_user_agent`)
+/// version string and the default `User-Agent`
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
@@ -432,7 +441,7 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
     match option {
         None => default_workspace_concurrency_with_parallelism(parallelism),
         Some(n) if n > 0 => n as u32,
-        // `unsigned_abs` instead of `(-n) as u32` — the latter
+        // `unsigned_abs` instead of `(-n) as u32`, the latter
         // panics in debug builds on `n == i32::MIN` (negation
         // overflow); the former returns `i32::MAX as u32 + 1`
         // safely.
@@ -483,7 +492,7 @@ pub fn is_unsafe_perm_posix(uid: u32) -> bool {
     uid != 0
 }
 
-/// Safe wrapper around `libc::getuid` — contains the `unsafe`
+/// Safe wrapper around `libc::getuid`, contains the `unsafe`
 /// FFI block internally so the caller doesn't need to propagate
 /// `unsafe`.
 #[cfg(all(unix, not(target_os = "cygwin")))]

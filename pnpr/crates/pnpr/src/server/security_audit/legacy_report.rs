@@ -1,8 +1,18 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
 use indexmap::IndexMap;
-use node_semver::{Range, Version};
-use pnpr_osv::{BulkAdvisory, OsvIndex};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpr_osv::{
+    BulkAdvisory,
+    OsvIndex,
+};
 use serde::Serialize;
 use serde_json::Value;
 

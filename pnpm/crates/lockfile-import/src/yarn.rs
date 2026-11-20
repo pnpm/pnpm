@@ -1,9 +1,16 @@
 //! Version extraction from yarn's two lockfile formats.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpm_resolving_resolver_base::is_valid_semver_range;
 
-use crate::{VersionsByPackageName, add_version, split_descriptor};
+use crate::{
+    VersionsByPackageName,
+    add_version,
+    split_descriptor,
+};
 
 const METADATA_KEY: &str = "__metadata";
 const BERRY_METADATA_PREFIXES: [&str; 3] = ["__metadata:", r#""__metadata":"#, "'__metadata':"];

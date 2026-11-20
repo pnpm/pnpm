@@ -1,5 +1,13 @@
-use super::{BAR_INDEX, FOO_INDEX, METADATA};
-use crate::{registry::CRATES_IO_SOURCE, resolve_lockfile, verify_lockfile};
+use super::{
+    BAR_INDEX,
+    FOO_INDEX,
+    METADATA,
+};
+use crate::{
+    registry::CRATES_IO_SOURCE,
+    resolve_lockfile,
+    verify_lockfile,
+};
 use std::collections::BTreeMap;
 
 fn locked_foo_and_bar() -> String {

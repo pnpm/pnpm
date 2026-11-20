@@ -37,7 +37,8 @@ pub fn sanitize_inline(text: &str) -> Cow<'_, str> {
     {
         Cow::Owned(
             text.chars()
-                .filter(|ch| !ch.is_control() && !is_format_character(*ch))
+                .filter(|ch| !ch.is_control())
+                .filter(|ch| !is_format_character(*ch))
                 .collect(),
         )
     } else {
@@ -49,9 +50,9 @@ fn is_format_character(ch: char) -> bool {
     matches!(
         ch,
         '\u{00AD}'
-            | '\u{0600}'..='\u{0605}'
+            | '؀'..='\u{0605}'
             | '\u{061C}'
-            | '\u{06DD}'
+            | '۝'
             | '\u{070F}'
             | '\u{0890}'..='\u{0891}'
             | '\u{08E2}'
@@ -62,10 +63,10 @@ fn is_format_character(ch: char) -> bool {
             | '\u{2060}'..='\u{2064}'
             | '\u{2066}'..='\u{206F}'
             | '\u{FEFF}'
-            | '\u{FFF9}'..='\u{FFFB}'
-            | '\u{110BD}'
-            | '\u{110CD}'
-            | '\u{13430}'..='\u{1343F}'
+            | '￹'..='￻'
+            | '𑂽'
+            | '𑃍'
+            | '𓐰'..='𓐿'
             | '\u{1BCA0}'..='\u{1BCA3}'
             | '\u{1D173}'..='\u{1D17A}'
             | '\u{E0001}'

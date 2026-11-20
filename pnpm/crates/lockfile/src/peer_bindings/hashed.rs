@@ -1,10 +1,23 @@
-use std::{borrow::Cow, collections::HashSet};
+use std::{
+    borrow::Cow,
+    collections::HashSet,
+};
 
 use pnpm_crypto_hash::create_short_hash;
 
-use super::{BoundProviders, is_patch_marker, is_peer_suffix_hash, split_peer_suffix_segments};
+use super::{
+    BoundProviders,
+    is_patch_marker,
+    is_peer_suffix_hash,
+    split_peer_suffix_segments,
+};
 use crate::{
-    LockfileEntries, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotDepRef, SnapshotEntry,
+    LockfileEntries,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use cycle_probe::CycleProbe;
 

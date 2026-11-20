@@ -1,18 +1,42 @@
 //! Resolves `http://` / `https://` tarball URLs and the latest-version
 //! companion path for them.
 
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+};
 
-use pnpm_lockfile::{IntegrityTarget, LockfileResolution, TarballResolution};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_lockfile::{
+    IntegrityTarget,
+    LockfileResolution,
+    TarballResolution,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
-    ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use pnpm_tarball::{
-    FetchTarballForResolution, MemCache, PrefetchIntegrityCheck, PrefetchResult, RetryOpts,
-    TarballError, prefetch_cas_paths,
+    FetchTarballForResolution,
+    MemCache,
+    PrefetchIntegrityCheck,
+    PrefetchResult,
+    RetryOpts,
+    TarballError,
+    prefetch_cas_paths,
 };
 use ssri::Integrity;
 
@@ -45,7 +69,7 @@ pub struct TarballFetchContext {
 #[derive(Debug, Clone)]
 pub struct PriorTarballEntry {
     pub integrity: Integrity,
-    /// `<integrity>\t<pkg_id>` — the store-index row holding the
+    /// `<integrity>\t<pkg_id>`: the store-index row holding the
     /// extracted content.
     pub store_index_key: String,
     /// The URL the lockfile recorded. An immutable redirect moves this
@@ -55,14 +79,14 @@ pub struct PriorTarballEntry {
 }
 
 /// Resolves `http://...` / `https://...` tarball URLs from a project's
-/// manifest. One instance per install — the throttled HTTP client is
+/// manifest. One instance per install, the throttled HTTP client is
 /// shared with the rest of the install pipeline so the HEAD
 /// pre-flight respects the same concurrency cap as metadata fetches
 /// and tarball downloads.
 ///
 /// When `fetch_context` is `Some`, the resolver downloads the tarball
 /// during resolution to fill `manifest` + `integrity` into its
-/// [`ResolveResult`] — name/version/integrity for a remote tarball live
+/// [`ResolveResult`], name/version/integrity for a remote tarball live
 /// in the tarball's `package.json`, and pacquet builds the lockfile
 /// before the install/fetch pass. `None` (unit tests only) keeps the
 /// HEAD-only shape with no manifest/integrity.
@@ -221,7 +245,8 @@ impl TarballResolver {
         let resolved_url = if response
             .headers()
             .get(reqwest::header::CACHE_CONTROL)
-            .and_then(|header| header.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .is_some_and(|header| header.contains("immutable"))
         {
             response.url().to_string()
@@ -256,7 +281,7 @@ impl TarballResolver {
     /// recorded it with an integrity and the store still holds the
     /// content + its bundled manifest. Returns `None` (caller downloads)
     /// when there's no fetch context, no prior entry for the id, or the
-    /// store-index lookup misses — never on a wrong-content risk, since
+    /// store-index lookup misses, never on a wrong-content risk, since
     /// the key embeds the integrity and the CAFS is content-addressed.
     async fn reuse_from_warm_store(
         &self,
@@ -319,7 +344,7 @@ impl TarballResolver {
     }
 }
 
-/// URL tarballs lock to the exact URL — no concept of "latest". When
+/// URL tarballs lock to the exact URL, no concept of "latest". When
 /// the wanted dep names an HTTP or HTTPS URL, claim it so the dispatcher
 /// stops; the caller still surfaces a ref-mismatch report if the
 /// lockfile points at a different URL than before.

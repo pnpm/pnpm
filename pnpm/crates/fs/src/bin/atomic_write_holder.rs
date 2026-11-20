@@ -6,7 +6,10 @@
 
 #![expect(clippy::print_stderr, reason = "test-only helper binary")]
 
-use std::{path::PathBuf, process::ExitCode};
+use std::{
+    path::PathBuf,
+    process::ExitCode,
+};
 
 fn main() -> ExitCode {
     let Some(target) = std::env::args_os().nth(1).map(PathBuf::from) else {

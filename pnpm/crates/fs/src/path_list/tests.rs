@@ -1,4 +1,12 @@
-use super::{OsStr, OsStrExt, OsString, OsStringExt, PathBuf, join_paths, split_paths};
+use super::{
+    OsStr,
+    OsStrExt,
+    OsString,
+    OsStringExt,
+    PathBuf,
+    join_paths,
+    split_paths,
+};
 
 #[test]
 fn preserve_empty_entries_quotes_and_non_utf8() {

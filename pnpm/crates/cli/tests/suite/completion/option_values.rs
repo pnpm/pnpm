@@ -1,4 +1,9 @@
-use super::{pacquet, prepend_binary_dir_to_path, stdout};
+use super::{
+    pacquet,
+    prepend_binary_dir_to_path,
+    stdout,
+};
+use command_extra::CommandExtra;
 use std::process::Command;
 use tempfile::TempDir;
 
@@ -33,17 +38,17 @@ fn completion_server_completes_workspace_filter_values() {
         vec!["pnpm", "--filter", "pkg-foo", "-F", ""],
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), "@scope/bar\npkg-foo\nroot\n", "{words:?}");
     }
     for (prefix, expected) in [("pkg", "pkg-foo\n"), ("@scope/", "@scope/bar\n"), ("missing", "")] {
         let output = pacquet()
-            .current_dir(workspace.path().join("packages/foo"))
-            .args(["completion-server", "--", "pnpm", "-F", prefix])
+            .with_current_dir(workspace.path().join("packages/foo"))
+            .with_args(["completion-server", "--", "pnpm", "-F", prefix])
             .output()
             .unwrap();
         assert_eq!(stdout(output), expected, "{prefix}");
@@ -56,8 +61,8 @@ fn completion_server_completes_workspace_filter_values() {
         ("-rFpkg", "-rFpkg-foo\n"),
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--", "pnpm", word])
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--", "pnpm", word])
             .output()
             .unwrap();
         assert_eq!(stdout(output), expected, "{word}");
@@ -66,10 +71,10 @@ fn completion_server_completes_workspace_filter_values() {
         [vec!["--dir", "packages/foo"], vec!["-Cpackages/foo"], vec!["--prefix=packages/foo"]]
     {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--", "pnpm"])
-            .args(&directory_option)
-            .args(["--filter", "pkg"])
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--", "pnpm"])
+            .with_args(&directory_option)
+            .with_args(["--filter", "pkg"])
             .output()
             .unwrap();
         assert_eq!(stdout(output), "pkg-foo\n", "{directory_option:?}");
@@ -86,8 +91,8 @@ fn completion_server_filter_values_without_workspace() {
             std::fs::write(project.path().join("package.json"), manifest).unwrap();
         }
         let output = pacquet()
-            .current_dir(project.path())
-            .args(["completion-server", "--", "pnpm", "--filter", ""])
+            .with_current_dir(project.path())
+            .with_args(["completion-server", "--", "pnpm", "--filter", ""])
             .output()
             .unwrap();
         assert_eq!(stdout(output), expected);
@@ -104,8 +109,8 @@ fn completion_server_filter_respects_root_only_workspaces() {
         std::fs::write(child.join("package.json"), r#"{"name":"child"}"#).unwrap();
         std::fs::write(workspace.path().join("pnpm-workspace.yaml"), config).unwrap();
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--", "pnpm", "--filter", ""])
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--", "pnpm", "--filter", ""])
             .output()
             .unwrap();
         assert_eq!(stdout(output), "root\n", "{config}");
@@ -150,9 +155,9 @@ fn completion_server_omits_unsafe_package_and_script_names() {
     for shell in ["bash", "fish", "pwsh", "zsh"] {
         for option in ["--filter", "-F", "run"] {
             let output = pacquet()
-                .current_dir(workspace.path())
-                .env("SHELL", shell)
-                .args(["completion-server", "--", "pnpm", option, ""])
+                .with_current_dir(workspace.path())
+                .with_env("SHELL", shell)
+                .with_args(["completion-server", "--", "pnpm", option, ""])
                 .output()
                 .unwrap();
             assert_eq!(stdout(output), "safe\n", "{shell}: {option}");
@@ -186,9 +191,9 @@ fn completion_server_completes_directory_option_values() {
         vec!["pnpm", "pack-app", "--output-dir", ""],
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), "alpha/\nbeta/\n", "{words:?}");
@@ -212,9 +217,9 @@ fn completion_server_completes_directory_option_values() {
         (vec!["pnpm", "-C", "alpha", "--dir", ""], "alpha/\nbeta/\n"),
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), expected, "{words:?}");
@@ -239,9 +244,9 @@ fn completion_server_completes_file_option_values() {
         vec!["pnpm", "version", "--release-notes", ""],
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), "configs/\ngamma.txt\n", "{words:?}");
@@ -260,9 +265,9 @@ fn completion_server_completes_file_option_values() {
         (vec!["pnpm", "-C", "configs", "pack", "--out", ""], "nested.txt\n"),
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), expected, "{words:?}");
@@ -284,9 +289,9 @@ fn completion_server_completes_workspace_anchored_path_options_from_workspace_ro
         vec!["pnpm", "-C", "packages/foo", "patch-commit", "dir", "--patches-dir", ""],
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), "packages/\nroot-patches/\n", "{words:?}");
@@ -296,9 +301,9 @@ fn completion_server_completes_workspace_anchored_path_options_from_workspace_ro
         [vec!["pnpm", "--store-dir", ""], vec!["pnpm", "patch-commit", "dir", "--patches-dir", ""]]
     {
         let output = pacquet()
-            .current_dir(&pkg_foo)
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(&pkg_foo)
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), "packages/\nroot-patches/\n", "{words:?}");
@@ -318,17 +323,17 @@ fn completion_server_completes_workspace_anchored_path_options_from_workspace_ro
         ],
     ] {
         let output = pacquet()
-            .current_dir(workspace.path())
-            .args(["completion-server", "--"])
-            .args(&words)
+            .with_current_dir(workspace.path())
+            .with_args(["completion-server", "--"])
+            .with_args(&words)
             .output()
             .unwrap();
         assert_eq!(stdout(output), "local-dir/\n", "{words:?}");
     }
 
     let output = pacquet()
-        .current_dir(pkg_foo.join("local-dir"))
-        .args(["completion-server", "--", "pnpm", "--state-dir", ""])
+        .with_current_dir(pkg_foo.join("local-dir"))
+        .with_args(["completion-server", "--", "pnpm", "--state-dir", ""])
         .output()
         .unwrap();
     assert_eq!(stdout(output), "local-dir/\n");
@@ -343,53 +348,53 @@ fn completion_server_handles_tilde_and_workspace_root_fallback_in_directory_opti
     std::fs::create_dir(workspace.path().join("standalone-dir")).unwrap();
 
     let output = pacquet()
-        .current_dir(workspace.path())
-        .env("HOME", home.path())
-        .env("USERPROFILE", home.path())
-        .args(["completion-server", "--", "pnpm", "-C", "~/proj", "--store-dir", ""])
+        .with_current_dir(workspace.path())
+        .with_env("HOME", home.path())
+        .with_env("USERPROFILE", home.path())
+        .with_args(["completion-server", "--", "pnpm", "-C", "~/proj", "--store-dir", ""])
         .output()
         .unwrap();
     assert_eq!(stdout(output), "home-store/\n");
 
     let output = pacquet()
-        .current_dir(workspace.path())
-        .env("HOME", home.path())
-        .env("USERPROFILE", home.path())
-        .args(["completion-server", "--", "pnpm", "-C", r#""~/proj""#, "--store-dir", ""])
+        .with_current_dir(workspace.path())
+        .with_env("HOME", home.path())
+        .with_env("USERPROFILE", home.path())
+        .with_args(["completion-server", "--", "pnpm", "-C", r#""~/proj""#, "--store-dir", ""])
         .output()
         .unwrap();
     assert_eq!(stdout(output), "literal-store/\n");
 
     let output = pacquet()
-        .current_dir(workspace.path())
-        .env("HOME", home.path())
-        .env("USERPROFILE", home.path())
-        .args(["completion-server", "--", "pnpm", "--dir=~/proj", "--store-dir", ""])
+        .with_current_dir(workspace.path())
+        .with_env("HOME", home.path())
+        .with_env("USERPROFILE", home.path())
+        .with_args(["completion-server", "--", "pnpm", "--dir=~/proj", "--store-dir", ""])
         .output()
         .unwrap();
     assert_eq!(stdout(output), "literal-store/\n");
 
     let output = pacquet()
-        .current_dir(workspace.path())
-        .env("HOME", home.path())
-        .env("USERPROFILE", home.path())
-        .args(["completion-server", "--", "pnpm", "--dir=~/pr"])
+        .with_current_dir(workspace.path())
+        .with_env("HOME", home.path())
+        .with_env("USERPROFILE", home.path())
+        .with_args(["completion-server", "--", "pnpm", "--dir=~/pr"])
         .output()
         .unwrap();
     assert_eq!(stdout(output), "--dir=~/proj/\n");
 
     let output = pacquet()
-        .current_dir(workspace.path())
-        .env("HOME", home.path())
-        .env("USERPROFILE", home.path())
-        .args(["completion-server", "--", "pnpm", "--store-dir=~/pr"])
+        .with_current_dir(workspace.path())
+        .with_env("HOME", home.path())
+        .with_env("USERPROFILE", home.path())
+        .with_args(["completion-server", "--", "pnpm", "--store-dir=~/pr"])
         .output()
         .unwrap();
     assert_eq!(stdout(output), "--store-dir=~/proj/\n");
 
     let output = pacquet()
-        .current_dir(workspace.path())
-        .args(["completion-server", "--", "pnpm", "-w", "--store-dir", ""])
+        .with_current_dir(workspace.path())
+        .with_args(["completion-server", "--", "pnpm", "-w", "--store-dir", ""])
         .output()
         .unwrap();
     assert_eq!(stdout(output), "standalone-dir/\n~/\n");
@@ -405,7 +410,7 @@ fn completion_bash_completes_directory_options() {
 
     let completion_script = stdout(
         pacquet()
-            .args(["completion", "bash"])
+            .with_args(["completion", "bash"])
             .output()
             .unwrap(),
     );
@@ -425,9 +430,9 @@ printf '%s\n' "${{COMPREPLY[@]}}"
 "#,
         );
         let output = Command::new("bash")
-            .current_dir(workspace.path())
-            .env("PATH", prepend_binary_dir_to_path())
-            .args(["--noprofile", "--norc", "-c", &bash_script])
+            .with_current_dir(workspace.path())
+            .with_env("PATH", prepend_binary_dir_to_path())
+            .with_args(["--noprofile", "--norc", "-c", &bash_script])
             .output()
             .unwrap();
         let reply = stdout(output);

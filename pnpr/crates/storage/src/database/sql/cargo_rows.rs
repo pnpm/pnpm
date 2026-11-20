@@ -2,15 +2,36 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
-    commit::{Commit, PackageRow, parse_json},
-    removed, to_column,
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
+    commit::{
+        Commit,
+        PackageRow,
+        parse_json,
+    },
+    removed,
+    to_column,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 pub(super) const CARGO_STATE_VERSION: u32 = 1;
 const YANKED: &str = "yanked";

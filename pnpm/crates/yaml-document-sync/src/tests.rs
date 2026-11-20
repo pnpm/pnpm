@@ -1,4 +1,7 @@
-use super::{parse, sync};
+use super::{
+    parse,
+    sync,
+};
 use serde_json::json;
 
 #[test]

@@ -1,8 +1,14 @@
 use super::write_tarball;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
-use std::{fs, process::Command};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn local_tarball_peer_versions_are_checked_against_the_manifest() {

@@ -1,6 +1,11 @@
 use super::{
-    CanonicalPackageName, Integrity, RegistryError, UpstreamTarballRoute,
-    is_osv_vulnerable_packument_version, tarball_cache_name, tarball_integrity_error,
+    CanonicalPackageName,
+    Integrity,
+    RegistryError,
+    UpstreamTarballRoute,
+    is_osv_vulnerable_packument_version,
+    tarball_cache_name,
+    tarball_integrity_error,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -59,7 +64,8 @@ fn unambiguous_candidates(tarballs: Vec<MissingIntegrityTarball>) -> Vec<Missing
         .collect();
     tarballs
         .into_iter()
-        .filter(|tarball| tarball.needs_integrity && !shared.contains(&tarball.filename))
+        .filter(|tarball| tarball.needs_integrity)
+        .filter(|tarball| !shared.contains(&tarball.filename))
         .collect()
 }
 

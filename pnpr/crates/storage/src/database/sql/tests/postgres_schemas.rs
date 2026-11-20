@@ -1,8 +1,14 @@
 //! pnpr instances on different schemas of one `PostgreSQL` database.
 
-use super::{Adapter as Backend, Db};
+use super::{
+    Adapter as Backend,
+    Db,
+};
 use crate::database::sql::{
-    adapter::{Adapter, WriteTransaction},
+    adapter::{
+        Adapter,
+        WriteTransaction,
+    },
     schema,
 };
 use pnpr_config::SqlBackendSettings;
@@ -10,7 +16,12 @@ use pnpr_error::Result;
 use std::time::Duration;
 
 mod on_postgres {
-    use super::{Backend, Db, on_schema, write_while_holding};
+    use super::{
+        Backend,
+        Db,
+        on_schema,
+        write_while_holding,
+    };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     #[ignore = "requires PNPR_TEST_POSTGRES_URL"]

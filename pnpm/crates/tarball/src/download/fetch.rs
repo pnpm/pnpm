@@ -1,15 +1,42 @@
 use super::{
-    Arc, AuthHeaders, BodyProgress, BodyVerification, BufferBody, Buffered, BufferedArchive,
-    FetchingProgressLog, FetchingProgressMessage, IgnoreEntryFilter, Integrity, LogEvent, LogLevel,
-    NetworkError, PackageFilesIndex, Path, Reporter, SemaphorePermit, StoreDir, Stream,
-    TarballError, ThrottledClient, buffer_body, extract_body_while_downloading,
-    extract_local_tarball_buffer_with_sha1, extract_tarball_buffer,
-    extract_tarball_buffer_with_permit, local_file_tarball_path, open_local_tarball,
-    post_download_semaphore, read_local_tarball_buffer, streaming_extract_semaphore,
+    Arc,
+    AuthHeaders,
+    BodyProgress,
+    BodyVerification,
+    BufferBody,
+    Buffered,
+    BufferedArchive,
+    FetchingProgressLog,
+    FetchingProgressMessage,
+    IgnoreEntryFilter,
+    Integrity,
+    LogEvent,
+    LogLevel,
+    NetworkError,
+    PackageFilesIndex,
+    Path,
+    Reporter,
+    SemaphorePermit,
+    StoreDir,
+    Stream,
+    TarballError,
+    ThrottledClient,
+    buffer_body,
+    extract_body_while_downloading,
+    extract_local_tarball_buffer_with_sha1,
+    extract_tarball_buffer,
+    extract_tarball_buffer_with_permit,
+    local_file_tarball_path,
+    open_local_tarball,
+    post_download_semaphore,
+    read_local_tarball_buffer,
+    streaming_extract_semaphore,
     streams_while_downloading,
 };
 use crate::{
-    TarLimits, archive_integrity::ArchiveVerification, content_coding::ContentCoding,
+    TarLimits,
+    archive_integrity::ArchiveVerification,
+    content_coding::ContentCoding,
     download::buffered::ExtractedFiles,
 };
 use pnpm_package_manifest::PackageBin;
@@ -21,7 +48,7 @@ use std::collections::BTreeMap;
 /// succeeds.
 ///
 /// One attempt spans the whole pipeline so that a post-download failure
-/// — integrity mismatch, gzip decode, malformed tar — reaches the retry
+/// (integrity mismatch, gzip decode, malformed tar) reaches the retry
 /// boundary, where a re-fetch can recover from a transfer that happened
 /// to checksum or decode wrong.
 ///

@@ -1,13 +1,45 @@
 use super::{
-    super::{dispatch_script, rebuild, script_override},
-    ApproveArgs, ApproveBuildsArgs, CommandFuture, Context, DedupeArgs, DedupePipeline, DeployArgs,
-    DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs, InstallPipeline,
-    LinkArgs, PermissionsArgs, PermissionsCommand, PruneArgs, PrunePipeline, RebuildArgs, RunCtx,
-    RuntimeArgs, UnlinkArgs, apply_install_cli_config, apply_update_config, derive_config_root,
-    global, installed_project_config, render_permissions, resolve_bool_override,
+    super::{
+        dispatch_script,
+        rebuild,
+        script_override,
+    },
+    ApproveArgs,
+    ApproveBuildsArgs,
+    CommandFuture,
+    Context,
+    DedupeArgs,
+    DedupePipeline,
+    DeployArgs,
+    DeployPipeline,
+    EnvArgs,
+    EnvSubcommand,
+    FetchArgs,
+    ImportArgs,
+    InstallArgs,
+    InstallPipeline,
+    LinkArgs,
+    PermissionsArgs,
+    PermissionsCommand,
+    PruneArgs,
+    PrunePipeline,
+    RebuildArgs,
+    RunCtx,
+    RuntimeArgs,
+    UnlinkArgs,
+    apply_install_cli_config,
+    apply_update_config,
+    derive_config_root,
+    global,
+    installed_project_config,
+    render_permissions,
+    resolve_bool_override,
     warn_about_config_root,
 };
-use crate::cli_args::reporter::{CliReporter, selected_reporter};
+use crate::cli_args::reporter::{
+    CliReporter,
+    selected_reporter,
+};
 
 pub(in super::super) fn deploy<'a>(
     ctx: &RunCtx<'a>,
@@ -20,7 +52,8 @@ pub(in super::super) fn deploy<'a>(
     // never has to name a target it does not deploy to.
     let script_args = args.target_dirs
         .iter()
-        .map(|target| target.to_string_lossy().into_owned())
+        .map(|target| target.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect();
     if let Some(run_args) = script_override::resolve(ctx, cfg, "deploy", script_args)? {
         return dispatch_script::run(ctx, run_args);

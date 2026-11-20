@@ -1,6 +1,15 @@
 use super::{
-    BTreeMap, BadPeerIssue, HashMap, HashSet, IssuesByProjects, MissingPeerIssue,
-    PeerDependencyRules, PeerIssues, intersect_multiple_ranges, parse_wanted_dependency, satisfies,
+    BTreeMap,
+    BadPeerIssue,
+    HashMap,
+    HashSet,
+    IssuesByProjects,
+    MissingPeerIssue,
+    PeerDependencyRules,
+    PeerIssues,
+    intersect_multiple_ranges,
+    parse_wanted_dependency,
+    satisfies,
 };
 
 pub(super) fn merge_missing_peers(
@@ -125,7 +134,8 @@ fn is_version_allowed(
         .iter()
         .filter(|rule| parent_range_matches(rule, &declaring_parent.version))
         .filter_map(|rule| rule.peer_rules.get(peer_name))
-        .any(|ranges| ranges.iter().any(|range| satisfies(&issue.found_version, range)))
+        .map(|ranges| ranges.iter())
+        .any(|mut value| value.any(|range| satisfies(&issue.found_version, range)))
 }
 
 /// A rule with no parent range applies to every version of the parent.
@@ -190,6 +200,7 @@ fn add_parent_rule(by_parent: &mut AllowByParentMatcher, parent: &str, target: &
 
 fn split_ranges(spec: &str) -> Vec<String> {
     spec.split("||")
-        .map(|seg| seg.trim().to_string())
+        .map(str::trim)
+        .map(std::string::ToString::to_string)
         .collect()
 }

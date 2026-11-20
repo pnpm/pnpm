@@ -1,9 +1,21 @@
 use super::{
-    CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+    CreateExportableManifestError,
+    CreateExportableManifestOptions,
+    create_exportable_manifest,
 };
-use pnpm_catalogs_types::{Catalog, Catalogs};
-use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs, path::Path};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn empty_catalogs() -> Catalogs {
@@ -415,7 +427,7 @@ fn readme_with_invalid_utf8_is_embedded_lossily() {
         bumped_workspace_packages: None,
     };
     let out = build(dir.path(), &json!({ "name": "foo", "version": "1.0.0" }), &opts);
-    assert_eq!(out["readme"], json!("text\u{FFFD}"));
+    assert_eq!(out["readme"], json!("text�"));
 }
 
 #[test]

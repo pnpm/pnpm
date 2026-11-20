@@ -1,8 +1,8 @@
 //! Per-capability dependency-injection traits and the production [`Host`]
 //! provider for the publish flow.
 //!
-//! Each side effect the publish flow needs — HTTP requests, the clock,
-//! environment reads, subprocess spawns — is its own
+//! Each side effect the publish flow needs (HTTP requests, the clock,
+//! environment reads, subprocess spawns) is its own
 //! `self`-less capability trait, composed as bounds on a single `Sys` type
 //! parameter, with the real OS behind [`Host`] and `fn`-bound unit-struct
 //! fakes in tests. See the "Dependency injection for tests" section of
@@ -18,14 +18,22 @@
 /// the git working-tree checks) and the production provider every
 /// capability trait below is also implemented for.
 ///
-/// Both are defined in the `pnpm-git-utils` crate — the git queries need
-/// the same seam — and re-exported here so this crate's callers keep
+/// Both are defined in the `pnpm-git-utils` crate (the git queries need
+/// the same seam) and re-exported here so this crate's callers keep
 /// importing them from `pnpm_publish` alongside the rest.
-pub use pnpm_git_utils::{CommandOutput, Host, RunCommand};
+pub use pnpm_git_utils::{
+    CommandOutput,
+    Host,
+    RunCommand,
+};
 
 use std::{
     sync::LazyLock,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// Read an environment variable.
@@ -73,7 +81,7 @@ pub struct OidcResponse {
     pub body: String,
 }
 
-/// The OIDC request never produced a response — the transport itself failed.
+/// The OIDC request never produced a response, the transport itself failed.
 /// The auth-token path catches this and surfaces it as a fetch failure.
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 #[display("the OIDC request failed: {reason}")]
@@ -105,7 +113,9 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .map(|elapsed| elapsed.as_millis())
+            .map(u64::try_from)
+            .map_or(0, |converted| converted.unwrap_or(u64::MAX))
     }
 }
 

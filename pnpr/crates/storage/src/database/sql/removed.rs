@@ -1,12 +1,28 @@
 use super::{
-    Expected, PackageKey,
-    adapter::{Connection, Query, Row},
-    batch::{Batch, Retired},
-    commit::{package_row_from, package_row_query, parse_json},
+    Expected,
+    PackageKey,
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
+    batch::{
+        Batch,
+        Retired,
+    },
+    commit::{
+        package_row_from,
+        package_row_query,
+        parse_json,
+    },
     to_column,
     transactions::Freshness,
 };
-use crate::{BlobId, PackageTombstone, database::PackageMetadata};
+use crate::{
+    BlobId,
+    PackageTombstone,
+    database::PackageMetadata,
+};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;

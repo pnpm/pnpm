@@ -1,4 +1,9 @@
-use super::{AppState, CanonicalPackageName, RegistryError, packument_tarball_filename};
+use super::{
+    AppState,
+    CanonicalPackageName,
+    RegistryError,
+    packument_tarball_filename,
+};
 use serde_json::Value;
 use std::collections::HashSet;
 

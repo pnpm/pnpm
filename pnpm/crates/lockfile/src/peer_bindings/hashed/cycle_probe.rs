@@ -1,7 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use super::all_dep_refs;
-use crate::{PkgNameVerPeer, SnapshotEntry};
+use crate::{
+    PkgNameVerPeer,
+    SnapshotEntry,
+};
 
 const MAX_VISITS: usize = 65_536;
 

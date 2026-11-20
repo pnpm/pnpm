@@ -1,7 +1,12 @@
 use crate::_utils::pacquet_in;
+use command_extra::CommandExtra;
 
 use assert_cmd::prelude::*;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 fn pnpm_at(workspace: &Path) -> Command {
@@ -22,7 +27,7 @@ fn write_json(path: &Path, value: &serde_json::Value) {
 
 fn assert_frozen_install_is_outdated(workspace: &Path) {
     let result = pnpm_at(workspace)
-        .args(["install", "--frozen-lockfile"])
+        .with_args(["install", "--frozen-lockfile"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&result.get_output().stderr);
@@ -66,8 +71,8 @@ fn frozen_install_rejects_a_changed_injected_setting_of_a_local_directory_child(
     };
     let install = |args: &[&str]| {
         pnpm_at(&workspace)
-            .arg("install")
-            .args(args)
+            .with_arg("install")
+            .with_args(args)
             .assert()
             .success();
     };
@@ -122,7 +127,7 @@ fn a_local_tarball_child_link_is_resolved_from_the_lockfile_directory() {
     .expect("write app package.json");
 
     pnpm_at(&app)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -165,7 +170,7 @@ fn a_root_local_tarball_child_keeps_its_path_resolver_shape() {
     .expect("write local tarball");
 
     pnpm_at(&workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -201,7 +206,7 @@ fn local_directory_children_are_scoped_to_their_parent_directory() {
     }
 
     pnpm_at(&workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -210,7 +215,7 @@ fn local_directory_children_are_scoped_to_their_parent_directory() {
     assert!(lockfile.contains("second-child: link:packages/second/child"), "lockfile:\n{lockfile}");
 
     pnpm_at(&workspace)
-        .args(["install", "--frozen-lockfile"])
+        .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
 }
@@ -247,7 +252,7 @@ fn injected_children_with_the_same_relative_path_stay_apart_across_importers() {
     }
 
     pnpm_at(&workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -256,7 +261,7 @@ fn injected_children_with_the_same_relative_path_stay_apart_across_importers() {
     assert!(lockfile.contains("child: file:second/child"), "lockfile:\n{lockfile}");
 
     pnpm_at(&workspace)
-        .args(["install", "--frozen-lockfile"])
+        .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
 }

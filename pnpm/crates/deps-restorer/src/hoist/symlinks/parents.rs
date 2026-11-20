@@ -2,11 +2,14 @@ use super::HoistedModulesDirs;
 use std::{
     collections::HashSet,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-/// Pre-create the destination parents serially — cheap, deduplicated,
-/// and a no-op for dirs that already exist — so the parallel symlink
+/// Pre-create the destination parents serially (cheap, deduplicated,
+/// and a no-op for dirs that already exist) so the parallel symlink
 /// pass is one syscall per link.
 pub(super) fn create_parents(
     dirs: &HoistedModulesDirs<'_>,
@@ -141,7 +144,9 @@ fn probe(dir: &Path, kind: ParentKind) -> io::Result<ParentShape> {
 fn probe_attributes(dir: &Path, kind: ParentKind) -> io::Result<ParentShape> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT, GetFileAttributesW,
+        FILE_ATTRIBUTE_DIRECTORY,
+        FILE_ATTRIBUTE_REPARSE_POINT,
+        GetFileAttributesW,
         INVALID_FILE_ATTRIBUTES,
     };
 

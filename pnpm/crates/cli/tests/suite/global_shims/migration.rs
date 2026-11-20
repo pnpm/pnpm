@@ -1,11 +1,24 @@
 #[cfg(windows)]
 use super::windows_shim_command;
-use super::{AUTO_TRUST_ENV, Path, fs};
+use super::{
+    AUTO_TRUST_ENV,
+    Path,
+    fs,
+};
 #[cfg(unix)]
 use super::{
-    Command, CommandExtra, CommandTestExt, install_legacy_shim, pnpm_command,
-    prepare_local_and_global, shim_command, stdout_of, write_script,
+    Command,
+    CommandExtra,
+    CommandTestExt,
+    install_legacy_shim,
+    pnpm_command,
+    prepare_local_and_global,
+    shim_command,
+    stdout_of,
+    write_script,
 };
+#[cfg(windows)]
+use command_extra::CommandExtra;
 
 /// No shell sits between the caller and the target, so an environment
 /// entry whose name is not a shell identifier reaches the target intact.
@@ -16,8 +29,8 @@ fn native_shim_preserves_non_shell_identifier_environment_variables() {
     let printenv = which::which("printenv").expect("the test needs `printenv` on PATH");
 
     let output = shim_command(&root, root.path(), "node", printenv.to_str().unwrap())
-        .arg("TEST-VAR")
-        .env("TEST-VAR", "123")
+        .with_arg("TEST-VAR")
+        .with_env("TEST-VAR", "123")
         .output()
         .unwrap();
 
@@ -53,9 +66,9 @@ fn native_shim_dispatches_and_falls_back_to_cmd_targets() {
         .unwrap();
 
     let local = windows_shim_command(&root, &project, "tool", &global_target)
-        .arg("value with spaces")
-        .env(AUTO_TRUST_ENV, "1")
-        .env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+        .with_arg("value with spaces")
+        .with_env(AUTO_TRUST_ENV, "1")
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
         .output()
         .unwrap();
     let local_stdout = String::from_utf8_lossy(&local.stdout);
@@ -67,7 +80,7 @@ fn native_shim_dispatches_and_falls_back_to_cmd_targets() {
     assert!(local_stdout.contains("value with spaces"), "stdout:\n{local_stdout}");
 
     let global = windows_shim_command(&root, &outside, "tool", &global_target)
-        .arg("value with spaces")
+        .with_arg("value with spaces")
         .output()
         .unwrap();
     let global_stdout = String::from_utf8_lossy(&global.stdout);
@@ -88,8 +101,8 @@ fn native_shim_runs_the_global_executable_fallback() {
     let global_target = std::env::var_os("ComSpec").expect("ComSpec should identify cmd.exe");
 
     let output = windows_shim_command(&root, &outside, "node", Path::new(&global_target))
-        .args(["/d", "/c", "echo native-fallback"])
-        .env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
+        .with_args(["/d", "/c", "echo native-fallback"])
+        .with_env("PNPM_CONFIG_GLOBAL_SHIMS", "true")
         .output()
         .unwrap();
 
@@ -160,11 +173,11 @@ fn legacy_dispatcher_rejects_a_shim_from_another_directory() {
     let foreign_shim = install_legacy_shim(&foreign_bin, "tool", "/bin/true");
 
     let output = Command::new(dispatcher_bin.join(".pnpm-shim-v1"))
-        .arg("--shim")
-        .arg("tool")
-        .arg(&foreign_shim)
-        .arg("/bin/true")
-        .arg("--")
+        .with_arg("--shim")
+        .with_arg("tool")
+        .with_arg(&foreign_shim)
+        .with_arg("/bin/true")
+        .with_arg("--")
         .output()
         .unwrap();
 

@@ -1,5 +1,8 @@
 use super::stringify;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 #[test]
 fn pretty_and_compact_forms_match_json5_stringify() {

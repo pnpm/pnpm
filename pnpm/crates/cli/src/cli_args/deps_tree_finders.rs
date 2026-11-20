@@ -9,13 +9,24 @@ use pnpm_deps_inspection::{
     TreeNodeId,
     dependents::resolve_package_nodes,
     graph::DependencyGraph,
-    pkg_info::{ManifestSource, PkgInfoEnv},
+    pkg_info::{
+        ManifestSource,
+        PkgInfoEnv,
+    },
     search::SearchMatch,
 };
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::parse_manifest_bytes;
-use pnpm_store_dir::{StoreDir, StoreIndex, store_index_key};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use pnpm_store_dir::{
+    StoreDir,
+    StoreIndex,
+    store_index_key,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// One resolved finder: the name it was requested by and the pnpmfile
 /// hook set that exports it.
@@ -74,7 +85,7 @@ pub(crate) async fn resolve_finders(
 
 /// Every `(alias, node)` pair a finder must be evaluated for: the
 /// canonical name of every resolved package node, plus each edge's
-/// alias — including edges to workspace projects and unresolvable
+/// alias, including edges to workspace projects and unresolvable
 /// link edges, which the search also visits.
 pub(crate) fn finder_candidates(
     env: &PkgInfoEnv<'_>,
@@ -173,7 +184,8 @@ pub(crate) async fn evaluate_finders(
 ) -> miette::Result<HashMap<(String, Option<TreeNodeId>), SearchMatch>> {
     let store_index = env.layout.store_dir
         .as_ref()
-        .and_then(|store_dir| StoreIndex::open_readonly(store_dir).ok());
+        .map(|store_dir| StoreIndex::open_readonly(store_dir))
+        .and_then(Result::ok);
 
     let mut results = HashMap::new();
     for (alias, node_id, source) in candidates {

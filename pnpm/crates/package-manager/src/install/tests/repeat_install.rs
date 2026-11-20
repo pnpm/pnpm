@@ -1,21 +1,55 @@
 use super::{
-    super::{Install, InstallError, ProjectMutation},
-    InstallDirs, assert_purge_diagnostic, fresh_lockfile_only_with_compatibility_db,
-    install_then_go_offline, recorded_verified_file_integrity_report, touch_manifest,
+    super::{
+        Install,
+        InstallError,
+        ProjectMutation,
+    },
+    InstallDirs,
+    assert_purge_diagnostic,
+    fresh_lockfile_only_with_compatibility_db,
+    install_then_go_offline,
+    recorded_verified_file_integrity_report,
+    touch_manifest,
 };
-use crate::{PolicyExcludes, UpToDateFastPathCheck, install_already_up_to_date};
+use crate::{
+    PolicyExcludes,
+    UpToDateFastPathCheck,
+    install_already_up_to_date,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, write_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    LayoutVersion,
+    Modules,
+    NodeLinker,
+    write_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use pnpm_testing_utils::{
-    fs::{MTIME_STEP_MS, set_mtime_ms},
+    fs::{
+        MTIME_STEP_MS,
+        set_mtime_ms,
+    },
     registry::TestRegistry,
 };
 use pnpm_workspace_state as workspace_state;
-use std::{sync::Mutex, time::Duration};
+use std::{
+    sync::Mutex,
+    time::Duration,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -58,7 +92,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     // Single-project optimistic-repeat-install requires `pnpm-lock.yaml`
     // on disk (a missing lockfile triggers `throwLockfileNotFound`).
     // Write a minimal v9 lockfile next to the manifest so the freshness
-    // gate passes — the fast path only checks existence, not contents.
+    // gate passes, the fast path only checks existence, not contents.
     std::fs::write(dirs.project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
         .expect("seed pnpm-lock.yaml");
 
@@ -220,7 +254,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
 }
 /// The synchronous pre-runtime twin of the short-circuit
 /// ([`install_already_up_to_date`]) must reach the same verdict from
-/// the same on-disk state — and flip to `None` (fall through to the
+/// the same on-disk state, and flip to `None` (fall through to the
 /// full install) as soon as a manifest outdates the recorded
 /// validation timestamp.
 #[test]
@@ -316,7 +350,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
 /// after `Install::run` returns, so the on-disk mtimes the optimistic
 /// check reads still describe the pre-mutation project. A partial
 /// install (a `mutation` that is not a full install) must therefore never take the
-/// optimistic short-circuit — otherwise a fresh workspace state would
+/// optimistic short-circuit; otherwise a fresh workspace state would
 /// read as "already up to date" and the mutation would never be
 /// resolved or materialized. The dependency-status check runs only
 /// for the plain-install mutation.
@@ -489,7 +523,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
 /// content (newer mtime) must short-circuit offline: no resolver, no
 /// lockfile-verification fan-out, no install pipeline. Guards the
 /// modified-manifests content re-check end-to-end through
-/// `Install::run`'s dispatch ordering — the fast path has to run
+/// `Install::run`'s dispatch ordering, the fast path has to run
 /// *before* the verification gate for this to pass with a dead
 /// registry and an empty packument/verdict cache.
 #[tokio::test]

@@ -1,10 +1,17 @@
 use std::collections::HashSet;
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use serde::Deserialize;
 
 use super::{
-    MAX_RANGE_COVERAGE_CHECKS, MAX_RANGES_PER_AFFECTED, RegistryError, SemverEvent, SemverRange,
+    MAX_RANGE_COVERAGE_CHECKS,
+    MAX_RANGES_PER_AFFECTED,
+    RegistryError,
+    SemverEvent,
+    SemverRange,
     invalid_config,
 };
 
@@ -231,7 +238,8 @@ pub(super) fn build_vulnerable_versions_str(
     validate_coverage_budget(advisory_id, &unique_clauses, exact_versions.len())?;
     let parsed_ranges: Vec<Range> = unique_clauses
         .iter()
-        .filter_map(|clause| clause.parse::<Range>().ok())
+        .map(|clause| clause.parse::<Range>())
+        .filter_map(Result::ok)
         .collect();
     let mut uncovered: Vec<String> = exact_versions
         .iter()

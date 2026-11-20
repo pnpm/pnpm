@@ -1,15 +1,28 @@
 use super::{
-    LocalDepContext, SpecDirs, children::catalog_child_is_fresh, dependency_manifests_by_dir,
-    peers::check_recorded_peer_specs_match, project_manifests_by_dir,
+    LocalDepContext,
+    SpecDirs,
+    children::catalog_child_is_fresh,
+    dependency_manifests_by_dir,
+    peers::check_recorded_peer_specs_match,
+    project_manifests_by_dir,
 };
 use crate::install::FreshnessCheckError;
 use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_lockfile::{PackageMetadata, StalenessReason};
+use pnpm_lockfile::{
+    PackageMetadata,
+    StalenessReason,
+};
 use pnpm_package_manifest::PackageManifest;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]

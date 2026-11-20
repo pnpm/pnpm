@@ -1,13 +1,22 @@
-//! `--env-file <path>` — dotenv files layered into the process environment.
+//! `--env-file <path>`: dotenv files layered into the process environment.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
-    stall_report::{STALL_DEADLINE, output_within},
+    stall_report::{
+        STALL_DEADLINE,
+        output_within,
+    },
 };
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -118,8 +127,7 @@ fn existing_environment_wins_over_env_file() {
     fs::write(workspace.join(".env"), "PACQUET_ENV_FILE_SCRIPT=from-env-file\n")
         .expect("write .env");
 
-    let mut command = pacquet_in(&workspace);
-    command.env("PACQUET_ENV_FILE_SCRIPT", "from-process");
+    let command = pacquet_in(&workspace).with_env("PACQUET_ENV_FILE_SCRIPT", "from-process");
     let output = command
         .with_args(["--env-file", ".env", "run", "print-env"])
         .output()
@@ -228,7 +236,7 @@ fn malformed_env_file_loads_like_node() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "command must exit 0, got: {output:?}");
     assert!(
-        stdout.contains("before|\u{FFFD}|\"never closed"),
+        stdout.contains(r#"before|�|"never closed"#),
         "script must see the values Node.js would set; stdout: {stdout:?}",
     );
 
@@ -356,14 +364,16 @@ fn dispatched_pinned_pnpm_inherits_env_file_and_strips_flag() {
     )
     .expect("write .env");
 
-    let mut command = pacquet.without_ambient_pnpm_config();
-    command.env("PNPM_HOME", root.path().join("pnpm-home"));
-    command.env("HOME", root.path());
-    command.env("XDG_CONFIG_HOME", root.path().join("xdg-config"));
-    command.env_remove("COREPACK_ROOT");
-    command
-        .current_dir(&workspace)
-        .args(["--env-file", ".env", "run", "print-env"]);
+    let mut command = pacquet
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_HOME", root.path().join("pnpm-home"));
+    command = command
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .without_env("COREPACK_ROOT");
+    command = command
+        .with_current_dir(&workspace)
+        .with_args(["--env-file", ".env", "run", "print-env"]);
     let output = output_within(&mut command, STALL_DEADLINE);
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "command must exit 0, got: {output:?}");

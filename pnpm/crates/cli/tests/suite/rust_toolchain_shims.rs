@@ -7,7 +7,10 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use tempfile::TempDir;
@@ -16,7 +19,7 @@ use tempfile::TempDir;
 /// that may have started the test run: rustup sets `RUSTUP_TOOLCHAIN` for
 /// what it runs, which the shims leave to rustup.
 fn isolated(mut command: Command, root: &TempDir, cwd: &Path) -> Command {
-    command.env_remove("RUSTUP_TOOLCHAIN");
+    command = command.without_env("RUSTUP_TOOLCHAIN");
     command
         .without_ambient_pnpm_config()
         .with_current_dir(cwd)
@@ -128,7 +131,8 @@ fn a_bare_cargo_runs_the_toolchain_the_project_names() {
     assert_eq!(
         lines
             .next()
-            .map(|rustc| fs::canonicalize(rustc).unwrap()),
+            .map(fs::canonicalize)
+            .map(Result::unwrap),
         Some(fs::canonicalize(toolchain.join("bin/rustc")).unwrap()),
     );
     // A rustup proxy cargo runs, such as `$CARGO_HOME/bin/cargo-clippy`,

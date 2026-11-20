@@ -3,12 +3,12 @@
 //! The cache-path and IO helpers the verifier needs to share the
 //! resolver's metadata mirror:
 //!
-//! - [`get_pkg_mirror_path`] — `<cache_dir>/<meta_dir>/<registry-encoded>/<encoded-name>.jsonl`.
-//! - [`load_meta_headers`] — read just the headers record (etag,
+//! - [`get_pkg_mirror_path`], `<cache_dir>/<meta_dir>/<registry-encoded>/<encoded-name>.jsonl`.
+//! - [`load_meta_headers`], read just the headers record (etag,
 //!   modified) to feed conditional GETs without touching the rest.
-//! - [`load_meta`] — read the headers + index records and reconstruct
+//! - [`load_meta`], read the headers + index records and reconstruct
 //!   a [`Package`] whose versions hydrate from byte spans on demand.
-//! - [`save_meta_indexed`] / [`save_meta_ndjson`] — atomic write via
+//! - [`save_meta_indexed`] / [`save_meta_ndjson`], atomic write via
 //!   temp + rename so a torn write never leaks a half-formed mirror to
 //!   the next install.
 //!
@@ -27,7 +27,7 @@
 //! Offsets in the index are relative to the fragment section; the
 //! loader rebases them so each version's slot can read its span
 //! directly. A warm pick therefore costs the two leading records plus
-//! one span read per version it actually hydrates — never the whole
+//! one span read per version it actually hydrates, never the whole
 //! body.
 //!
 //! pnpm's two-line NDJSON format is also readable and is used when
@@ -36,14 +36,14 @@
 //! Plus the constants and name-encoding rules:
 //!
 //! - [`FULL_META_DIR`] / [`FULL_FILTERED_META_DIR`] /
-//!   [`ABBREVIATED_META_DIR`] — directory slugs pnpm and pacquet share.
-//! - [`encode_pkg_name`] — mixed-case package names get a sha256 hex
+//!   [`ABBREVIATED_META_DIR`], directory slugs pnpm and pacquet share.
+//! - [`encode_pkg_name`], mixed-case package names get a sha256 hex
 //!   suffix so case-insensitive filesystems (HFS+, NTFS by default)
 //!   can't collide two distinct package names onto one mirror file.
-//! - [`get_registry_name`] — a registry URL's host, port and path as
+//! - [`get_registry_name`], a registry URL's host, port and path as
 //!   one filesystem-safe directory name, and [`decode_registry_name`]
 //!   to read it back.
-//! - [`is_unreadable_registry_key`] — whether a directory name in the
+//! - [`is_unreadable_registry_key`], whether a directory name in the
 //!   mirror root predates the current key shape, so nothing can read it.
 
 #[cfg(test)]
@@ -51,16 +51,29 @@ pub(crate) mod save_fail;
 
 pub use headers::MetaHeaders;
 pub use legacy::{
-    LEGACY_META_DIRS, LEGACY_PRIVATE_META_ROOT, find_legacy_pkg_mirror, get_legacy_pkg_mirror_paths,
+    LEGACY_META_DIRS,
+    LEGACY_PRIVATE_META_ROOT,
+    find_legacy_pkg_mirror,
+    get_legacy_pkg_mirror_paths,
 };
 pub use registry_key::{
-    EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
-    get_registry_name, is_unreadable_registry_key,
+    EncodeRegistryError,
+    decode_registry_name,
+    encode_pkg_name,
+    get_legacy_registry_name,
+    get_registry_name,
+    is_unreadable_registry_key,
 };
-pub use release_records::{RELEASE_RECORDS_DIR, release_record_path};
+pub use release_records::{
+    RELEASE_RECORDS_DIR,
+    release_record_path,
+};
 
 mod read_records;
-use read_records::{held_mirror_file_cap, load_meta_with_hold_cap};
+use read_records::{
+    held_mirror_file_cap,
+    load_meta_with_hold_cap,
+};
 
 mod registry_key;
 
@@ -73,23 +86,64 @@ mod release_records;
 use std::{
     collections::HashMap,
     fmt::Write as _,
-    fs::{self, File, OpenOptions},
-    io::{self, BufWriter, Read, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
+    io::{
+        self,
+        BufWriter,
+        Read,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
-use pnpm_network::{MetadataCacheScope, redact_and_sanitize, redact_url_for_display};
-use pnpm_registry::{DerivedPackuments, MirrorFile, Package, PackageVersions};
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
-use sha2::{Digest, Sha256};
+use percent_encoding::{
+    AsciiSet,
+    NON_ALPHANUMERIC,
+    percent_decode_str,
+    utf8_percent_encode,
+};
+use pnpm_network::{
+    MetadataCacheScope,
+    redact_and_sanitize,
+    redact_url_for_display,
+};
+use pnpm_registry::{
+    DerivedPackuments,
+    MirrorFile,
+    Package,
+    PackageVersions,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 /// Mirror directory for the **abbreviated** metadata cache.
 pub const ABBREVIATED_META_DIR: &str = "v12/metadata";
@@ -149,7 +203,7 @@ const MAX_INDEX_LEN: usize = 64 * 1024 * 1024;
 
 /// Ceiling for a single version fragment's declared span. The span
 /// end is validated against the file size, but a sparse file makes
-/// the file size itself untrustworthy — without a per-fragment bound
+/// the file size itself untrustworthy, without a per-fragment bound
 /// a corrupt mirror could declare a multi-gigabyte span and drive an
 /// equally large hydration allocation.
 const MAX_FRAGMENT_LEN: u32 = 16 * 1024 * 1024;
@@ -232,7 +286,7 @@ impl EncodeMetaError {
 
 /// Atomically persist `meta` at `pkg_mirror` in the indexed format.
 ///
-/// Version fragments come from [`PackageVersions::fragments`] — for a
+/// Version fragments come from [`PackageVersions::fragments`], for a
 /// freshly-fetched packument these borrow the raw bytes the registry
 /// served, so the write is one buffered pass with no re-serialization.
 pub fn save_meta_indexed(
@@ -250,8 +304,8 @@ pub fn save_meta_indexed_with_headers(
     meta: &Package,
     headers: &MetaHeaders,
 ) -> Result<(), SaveMetaError> {
-    let headers = serde_json::to_string(headers)
-        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    let headers =
+        serde_json::to_string(headers).map_err(EncodeMetaError).map_err(SaveMetaError::Encode)?;
 
     // A version manifest past the loader's fragment bound would be
     // persisted only to be skipped on every read; omit it so the saved and
@@ -277,7 +331,8 @@ pub fn save_meta_indexed_with_headers(
         homepage: meta.homepage.clone(),
         versions: spans,
     })
-    .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    .map_err(EncodeMetaError)
+    .map_err(SaveMetaError::Encode)?;
 
     save_meta_with(pkg_mirror, |file| {
         let mut writer = BufWriter::new(file);
@@ -309,11 +364,11 @@ pub fn save_meta_ndjson_with_headers(
     headers: &MetaHeaders,
 ) -> Result<(), SaveMetaError> {
     let headers =
-        serde_json::to_vec(headers).map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+        serde_json::to_vec(headers).map_err(EncodeMetaError).map_err(SaveMetaError::Encode)?;
     let mut body_meta = meta.clone();
     body_meta.etag = None;
-    let body = serde_json::to_vec(&body_meta)
-        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    let body =
+        serde_json::to_vec(&body_meta).map_err(EncodeMetaError).map_err(SaveMetaError::Encode)?;
 
     let mut bytes = Vec::with_capacity(headers.len() + 1 + body.len());
     bytes.extend_from_slice(&headers);
@@ -362,8 +417,8 @@ pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
 /// One-time, best-effort raise of the process's soft `RLIMIT_NOFILE`
 /// toward the hard limit. Loaded mirrors keep their file handle open
 /// so version fragments can be read on demand without buffering the
-/// body (see [`load_meta`]), which holds one descriptor per packument
-/// — beyond the conservative soft defaults some platforms ship (256
+/// body (see [`load_meta`]), which holds one descriptor per packument,
+/// beyond the conservative soft defaults some platforms ship (256
 /// on macOS, 1024 on several Linux distros) once a workspace consults
 /// thousands of packuments. Raising the soft limit to the hard limit
 /// needs no privileges; it is the same startup adjustment the Go
@@ -475,7 +530,7 @@ fn read_headers_json<'c>(
 /// fetcher uses this to issue a conditional GET without paying the
 /// full-body parse cost on a warm cache.
 ///
-/// Returns `None` on any failure — missing file, unreadable header
+/// Returns `None` on any failure, missing file, unreadable header
 /// line, parse error. The fetcher then proceeds without conditional
 /// headers.
 #[must_use]
@@ -505,7 +560,7 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
 
 /// Async sibling of [`load_meta`]. The body is a blocking
 /// `fs::read_to_string` plus a `serde_json::from_str` that can chew
-/// through a multi-KB to multi-MB packument body — neither yields, so
+/// through a multi-KB to multi-MB packument body; neither yields, so
 /// calling [`load_meta`] directly from an async task on the resolve
 /// hot path blocks the tokio worker for the duration of the read +
 /// parse. With hundreds of unique packuments per install, that
@@ -517,8 +572,8 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
 ///
 /// `JoinError` (panic in the blocking task) and `None` from
 /// [`load_meta`] (missing / unreadable file) both collapse to
-/// `None`. The caller's response to either is the same — fall
-/// through to the network fetch — so distinguishing them is not
+/// `None`. The caller's response to either is the same (fall
+/// through to the network fetch) so distinguishing them is not
 /// load-bearing.
 ///
 /// Returns `None` immediately when `pkg_mirror` is `None`, skipping

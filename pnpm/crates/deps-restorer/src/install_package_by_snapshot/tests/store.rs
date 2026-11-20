@@ -1,5 +1,8 @@
 use super::{
-    super::host_platform_selector, DUMMY_SHA512, leaked_offline_config, registry_metadata,
+    super::host_platform_selector,
+    DUMMY_SHA512,
+    leaked_offline_config,
+    registry_metadata,
 };
 use pnpm_lockfile::PackageKey;
 use pretty_assertions::assert_eq;
@@ -14,14 +17,22 @@ use pretty_assertions::assert_eq;
 /// and integrity the registry resolution derives, then run the
 /// cold-batch installer
 /// with `tarball_mem_cache: Some(..)`. It must return the seeded CAS
-/// map without touching the network — proven here by `offline: true`,
+/// map without touching the network, proven here by `offline: true`,
 /// which makes any fall-through to the download path error out.
 #[tokio::test]
 async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        package_mem_cache_key,
+    };
     use std::{
         collections::HashMap,
-        sync::{Arc, atomic::AtomicU8},
+        sync::{
+            Arc,
+            atomic::AtomicU8,
+        },
     };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
@@ -114,16 +125,25 @@ async fn cold_batch_reuses_in_flight_prefetch_from_mem_cache() {
 /// `tarball_mem_cache: None` is the no-prefetcher case (e.g. a plain
 /// `--frozen-lockfile` install without pnpr). That path must go straight
 /// to the download (here blocked by `offline: true`), never consulting a
-/// mem cache — the contrast that proves the coordination above is gated
+/// mem cache, the contrast that proves the coordination above is gated
 /// on `Some(..)`, not unconditional. A populated cache is supplied and
 /// must be ignored.
 #[tokio::test]
 async fn without_mem_cache_skips_coordination_and_downloads() {
     use crate::InstallPackageBySnapshotError;
-    use pnpm_tarball::{CacheValue, CachedTarball, MemCache, TarballError, package_mem_cache_key};
+    use pnpm_tarball::{
+        CacheValue,
+        CachedTarball,
+        MemCache,
+        TarballError,
+        package_mem_cache_key,
+    };
     use std::{
         collections::HashMap,
-        sync::{Arc, atomic::AtomicU8},
+        sync::{
+            Arc,
+            atomic::AtomicU8,
+        },
     };
 
     let store_tmp = tempfile::tempdir().expect("tempdir");

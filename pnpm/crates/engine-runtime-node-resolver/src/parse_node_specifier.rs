@@ -1,14 +1,17 @@
 //! Parses a `node@runtime:` bare specifier's body into a release
 //! channel plus a version selector.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// One of nodejs.org's published release channels.
 ///
 /// The value is kept as a `String` (rather than a closed enum)
 /// because the parser passes the channel through to the mirror URL
-/// builder unchanged — the set is closed today but the validation
+/// builder unchanged, the set is closed today but the validation
 /// happens at parse time, not after.
 pub const RELEASE_CHANNELS: &[&str] = &["nightly", "rc", "test", "v8-canary", "release"];
 

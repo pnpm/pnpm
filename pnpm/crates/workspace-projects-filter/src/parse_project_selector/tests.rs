@@ -1,7 +1,12 @@
 use crate::parse_project_selector::{
-    ProjectSelector, parse_project_selector, rebase_project_selector,
+    ProjectSelector,
+    parse_project_selector,
+    rebase_project_selector,
 };
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const PREFIX: &str = "/prefix";
 

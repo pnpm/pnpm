@@ -1,4 +1,10 @@
-use super::{HashSet, ImporterSelection, PackageManifest, Path, PathBuf};
+use super::{
+    HashSet,
+    ImporterSelection,
+    PackageManifest,
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn a_filter_matching_every_on_disk_project_still_sets_requested_importer_ids() {

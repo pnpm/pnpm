@@ -1,10 +1,23 @@
-use super::{FetchVerifiedNodeShasumsError, node_release_keys::NODE_RELEASE_KEYS};
-use derive_more::{Display, Error};
+use super::{
+    FetchVerifiedNodeShasumsError,
+    node_release_keys::NODE_RELEASE_KEYS,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use pgp::{
-    composed::{Deserializable, DetachedSignature, SignedPublicKey},
+    composed::{
+        Deserializable,
+        DetachedSignature,
+        SignedPublicKey,
+    },
     types::KeyDetails,
 };
-use std::{io::Cursor, sync::Arc};
+use std::{
+    io::Cursor,
+    sync::Arc,
+};
 
 /// An `OpenPGP` public key pnpm embeds to verify a release it downloads,
 /// together with the fingerprint the embedded copy must have.

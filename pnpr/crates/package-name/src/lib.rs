@@ -1,10 +1,22 @@
-pub use pnpm_package_name::{PythonNameError, canonicalize_python_name};
+pub use pnpm_package_name::{
+    PythonNameError,
+    canonicalize_python_name,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pnpr_error::RegistryError;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::fmt;
-use strum::{EnumIter, IntoEnumIterator as _};
+use strum::{
+    EnumIter,
+    IntoEnumIterator as _,
+};
 
 /// The protocol whose naming rules a registry surface follows.
 #[derive(
@@ -105,7 +117,7 @@ pub enum OciNameError {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CanonicalPackageName {
     raw: String,
-    /// The unscoped portion — for `@scope/name` and `namespace/image` this is
+    /// The unscoped portion, for `@scope/name` and `namespace/image` this is
     /// the last component, for `name` this is the whole thing. Used to
     /// validate tarball filenames, which are always `<basename>-<version>.tgz`.
     basename: String,
@@ -138,8 +150,10 @@ impl CanonicalPackageName {
             Ecosystem::Oci => {
                 let canonical = canonicalize_oci_name(raw)
                     .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?;
-                let basename =
-                    canonical.rsplit_once('/').map_or(canonical.as_str(), |(_, last)| last);
+                let basename = canonical
+                    .rsplit_once('/')
+                    .map(|(_, last)| last)
+                    .unwrap_or(canonical.as_str());
                 let basename = basename.to_string();
                 return Ok(Self { raw: canonical, basename, ecosystem });
             }
@@ -364,7 +378,7 @@ fn is_safe_segment(segment: &str) -> bool {
 /// traversal, no separators, no absolute-path or Windows drive prefixes). The
 /// upstream tarball path uses it to admit a non-canonical basename preserved
 /// from an upstream `dist.tarball` (see `rewrite_tarball_urls`) into the
-/// cache layout — the packument match is what authorizes the name; this only
+/// cache layout, the packument match is what authorizes the name; this only
 /// keeps it on disk safely.
 #[must_use]
 pub fn is_safe_path_segment(filename: &str) -> bool {

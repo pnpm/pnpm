@@ -5,8 +5,8 @@
 //! resolved: the importer's wanted dependencies, then each level's
 //! resolved children as the walk descends. A package whose
 //! `peerDependencies` name is already in that scope drops the
-//! same-named entry from its own `dependencies`, so the peer edge —
-//! satisfied from an ancestor — supplies the package instead of a
+//! same-named entry from its own `dependencies`, so the peer edge
+//! (satisfied from an ancestor) supplies the package instead of a
 //! nested copy.
 //!
 //! Upstream rebuilds the whole map per level (`{ ...parentPkgAliases,
@@ -17,7 +17,10 @@
 use crate::resolved_tree::PeerDep;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::Value;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// One level's aliases, chained onto the levels above it.
 #[derive(Debug, Default)]
@@ -29,8 +32,8 @@ pub struct ParentPkgAliases {
 impl ParentPkgAliases {
     /// The scope an importer's own direct dependencies resolve in: the
     /// aliases it declares. pnpm seeds `parentPkgAliases` from the
-    /// importer's wanted dependencies and keeps adding to it — resolved
-    /// direct deps, then every hoisted peer — as the hoist rounds run.
+    /// importer's wanted dependencies and keeps adding to it (resolved
+    /// direct deps, then every hoisted peer) as the hoist rounds run.
     #[must_use]
     pub fn root(names: HashSet<String>) -> Arc<Self> {
         Arc::new(ParentPkgAliases { names, parent: None })
@@ -69,7 +72,8 @@ pub fn own_dependency_names(
             .get(key)
             .and_then(Value::as_object)
             .into_iter()
-            .flat_map(|map| map.keys().map(String::as_str))
+            .map(serde_json::Map::keys)
+            .flat_map(|keys| keys.map(String::as_str))
     };
     names("dependencies")
         .filter(move |name| !peer_shadowed(name))
@@ -101,7 +105,10 @@ pub fn declared_peer_dependencies(manifest: &Value) -> BTreeMap<String, PeerDep>
         .collect();
     for (name, info) in object("peerDependenciesMeta").into_iter().flatten() {
         if own.contains(name.as_str())
-            || info.get("optional").and_then(Value::as_bool) != Some(true)
+            || !info
+                .get("optional")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
         {
             continue;
         }

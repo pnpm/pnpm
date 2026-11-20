@@ -1,9 +1,16 @@
 use crate::{
-    cochange::{self, CoChange},
+    cochange::{
+        self,
+        CoChange,
+    },
     tree::git,
 };
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 
 fn run_git(dir: &Path, args: &[&str]) {
     let config = [
@@ -75,7 +82,10 @@ fn reads_moves_and_unusual_paths_and_stops_before_a_shallow_boundary() {
 #[test]
 #[cfg_attr(target_os = "macos", ignore = "APFS rejects a file name that is not UTF-8")]
 fn reads_a_path_that_is_not_utf8() {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+    use std::{
+        ffi::OsStr,
+        os::unix::ffi::OsStrExt,
+    };
 
     let temp = tempfile::tempdir().unwrap();
     let repo = temp.path();

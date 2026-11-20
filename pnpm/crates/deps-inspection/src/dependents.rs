@@ -4,19 +4,40 @@
 pub use crate::graph::DepField;
 
 pub use selection::{
-    compare_versions, merge_trees, name_ver_from_dep_path, resolve_package_nodes, sort_trees,
+    compare_versions,
+    merge_trees,
+    name_ver_from_dep_path,
+    resolve_package_nodes,
+    sort_trees,
 };
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+};
 
 use super::{
     TreeNodeId,
-    graph::{DependencyGraph, ImporterDependency},
+    graph::{
+        DependencyGraph,
+        ImporterDependency,
+    },
     peers_suffix_hash,
-    pkg_info::{EdgeContext, ManifestSource, PkgInfoEnv, get_pkg_info},
-    search::{SearchMatch, Searcher},
+    pkg_info::{
+        EdgeContext,
+        ManifestSource,
+        PkgInfoEnv,
+        get_pkg_info,
+    },
+    search::{
+        SearchMatch,
+        Searcher,
+    },
 };
 
 /// One node of the reverse tree: a package or workspace project that
@@ -149,8 +170,8 @@ pub struct BuildDependentsOptions<'a> {
     /// [`Self::dependency_specifiers`] reads manifests independently.
     ///
     /// This is what the TypeScript tree-builder's `nameFormatter` callback
-    /// is for: an embedder that renames nodes after a manifest field —
-    /// Bit rendering component ids instead of package names — asks for the
+    /// is for: an embedder that renames nodes after a manifest field
+    /// (Bit rendering component ids instead of package names) asks for the
     /// field here and sets `displayName` on the returned tree, rather than
     /// handing a callback across the FFI boundary into a synchronous walk.
     pub manifest_fields: &'a [String],
@@ -379,7 +400,7 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
     node.manifest = ctx.manifest_reader.project(&edge.parent);
 
     if ctx.expanded.contains(&edge.parent) {
-        // Already expanded elsewhere in the tree — show as a leaf to keep
+        // Already expanded elsewhere in the tree, show as a leaf to keep
         // the output bounded.
         node.deduped = true;
         return Some(node);
@@ -436,7 +457,8 @@ fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
     match parent {
         TreeNodeId::Importer(importer_id) => ctx.importer_info
             .get(importer_id)
-            .map_or_else(|| importer_id.clone(), |info| info.name.clone()),
+            .map(|info| info.name.clone())
+            .unwrap_or_else(|| importer_id.clone()),
         TreeNodeId::Package(dep_path) => {
             if ctx.lockfile.snapshots
                 .as_ref()
@@ -454,7 +476,11 @@ mod manifest;
 mod selection;
 
 use manifest::ManifestProjector;
-use selection::{has_snapshot, match_package, package_merge_id};
+use selection::{
+    has_snapshot,
+    match_package,
+    package_merge_id,
+};
 
 #[cfg(test)]
 mod tests;

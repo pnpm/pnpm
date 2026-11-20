@@ -1,5 +1,8 @@
 use crate::{
-    PkgName, ProjectSnapshot, prune_undeclared_importer_deps, reconcile_merged_importer_metadata,
+    PkgName,
+    ProjectSnapshot,
+    prune_undeclared_importer_deps,
+    reconcile_merged_importer_metadata,
 };
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;

@@ -1,9 +1,14 @@
 use super::{
-    EngineMode, HashMap, NodeApiProject, TestRegistry, install_options, install_options_for,
+    EngineMode,
+    HashMap,
+    NodeApiProject,
+    TestRegistry,
+    install_options,
+    install_options_for,
     run_install_inner,
 };
 
-/// The lockfile must record `overrides` in declaration order — the
+/// The lockfile must record `overrides` in declaration order, the
 /// napi boundary carries them through an `IndexMap`, and a `HashMap`
 /// regression would rewrite the block in a random order on every
 /// install (a sorted map would flip the non-lexicographic order below).

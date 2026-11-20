@@ -1,18 +1,40 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
     path::Path,
 };
 
-use pep440_rs::{Version, VersionSpecifiers};
+use pep440_rs::{
+    Version,
+    VersionSpecifiers,
+};
 use pnpm_config::Config;
-use pnpm_python_resolver::{Inputs, LockedPackage, LockedWheel, Lockfile, ToolMetadata};
+use pnpm_python_resolver::{
+    Inputs,
+    LockedPackage,
+    LockedWheel,
+    Lockfile,
+    ToolMetadata,
+};
 
 use super::{
-    StageContext, StagingScope, UpdateOptions, collect_updated_markers, finalize_requirement,
-    specifiers::updated_existing_specifiers, stage_manifests_for_resolution, stage_requirement,
+    StageContext,
+    StagingScope,
+    UpdateOptions,
+    collect_updated_markers,
+    finalize_requirement,
+    specifiers::updated_existing_specifiers,
+    stage_manifests_for_resolution,
+    stage_requirement,
 };
-use crate::{PythonDependencyGroup, declared_dependencies, discover};
+use crate::{
+    PythonDependencyGroup,
+    declared_dependencies,
+    discover,
+};
 
 fn update(existing: &str, version: &str, force_bump: bool) -> Option<String> {
     let existing: VersionSpecifiers = existing.parse().unwrap();

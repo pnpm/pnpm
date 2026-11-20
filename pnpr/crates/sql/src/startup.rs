@@ -1,10 +1,23 @@
-use super::{Duration, RegistryError, Result};
-use sqlx::{ConnectOptions as _, pool::PoolConnection};
+use super::{
+    Duration,
+    RegistryError,
+    Result,
+};
+use sqlx::{
+    ConnectOptions as _,
+    pool::PoolConnection,
+};
 use std::{
-    ops::{Deref, DerefMut},
+    ops::{
+        Deref,
+        DerefMut,
+    },
     sync::Arc,
 };
-use tokio::sync::{Mutex, OwnedMutexGuard};
+use tokio::sync::{
+    Mutex,
+    OwnedMutexGuard,
+};
 
 /// Open the startup connection with visible retries.
 /// If the deadline cancels a retry, the error retains the preceding connection failure.

@@ -1,11 +1,32 @@
 use super::{
-    FakeGitRunner, RepoVersion, SHA_V4_1_0, SHA_V4_2_0, SHA_V5_0_0, SilentReporter, action,
-    find_current, find_outdated_with_runner, is_selector, normalize_selector, refs,
-    render_target_value, repo_versions, selector_matcher, update_with_runner, versions_from_refs,
+    FakeGitRunner,
+    RepoVersion,
+    SHA_V4_1_0,
+    SHA_V4_2_0,
+    SHA_V5_0_0,
+    SilentReporter,
+    action,
+    find_current,
+    find_outdated_with_runner,
+    is_selector,
+    normalize_selector,
+    refs,
+    render_target_value,
+    repo_versions,
+    selector_matcher,
+    update_with_runner,
+    versions_from_refs,
 };
 use node_semver::Version;
-use pnpm_resolving_git_resolver::{GitCommandRunner, GitRunError};
-use std::{fs, future::Future, pin::Pin};
+use pnpm_resolving_git_resolver::{
+    GitCommandRunner,
+    GitRunError,
+};
+use std::{
+    fs,
+    future::Future,
+    pin::Pin,
+};
 
 const SHA_V3_6_0: &str = "0000000000000000000000000000000000000360";
 const SHA_V3_6_1: &str = "0000000000000000000000000000000000000361";
@@ -50,6 +71,13 @@ fn rejects_purl_and_protocol_prefixed_selectors() {
     assert_eq!(normalize_selector("pkg:npm/pkg-a@1.0.0"), "pkg:npm/pkg-a@1.0.0");
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::em_dash_prose,
+        reason = "workflow comments written with a dash are input data"
+    )
+)]
 #[test]
 fn updates_partial_and_non_version_comments_cleanly() {
     let versions = repo_versions();

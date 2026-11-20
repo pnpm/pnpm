@@ -1,11 +1,25 @@
 use super::{
-    super::{LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph},
-    dep_key, metadata_stub, pkg_name, resolved_dep, workspace_lockfile,
+    super::{
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
+    },
+    dep_key,
+    metadata_stub,
+    pkg_name,
+    resolved_dep,
+    workspace_lockfile,
 };
-use pnpm_lockfile::{Lockfile, ResolvedDependencyMap, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile,
+    ResolvedDependencyMap,
+    SnapshotEntry,
+};
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 #[test]
 fn walker_multi_importer_emits_per_importer_direct_deps() {
@@ -89,7 +103,7 @@ fn walker_multi_importer_emits_per_importer_hierarchy() {
     );
 }
 /// `hoist_workspace_packages: false` must NOT drop non-root
-/// importers from the shared hoister tree — pnpm v11 attaches every
+/// importers from the shared hoister tree, pnpm v11 attaches every
 /// importer unconditionally and uses the knob only for root-level
 /// name links of the workspace packages themselves. The walker
 /// therefore still fans out into `packages/foo` and emits its deps.
@@ -128,7 +142,7 @@ fn walker_hoist_workspace_packages_false_keeps_importer_deps() {
 
     assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("a")));
     // `b` is only used by `packages/foo`; with no conflict it hoists
-    // to the root — the importer's subtree participates in the walk.
+    // to the root, the importer's subtree participates in the walk.
     assert!(result.graph.contains_key(&lockfile_dir.join("node_modules").join("b")));
     assert!(result.direct_dependencies_by_importer_id.contains_key(Lockfile::ROOT_IMPORTER_KEY));
     assert!(result.direct_dependencies_by_importer_id.contains_key("packages/foo"));
@@ -163,7 +177,7 @@ fn walker_multi_importer_version_conflict_nests_loser() {
     let result = lockfile_to_hoisted_dep_graph(&lockfile, None, &opts).expect("walker succeeds");
 
     assert_eq!(result.graph.len(), 2);
-    // Root sees a@1 (or a@2 — depends on hoister's tie-break)
+    // Root sees a@1 (or a@2, depends on hoister's tie-break)
     // and packages/foo sees the other version. Whichever wins
     // the root slot, the *other* lives under that importer's
     // own `node_modules/a`.

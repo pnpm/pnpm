@@ -38,20 +38,47 @@ pub(crate) fn store_keys(
 
 use dashmap::DashSet;
 use lockfile_entries::{
-    PendingPrefetch, fetchable_entries, registry_entries, without_prefetched, without_store_hits,
-    without_verified_rows, without_verified_store_hits,
+    PendingPrefetch,
+    fetchable_entries,
+    registry_entries,
+    without_prefetched,
+    without_store_hits,
+    without_verified_rows,
+    without_verified_store_hits,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, SilentReporter};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+    SilentReporter,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    StoreIndexError,
+    StoreIndexWriter,
+};
 use pnpm_tarball::{
-    IngestTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys, TarballError,
+    IngestTarballToStore,
+    MemCache,
+    RetryOpts,
+    SharedReportedProgressKeys,
+    TarballError,
 };
 use ssri::Integrity;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 use tokio::task::JoinSet;
 
 fn resolved(package_id: String, requester: String) -> ProgressMessage {
@@ -97,7 +124,7 @@ pub(crate) struct TarballDownloadPackage {
 }
 
 /// [`tokio::spawn`] a single tarball download into the shared mem cache
-/// and store. The task's result is discarded — the [`MemCache`] carries
+/// and store. The task's result is discarded, the [`MemCache`] carries
 /// `CacheValue::Available` (success) or `CacheValue::Failed` (error) to
 /// the install pass that later looks up the same archive.
 pub(crate) fn spawn_tarball_download(download: TarballDownload) {
@@ -133,7 +160,7 @@ async fn run_tarball_download<Reporter: self::Reporter>(
 
         // The client prefetch routes through `SilentReporter` and passes
         // `None`: there's no install reporter to dedup progress events
-        // against — the frozen materialization install emits its own
+        // against, the frozen materialization install emits its own
         // progress as it consumes each tarball from the mem cache.
         progress_reported: download.progress_reported,
         store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
@@ -226,7 +253,7 @@ impl TarballPrefetcher {
     /// way). `unpacked_size` (the frame's
     /// `unpackedSize`, when the registry published one) sizes the
     /// decompression buffer and acts as the download's queueing
-    /// priority — largest pending archives start first.
+    /// priority, largest pending archives start first.
     pub fn prefetch(
         &self,
         package_id: String,
@@ -294,7 +321,7 @@ impl TarballPrefetcher {
     /// existence probe rather than spawned: the materialization pass
     /// already covers warm entries with its own batched verified lookup
     /// ([`pnpm_tarball::prefetch_cas_paths`]), so spawning them here
-    /// would only duplicate that work per key — on a fully warm store it
+    /// would only duplicate that work per key, on a fully warm store it
     /// turns the whole prefetch into a no-op. A row whose CAS files have
     /// gone missing is skipped here too; the materialization pass's
     /// per-snapshot cache-miss fallback re-downloads it.
@@ -317,7 +344,7 @@ impl TarballPrefetcher {
     /// Fetch every registry package of the lockfile that the store lacks,
     /// and wait for the downloads. This is the fetch itself rather than an
     /// overlap with other work, so it reports each package the way an
-    /// install does (`resolved`, then `found_in_store` or `fetched`) and a
+    /// install does (resolved, then found in the store or fetched) and a
     /// failed download is an error.
     pub async fn fetch_lockfile<Reporter: self::Reporter + 'static>(
         &self,
@@ -422,7 +449,7 @@ impl TarballPrefetcher {
     /// finished (the install awaited each tarball's mem-cache slot) and
     /// queued its index row, so dropping the writer handle closes the
     /// channel and this awaits the final batch flush. A writer error is
-    /// downgraded to a warning — the install already succeeded and a
+    /// downgraded to a warning, the install already succeeded and a
     /// missing index row only costs the next install a re-download.
     pub async fn shutdown(self) {
         drop(self.store);
@@ -441,10 +468,9 @@ impl PrefetchHttpClient {
     ) -> Self {
         Self {
             http_client: Arc::clone(http_client),
-            auth_headers: auth_override.map_or_else(
-                || Arc::clone(&config.auth_headers),
-                Arc::clone,
-            ),
+            auth_headers: auth_override
+                .map(Arc::clone)
+                .unwrap_or_else(|| Arc::clone(&config.auth_headers)),
             retry_opts: config.retry_opts(),
             offline: config.offline,
             tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),

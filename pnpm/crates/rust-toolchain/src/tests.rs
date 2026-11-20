@@ -1,9 +1,22 @@
 use super::{
-    Channel, InstalledToolchain, Profile, RustToolchainError, ToolchainRequest,
-    install::{record_resolution, toolchain_dir},
-    install_for_host, linked_bin_dir, parse_toolchain_name,
+    Channel,
+    InstalledToolchain,
+    Profile,
+    RustToolchainError,
+    ToolchainRequest,
+    install::{
+        record_resolution,
+        toolchain_dir,
+    },
+    install_for_host,
+    linked_bin_dir,
+    parse_toolchain_name,
 };
-use pnpm_config::{Config, Tool, ToolSettings};
+use pnpm_config::{
+    Config,
+    Tool,
+    ToolSettings,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;

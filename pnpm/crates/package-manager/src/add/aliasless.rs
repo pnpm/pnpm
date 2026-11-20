@@ -1,25 +1,48 @@
-use super::{AddError, AddResolveInputs, normalized_save_specifier};
+use super::{
+    AddError,
+    AddResolveInputs,
+    normalized_save_specifier,
+};
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, redact_and_sanitize, redact_url_for_display};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+    redact_url_for_display,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_resolving_git_resolver::{
-    GitFetchContext, GitResolver, HostedGit, RealGitProbe, RealGitRunner,
+    GitFetchContext,
+    GitResolver,
+    HostedGit,
+    RealGitProbe,
+    RealGitRunner,
 };
 use pnpm_resolving_local_resolver::{
-    LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, WantedLocalDependency,
-    is_local_filesystem_specifier, resolve_from_local_path, resolve_from_local_scheme,
+    LocalResolverContext,
+    LocalResolverOptions,
+    LocalResolverUpdate,
+    WantedLocalDependency,
+    is_local_filesystem_specifier,
+    resolve_from_local_path,
+    resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::GitResolveError;
-use pnpm_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
+use pnpm_resolving_tarball_resolver::{
+    TarballFetchContext,
+    TarballResolver,
+};
 use pnpm_store_dir::SharedVerifiedFilesCache;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// The package name and manifest specifier for an add selector that names
 /// no alias: a git URL, a remote tarball URL, or a local directory /
 /// tarball. Such a selector is the whole specifier, and the package's name
-/// lives only in its own manifest — inside the archive, the checkout, or
-/// the directory — so it has to be read from there before the manifest
+/// lives only in its own manifest (inside the archive, the checkout, or
+/// the directory) so it has to be read from there before the manifest
 /// entry can be written.
 pub(super) struct AliaslessDependency {
     pub(super) package_name: String,
@@ -69,7 +92,7 @@ pub(super) fn publish_search_root<'a>(
         .unwrap_or_else(|| config.lockfile_dir_for(manifest_dir))
 }
 /// Resolve a local directory or tarball selector by reading the package's
-/// own manifest — off disk for a directory, out of the archive for a
+/// own manifest, off disk for a directory, out of the archive for a
 /// tarball.
 ///
 /// `link:` / `file:` are claimed by their scheme, everything else by path
@@ -188,7 +211,7 @@ fn aliasless_tarball_resolver(
 ///
 /// `reqwest` echoes the request URL back in its own message and redacts
 /// only the userinfo, while a signed tarball URL carries its token in the
-/// query string — which [`redact_and_sanitize`] keeps too. The scrub is
+/// query string, which [`redact_and_sanitize`] keeps too. The scrub is
 /// URL-agnostic rather than keyed to the specifier: the HEAD request
 /// follows redirects, so the URL a failure names may be a signed storage
 /// URL the caller never saw.
@@ -234,7 +257,7 @@ pub(super) fn strip_url_query_and_fragment(text: &str) -> String {
     out
 }
 /// Where the URL at the start of `text` ends: at whitespace, at one of the
-/// marks a message wraps a URL in, or at a `": "` — which cannot occur
+/// marks a message wraps a URL in, or at a `": "`, which cannot occur
 /// inside a URL, and is how a message punctuates the URL from what follows
 /// it (`GET <url>: 404`). Without that last case, cutting the query would
 /// swallow the message's own separator.
@@ -251,8 +274,8 @@ pub(super) fn url_token_len(text: &str) -> usize {
 /// would leave credential material behind.
 ///
 /// A password containing `?` or `#` defeats the userinfo scan that runs
-/// before this — the scan reads the `?` as the end of the authority and
-/// leaves the whole `user:pa?ss@host` in place — so cutting there would
+/// before this, the scan reads the `?` as the end of the authority and
+/// leaves the whole `user:pa?ss@host` in place, so cutting there would
 /// publish the password's prefix. The authority is therefore checked on the
 /// *uncut* token: any `@` still in front of the path means the userinfo
 /// survived, and the token fails closed instead.
@@ -304,8 +327,8 @@ pub(super) fn aliasless_package_name(
     Ok(name.to_string())
 }
 /// The name an alias-less git selector's package is added under: the one
-/// its own manifest declares, or — for a repository that ships no manifest
-/// — one synthesized from the repository's host identity.
+/// its own manifest declares, or (for a repository that ships no manifest)
+/// one synthesized from the repository's host identity.
 ///
 /// `None` when neither is available: the repository declares no name and
 /// its URL names a host pacquet cannot read an owner and project out of.

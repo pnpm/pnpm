@@ -1,9 +1,19 @@
 use super::{
-    BTreeMap, BTreeSet, DependencyGroup, PackageManifest, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SpecDiff, StalenessReason, git_specifiers_are_equivalent,
+    BTreeMap,
+    BTreeSet,
+    DependencyGroup,
+    PackageManifest,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SpecDiff,
+    StalenessReason,
+    git_specifiers_are_equivalent,
 };
 use pnpm_semver_include_prerelease::{
-    ANY_VERSION_RANGE, is_any_version_range, parse_strict_semver_range,
+    ANY_VERSION_RANGE,
+    is_any_version_range,
+    parse_strict_semver_range,
 };
 use pnpm_tool_protocol::tool_specifiers_equal;
 
@@ -31,7 +41,7 @@ use pnpm_tool_protocol::tool_specifiers_equal;
 /// into `dependencies` for the comparison, matching how pnpm
 /// materializes those peers into the importer's `dependencies` in the
 /// lockfile. Without this, a peer-only dependency would be misread as
-/// a lockfile entry the manifest removed (see `auto_installed_peer_deps`).
+/// a lockfile entry the manifest removed (see the auto-installed peer handling).
 ///
 /// Still unsupported: `excludeLinksFromLockfile` (`link:` resolutions
 /// aren't modeled yet). Non-semver resolutions such as file and
@@ -93,14 +103,14 @@ fn check_publish_directory(
         });
     }
     let lockfile_links_publish_directory =
-        importer.publish_directory.is_some() && importer.link_directory != Some(false);
+        importer.publish_directory.is_some() && importer.link_directory.unwrap_or(true);
     let manifest_links_publish_directory = manifest_publish_dir.is_some()
         && manifest
             .value()
             .get("publishConfig")
             .and_then(|publish_config| publish_config.get("linkDirectory"))
             .and_then(serde_json::Value::as_bool)
-            != Some(false);
+            .unwrap_or(true);
     if lockfile_links_publish_directory != manifest_links_publish_directory {
         return Err(StalenessReason::LinkDirectoryMismatch {
             lockfile: lockfile_links_publish_directory,
@@ -122,8 +132,12 @@ fn check_dependencies_meta(
         return Ok(());
     }
     Err(StalenessReason::DependenciesMetaMismatch {
-        lockfile: importer_meta.map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
-        manifest: manifest_meta.map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
+        lockfile: importer_meta
+            .map(std::string::ToString::to_string)
+            .unwrap_or_else(|| "{}".to_string()),
+        manifest: manifest_meta
+            .map(std::string::ToString::to_string)
+            .unwrap_or_else(|| "{}".to_string()),
     })
 }
 
@@ -345,7 +359,7 @@ pub(crate) fn auto_installed_peer_deps(
 /// optionalDependencies` flat-record. Manifest fields are read in
 /// dev → prod → optional order, but the order
 /// is irrelevant for the diff since duplicates resolve to the same
-/// specifier anyway — if two fields list the same name with different
+/// specifier anyway, if two fields list the same name with different
 /// specifiers the manifest is invalid and pacquet would have rejected
 /// it earlier.
 fn flat_manifest_specs(

@@ -1,6 +1,9 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::fs;
 
 #[test]
@@ -542,10 +545,12 @@ fn link_existing_dependency_writes_override_only() {
 
     // The install succeeded despite the registry-spec devDependency, which is
     // only possible because the in-memory override rewrote it to the local
-    // `link:` — confirm the symlink was created rather than a registry fetch.
+    // `link:`, confirm the symlink was created rather than a registry fetch.
     let linked = workspace.join("node_modules").join("target-project");
     assert!(
-        fs::symlink_metadata(&linked).is_ok_and(|meta| meta.file_type().is_symlink()),
+        fs::symlink_metadata(&linked)
+            .map(|meta| meta.file_type())
+            .is_ok_and(|file_type| file_type.is_symlink()),
         "node_modules/target-project must be a symlink created from the link override",
     );
 
@@ -593,7 +598,8 @@ fn link_warns_about_peer_dependencies() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is utf-8");
     let warn_events: Vec<serde_json::Value> = stderr
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .filter(|val| {
             val.get("name").and_then(serde_json::Value::as_str) == Some("pnpm")
                 && val.get("level").and_then(serde_json::Value::as_str) == Some("warn")

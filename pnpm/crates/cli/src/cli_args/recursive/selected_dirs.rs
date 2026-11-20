@@ -1,14 +1,21 @@
 //! A recursive selection detached from the projects it was made over.
 
 use super::{
-    RecursiveSelection, build_selected_graph,
-    filter_graphs::{FilterGraphs, build_filter_graphs},
+    RecursiveSelection,
+    build_selected_graph,
+    filter_graphs::{
+        FilterGraphs,
+        build_filter_graphs,
+    },
 };
 use pnpm_config::Config;
 use pnpm_workspace::Project;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The project directories a [`RecursiveSelection`] picked, owned so the

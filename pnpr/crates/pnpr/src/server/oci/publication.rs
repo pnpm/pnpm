@@ -1,11 +1,29 @@
 use super::{
-    Digest, ErrorCode, ImageDocument, MAX_MANIFEST_REFERENCES, Manifest, ManifestEntry, Refusal,
+    Digest,
+    ErrorCode,
+    ImageDocument,
+    MAX_MANIFEST_REFERENCES,
+    Manifest,
+    ManifestEntry,
+    Refusal,
     now_millis,
 };
 use crate::server::{
-    Action, AppState, Identity, RegistrySource, authorize_package,
-    documents::{HostedArtifact, HostedTarget, stage_hosted_artifact_on},
-    publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
+    Action,
+    AppState,
+    Identity,
+    RegistrySource,
+    authorize_package,
+    documents::{
+        HostedArtifact,
+        HostedTarget,
+        stage_hosted_artifact_on,
+    },
+    publishing::{
+        PublishTarget,
+        StagedPublish,
+        resolve_publish_target_for,
+    },
 };
 use axum::body::Bytes;
 use pnpr_error::RegistryError;
@@ -14,7 +32,13 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId,
-    database::{ArtifactBlob, BlobLookup, BlobRef, BlobState, MappedArtifact},
+    database::{
+        ArtifactBlob,
+        BlobLookup,
+        BlobRef,
+        BlobState,
+        MappedArtifact,
+    },
 };
 use std::collections::HashSet;
 

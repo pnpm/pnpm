@@ -1,14 +1,31 @@
 use super::{
-    CompletionContext, ValueForm, filter_by_prefix, packages,
-    paths::{self, PathCompletionKind},
+    CompletionContext,
+    ValueForm,
+    filter_by_prefix,
+    packages,
+    paths::{
+        self,
+        PathCompletionKind,
+    },
 };
-use crate::cli_args::cli_command::options::{WorkspaceRootError, find_workspace_root_dir};
-use clap::{Arg, ArgAction, Command, ValueHint};
+use crate::cli_args::cli_command::options::{
+    WorkspaceRootError,
+    find_workspace_root_dir,
+};
+use clap::{
+    Arg,
+    ArgAction,
+    Command,
+    ValueHint,
+};
 use miette::IntoDiagnostic;
 use pnpm_workspace::find_workspace_dir;
 use std::{
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn visible_options(context: &CompletionContext<'_>) -> Vec<String> {

@@ -1,4 +1,7 @@
-use super::{CanonicalPackageName, TarballRevision};
+use super::{
+    CanonicalPackageName,
+    TarballRevision,
+};
 
 pub(super) fn is_addressable_version(version: &str) -> bool {
     pnpr_package_name::is_safe_path_segment(version)
@@ -55,7 +58,8 @@ pub fn revision_route_tarball_version<'a>(
         && digits
             .parse::<u64>()
             .ok()
-            .and_then(|num| TarballRevision::try_from(num).ok())
+            .map(TarballRevision::try_from)
+            .and_then(Result::ok)
             .is_some();
     valid_revision.then_some(version_and_rev)
 }
@@ -95,7 +99,7 @@ pub fn tarball_basename_for_package<'a>(
 /// segment, with any `?query`/`#fragment` stripped. This basename is the
 /// trust key shared by the rewritten public URL ([`super::rewrite_tarball_urls`])
 /// and the serve-time version match (`expected_tarball_dist`), so both
-/// must derive it identically — including for query-bearing URLs (signed
+/// must derive it identically, including for query-bearing URLs (signed
 /// CDN links), where the query is not part of the route path a client
 /// later requests. Returns `None` for a URL whose path ends in `/`.
 #[must_use]

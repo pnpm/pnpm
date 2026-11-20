@@ -1,14 +1,33 @@
 pub mod args;
-pub use args::{FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval};
+pub use args::{
+    FeatureArgs,
+    OsvArgs,
+    ServerArgs,
+    parse_cli_interval,
+};
 
 use crate::{
-    Config, RegistryError,
-    cache_maintenance::{CacheGcEffect, CacheGcScope},
-    server::{Credentials, FileReferences, with_stored_routing},
+    Config,
+    RegistryError,
+    cache_maintenance::{
+        CacheGcEffect,
+        CacheGcScope,
+    },
+    server::{
+        Credentials,
+        FileReferences,
+        with_stored_routing,
+    },
 };
 use clap::Subcommand;
-use pnpm_diagnostics::{print, println};
-use std::{path::PathBuf, time::Duration};
+use pnpm_diagnostics::{
+    print,
+    println,
+};
+use std::{
+    path::PathBuf,
+    time::Duration,
+};
 
 #[derive(Debug, Subcommand)]
 pub enum Command {

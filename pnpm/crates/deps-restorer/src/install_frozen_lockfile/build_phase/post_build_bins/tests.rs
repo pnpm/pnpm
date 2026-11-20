@@ -1,8 +1,17 @@
 use super::{
-    HashMap, HashSet, Host, LinkBinsOptions, PackageKey, hoisted_modules_dirs, link_options,
+    HashMap,
+    HashSet,
+    Host,
+    LinkBinsOptions,
+    PackageKey,
+    hoisted_modules_dirs,
+    link_options,
 };
 use pnpm_cmd_shim::link_bins;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn refreshes_the_physical_hoisted_bin_container_for_scoped_and_unscoped_packages() {

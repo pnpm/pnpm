@@ -1,6 +1,11 @@
 use super::{
-    ARTIFACTORY_REGISTRY, GIT_COMMIT, RegistryServerType, TarballUrlOptions, assert_eq,
-    is_git_hosted_tarball_url, npm_tarball_url,
+    ARTIFACTORY_REGISTRY,
+    GIT_COMMIT,
+    RegistryServerType,
+    TarballUrlOptions,
+    assert_eq,
+    is_git_hosted_tarball_url,
+    npm_tarball_url,
 };
 
 #[test]
@@ -23,7 +28,7 @@ fn is_git_hosted_tarball_url_rejects_false_positives() {
 
     // Host lookalikes. The authority is compared whole, so neither a
     // `user@` prefix (where the real host is what follows the `@`) nor a
-    // subdomain of a git provider passes for the provider itself — the
+    // subdomain of a git provider passes for the provider itself, the
     // exemption from integrity checking rides on this.
     assert!(!is_git_hosted_tarball_url(&format!(
         "https://codeload.github.com@evil.example/foo/bar/tar.gz/{GIT_COMMIT}"

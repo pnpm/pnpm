@@ -8,26 +8,46 @@
 
 use crate::{
     open_dir::{
-        ChildFileStat, ChildWrite, OpenDir,
-        child_ops::{ensure_within_max_bytes, read_bounded_bytes},
+        ChildFileStat,
+        ChildWrite,
+        OpenDir,
+        child_ops::{
+            ensure_within_max_bytes,
+            read_bounded_bytes,
+        },
         write_child_file_in_pinned_dir,
     },
     remove_dirent,
-    retry::{retry_transient_file_locks, retry_transient_removal_locks},
+    retry::{
+        retry_transient_file_locks,
+        retry_transient_removal_locks,
+    },
     symlink_metadata_with_retry,
 };
 use std::{
     ffi::OsStr,
     fs,
-    io::{self, ErrorKind},
-    os::windows::fs::{MetadataExt as _, OpenOptionsExt as _},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    os::windows::fs::{
+        MetadataExt as _,
+        OpenOptionsExt as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::SystemTime,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
-    FILE_SHARE_READ, FILE_SHARE_WRITE,
+    FILE_ATTRIBUTE_REPARSE_POINT,
+    FILE_FLAG_BACKUP_SEMANTICS,
+    FILE_FLAG_OPEN_REPARSE_POINT,
+    FILE_SHARE_READ,
+    FILE_SHARE_WRITE,
 };
 
 #[derive(Debug, Clone)]

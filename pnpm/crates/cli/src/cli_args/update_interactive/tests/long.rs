@@ -1,5 +1,9 @@
 use super::{
-    super::{InteractiveUpdateProject, UpdateDetails, choices::update_choices},
+    super::{
+        InteractiveUpdateProject,
+        UpdateDetails,
+        choices::update_choices,
+    },
     collect_choices,
 };
 use crate::cli_args::outdated::TargetVersion;

@@ -84,7 +84,7 @@ fn start_with_if_present_skips_when_script_and_server_js_are_missing() {
 
 /// These tests drive `RunArgs::run` in-process, so the
 /// verify-deps-before-run gate must stay off: its `install` default
-/// would spawn `current_exe()` — the test harness binary — as the
+/// would spawn `current_exe()` (the test harness binary) as the
 /// installer. pnpm's unit tests equally construct their options
 /// without the setting.
 fn test_config() -> pnpm_config::Config {

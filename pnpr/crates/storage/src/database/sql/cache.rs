@@ -2,7 +2,12 @@
 
 use super::PackageKey;
 use crate::BoundedCache;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{
+    Arc,
+    Mutex,
+    MutexGuard,
+    PoisonError,
+};
 
 /// Bytes of rendered version fragments kept in memory.
 const FRAGMENT_BUDGET: usize = 64 * 1024 * 1024;

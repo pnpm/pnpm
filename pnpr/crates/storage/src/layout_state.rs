@@ -2,9 +2,19 @@
 //! wipe-and-rebuild rule.
 
 use crate::{
-    HostedBackend, Result, Storage,
-    database::sql::{StoreBinding, StoreClaim},
-    layout::{LAYOUT_FILE, LAYOUT_VERSION, LayoutMarker, new_store_id},
+    HostedBackend,
+    Result,
+    Storage,
+    database::sql::{
+        StoreBinding,
+        StoreClaim,
+    },
+    layout::{
+        LAYOUT_FILE,
+        LAYOUT_VERSION,
+        LayoutMarker,
+        new_store_id,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;

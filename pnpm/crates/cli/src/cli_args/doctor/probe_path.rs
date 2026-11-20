@@ -9,11 +9,19 @@ use pnpm_config::Config;
 use probe_dir::create_exclusive_file_pinned;
 use probe_dir::random_probe_entry_name;
 #[cfg(unix)]
-use probe_dir::{create_exclusive_file_unix, unlink_probe_entry_unix};
+use probe_dir::{
+    create_exclusive_file_unix,
+    unlink_probe_entry_unix,
+};
 use std::{
     ffi::OsStr,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 mod probe_dir;

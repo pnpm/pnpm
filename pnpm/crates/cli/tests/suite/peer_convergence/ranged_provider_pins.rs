@@ -1,10 +1,19 @@
 use super::moving_providers::{
-    install_lockfile, normalize_registry_origin, registry_from_manifests,
+    install_lockfile,
+    normalize_registry_origin,
+    registry_from_manifests,
 };
-use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    read_v11_bundle_path,
+};
 use pnpm_lockfile::Lockfile;
 use serde_json::json;
-use std::{ffi::OsStr, fs};
+use std::{
+    ffi::OsStr,
+    fs,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum InitialProvider {

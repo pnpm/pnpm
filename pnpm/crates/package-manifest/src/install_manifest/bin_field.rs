@@ -1,7 +1,14 @@
 //! The `bin` field, with `directories.bin` expanded into it.
 
-use crate::{declared_bin_entries, normalize_bin_path, normalize_package_relative_path};
-use serde_json::{Map, Value};
+use crate::{
+    declared_bin_entries,
+    normalize_bin_path,
+    normalize_package_relative_path,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::BTreeSet;
 
 /// The commands the manifest declares, as an object of command name to
@@ -15,7 +22,8 @@ use std::collections::BTreeSet;
 pub(super) fn derive_bin(manifest: &Value, files: &BTreeSet<String>) -> Option<Value> {
     let declared = manifest
         .get("bin")
-        .filter(|bin| !bin.is_null() && bin.as_str() != Some(""));
+        .filter(|bin| !bin.is_null())
+        .filter(|bin| bin.as_str() != Some(""));
     let entries = match declared {
         Some(bin) => {
             let name = manifest

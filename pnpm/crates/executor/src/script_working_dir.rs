@@ -1,7 +1,10 @@
 use std::{
     borrow::Cow,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(windows)]
@@ -82,7 +85,10 @@ fn windows_path_len(path: &Path) -> usize {
 /// generates one. Only a strictly shorter, non-verbatim answer is useful.
 #[cfg(windows)]
 fn short_path(path: &Path) -> Option<PathBuf> {
-    use std::path::{Component, Prefix};
+    use std::path::{
+        Component,
+        Prefix,
+    };
 
     let short = query_short_path(&verbatim_wide(path)?)?;
     let short = dunce::simplified(&short);
@@ -105,7 +111,10 @@ fn verbatim_wide(path: &Path) -> Option<Vec<u16>> {
     use std::{
         ffi::OsStr,
         os::windows::ffi::OsStrExt,
-        path::{Component, Prefix},
+        path::{
+            Component,
+            Prefix,
+        },
     };
 
     let Some(Component::Prefix(prefix)) = path.components().next() else { return None };
@@ -128,7 +137,11 @@ fn verbatim_wide(path: &Path) -> Option<Vec<u16>> {
 /// `GetShortPathNameW` over a null-terminated UTF-16 path.
 #[cfg(windows)]
 fn query_short_path(verbatim: &[u16]) -> Option<PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt, ptr};
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::OsStringExt,
+        ptr,
+    };
     use windows_sys::Win32::Storage::FileSystem::GetShortPathNameW;
 
     // SAFETY: the first call obtains the required UTF-16 buffer size from a

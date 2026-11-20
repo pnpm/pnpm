@@ -1,12 +1,24 @@
 mod open_directory;
-use crate::{FindWorkspaceProjectsError, directory_patterns::negated_directory_pattern};
-use derive_more::{Display, Error};
+use crate::{
+    FindWorkspaceProjectsError,
+    directory_patterns::negated_directory_pattern,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     ffi::OsStr,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use wax::Program as _;
 
@@ -150,7 +162,8 @@ fn compile_excluded_directories(
 ) -> Result<wax::Any<'static>, FindWorkspaceInventoryError> {
     let globs = patterns
         .iter()
-        .filter_map(|pattern| negated_directory_pattern(pattern).transpose())
+        .map(|pattern| negated_directory_pattern(pattern))
+        .filter_map(Result::transpose)
         .map(|directory| {
             directory.map(|directory| {
                 wax::Glob::new(&directory).expect("validated directory pattern").into_owned()

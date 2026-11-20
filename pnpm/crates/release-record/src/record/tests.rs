@@ -1,10 +1,20 @@
-use super::{RecordError, StoredRecord};
+use super::{
+    RecordError,
+    StoredRecord,
+};
 use crate::{
     digest::RecordDigest,
     identity::RecordIdentity,
-    test_support::{NPM_RECORD, OCI_RECORD, OCI_TOMBSTONE},
+    test_support::{
+        NPM_RECORD,
+        OCI_RECORD,
+        OCI_TOMBSTONE,
+    },
 };
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 
 #[test]
 fn reads_the_core_of_an_npm_record() {

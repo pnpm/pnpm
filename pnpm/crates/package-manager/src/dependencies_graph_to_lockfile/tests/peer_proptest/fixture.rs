@@ -1,11 +1,25 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{ResolveImporterOptions, WorkspaceResolveOptions};
-use serde_json::{Value, json};
+use pnpm_resolving_deps_resolver::{
+    ResolveImporterOptions,
+    WorkspaceResolveOptions,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{Reuse, Settings, Workspace, model};
+use super::{
+    Reuse,
+    Settings,
+    Workspace,
+    model,
+};
 
 pub(super) struct Fixture {
     pub(super) root: tempfile::TempDir,

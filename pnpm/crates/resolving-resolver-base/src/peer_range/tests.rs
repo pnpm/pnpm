@@ -1,4 +1,8 @@
-use super::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
+use super::{
+    get_peer_version_range,
+    is_acceptable_peer_spec,
+    is_valid_peer_range,
+};
 
 #[test]
 fn is_valid_peer_range_only_accepts_semver_and_workspace_catalog() {

@@ -1,5 +1,12 @@
-use crate::{FsCopyContents, Host};
-use std::{fs, io, path::Path};
+use crate::{
+    FsCopyContents,
+    Host,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 /// The permission state a copy carries from one file to another.
 ///
@@ -99,7 +106,9 @@ pub fn copy_permissions(source: &Path) -> io::Result<CopyPermissions> {
 pub fn read_file_permissions(file: &fs::File) -> io::Result<CopyPermissions> {
     #[cfg(not(target_os = "wasi"))]
     {
-        file.metadata().map(|metadata| CopyPermissions(metadata.permissions()))
+        file.metadata()
+            .map(|metadata| metadata.permissions())
+            .map(CopyPermissions)
     }
     #[cfg(target_os = "wasi")]
     {
@@ -123,7 +132,7 @@ pub fn read_file_permissions(file: &fs::File) -> io::Result<CopyPermissions> {
 /// does not bring it into being.
 ///
 /// Everything after the creation goes through that one handle rather
-/// than the path — the bytes, the mode, and whatever `finish` does
+/// than the path, the bytes, the mode, and whatever `finish` does
 /// with it. A writer that swaps the dirent mid-copy therefore cannot
 /// redirect any of it onto a file elsewhere, the way re-opening
 /// `target_path` by name could. The mode is also supplied at creation,

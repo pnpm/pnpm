@@ -1,11 +1,20 @@
 use super::{
-    BugsArgs, get_bugs_url_from_current_project, is_http_url, pick_bugs_url,
-    repository_to_issues_url, try_hosted_git_shorthand,
+    BugsArgs,
+    get_bugs_url_from_current_project,
+    is_http_url,
+    pick_bugs_url,
+    repository_to_issues_url,
+    try_hosted_git_shorthand,
 };
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
 use serde_json::json;
-use std::{cell::RefCell, fs, io, path::Path};
+use std::{
+    cell::RefCell,
+    fs,
+    io,
+    path::Path,
+};
 
 #[test]
 fn current_project_bugs_uses_manifest_precedence() {

@@ -1,6 +1,12 @@
 //! Which upstream alias, if any, lends its credential to a fetch.
 
-use super::{ConcreteKind, Identity, Resolved, ResolvedAlias, RouteContext};
+use super::{
+    ConcreteKind,
+    Identity,
+    Resolved,
+    ResolvedAlias,
+    RouteContext,
+};
 
 impl RouteContext {
     /// Whether the upstream registry's credential may be used for `package`
@@ -25,8 +31,8 @@ impl RouteContext {
     }
 
     /// Reuse the cached resolution only if `identity` would *select*
-    /// this exact alias for its origin — the first authorized alias
-    /// [`Self::select_alias`] returns there — and its credential
+    /// this exact alias for its origin, the first authorized alias
+    /// [`Self::select_alias`] returns there, and its credential
     /// still hashes to the same digest. Not merely an alias the
     /// caller is authorized for: with overlapping upstream access
     /// (several aliases on one origin a caller can use), an

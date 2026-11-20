@@ -1,13 +1,26 @@
 use pnpm_fs::CopyPermissions as Permissions;
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+};
 #[cfg(not(target_os = "wasi"))]
 use std::{
-    fs::{self, OpenOptions},
-    sync::atomic::{AtomicU64, Ordering},
+    fs::{
+        self,
+        OpenOptions,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 use diffy::patch_set::FileMode;
 use std::{
-    io::{self, Write},
+    io::{
+        self,
+        Write,
+    },
     path::Path,
 };
 
@@ -23,11 +36,11 @@ use std::{
 ///
 /// `rename` is atomic on Unix and replaces in-place on Windows, so an
 /// IO failure mid-write leaves either the original file or the
-/// rewritten one — never an empty dirent. **This is atomic against IO
+/// rewritten one, never an empty dirent. **This is atomic against IO
 /// errors, not against power loss**: we don't `fsync` the temp file
 /// or the parent directory, so a host crash between rename and the
 /// kernel's writeback flush can lose the rename. This matches Node's
-/// `fs.writeFileSync` semantics — it doesn't fsync either, and a
+/// `fs.writeFileSync` semantics; it doesn't fsync either, and a
 /// partially-written patched install is recoverable by re-running
 /// `pnpm install` anyway.
 ///
@@ -41,7 +54,7 @@ pub(super) fn write_atomic_with_mode(
     content: &[u8],
     permissions: Option<&Permissions>,
 ) -> io::Result<()> {
-    /// Sixteen fresh counter values is plenty — under benign
+    /// Sixteen fresh counter values is plenty, under benign
     /// conditions we never collide; under shared-store-across-
     /// containers the chance of 16 consecutive same-pid same-counter
     /// collisions is negligible. Matches the constant in
@@ -53,7 +66,8 @@ pub(super) fn write_atomic_with_mode(
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(Cow::into_owned)
         .unwrap_or_else(|| String::from("patched"));
 
     let mut last_already_exists: Option<io::Error> = None;

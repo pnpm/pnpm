@@ -1,25 +1,62 @@
-use axum::{body::Bytes, http::StatusCode, response::Response};
+use axum::{
+    body::Bytes,
+    http::StatusCode,
+    response::Response,
+};
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_route::{Footprint, RouteContext};
-use std::sync::{Arc, Mutex};
+use pnpr_route::{
+    Footprint,
+    RouteContext,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 use super::{
-    ObservedDistStats, PacquetConfig, ResolveRequest, Resolver, StreamedResolveInputs,
-    cached_resolution, cargo, json_error,
-    limits::{AdmittedResolve, reject_oversized_graph, request_timeout_response},
-    protocol::{self, EcosystemProbe},
-    pypi, request_tarball_router,
+    ObservedDistStats,
+    PacquetConfig,
+    ResolveRequest,
+    Resolver,
+    StreamedResolveInputs,
+    cached_resolution,
+    cargo,
+    json_error,
+    limits::{
+        AdmittedResolve,
+        reject_oversized_graph,
+        request_timeout_response,
+    },
+    protocol::{
+        self,
+        EcosystemProbe,
+    },
+    pypi,
+    request_tarball_router,
     request_validation::{
-        parse_request, reject_incompatible_lockfile_format, reject_inline_url_auth,
-        reject_invalid_lockfile_dependency_names, reject_invalid_patch_hashes,
-        reject_invalid_registries, reject_local_dependency_specs, reject_off_allowlist_fetches,
+        parse_request,
+        reject_incompatible_lockfile_format,
+        reject_inline_url_auth,
+        reject_invalid_lockfile_dependency_names,
+        reject_invalid_patch_hashes,
+        reject_invalid_registries,
+        reject_local_dependency_specs,
+        reject_off_allowlist_fetches,
         reject_unsafe_publish_directories,
     },
-    resolution_cache_key, resolve, stream_resolve_response, verify_request_lockfile,
+    resolution_cache_key,
+    resolve,
+    stream_resolve_response,
+    verify_request_lockfile,
     wire::{
-        LockfileOrigin, TarballRouter, frozen_package_frames_until, ndjson_frames_until,
-        ndjson_single_frame, osv_violations_for_lockfile_until, try_done_frame_until,
+        LockfileOrigin,
+        TarballRouter,
+        frozen_package_frames_until,
+        ndjson_frames_until,
+        ndjson_single_frame,
+        osv_violations_for_lockfile_until,
+        try_done_frame_until,
         violations_frame,
     },
 };
@@ -240,7 +277,7 @@ pub(super) fn reject_unusable_resolve(
 
 /// A verified frozen lockfile is the whole answer: no incremental tree walk
 /// runs. Its tarballs are still announced as `package` frames when the
-/// verification fan-out just fetched their metadata — the sizes let the client
+/// verification fan-out just fetched their metadata, the sizes let the client
 /// start the largest downloads first. On a verdict-cache hit no metadata was
 /// fetched, so there is nothing to add and the response is the bare `done`
 /// frame.
@@ -331,7 +368,7 @@ fn serialize_frozen_frames(
 /// A stored lockfile this caller may reuse.
 ///
 /// The OSV index is immutable for this resolver instance and a lockfile is only
-/// stored after passing the OSV check, so a cache hit is already OSV-clean — no
+/// stored after passing the OSV check, so a cache hit is already OSV-clean, no
 /// per-package re-scan is needed on this warm path.
 fn cached_resolution_response(
     runtime: &Resolver,

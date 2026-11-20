@@ -1,4 +1,4 @@
-//! OpenID-Connect trusted publishing — fetch a CI id-token, exchange it for a
+//! OpenID-Connect trusted publishing, fetch a CI id-token, exchange it for a
 //! registry auth token, and decide whether to attach provenance.
 //!
 //! Each step is generic over a single `Sys` type parameter carrying only the
@@ -7,9 +7,20 @@
 //! instead of a live registry. CI-provider detection is a plain `EnvVar` read
 //! ([`is_github_actions`], [`is_gitlab`]).
 
-pub use auth_token::{AuthTokenError, fetch_auth_token};
-pub use id_token::{GetIdTokenError, IdTokenError, get_id_token};
-pub use provenance::{DetermineProvenanceError, ProvenanceError, determine_provenance};
+pub use auth_token::{
+    AuthTokenError,
+    fetch_auth_token,
+};
+pub use id_token::{
+    GetIdTokenError,
+    IdTokenError,
+    get_id_token,
+};
+pub use provenance::{
+    DetermineProvenanceError,
+    ProvenanceError,
+    determine_provenance,
+};
 
 mod auth_token;
 mod id_token;
@@ -20,7 +31,14 @@ use serde_json::Value;
 use url::Url;
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+        OidcMethod,
+        OidcRequest,
+    },
     global_log::global_info,
 };
 
@@ -29,13 +47,13 @@ pub(crate) fn truthy_env<Sys: EnvVar>(name: &str) -> Option<String> {
     Sys::var(name).filter(|value| !value.is_empty())
 }
 
-/// Whether the publish is running under GitHub Actions — the `GITHUB_ACTIONS`
+/// Whether the publish is running under GitHub Actions, the `GITHUB_ACTIONS`
 /// environment variable is present and non-empty.
 pub(crate) fn is_github_actions<Sys: EnvVar>() -> bool {
     truthy_env::<Sys>("GITHUB_ACTIONS").is_some()
 }
 
-/// Whether the publish is running under GitLab CI — the `GITLAB_CI`
+/// Whether the publish is running under GitLab CI, the `GITLAB_CI`
 /// environment variable is present and non-empty.
 pub(crate) fn is_gitlab<Sys: EnvVar>() -> bool {
     truthy_env::<Sys>("GITLAB_CI").is_some()
@@ -98,7 +116,8 @@ where
     }
 
     let json: Value = serde_json::from_str(&response.body)
-        .map_err(|source| GitHubRequestTokenError::JsonParse(source.to_string()))?;
+        .map_err(|source| source.to_string())
+        .map_err(GitHubRequestTokenError::JsonParse)?;
 
     json.get("value")
         .and_then(Value::as_str)

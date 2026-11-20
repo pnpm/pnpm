@@ -1,20 +1,51 @@
 use super::{
-    BinCandidates, BinsDirPass, LinkVirtualStoreBins, LinkVirtualStoreBinsError,
-    PrefetchedBinLookup, SkippedCommands, build_has_bin_set, link_bins_dir,
+    BinCandidates,
+    BinsDirPass,
+    LinkVirtualStoreBins,
+    LinkVirtualStoreBinsError,
+    PrefetchedBinLookup,
+    SkippedCommands,
+    build_has_bin_set,
+    link_bins_dir,
 };
-use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_cmd_shim::{LinkBinsOptions, is_shim_pointing_at};
+use crate::{
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
+use pnpm_cmd_shim::{
+    LinkBinsOptions,
+    is_shim_pointing_at,
+};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
-    PackageKey, PackageMetadata, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
-    SnapshotEntry, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    DirectoryResolution,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PlatformAssetResolution,
+    PlatformAssetTarget,
+    RegistryResolution,
+    SnapshotEntry,
+    VariationsResolution,
 };
 use serde_json::json;
 use std::{
     collections::HashMap,
-    fs::{create_dir_all, read_to_string, write as write_file},
-    iter::{Empty, empty},
-    path::{Path, PathBuf},
+    fs::{
+        create_dir_all,
+        read_to_string,
+        write as write_file,
+    },
+    iter::{
+        Empty,
+        empty,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 
@@ -589,8 +620,15 @@ fn read_alias_reports_publish_directory_inspection_error() {
 #[test]
 fn link_virtual_store_bins_propagates_read_error_via_di() {
     use pnpm_cmd_shim::{
-        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite,
+        FsCreateDirAll,
+        FsEnsureExecutableBits,
+        FsReadDir,
+        FsReadFile,
+        FsReadHead,
+        FsReadToString,
+        FsSetExecutable,
+        FsWalkFiles,
+        FsWrite,
     };
     use std::io;
 
@@ -871,8 +909,16 @@ fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifes
 #[test]
 fn prefetched_and_virtual_store_bin_passes_use_precalculated_bins_without_disk_reads() {
     use pnpm_cmd_shim::{
-        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-        FsSetExecutable, FsWalkFiles, FsWrite, Host,
+        FsCreateDirAll,
+        FsEnsureExecutableBits,
+        FsReadDir,
+        FsReadFile,
+        FsReadHead,
+        FsReadToString,
+        FsSetExecutable,
+        FsWalkFiles,
+        FsWrite,
+        Host,
     };
     use std::io;
 

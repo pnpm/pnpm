@@ -1,4 +1,12 @@
-use super::{PacklistOptions, fs, json, packlist, packlist_with_options, tempdir, touch};
+use super::{
+    PacklistOptions,
+    fs,
+    json,
+    packlist,
+    packlist_with_options,
+    tempdir,
+    touch,
+};
 
 #[cfg(unix)]
 use super::write;

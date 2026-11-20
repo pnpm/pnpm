@@ -3,15 +3,48 @@ pub(super) mod key;
 pub(super) use key::create_cache_key;
 
 use super::{
-    BTreeMap, CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Config, Context,
-    DependencyGroup, DlxError, Duration, IntoDiagnostic, Path, PathBuf, RangeSpecStyle, Reporter,
-    State, SupportedArchitecturesArgs, SystemTime, UNIX_EPOCH, Value, add_package,
-    configured_catalogs, force_symlink_dir, fs, json, parse_catalog_protocol, parse_manifest,
-    parse_overrides_iter, parse_wanted_dependency, resolve_from_catalog,
+    BTreeMap,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    CatalogWantedDependency,
+    Config,
+    Context,
+    DependencyGroup,
+    DlxError,
+    Duration,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    RangeSpecStyle,
+    Reporter,
+    State,
+    SupportedArchitecturesArgs,
+    SystemTime,
+    UNIX_EPOCH,
+    Value,
+    add_package,
+    configured_catalogs,
+    force_symlink_dir,
+    fs,
+    json,
+    parse_catalog_protocol,
+    parse_manifest,
+    parse_overrides_iter,
+    parse_wanted_dependency,
+    resolve_from_catalog,
 };
-use crate::cli_args::add::{AllowBuildSelector, parse_allow_build_selectors};
-use key::{CacheKeyInputs, CachePolicyInputs};
-use pnpm_graph_hasher::{detect_node_major, engine_name};
+use crate::cli_args::add::{
+    AllowBuildSelector,
+    parse_allow_build_selectors,
+};
+use key::{
+    CacheKeyInputs,
+    CachePolicyInputs,
+};
+use pnpm_graph_hasher::{
+    detect_node_major,
+    engine_name,
+};
 
 /// Install the packages into a fresh prepare directory and point the
 /// cache link at it.
@@ -218,7 +251,7 @@ pub(super) fn get_valid_cache_dir(
         return None;
     }
     // `dunce::canonicalize` (not `fs::canonicalize`) so the cache-hit path
-    // matches the fresh-install branch's form — on Windows `fs::canonicalize`
+    // matches the fresh-install branch's form, on Windows `fs::canonicalize`
     // returns a `\\?\` verbatim path that would feed a different
     // `node_modules/.bin` string into `PATH`.
     let target = dunce::canonicalize(cache_link).ok()?;
@@ -352,7 +385,7 @@ pub(super) fn configure_cache_install(
     // `node_modules` tree and lets the global store back it, whereas
     // pacquet symlinks the entire prepare dir, so its store must live
     // inside that dir (the installer picks `global_virtual_store_dir`
-    // when this is on — see virtual_store_layout.rs).
+    // when this is on; see virtual_store_layout.rs).
     config.enable_global_virtual_store = false;
     // Keep a cache-local lockfile so approved builds can be rebuilt.
     config.lockfile = true;
@@ -378,8 +411,8 @@ pub(super) fn configure_cache_install(
     // pnpm's dlx resolves a version-less package to `latest` whatever the
     // caller's `tag` setting says, and the cache key holds no tag.
     config.tag = None;
-    // Build a *fresh* allow-list for the throwaway install — the dlx
-    // packages themselves plus the CLI `--allow-build` entries — rather
+    // Build a *fresh* allow-list for the throwaway install (the dlx
+    // packages themselves plus the CLI `--allow-build` entries) rather
     // than inheriting the caller project's `allow_builds` /
     // `dangerously_allow_all_builds`. Inheriting the caller's policy would
     // run build scripts the dlx invocation never opted into, and would

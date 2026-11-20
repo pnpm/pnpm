@@ -5,11 +5,20 @@ mod ecosystem_upstreams;
 mod security_and_scopes;
 mod sqlite_security;
 
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+};
 use pnpr::{
     Config,
     cache_maintenance::{
-        CacheGcEffect, CacheGcOptions, CacheGcScope, active_cache_namespaces, collect_cache,
+        CacheGcEffect,
+        CacheGcOptions,
+        CacheGcScope,
+        active_cache_namespaces,
+        collect_cache,
         prune_orphaned_namespaces_startup,
     },
 };
@@ -17,10 +26,24 @@ use pnpr_storage::layout::package_segments;
 use rusqlite::Connection;
 use std::{
     collections::HashMap,
-    fs::{File, FileTimes},
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    fs::{
+        File,
+        FileTimes,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 use tempfile::TempDir;
 

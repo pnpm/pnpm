@@ -9,13 +9,17 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::CommandTempCwd, command_env::CommandTestExt,
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 /// The notice the converting install prints, as it reaches a terminal,
@@ -337,12 +341,12 @@ fn pacquet_in(workspace: &Path) -> Command {
 }
 
 fn run(command: Command, root: &Path, args: &[&str]) -> Output {
-    let mut command = command;
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
+    let command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"));
     command
-        .args(args)
+        .with_args(args)
         .output()
         .expect("run pacquet")
 }

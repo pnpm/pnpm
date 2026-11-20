@@ -1,15 +1,36 @@
 use super::{
-    super::{Add, AddError},
-    package_body, scoped_package_body, scoped_version_body, version_body,
+    super::{
+        Add,
+        AddError,
+    },
+    package_body,
+    scoped_package_body,
+    scoped_version_body,
+    version_body,
 };
-use crate::{ResolvedPackages, add::specifier::ProtocolSelector};
+use crate::{
+    ResolvedPackages,
+    add::specifier::ProtocolSelector,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{
+        Arc,
+        Condvar,
+        Mutex,
+    },
     time::Duration,
 };
 use tempfile::tempdir;
@@ -159,7 +180,7 @@ async fn add_resolves_package_selectors_concurrently() {
             .unwrap();
         // `wait_timeout_while` re-checks the predicate before it
         // reports a timeout, so `timed_out()` means the peers were
-        // still missing when the budget ran out — never that the
+        // still missing when the budget ran out, never that the
         // last one arrived on the deadline.
         if wait.timed_out() {
             requests.barrier_expired = true;

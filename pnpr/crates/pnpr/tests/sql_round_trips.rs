@@ -7,16 +7,40 @@ use crate::npm::publish_doc;
 
 use axum::{
     Router,
-    body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use pnpr::{Config, MaxUsers, router};
-use pnpr_config::{DatabaseBackend, LibsqlSettings};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
+use pnpr_config::{
+    DatabaseBackend,
+    LibsqlSettings,
+};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_libsql::testing::{Primary, serve_primary};
-use serde_json::{Value, json};
+use pnpr_libsql::testing::{
+    Primary,
+    serve_primary,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
     sync::Arc,
 };
@@ -39,7 +63,10 @@ fn libsql_config(storage: &Path, primary: SocketAddr) -> Config {
 }
 
 fn request(method: &str, path: &str, token: &str, body: Option<&Value>) -> Request<Body> {
-    let body = body.map_or_else(Body::empty, |body| Body::from(serde_json::to_vec(body).unwrap()));
+    let body = body
+        .map(serde_json::to_vec)
+        .map(Result::unwrap)
+        .map_or_else(Body::empty, Body::from);
     Request::builder()
         .method(method)
         .uri(path)

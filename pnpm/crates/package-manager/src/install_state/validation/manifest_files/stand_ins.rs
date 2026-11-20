@@ -1,15 +1,26 @@
 //! Project manifests rebuilt from the last validation's records, so the
 //! check can run without reading any manifest that did not change.
 
-use super::super::{FileStat, stat_trusted};
+use super::super::{
+    FileStat,
+    stat_trusted,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::{Project, ProjectManifestPaths, importer_id_from_root_dir};
+use pnpm_workspace::{
+    Project,
+    ProjectManifestPaths,
+    importer_id_from_root_dir,
+};
 use pnpm_workspace_state::Validation;
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Every listed project, with a manifest rebuilt from its record.

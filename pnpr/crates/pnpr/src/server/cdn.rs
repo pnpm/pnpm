@@ -1,12 +1,25 @@
-use super::{AppState, RegistryError, ecosystem::sha256_hex};
+use super::{
+    AppState,
+    RegistryError,
+    ecosystem::sha256_hex,
+};
 use pnpr_config::CloudflareCdnConfig;
-use pnpr_storage::{Storage, database::CdnInvalidation};
-use std::{sync::Arc, time::Duration};
+use pnpr_storage::{
+    Storage,
+    database::CdnInvalidation,
+};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 pub(super) fn public_tarball_response(
     mut response: axum::response::Response,
 ) -> axum::response::Response {
-    use axum::http::{HeaderValue, header};
+    use axum::http::{
+        HeaderValue,
+        header,
+    };
     if response.status().is_success()
         && response
             .headers()

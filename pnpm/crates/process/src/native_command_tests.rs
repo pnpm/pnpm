@@ -1,10 +1,18 @@
-use super::{AsyncCommand, Command};
+use super::{
+    AsyncCommand,
+    Command,
+};
 use std::{
     fs,
     process::Stdio,
     sync::mpsc,
     thread,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 #[test]

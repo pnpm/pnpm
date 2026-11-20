@@ -1,8 +1,27 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, HostNoHome, LinkProbe, OsString, Path,
-    PathBuf, assert_eq, capture_warnings, fs, io, load_with_project_and_user, tempdir, write_file,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    HostNoHome,
+    LinkProbe,
+    OsString,
+    Path,
+    PathBuf,
+    assert_eq,
+    capture_warnings,
+    fs,
+    io,
+    load_with_project_and_user,
+    tempdir,
+    write_file,
 };
-use crate::{api::FsReadFile, auth_sources::npmrc_source, npmrc_auth::NpmrcAuth};
+use crate::{
+    api::FsReadFile,
+    auth_sources::npmrc_source,
+    npmrc_auth::NpmrcAuth,
+};
 
 /// The rescope warning names the file it read and every key it pinned,
 /// so a user can find and migrate the offending line.

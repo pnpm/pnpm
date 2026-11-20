@@ -8,10 +8,22 @@
 //! format (`SIDE_EFFECTS_FORMAT_KEY` in the graph hasher). A remote artifact
 //! carries the same entry, as the shared-artifact protocol defines it.
 
-pub use pnpm_shared_artifact_protocol::{SYMLINK_MODE, is_symlink_mode};
+pub use pnpm_shared_artifact_protocol::{
+    SYMLINK_MODE,
+    is_symlink_mode,
+};
 
-use crate::{CafsFileInfo, FilesMap};
-use std::{collections::HashMap, fs, io, path::Path, sync::Arc};
+use crate::{
+    CafsFileInfo,
+    FilesMap,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    io,
+    path::Path,
+    sync::Arc,
+};
 
 /// The target the side-effects cache records for a symlink at `link_path`,
 /// or `None` when the link cannot be recorded.
@@ -37,7 +49,8 @@ pub fn normalize_symlink_target(link_path: &str, target: &str) -> Option<String>
     }
     let segments: Vec<&str> = target
         .split('/')
-        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .filter(|segment| !segment.is_empty())
+        .filter(|segment| *segment != ".")
         .collect();
     let parents = segments
         .iter()

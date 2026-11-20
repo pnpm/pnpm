@@ -1,24 +1,60 @@
 pub(in crate::server) mod purge;
 
 pub(super) use missing_versions::{
-    PackumentRefetches, REFETCH_INTERVAL, reload_source_packument_lacking_version,
-    reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
+    PackumentRefetches,
+    REFETCH_INTERVAL,
+    reload_source_packument_lacking_version,
+    reload_upstream_packument_for_expired_tarball,
+    reload_upstream_packument_lacking_version,
 };
 pub(super) use purge::cache_upstream_packument;
 pub(super) use serving::serve_packument_via_upstream;
-pub(super) use write_order::{PackumentWriteOrder, PurgeRemoval, WriteVerdict};
+pub(super) use write_order::{
+    PackumentWriteOrder,
+    PurgeRemoval,
+    WriteVerdict,
+};
 
 use super::{
-    Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
-    HeaderMap, HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response,
-    Upstream, authorize, authorized_upstream, default_registry_target, hosted_gate,
-    hosted_read_namespace, not_found,
-    package_responses::processing::admission::{DocumentSource, SourceAdmission},
-    packument_response, resolve_registry_source, timed, upstream_cache_namespace,
+    Action,
+    AppState,
+    CacheValidators,
+    CanonicalPackageName,
+    DistView,
+    Duration,
+    Ecosystem,
+    HeaderMap,
+    HostedGate,
+    Identity,
+    PackumentFetch,
+    RegistryError,
+    RegistrySource,
+    Response,
+    Upstream,
+    authorize,
+    authorized_upstream,
+    default_registry_target,
+    hosted_gate,
+    hosted_read_namespace,
+    not_found,
+    package_responses::processing::admission::{
+        DocumentSource,
+        SourceAdmission,
+    },
+    packument_response,
+    resolve_registry_source,
+    timed,
+    upstream_cache_namespace,
 };
 use axum::body::Bytes;
-use purge::{read_unpurged_upstream_document, read_unpurged_upstream_document_any};
-use std::{future::Future, sync::Arc};
+use purge::{
+    read_unpurged_upstream_document,
+    read_unpurged_upstream_document_any,
+};
+use std::{
+    future::Future,
+    sync::Arc,
+};
 
 mod missing_versions;
 mod serving;
@@ -27,7 +63,7 @@ mod write_order;
 /// The stored packument of whichever source a registry routes this package to.
 ///
 /// An upstream registry's per-package rules gate the read, and the hosted gate
-/// answers a denial itself — a not-found mask or an explicit-rule 401/403.
+/// answers a denial itself, a not-found mask or an explicit-rule 401/403.
 /// Both are the same checks [`serve_registry_packument`](super::package_reads::serve_registry_packument) applies.
 pub(super) async fn read_source_packument(
     state: &AppState,
@@ -274,7 +310,7 @@ pub(super) async fn load_upstream_packument_for(
 }
 
 /// Load a package's packument bytes through the addressed `/~<name>/` (or,
-/// path-less, the default-target registry) — resolving to one concrete origin and
+/// path-less, the default-target registry), resolving to one concrete origin and
 /// reading there, with no fall-through. `Ok(None)` is a definitive not-found
 /// (unknown package, no route, no default target, or an unauthorized private
 /// hosted registry). Used by the readers that aren't
@@ -293,7 +329,7 @@ pub(super) async fn load_packument_for_read(
         },
     };
     // The resolved registry's per-package rules apply to every served read,
-    // upstream or hosted — otherwise a restricted package would leak (e.g.
+    // upstream or hosted; otherwise a restricted package would leak (e.g.
     // its dist-tags) through these path-less readers. A hosted denial is a
     // not-found mask rather than a 401/403 that reveals existence (see
     // `serve_registry_packument`).

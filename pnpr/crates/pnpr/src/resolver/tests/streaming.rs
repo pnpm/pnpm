@@ -1,13 +1,29 @@
-use super::{Arc, Identity, Mutex, ResolveRequest, deps};
+use super::{
+    Arc,
+    Identity,
+    Mutex,
+    ResolveRequest,
+    deps,
+};
 use crate::resolver::{
-    Resolver, request_tarball_router,
-    streaming::{CacheScope, StreamedResolveInputs, send_keepalives, stream_resolve_response},
+    Resolver,
+    request_tarball_router,
+    streaming::{
+        CacheScope,
+        StreamedResolveInputs,
+        send_keepalives,
+        stream_resolve_response,
+    },
 };
 use pnpr_config::Config;
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_route::Footprint;
 use std::time::Duration;
-use tokio::{io::AsyncReadExt as _, net::TcpListener, sync::oneshot};
+use tokio::{
+    io::AsyncReadExt as _,
+    net::TcpListener,
+    sync::oneshot,
+};
 
 #[tokio::test]
 async fn dropping_a_stream_cancels_pending_resolution_and_releases_admission() {

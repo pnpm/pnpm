@@ -1,6 +1,14 @@
-use super::{CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput};
+use super::{
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+};
 use pnpm_lockfile::PackageKey;
-use std::{collections::HashSet, fs, sync::Arc};
+use std::{
+    collections::HashSet,
+    fs,
+    sync::Arc,
+};
 
 pub(super) fn apply(
     installer: &mut CreateVirtualStore<'_>,

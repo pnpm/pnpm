@@ -6,17 +6,33 @@
 //! publish would have made.
 
 use super::{
-    PackedPkg, PublishNetwork, PublishPackedPkgError, PublishPackedPkgOptions, PublishedPkg,
-    clean_version, escaped_package_name, finish_publish, publish_authorization,
+    PackedPkg,
+    PublishNetwork,
+    PublishPackedPkgError,
+    PublishPackedPkgOptions,
+    PublishedPkg,
+    clean_version,
+    escaped_package_name,
+    finish_publish,
+    publish_authorization,
     request::PublishResponse,
 };
 use crate::{
-    ResolvedPublishOptions, global_log::global_info, provenance_gen::ProvenanceSubject,
-    publish_summary::PublishSummary, registry_config_keys::NormalizedRegistryUrl,
+    ResolvedPublishOptions,
+    global_log::global_info,
+    provenance_gen::ProvenanceSubject,
+    publish_summary::PublishSummary,
+    registry_config_keys::NormalizedRegistryUrl,
 };
 use base64::Engine as _;
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{ThrottledClient, read_limited_body};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network::{
+    ThrottledClient,
+    read_limited_body,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 use std::collections::BTreeSet;

@@ -1,18 +1,53 @@
 use crate::resolved_tree::PeerSet;
 
 use super::{
-    Arc, ChildEdge, Cow, NodeId, NodeKind, NodeSeed, PackageRegistration, PendingNode,
-    PkgNameVerPeer, ResolveDependencyTreeError, ResolveOptions, ResolvedPackage,
-    ResolvedPackageInput, Resolver, SeededPackage, TreeCtx, UpdateBehavior, Value,
-    WantedDependency, WantedKey, async_recursion, build_pkg_id_with_patch_hash,
-    current_pkg_from_lockfile, dependencies_named_as_peers, emit_deprecation_if_needed,
-    ensure_same_registry_revision, failed_edge::SkippedOptionalReport, is_exotic_resolved_via,
-    is_update_target, keeps_locked_runtime, keeps_locked_version, lock_recoverable, node_alias,
-    node_depends_on_changed_direct_dep, opts_for_child_spec, overlay_version_view,
-    package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
-    pin_locked_version, pin_patched_revision, project_relative_cache_scope,
-    register_shadowable_dep_names, resolve_wanted_cached, resolves_children_through_catalogs,
-    seed_reused_node, try_reuse_node,
+    Arc,
+    ChildEdge,
+    Cow,
+    NodeId,
+    NodeKind,
+    NodeSeed,
+    PackageRegistration,
+    PendingNode,
+    PkgNameVerPeer,
+    ResolveDependencyTreeError,
+    ResolveOptions,
+    ResolvedPackage,
+    ResolvedPackageInput,
+    Resolver,
+    SeededPackage,
+    TreeCtx,
+    UpdateBehavior,
+    Value,
+    WantedDependency,
+    WantedKey,
+    async_recursion,
+    build_pkg_id_with_patch_hash,
+    current_pkg_from_lockfile,
+    dependencies_named_as_peers,
+    emit_deprecation_if_needed,
+    ensure_same_registry_revision,
+    failed_edge::SkippedOptionalReport,
+    is_exotic_resolved_via,
+    is_update_target,
+    keeps_locked_runtime,
+    keeps_locked_version,
+    lock_recoverable,
+    node_alias,
+    node_depends_on_changed_direct_dep,
+    opts_for_child_spec,
+    overlay_version_view,
+    package_root_link_result,
+    parent_ids_contain_sequence,
+    peer_shadowed_dependencies,
+    pin_locked_version,
+    pin_patched_revision,
+    project_relative_cache_scope,
+    register_shadowable_dep_names,
+    resolve_wanted_cached,
+    resolves_children_through_catalogs,
+    seed_reused_node,
+    try_reuse_node,
 };
 
 #[async_recursion]
@@ -29,8 +64,8 @@ where
     let current_is_optional = wanted.optional.unwrap_or(false) || edge.parent_optional;
 
     // The edge's recorded snapshot key in the prior lockfile, if any.
-    // Feeds both subtree reuse (below) and — when the edge re-resolves
-    // anyway — the `currentPkg` payload custom resolvers receive.
+    // Feeds both subtree reuse (below) and (when the edge re-resolves
+    // anyway) the `currentPkg` payload custom resolvers receive.
     let prior_key = edge.reuse.prior_key(ctx, &wanted);
 
     // **Lockfile-resolution reuse.** When the prior lockfile already
@@ -99,7 +134,7 @@ where
 /// and stores the `Arc<ResolveResult>` on `ctx.resolved_by_wanted`;
 /// every later caller for the same wanted dep clones the `Arc` and
 /// skips the chain entirely. Concurrent first-callers can both miss the
-/// cache and run `resolver.resolve` in parallel — the resolver's own
+/// cache and run `resolver.resolve` in parallel, the resolver's own
 /// per-cache-key semaphore (`pick_package::fetch_locker`) already
 /// coalesces those into a single network fetch, so the doubled work is
 /// bounded to in-memory packument lookups + semver matching, and the
@@ -231,7 +266,7 @@ pub(super) fn edge_opts<'c>(
 /// The overlay's view for this edge joins the cache key: the same range
 /// can legitimately pick different versions under levels that resolved
 /// different siblings. The view keeps each candidate name (alias, `npm:`
-/// inner target, folded `jsr:` name) paired with its versions — the
+/// inner target, folded `jsr:` name) paired with its versions, the
 /// picker consults the overlay per name, so a flat union of versions
 /// could collide two overlays that distribute the same versions across
 /// different names. Empty for almost every edge, so the dedup keeps

@@ -1,6 +1,18 @@
-use pnpm_fs::{is_symlink_or_junction, symlink_metadata_with_retry};
+use pnpm_fs::{
+    is_symlink_or_junction,
+    symlink_metadata_with_retry,
+};
 
-use super::{OsStr, Path, PathBuf, SystemTime, cache::is_expired, fs, io, remove_dirent};
+use super::{
+    OsStr,
+    Path,
+    PathBuf,
+    SystemTime,
+    cache::is_expired,
+    fs,
+    io,
+    remove_dirent,
+};
 
 /// Reclaim the dlx cache entries that have outlived `max_age_minutes`.
 ///

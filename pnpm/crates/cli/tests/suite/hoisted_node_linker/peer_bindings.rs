@@ -1,7 +1,15 @@
-use super::{fs_remove_dir_all, pacquet_at, write_manifest, write_workspace_yaml};
+use super::{
+    fs_remove_dir_all,
+    pacquet_at,
+    write_manifest,
+    write_workspace_yaml,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::process::Command;
 
 #[test]
@@ -28,8 +36,8 @@ fn identical_transitive_peers_share_one_copy_under_a_conflicting_host() {
     );
     let assert_layout = |install: &str| {
         let output = Command::new("node")
-            .arg("-e")
-            .arg(r"
+            .with_arg("-e")
+            .with_arg(r"
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const resolve = (name, from = process.cwd()) => require.resolve(`${name}/package.json`, { paths: [from] });
@@ -40,7 +48,7 @@ const bridge = path.dirname(resolve('@pnpm.e2e/has-y-peer', path.dirname(client)
 assert.equal(require(resolve('@pnpm/y', bridge)).version, '2.0.0');
 assert.equal(require(resolve('@pnpm/y', host)).version, '1.0.0');
 ")
-            .current_dir(&workspace)
+            .with_current_dir(&workspace)
             .output()
             .expect("run Node.js resolution assertions");
         assert!(output.status.success(), "{install}: {output:?}");

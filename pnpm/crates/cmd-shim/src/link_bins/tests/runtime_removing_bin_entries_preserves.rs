@@ -1,8 +1,32 @@
 use super::{
-    Arc, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    Path, PathBuf, Value, create_dir_all, empty, is_shim_pointing_at, json, link_bins,
-    link_bins_of_packages, read_file, read_to_string, remove_bin, tempdir, write_file,
+    Arc,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadDir,
+    FsReadFile,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    Path,
+    PathBuf,
+    Value,
+    create_dir_all,
+    empty,
+    is_shim_pointing_at,
+    json,
+    link_bins,
+    link_bins_of_packages,
+    read_file,
+    read_to_string,
+    remove_bin,
+    tempdir,
+    write_file,
 };
 #[cfg(unix)]
 use std::fs::metadata;
@@ -563,7 +587,7 @@ fn ownership_breaks_bin_conflicts() {
 /// regular file hardlinked to the same inode (e.g. a prior pacquet
 /// revision left it that way), then `fs::write` truncating the dirent
 /// would rewrite the underlying node binary as a 459-byte
-/// `/bin/sh`-wrapper text file — propagating to every project that
+/// `/bin/sh`-wrapper text file, propagating to every project that
 /// reflinks from the same store.
 ///
 /// The fix is `remove_file` followed by `fs::symlink`. `remove_file`

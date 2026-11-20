@@ -1,11 +1,34 @@
-use std::{collections::HashMap, io, path::Path, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    io,
+    path::Path,
+    sync::Mutex,
+    time::Duration,
+};
 
-use pnpm_network::{RetryOpts, ThrottledClient, nerf_dart};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+    nerf_dart,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+    SilentReporter,
+};
 use tempfile::TempDir;
 
 use super::{
-    FsReadToString, FsWrite, Host, LogoutError, LogoutOptions, RevokeOutcome, RevokeToken, logout,
+    FsReadToString,
+    FsWrite,
+    Host,
+    LogoutError,
+    LogoutOptions,
+    RevokeOutcome,
+    RevokeToken,
+    logout,
     revoke_log_url,
 };
 
@@ -28,7 +51,7 @@ fn refused_local_addr() -> String {
 }
 
 /// A throwaway HTTP client. Every test fakes [`RevokeToken`], so the
-/// client is never used to send — it only satisfies [`logout`]'s
+/// client is never used to send; it only satisfies [`logout`]'s
 /// signature.
 fn unused_client() -> ThrottledClient {
     ThrottledClient::new_for_installs()
@@ -597,9 +620,9 @@ async fn propagates_auth_ini_write_errors() {
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
 
-// The tests below drive the production `Host` provider end-to-end —
-// real filesystem reads/writes of `auth.ini` and a real `DELETE` over
-// the HTTP stack — against a `tempfile::TempDir` and a `mockito` server.
+// The tests below drive the production `Host` provider end-to-end
+// (real filesystem reads/writes of `auth.ini` and a real `DELETE` over
+// the HTTP stack) against a `tempfile::TempDir` and a `mockito` server.
 // They cover the side-effecting code the `Sys`-fake tests above
 // deliberately bypass.
 

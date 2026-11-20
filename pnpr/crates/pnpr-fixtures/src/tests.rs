@@ -1,10 +1,26 @@
 use super::{
-    COMPLETE_FILE, RemovedVersionField, build_storage_at, build_storage_at_with_edits,
-    build_storage_at_with_substitutions, database::read_packument, deprecate_version,
-    discard_unusable_storage, ensure_storage, latest_version, packages_dir, publish_storage,
-    remove_tree, remove_version, restore_claimed_storage, set_dist_tag,
+    COMPLETE_FILE,
+    RemovedVersionField,
+    build_storage_at,
+    build_storage_at_with_edits,
+    build_storage_at_with_substitutions,
+    database::read_packument,
+    deprecate_version,
+    discard_unusable_storage,
+    ensure_storage,
+    latest_version,
+    packages_dir,
+    publish_storage,
+    remove_tree,
+    remove_version,
+    restore_claimed_storage,
+    set_dist_tag,
 };
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn tarball_entries(tarball: &Path) -> BTreeSet<String> {
@@ -203,8 +219,8 @@ fn discarding_leaves_a_tree_that_completed_after_the_claim_was_decided() {
 }
 
 /// The claim frees `storage`, so a publisher can take it before the
-/// restore runs. That tree is equivalent — the path is keyed by a
-/// fingerprint of the fixtures — so the claim is dropped, not forced back.
+/// restore runs. That tree is equivalent (the path is keyed by a
+/// fingerprint of the fixtures) so the claim is dropped, not forced back.
 #[test]
 fn restoring_yields_to_a_publisher_that_took_the_freed_path() {
     let root = TempDir::new().expect("create temp dir");
@@ -327,9 +343,15 @@ fn removing_a_tree_takes_out_its_whole_subtree() {
 fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     use super::MockConfigPresets;
     use pnpr_config::Config;
-    use pnpr_registry::{ConcreteKind, Ecosystem, Resolved};
-    use std::net::SocketAddr;
-    use std::path::PathBuf;
+    use pnpr_registry::{
+        ConcreteKind,
+        Ecosystem,
+        Resolved,
+    };
+    use std::{
+        net::SocketAddr,
+        path::PathBuf,
+    };
 
     let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
     let config = Config::proxy(listen, PathBuf::from("/tmp"));
@@ -357,9 +379,15 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
 fn static_constructor_serves_everything_from_one_hosted() {
     use super::MockConfigPresets;
     use pnpr_config::Config;
-    use pnpr_registry::{ConcreteKind, Ecosystem, Resolved};
-    use std::net::SocketAddr;
-    use std::path::PathBuf;
+    use pnpr_registry::{
+        ConcreteKind,
+        Ecosystem,
+        Resolved,
+    };
+    use std::{
+        net::SocketAddr,
+        path::PathBuf,
+    };
 
     let listen: SocketAddr = "127.0.0.1:7677".parse().unwrap();
     let config = Config::static_serve(listen, PathBuf::from("/tmp"));
@@ -373,10 +401,17 @@ fn static_constructor_serves_everything_from_one_hosted() {
 
 #[test]
 fn mock_config_yaml_enforces_registry_mock_protections() {
-    use super::{MOCK_CONFIG_YAML, mock_config_path};
+    use super::{
+        MOCK_CONFIG_YAML,
+        mock_config_path,
+    };
     use pnpr_config::Config;
     use pnpr_policy::Identity;
-    use pnpr_registry::{ConcreteKind, Ecosystem, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Ecosystem,
+        Resolved,
+    };
     use std::net::SocketAddr;
 
     let path = mock_config_path();
@@ -413,7 +448,11 @@ fn mock_config_yaml_enforces_registry_mock_protections() {
 
 #[test]
 fn mock_config_yaml_and_proxy_preset_share_the_npm_upstream_timeout() {
-    use super::{MockConfigPresets, REGISTRY_MOCK_UPSTREAM_TIMEOUT, mock_config_path};
+    use super::{
+        MockConfigPresets,
+        REGISTRY_MOCK_UPSTREAM_TIMEOUT,
+        mock_config_path,
+    };
     use pnpr_config::Config;
     use std::net::SocketAddr;
 

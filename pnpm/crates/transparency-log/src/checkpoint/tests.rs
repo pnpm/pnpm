@@ -1,8 +1,19 @@
 use super::{
-    CheckpointError, CheckpointPolicy, Cosignature, KeySet, PolicyError, TreeHead, add_signatures,
+    CheckpointError,
+    CheckpointPolicy,
+    Cosignature,
+    KeySet,
+    PolicyError,
+    TreeHead,
+    add_signatures,
     sign_checkpoint,
 };
-use crate::keys::{Cosigner, KeyAlgorithm, NoteSigner, VerifierKey};
+use crate::keys::{
+    Cosigner,
+    KeyAlgorithm,
+    NoteSigner,
+    VerifierKey,
+};
 use ed25519_dalek::SigningKey;
 use pretty_assertions::assert_eq;
 use signed_note::Signer;
@@ -25,7 +36,8 @@ const NAVIGLI_KEY: &str =
 fn keys(encoded: &[&str]) -> Vec<VerifierKey> {
     encoded
         .iter()
-        .map(|key| key.parse().unwrap())
+        .map(|key| key.parse())
+        .map(Result::unwrap)
         .collect()
 }
 
@@ -141,7 +153,7 @@ fn with_last_signature_repeated(note: &[u8]) -> Vec<u8> {
         .rsplit('\n')
         .next()
         .unwrap();
-    assert!(last.starts_with('\u{2014}'), "{last}");
+    assert!(last.starts_with('—'), "{last}");
     format!("{text}{last}\n").into_bytes()
 }
 

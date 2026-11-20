@@ -1,18 +1,38 @@
 //! Build the workspace dependency graphs a recursive run filters and sorts through.
 
-use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
-use miette::{Context, IntoDiagnostic};
-use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_package_manager::{
-    VersionsOverrider, overrides_catalog_reference_rewriter, overrides_dependency_rewriter,
+use crate::cli_args::catalogs::{
+    configured_catalogs,
+    workspace_catalogs,
 };
-use pnpm_workspace::{GraphPkg, Project};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+};
+use pnpm_package_manager::{
+    VersionsOverrider,
+    overrides_catalog_reference_rewriter,
+    overrides_dependency_rewriter,
+};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
 use pnpm_workspace_projects_filter::{
-    FilterWorkspaceProjectsOptions, ProjectDependencies, ProjectSelector,
+    FilterWorkspaceProjectsOptions,
+    ProjectDependencies,
+    ProjectSelector,
 };
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, DependencyGroups, DependencyRewriter, GraphProject, ProjectGraph,
+    CreateProjectsGraphOptions,
+    DependencyGroups,
+    DependencyRewriter,
+    GraphProject,
+    ProjectGraph,
     create_projects_graph,
 };
 use std::path::Path;

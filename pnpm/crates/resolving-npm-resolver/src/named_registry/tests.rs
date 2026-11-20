@@ -3,8 +3,11 @@ use std::collections::HashMap;
 use pretty_assertions::assert_eq;
 
 use super::{
-    MergeNamedRegistriesError, merge_named_registries, named_registry_tarball_prefixes,
-    pick_registry_for_package, pick_registry_for_version,
+    MergeNamedRegistriesError,
+    merge_named_registries,
+    named_registry_tarball_prefixes,
+    pick_registry_for_package,
+    pick_registry_for_version,
 };
 
 fn registries(entries: &[(&str, &str)]) -> HashMap<String, String> {

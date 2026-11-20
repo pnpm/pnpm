@@ -1,5 +1,13 @@
-use crate::{TarballError, VerifyChecksumError};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use crate::{
+    TarballError,
+    VerifyChecksumError,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityChecker,
+    IntegrityOpts,
+};
 
 /// Hashes an archive resource chunk by chunk as it is read: verifying the
 /// pinned integrity when the resolution carries one, computing a fresh

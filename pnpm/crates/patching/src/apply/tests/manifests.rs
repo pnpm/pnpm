@@ -1,8 +1,19 @@
 use super::{
-    IS_POSITIVE_INDEX_JS, IS_POSITIVE_PATCH, MANIFEST, MANIFEST_CREATE_PATCH,
-    MANIFEST_DELETE_PATCH, MANIFEST_PATCH, MANIFEST_PATCH_MIXED_CASE,
-    MANIFEST_PATCH_WITH_DOT_SEGMENT, MANIFEST_SECOND_PATCH, apply_patch_to_dir, assert_eq, fs,
-    preview_patch, tempdir, write_patch,
+    IS_POSITIVE_INDEX_JS,
+    IS_POSITIVE_PATCH,
+    MANIFEST,
+    MANIFEST_CREATE_PATCH,
+    MANIFEST_DELETE_PATCH,
+    MANIFEST_PATCH,
+    MANIFEST_PATCH_MIXED_CASE,
+    MANIFEST_PATCH_WITH_DOT_SEGMENT,
+    MANIFEST_SECOND_PATCH,
+    apply_patch_to_dir,
+    assert_eq,
+    fs,
+    preview_patch,
+    tempdir,
+    write_patch,
 };
 
 /// The preview must read what the real apply writes, or the build gate

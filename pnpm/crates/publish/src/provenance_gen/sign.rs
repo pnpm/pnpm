@@ -4,16 +4,27 @@
 use std::time::Duration;
 
 #[cfg(not(target_family = "wasm"))]
-use pnpm_network::{RetryOpts, redact_url_credentials};
+use pnpm_network::{
+    RetryOpts,
+    redact_url_credentials,
+};
 #[cfg(not(target_family = "wasm"))]
 use sigstore_sign::{
-    SigningContext, SigningServices,
+    SigningContext,
+    SigningServices,
     oidc::IdentityToken,
     rekor::RekorApiVersion,
-    trust_root::{SigningConfig, TufConfig},
+    trust_root::{
+        SigningConfig,
+        TufConfig,
+    },
 };
 
-use super::{ProvenanceGenError, SignProvenance, SignedProvenance};
+use super::{
+    ProvenanceGenError,
+    SignProvenance,
+    SignedProvenance,
+};
 use crate::capabilities::Host;
 
 /// Loaded once per process, so a recursive publish fetches the signing
@@ -99,7 +110,7 @@ const SIGN_RETRY_OPTS: RetryOpts = RetryOpts {
 };
 
 /// sigstore-js's `DEFAULT_TIMEOUT`, used only when the caller supplies no
-/// `fetch-timeout` — the sigstore-rust clients set no request timeout of
+/// `fetch-timeout`, the sigstore-rust clients set no request timeout of
 /// their own, so without a deadline a hung connection stalls the publish
 /// until the OS gives up on the socket.
 #[cfg(not(target_family = "wasm"))]

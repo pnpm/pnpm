@@ -1,14 +1,32 @@
-use super::{LAYERS, edge, workspace};
+use super::{
+    LAYERS,
+    edge,
+    workspace,
+};
 use crate::{
-    cochange::{self, CoChange},
-    dsm::{self, Dependency, Group, Mark},
-    graph::{CrateGraph, DependencyKind},
+    cochange::{
+        self,
+        CoChange,
+    },
+    dsm::{
+        self,
+        Dependency,
+        Group,
+        Mark,
+    },
+    graph::{
+        CrateGraph,
+        DependencyKind,
+    },
     layers::Layers,
     modules::TopLevelGraph,
     page,
 };
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+};
 
 /// The commits, newest first, as `cochange::read_log` asks `git` for them.
 fn log(commits: &[(&str, &[&str])]) -> String {

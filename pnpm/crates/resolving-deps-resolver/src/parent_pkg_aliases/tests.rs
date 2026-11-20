@@ -1,4 +1,8 @@
-use super::{ParentPkgAliases, declared_peer_dependencies, own_dependency_names};
+use super::{
+    ParentPkgAliases,
+    declared_peer_dependencies,
+    own_dependency_names,
+};
 use crate::resolved_tree::PeerDep;
 use rustc_hash::FxHashSet as HashSet;
 

@@ -13,20 +13,40 @@
 use crate::_utils::console::PrivateConsole;
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::json;
 use std::{
     fs,
-    io::{Read, Write},
+    io::{
+        Read,
+        Write,
+    },
     os::windows::process::CommandExt,
-    path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+        Stdio,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::TempDir;
 use windows_sys::Win32::System::{
-    Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, GenerateConsoleCtrlEvent},
+    Console::{
+        CTRL_BREAK_EVENT,
+        CTRL_C_EVENT,
+        GenerateConsoleCtrlEvent,
+    },
     Threading::CREATE_NEW_PROCESS_GROUP,
 };
 
@@ -177,7 +197,8 @@ fn printed_args(output: &Output) -> Vec<Vec<String>> {
         .expect("stdout is UTF-8")
         .lines()
         .filter(|line| line.starts_with('['))
-        .map(|line| serde_json::from_str(line).expect("parse printed arguments"))
+        .map(serde_json::from_str::<Vec<String>>)
+        .map(|parsed| parsed.expect("parse printed arguments"))
         .collect()
 }
 
@@ -433,7 +454,7 @@ fn assert_interrupt_asks_nothing(interrupt: Interrupt) {
     if status.is_none() {
         // A prompt blocks on console input, so the process tree has to go.
         let _ = Command::new("taskkill")
-            .args(["/T", "/F", "/PID", &child.id().to_string()])
+            .with_args(["/T", "/F", "/PID", &child.id().to_string()])
             .status();
         let _ = child.wait();
     }

@@ -1,6 +1,18 @@
-use super::{HoistedLinkerError, Lockfile, PackageKey, SymlinkPackageError};
-use crate::{DependenciesGraphNode, safe_join_modules_dir::safe_join_modules_dir, symlink_package};
-use std::{collections::HashSet, path::PathBuf};
+use super::{
+    HoistedLinkerError,
+    Lockfile,
+    PackageKey,
+    SymlinkPackageError,
+};
+use crate::{
+    DependenciesGraphNode,
+    safe_join_modules_dir::safe_join_modules_dir,
+    symlink_package,
+};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 
 /// Link each `link:<root>/...` dependency of a hoisted package from that
 /// package's own `node_modules` to the directory inside the package. The

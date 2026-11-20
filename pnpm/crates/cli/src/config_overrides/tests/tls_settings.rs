@@ -1,5 +1,13 @@
 use super::{
-    Config, ConfigOverrides, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, Path, PathBuf, argv,
+    Config,
+    ConfigOverrides,
+    EnvVar,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    Path,
+    PathBuf,
+    argv,
     assert_eq,
 };
 use pnpm_config::EnvVarOs;

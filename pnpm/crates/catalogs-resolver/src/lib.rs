@@ -7,7 +7,10 @@
 
 use std::path::Path;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
@@ -146,10 +149,8 @@ fn anchored_specifier(catalog_lookup: &str, anchor: CatalogAnchor<'_>) -> String
         return spec.render(consumer_dir);
     }
     LocalSpec::parse_workspace_path(catalog_lookup, workspace_dir)
-        .map_or_else(
-            || catalog_lookup.to_string(),
-            |spec| spec.render(Some(consumer_dir.unwrap_or(workspace_dir))),
-        )
+        .map(|spec| spec.render(Some(consumer_dir.unwrap_or(workspace_dir))))
+        .unwrap_or_else(|| catalog_lookup.to_string())
 }
 
 fn recursive_catalog_error(catalog_name: &str, alias: &str) -> CatalogResolutionResult {

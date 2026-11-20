@@ -1,10 +1,17 @@
 //! How often parts of the workspace change in the same commit, read from
 //! `git log`.
 
-use crate::tree::{git, git_bytes};
+use crate::tree::{
+    git,
+    git_bytes,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    io,
     path::Path,
 };
 

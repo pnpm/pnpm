@@ -1,12 +1,32 @@
 use super::{
-    DepPath, DependencyGroup, HashMap, Mutex, ResolveResult, StubResolver, assert_eq, default_opts,
-    fake_manifest, fake_result, merge_ranges, resolve_importer,
+    DepPath,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveResult,
+    StubResolver,
+    assert_eq,
+    default_opts,
+    fake_manifest,
+    fake_result,
+    merge_ranges,
+    resolve_importer,
 };
-use crate::{HoistPeersOptions, MissingPeerInfo, hoist_peers};
+use crate::{
+    HoistPeersOptions,
+    MissingPeerInfo,
+    hoist_peers,
+};
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
 };
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 #[test]
 fn merged_peer_locators_survive_preferred_registry_versions() {

@@ -1,12 +1,23 @@
 use super::{
-    super::{ImportIndexedDirError, PreservedModules},
-    StagePaths, discard_replaced_modules, pick_stage_path,
+    super::{
+        ImportIndexedDirError,
+        PreservedModules,
+    },
+    StagePaths,
+    discard_replaced_modules,
+    pick_stage_path,
 };
 use crate::import_indexed_dir::placement::exact::all_imported_entries_match_exactly;
 use std::{
     io,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 const DIRECTORY_SWAP_RETRY_BUDGET: Duration = Duration::from_secs(30);

@@ -1,9 +1,28 @@
-use super::{ConvertCtx, Lockfile, PkgName, ReferenceLocation, ResolveBases, convert_package_key};
-use crate::cli_args::deploy::resolution::{convert_importer_dep_version, convert_snapshot_dep_ref};
-use pnpm_diagnostics::miette::{self, IntoDiagnostic};
+use super::{
+    ConvertCtx,
+    Lockfile,
+    PkgName,
+    ReferenceLocation,
+    ResolveBases,
+    convert_package_key,
+};
+use crate::cli_args::deploy::resolution::{
+    convert_importer_dep_version,
+    convert_snapshot_dep_ref,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    IntoDiagnostic,
+};
 use pnpm_lockfile::{
-    NamedBindings, NextImporter, NextImporterDep, NextRef, NextSnapshotEntry, NextSnapshots,
-    RestoreContext, restore_sections,
+    NamedBindings,
+    NextImporter,
+    NextImporterDep,
+    NextRef,
+    NextSnapshotEntry,
+    NextSnapshots,
+    RestoreContext,
+    restore_sections,
 };
 
 use std::borrow::Cow;

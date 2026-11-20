@@ -1,10 +1,21 @@
 //! Coordination for tests that exercise real Windows filesystem retries.
 
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::{
+        HashMap,
+        hash_map::Entry,
+    },
     io,
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex, PoisonError},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+        PoisonError,
+    },
 };
 
 type Observer = Arc<Mutex<Box<dyn FnMut(&io::Result<()>) + Send>>>;

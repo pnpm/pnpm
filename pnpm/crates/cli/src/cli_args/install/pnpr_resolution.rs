@@ -1,25 +1,52 @@
 use super::{
-    Catalogs, Display, Error, InstallFamilySelection, LocalLockfileInstall, Lockfile,
-    MaybeLazyLockfile, PnprBenchmarkRegistryOverride, PnprClient, PnprClientError, PnprLink,
-    PnprRequestInputs, PnprTarget, Reporter, ResolveProject, ResolveProjectsOptions, State,
-    TarballPrefetcher, WantedLockfileSatisfactionCheck, check_frozen_pnpmfile,
-    check_pnpr_applied_settings, full_workspace_importer_ids, install_from_local_lockfile,
-    link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_catalogs,
+    Catalogs,
+    Display,
+    Error,
+    InstallFamilySelection,
+    LocalLockfileInstall,
+    Lockfile,
+    MaybeLazyLockfile,
+    PnprBenchmarkRegistryOverride,
+    PnprClient,
+    PnprClientError,
+    PnprLink,
+    PnprRequestInputs,
+    PnprTarget,
+    Reporter,
+    ResolveProject,
+    ResolveProjectsOptions,
+    State,
+    TarballPrefetcher,
+    WantedLockfileSatisfactionCheck,
+    check_frozen_pnpmfile,
+    check_pnpr_applied_settings,
+    full_workspace_importer_ids,
+    install_from_local_lockfile,
+    link_pnpr_lockfile,
+    merge_and_save_pnpr_lockfile,
+    pnpr_catalogs,
     pnpr_local_specs::{
-        PnprLocalDependencyUnsupported, check_pnpr_lockfile_specs_and_config,
+        PnprLocalDependencyUnsupported,
+        check_pnpr_lockfile_specs_and_config,
         check_pnpr_project_specs_and_config,
     },
-    pnpr_lockfile_dir, pnpr_request_inputs, report_merged_lockfile_conflicts,
-    resolve_projects_for_pnpr, resolve_projects_options, selection_importer_ids,
-    verify_pnpr_input_lockfile, wanted_lockfile_satisfies_workspace,
+    pnpr_lockfile_dir,
+    pnpr_request_inputs,
+    report_merged_lockfile_conflicts,
+    resolve_projects_for_pnpr,
+    resolve_projects_options,
+    selection_importer_ids,
+    verify_pnpr_input_lockfile,
+    wanted_lockfile_satisfies_workspace,
 };
+use miette::WrapErr;
 
 /// Resolve the active project or selected workspace projects through a
 /// `pnpr` server, then link them.
 ///
 /// Sends the client's registries to the server, which resolves against
 /// them and returns the resolved lockfile; writes that lockfile, then
-/// runs a frozen install to materialize `node_modules` from it — the
+/// runs a frozen install to materialize `node_modules` from it, the
 /// frozen install fetches every tarball from the registries itself, like
 /// a normal install. Under `--lockfile-only` it stops after writing the
 /// lockfile (fetch nothing, link nothing).
@@ -368,15 +395,15 @@ fn merge_source<'a>(
     }
     MaybeLazyLockfile::Repair(&state.lockfile)
         .get_for_merge()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile for filtered merge"))
+        .wrap_err("load the lockfile for filtered merge")
 }
 
 /// Whether the on-disk lockfile already describes this install, so the
 /// server exchange can be skipped.
 ///
 /// Filtered installs keep the exchange even when satisfied: their merge
-/// semantics live there. A workspace-wide install has a selection too —
-/// every project — and skips the server like any single-project one.
+/// semantics live there. A workspace-wide install has a selection too
+/// (every project) and skips the server like any single-project one.
 async fn satisfied_without_server(
     state: &State,
     link: &PnprLink<'_>,

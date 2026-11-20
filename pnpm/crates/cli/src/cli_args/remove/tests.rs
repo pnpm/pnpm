@@ -4,7 +4,11 @@ use pretty_assertions::assert_eq;
 
 #[test]
 fn dependency_options_to_save_type() {
-    use DependencyGroup::{Dev, Optional, Prod};
+    use DependencyGroup::{
+        Dev,
+        Optional,
+        Prod,
+    };
     let save_type = |opts: RemoveDependencyOptions| opts.save_type();
 
     assert_eq!(

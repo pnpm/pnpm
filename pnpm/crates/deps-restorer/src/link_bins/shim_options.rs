@@ -1,5 +1,11 @@
-use pnpm_cmd_shim::{LinkBinsOptions, OwnNodePaths};
-use pnpm_config::{Config, NodeLinker};
+use pnpm_cmd_shim::{
+    LinkBinsOptions,
+    OwnNodePaths,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use std::path::Path;
 
 /// The config-derived options for every bin an install links. Its

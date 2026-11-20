@@ -34,7 +34,11 @@ pub fn get_node_mirror(
 ) -> String {
     let mirror = channel
         .map(ToString::to_string)
-        .or_else(|| node_download_mirrors.and_then(|map| map.get(release_channel).cloned()))
+        .or_else(|| {
+            node_download_mirrors
+                .and_then(|map| map.get(release_channel))
+                .cloned()
+        })
         .or_else(|| mirror.map(|base| format!("{}/{release_channel}", base.trim_end_matches('/'))))
         .unwrap_or_else(|| format!("https://nodejs.org/download/{release_channel}/"));
     normalize_node_mirror(&mirror)

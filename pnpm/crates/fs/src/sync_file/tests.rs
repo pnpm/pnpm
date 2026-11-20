@@ -12,7 +12,10 @@ fn syncs_a_regular_file() {
 #[test]
 fn falls_back_to_fsync_when_full_sync_is_unsupported() {
     use super::sync_with_fallback;
-    use std::{cell::Cell, io::Error};
+    use std::{
+        cell::Cell,
+        io::Error,
+    };
     for errno in [libc::ENOTTY, libc::ENOTSUP, libc::EOPNOTSUPP, libc::EINVAL] {
         let fell_back = Cell::new(false);
         sync_with_fallback(

@@ -1,6 +1,16 @@
 use super::RegistryLimits;
-use crate::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
-use std::{collections::BTreeMap, num::NonZeroUsize, time::Duration};
+use crate::{
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+};
+use std::{
+    collections::BTreeMap,
+    num::NonZeroUsize,
+    time::Duration,
+};
 
 fn client_with_registry_limits(limits: &[(&str, usize)]) -> ThrottledClient {
     let limits: BTreeMap<String, NonZeroUsize> = limits

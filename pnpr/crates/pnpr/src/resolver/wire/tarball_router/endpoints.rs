@@ -1,6 +1,10 @@
 use super::{
-    CanonicalPackageName, TarballRouter, revision_route_tarball_version, tarball_basename,
-    tarball_basename_for_package, version_route_tarball_version,
+    CanonicalPackageName,
+    TarballRouter,
+    revision_route_tarball_version,
+    tarball_basename,
+    tarball_basename_for_package,
+    version_route_tarball_version,
 };
 
 impl TarballRouter {

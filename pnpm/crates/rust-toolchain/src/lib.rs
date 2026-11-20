@@ -10,10 +10,18 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
-pub use channel::{Channel, ChannelName};
+pub use channel::{
+    Channel,
+    ChannelName,
+};
 pub use rustup_settings::rustup_settings_file;
 pub use toolchain_file::{
-    Profile, ToolchainRequest, Unmanaged, find_toolchain_file, read_toolchain_file, with_channel,
+    Profile,
+    ToolchainRequest,
+    Unmanaged,
+    find_toolchain_file,
+    read_toolchain_file,
+    with_channel,
 };
 
 mod channel;
@@ -23,15 +31,26 @@ mod manifest;
 mod rustup_settings;
 mod toolchain_file;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_crypto_shasums_file::ReleaseSignatureError;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

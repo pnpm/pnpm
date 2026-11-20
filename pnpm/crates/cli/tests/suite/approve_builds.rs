@@ -5,8 +5,16 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fmt::Write as _, fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// The install marker the `@pnpm.e2e/install-script-example` package's
 /// `install` lifecycle script writes when it runs.
@@ -33,12 +41,12 @@ fn approve_builds_requires_an_exact_file_selector() {
     let settings = harness.workspace.join("pnpm-workspace.yaml");
     fs::write(&settings, "enableGlobalVirtualStore: false\n").expect("write settings");
     pacquet(&harness.workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .failure();
     let original_settings = fs::read(&settings).expect("read settings after install");
     let rejected = pacquet(&harness.workspace)
-        .args(["approve-builds", "fixture"])
+        .with_args(["approve-builds", "fixture"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&rejected.get_output().stderr);
@@ -46,7 +54,7 @@ fn approve_builds_requires_an_exact_file_selector() {
     assert!(stderr.contains("fixture@file:../fixture"), "{stderr}");
     assert_eq!(fs::read(&settings).expect("read settings after rejection"), original_settings);
     pacquet(&harness.workspace)
-        .args(["approve-builds", "fixture@file:../fixture"])
+        .with_args(["approve-builds", "fixture@file:../fixture"])
         .assert()
         .success();
     assert!(harness.workspace.join("node_modules/fixture/built").is_file());
@@ -101,7 +109,7 @@ fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents(
     .expect("write build policy");
 
     pacquet(&harness.workspace)
-        .args(["install", "--ignore-scripts"])
+        .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
@@ -110,7 +118,7 @@ fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents(
         .stdout("placeholder\n");
 
     pacquet(&harness.workspace)
-        .arg("rebuild")
+        .with_arg("rebuild")
         .assert()
         .success();
     Command::new(harness.workspace.join("node_modules/.pnpm/node_modules/.bin/tool"))
@@ -124,7 +132,7 @@ fn install_and_rebuild_refresh_privately_hoisted_bins_for_transitive_dependents(
 
     fs::remove_dir_all(harness.workspace.join("node_modules")).expect("remove node_modules");
     pacquet(&harness.workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -183,7 +191,7 @@ fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
     )
     .expect("write build policy");
     pacquet(&harness.workspace)
-        .args(["install", "--ignore-scripts"])
+        .with_args(["install", "--ignore-scripts"])
         .assert()
         .success();
     let initial_bin = harness.workspace.join(if nested {
@@ -201,12 +209,12 @@ fn assert_rebuild_refreshes_replaced_bin(linker: &str, nested: bool) {
             .stdout("placeholder\n");
     }
     pacquet(&harness.workspace)
-        .args(["rebuild"])
+        .with_args(["rebuild"])
         .assert()
         .success();
     if !nested {
         pacquet(&harness.workspace)
-            .args(["exec", "tool"])
+            .with_args(["exec", "tool"])
             .assert()
             .success()
             .stdout("built binary\n");
@@ -347,7 +355,7 @@ fn allow_builds_placeholder_does_not_block_commands() {
         "an undecided entry is not an explicit denial: {output}",
     );
 
-    // Deciding a package replaces its placeholder outright — the whole
+    // Deciding a package replaces its placeholder outright, the whole
     // value, not the first word of it, which would leave the rest behind
     // as a plain scalar that reads as undecided all over again.
     pacquet(&workspace)
@@ -523,7 +531,7 @@ fn approve_builds_with_args_runs_the_build() {
     // With its only ignored build approved, `.modules.yaml` no longer
     // records an `ignoredBuilds` field, so the package is no longer listed.
     // (pnpm prints "Cannot identify as no node_modules found" when the
-    // field is absent — "None" is reserved for a present-but-empty list.)
+    // field is absent. "None" is reserved for a present-but-empty list.)
     let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
     assert!(
         !output.contains("@pnpm.e2e/install-script-example"),
@@ -1078,9 +1086,9 @@ fn ignore_workspace_skips_the_allow_builds_scaffold() {
     pacquet_in_terminal(&workspace)
         .with_arg("--ignore-workspace")
         // The run reads no workspace manifest, so the settings the
-        // harness put there — the test store and cache, and the relaxed
+        // harness put there (the test store and cache, and the relaxed
         // build policy that keeps a blocked build from failing the
-        // install — have to come from the environment instead.
+        // install) have to come from the environment instead.
         .with_env("PNPM_CONFIG_STRICT_DEP_BUILDS", "false")
         .with_env("PNPM_CONFIG_STORE_DIR", &harness.npmrc_info.store_dir)
         .with_env("PNPM_CONFIG_CACHE_DIR", &harness.npmrc_info.cache_dir)

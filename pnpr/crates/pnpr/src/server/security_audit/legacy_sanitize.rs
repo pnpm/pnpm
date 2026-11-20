@@ -1,17 +1,34 @@
 mod dependencies;
 mod packages;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use super::{
     PackageDestination,
-    legacy_nodes::{MAX_DEPENDENCY_DEPTH, PACKAGE_SPEC_FIELDS},
+    legacy_nodes::{
+        MAX_DEPENDENCY_DEPTH,
+        PACKAGE_SPEC_FIELDS,
+    },
     legacy_specs::{
-        LocalScopePool, REDACTED_SCOPE_PREFIX, ScopeIndexPool, collect_reserved_scope_indices,
-        entry_bool, is_safe_semver_range, is_safe_semver_version, is_safe_sri_integrity,
-        node_modules_segments, parse_name_and_spec, parse_npm_alias,
+        LocalScopePool,
+        REDACTED_SCOPE_PREFIX,
+        ScopeIndexPool,
+        collect_reserved_scope_indices,
+        entry_bool,
+        is_safe_semver_range,
+        is_safe_semver_version,
+        is_safe_sri_integrity,
+        node_modules_segments,
+        parse_name_and_spec,
+        parse_npm_alias,
     },
 };
 

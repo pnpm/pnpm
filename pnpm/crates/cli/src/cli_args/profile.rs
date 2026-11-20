@@ -6,16 +6,37 @@ mod render;
 #[cfg(test)]
 mod tests;
 
-use crate::cli_args::{registry_client::build_registry_client_with_otp_guard, sanitize::sanitize};
+use crate::cli_args::{
+    registry_client::build_registry_client_with_otp_guard,
+    sanitize::sanitize,
+};
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use pnpm_auth_commands::login::{Host, PromptPassword};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_auth_commands::login::{
+    Host,
+    PromptPassword,
+};
 use pnpm_config::Config;
 use pnpm_network::normalize_registry_url;
-use pnpm_network_web_auth::{PromptOtp, generate_qr_code};
+use pnpm_network_web_auth::{
+    PromptOtp,
+    generate_qr_code,
+};
 use registry::ProfileRegistry;
-use render::{format_profile_map, render_all_properties, render_selected_properties, tfa_mode};
-use serde_json::{Map, Value, json};
+use render::{
+    format_profile_map,
+    render_all_properties,
+    render_selected_properties,
+    tfa_mode,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
 const WRITABLE_PROFILE_KEYS: &[&str] =
     &["email", "password", "fullname", "homepage", "freenode", "twitter", "github"];
@@ -214,7 +235,8 @@ impl ProfileArgs {
 fn parse_set(rest: &[String]) -> Result<ProfileCommand, ProfileError> {
     let property = rest
         .first()
-        .map(|property| property.trim().to_ascii_lowercase())
+        .map(|property| property.trim())
+        .map(str::to_ascii_lowercase)
         .unwrap_or_default();
     let value = rest
         .get(1..)
@@ -287,7 +309,11 @@ where
     let password = read_password::<Sys>("Password: ").await?;
     let tfa_pending = profile
         .get("tfa")
-        .is_some_and(|tfa| tfa.get("pending").and_then(Value::as_bool) == Some(true));
+        .is_some_and(|tfa| {
+            tfa.get("pending")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        });
     if tfa_pending {
         registry.update(&json!({ "tfa": { "password": password, "mode": "disable" } })).await?;
     }

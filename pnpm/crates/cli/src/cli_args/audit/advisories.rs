@@ -1,13 +1,43 @@
 use super::{
-    AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
-    ConfigAuditLevel, DepKind, Edge, EnvLockfile, GraphImporter, HashMap, HashSet, Include,
-    LockedPackageRegistry, Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges,
-    PublishInfoLookup, Range, RawBulkAdvisory, State, bulk_response_to_audit_report,
-    empty_packages, empty_snapshots, env_roots, fetch_publish_times, importer_roots,
-    locked_package_registries, lockfile_to_audit_request, normalize_ghsa_id,
-    sanitize_response_body, send_with_retry,
+    AuditError,
+    AuditGraph,
+    AuditReport,
+    AuditVulnerabilityCounts,
+    BTreeMap,
+    Config,
+    ConfigAuditLevel,
+    DepKind,
+    Edge,
+    EnvLockfile,
+    GraphImporter,
+    HashMap,
+    HashSet,
+    Include,
+    LockedPackageRegistry,
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    PublishInfoLookup,
+    Range,
+    RawBulkAdvisory,
+    State,
+    bulk_response_to_audit_report,
+    empty_packages,
+    empty_snapshots,
+    env_roots,
+    fetch_publish_times,
+    importer_roots,
+    locked_package_registries,
+    lockfile_to_audit_request,
+    normalize_ghsa_id,
+    sanitize_response_body,
+    send_with_retry,
 };
-use pnpm_network::{normalize_registry_url, redact_url_credentials};
+use pnpm_network::{
+    normalize_registry_url,
+    redact_url_credentials,
+};
 
 pub(super) async fn audit(
     lockfile: &Lockfile,
@@ -77,7 +107,7 @@ fn parse_bulk_advisories(
 
 /// Corrects inferred `patched_versions` ranges against the registry: the
 /// inference from `vulnerable_versions` is purely syntactic, so the inferred
-/// minimum may not be a viable fix — it may never have been published, been
+/// minimum may not be a viable fix; it may never have been published, been
 /// skipped, been yanked, or been deprecated. When the inferred range is
 /// satisfiable, it is narrowed to the lowest non-deprecated published version
 /// (e.g. `>=4.17.24` becomes `>=4.18.1` when 4.17.24 does not exist and

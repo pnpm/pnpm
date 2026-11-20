@@ -1,4 +1,8 @@
-use super::{BundleError, decode_bundle, encode_bundle};
+use super::{
+    BundleError,
+    decode_bundle,
+    encode_bundle,
+};
 use pretty_assertions::assert_eq;
 
 #[test]

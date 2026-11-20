@@ -1,4 +1,9 @@
-use super::{WITH_CATALOG_DEP, manifest_from, parsed_lockfile, try_fast_update_importers};
+use super::{
+    WITH_CATALOG_DEP,
+    manifest_from,
+    parsed_lockfile,
+    try_fast_update_importers,
+};
 use pnpm_lockfile::PkgName;
 use serde_json::json;
 

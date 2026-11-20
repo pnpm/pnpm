@@ -2,7 +2,7 @@
 //!
 //! A `file:` tarball's name, version, and integrity live inside the
 //! archive, not in its specifier, and pacquet builds the lockfile before
-//! the install pass — so the local resolver reads them during
+//! the install pass, so the local resolver reads them during
 //! resolution, for the same reason the remote-tarball resolver downloads
 //! at resolve time (see `tarball_url_dependency.rs`).
 //!
@@ -11,10 +11,21 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fixtures::{tarball_entries, tarball_with_manifest, tarball_without_manifest},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fixtures::{
+        tarball_entries,
+        tarball_with_manifest,
+        tarball_without_manifest,
+    },
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 mod peers;
 
@@ -348,7 +359,7 @@ fn apply_mutation(workspace: &Path, tarball: &Path, mutation: &str) {
         "fifo" => {
             fs::remove_file(tarball).expect("remove tarball");
             let status = std::process::Command::new("mkfifo")
-                .arg(tarball)
+                .with_arg(tarball)
                 .status()
                 .expect("run mkfifo");
             assert!(status.success(), "mkfifo failed");

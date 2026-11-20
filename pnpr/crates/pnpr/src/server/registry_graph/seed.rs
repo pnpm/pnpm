@@ -3,10 +3,16 @@
 
 use super::super::RegistryError;
 use crate::audit::Actor;
-use pnpr_config::{DEFAULT_REGISTRIES_YAML, RegistryGraphDocument};
+use pnpr_config::{
+    DEFAULT_REGISTRIES_YAML,
+    RegistryGraphDocument,
+};
 use pnpr_storage::{
     Storage,
-    database::{NewRegistryGraph, RegistryGraphWrite},
+    database::{
+        NewRegistryGraph,
+        RegistryGraphWrite,
+    },
 };
 
 /// Store the bundled default registries as the first revision, unless the

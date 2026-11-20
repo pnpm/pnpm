@@ -1,5 +1,13 @@
 use super::{
-    HashMap, LoginReturn, OidcLogin, OidcState, Url, config, groups, mock_provider, rejected,
+    HashMap,
+    LoginReturn,
+    OidcLogin,
+    OidcState,
+    Url,
+    config,
+    groups,
+    mock_provider,
+    rejected,
 };
 use jiff::Timestamp;
 
@@ -178,7 +186,10 @@ impl Drop for LockedSubject<'_> {
 
 #[tokio::test]
 async fn binding_revocation_waits_until_the_finishing_login_has_a_session() {
-    use std::sync::{Arc, RwLock};
+    use std::sync::{
+        Arc,
+        RwLock,
+    };
 
     let (provider, task) = mock_provider().await;
     let mut config = config(&provider.issuer);

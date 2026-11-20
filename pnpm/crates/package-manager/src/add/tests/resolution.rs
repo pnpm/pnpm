@@ -1,6 +1,10 @@
 use super::{
-    super::{install::same_build, normalized_save_specifier},
-    add_jsr_selector, add_npm_selector,
+    super::{
+        install::same_build,
+        normalized_save_specifier,
+    },
+    add_jsr_selector,
+    add_npm_selector,
 };
 
 #[tokio::test]
@@ -36,7 +40,7 @@ fn normalizes_hosted_git_specifiers_to_shortcut_form() {
         normalized_save_specifier("https://bitbucket.org/owner/repo"),
         "bitbucket:owner/repo",
     );
-    // An auth-bearing HTTPS URL is kept verbatim — the shortcut form cannot
+    // An auth-bearing HTTPS URL is kept verbatim, the shortcut form cannot
     // carry the embedded credentials, so shortcutting would drop them.
     assert_eq!(
         normalized_save_specifier("git+https://x-access-token:tkn@github.com/foo/bar.git#abc"),
@@ -120,7 +124,11 @@ fn test_is_same_source() {
 #[test]
 fn test_collect_dependency_warnings() {
     use crate::add::source::collect_dependency_warnings;
-    use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+    use pnpm_reporter::{
+        LogEvent,
+        LogLevel,
+        PnpmLog,
+    };
 
     let catalog_warning = LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Warn,

@@ -1,4 +1,8 @@
-use super::{Bump, inc, parse_bump};
+use super::{
+    Bump,
+    inc,
+    parse_bump,
+};
 use crate::cli_args::version::bump::ReleaseType;
 use node_semver::Version;
 

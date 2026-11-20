@@ -1,5 +1,10 @@
 use super::{
-    ConcreteKind, Ecosystem, Identity, Resolved, RouteContext, addressed_registry_segment,
+    ConcreteKind,
+    Ecosystem,
+    Identity,
+    Resolved,
+    RouteContext,
+    addressed_registry_segment,
     nerf_dart,
 };
 
@@ -97,7 +102,8 @@ impl RouteContext {
         };
         Some(
             split_package_identifier(&identifier)
-                .map_or_else(|| identifier.clone(), |(name, _)| name.to_string()),
+                .map(|(name, _)| name.to_string())
+                .unwrap_or_else(|| identifier.clone()),
         )
     }
 }

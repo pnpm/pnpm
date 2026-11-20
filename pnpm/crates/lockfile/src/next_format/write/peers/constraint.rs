@@ -1,4 +1,10 @@
-use super::{BoundProviders, PkgName, SnapshotDepRef, binds_reference, names_provider};
+use super::{
+    BoundProviders,
+    PkgName,
+    SnapshotDepRef,
+    binds_reference,
+    names_provider,
+};
 
 #[derive(Clone, PartialEq, Eq)]
 pub(in crate::next_format::write) struct ProviderConstraint {

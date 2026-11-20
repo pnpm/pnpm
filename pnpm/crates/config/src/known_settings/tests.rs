@@ -1,8 +1,12 @@
 mod docs_reference;
 
 use super::{
-    CONFIG_ONLY_SETTING_KEYS, SETTINGS_OF_OTHER_PNPM_VERSIONS, TYPED_WORKSPACE_MANIFEST_KEYS,
-    UNTYPED_WORKSPACE_SETTING_KEYS, annotate_unknown_setting, is_known_setting_key,
+    CONFIG_ONLY_SETTING_KEYS,
+    SETTINGS_OF_OTHER_PNPM_VERSIONS,
+    TYPED_WORKSPACE_MANIFEST_KEYS,
+    UNTYPED_WORKSPACE_SETTING_KEYS,
+    annotate_unknown_setting,
+    is_known_setting_key,
     settings_field_keys,
 };
 use crate::naming_cases::to_camel_case;
@@ -74,7 +78,8 @@ fn block_between<'a>(source: &'a str, header: &str, footer: &str) -> &'a str {
     source
         .split_once(header)
         .and_then(|(_, rest)| rest.split_once(footer))
-        .map_or_else(|| panic!("missing block `{header}`"), |(body, _)| body)
+        .map(|(body, _)| body)
+        .unwrap_or_else(|| panic!("missing block `{header}`"))
 }
 
 fn quoted_array_items<'a>(source: &'a str, declaration: &str) -> Vec<&'a str> {
@@ -164,7 +169,8 @@ fn mirrored_lists_and_workspace_settings_match_unknown_settings_ts() {
     let unclassified: Vec<&String> = settings_field_keys()
         .iter()
         .filter(|key| key.as_str() != "_auth")
-        .filter(|key| !v11_known_keys.contains(*key) && !v11_other_versions.contains(*key))
+        .filter(|key| !v11_known_keys.contains(*key))
+        .filter(|key| !v11_other_versions.contains(*key))
         .collect();
     assert_eq!(
         unclassified,

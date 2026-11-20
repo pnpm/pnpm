@@ -1,5 +1,11 @@
 use super::{
-    HELLO, ManifestDeps, PARENT, WorkspaceFixture, assert_full_wanted, has_link, has_snapshot,
+    HELLO,
+    ManifestDeps,
+    PARENT,
+    WorkspaceFixture,
+    assert_full_wanted,
+    has_link,
+    has_snapshot,
     read_lockfile,
 };
 

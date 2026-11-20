@@ -3,14 +3,26 @@ mod named_registry;
 mod selectors;
 
 use super::{
-    ChoiceNotes, InteractiveUpdateProject, PromptRow, PromptStyle, TargetVersion, UpdateDetails,
-    UpdatePrompt, dependencies_prompt_message,
-    gather::{ChoiceFilter, collect_filtered_choices},
+    ChoiceNotes,
+    InteractiveUpdateProject,
+    PromptRow,
+    PromptStyle,
+    TargetVersion,
+    UpdateDetails,
+    UpdatePrompt,
+    dependencies_prompt_message,
+    gather::{
+        ChoiceFilter,
+        collect_filtered_choices,
+    },
 };
 use crate::{
     checkbox_prompt::KeyOutcome,
     cli_args::{
-        outdated::{OutdatedPackage, TrustChange},
+        outdated::{
+            OutdatedPackage,
+            TrustChange,
+        },
         update::UpdateArgs,
     },
 };
@@ -18,16 +30,31 @@ use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_npm_resolver::TrustEvidence;
 use pnpm_testing_utils::registry::TestRegistry;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::VecDeque,
     fs,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tempfile::TempDir;
 
@@ -415,7 +442,7 @@ fn manifest_with_dependency_spec(
     PackageManifest::from_path(manifest_path).expect("read project manifest")
 }
 
-/// A project manifest whose `name` is absent, or present but empty —
+/// A project manifest whose `name` is absent, or present but empty;
 /// both shapes a workspace project's `package.json` can carry.
 fn manifest_without_usable_name(
     root: &std::path::Path,
@@ -698,8 +725,12 @@ fn package_body_with_publish_times(name: &str, registry: &str) -> String {
 
 mod selection {
     use super::super::{
-        choices::{ChoiceGroup, ChoiceRow},
-        flatten_groups, selected_packages,
+        choices::{
+            ChoiceGroup,
+            ChoiceRow,
+        },
+        flatten_groups,
+        selected_packages,
     };
 
     fn group(message: &str, rows: &[(&str, Option<&str>)]) -> ChoiceGroup {
@@ -716,7 +747,7 @@ mod selection {
         }
     }
 
-    /// Checking a group heading or a column header updates nothing —
+    /// Checking a group heading or a column header updates nothing,
     /// `dialoguer` lets either be checked, where pnpm's prompt disables
     /// them outright.
     #[test]
@@ -770,7 +801,7 @@ mod selection {
 struct SeenPrompt {
     message: String,
     /// The label of each row, paired with the package checking it
-    /// updates — [`None`] for a group heading or a header row.
+    /// updates. [`None`] for a group heading or a header row.
     rows: Vec<(String, Option<String>)>,
 }
 
@@ -797,8 +828,8 @@ static SCRIPT_LOCK: Mutex<()> = Mutex::new(());
 
 /// One test's claim on the scripted prompt.
 ///
-/// [`SCRIPT`] is process-global, which `cargo nextest run` — a process
-/// per test — makes invisible, but `cargo test` does not. Holding this
+/// [`SCRIPT`] is process-global, which `cargo nextest run` (a process
+/// per test) makes invisible, but `cargo test` does not. Holding this
 /// for the test's lifetime keeps two tests from consuming each other's
 /// answers.
 struct ScriptedPrompts {

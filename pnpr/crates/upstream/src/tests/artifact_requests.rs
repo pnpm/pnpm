@@ -1,7 +1,16 @@
 use super::{
-    AsyncReadExt, AsyncWriteExt, CanonicalPackageName, Duration, FetchOutcome, HeaderMap,
-    TcpListener, Upstream, UpstreamConfig, assert_redirect_chain_shares_one_head_deadline,
-    auth_and_custom_headers, upstream,
+    AsyncReadExt,
+    AsyncWriteExt,
+    CanonicalPackageName,
+    Duration,
+    FetchOutcome,
+    HeaderMap,
+    TcpListener,
+    Upstream,
+    UpstreamConfig,
+    assert_redirect_chain_shares_one_head_deadline,
+    auth_and_custom_headers,
+    upstream,
 };
 use futures_util::StreamExt;
 

@@ -2,7 +2,10 @@
 //! checked against what they will read.
 
 use serde::de::Error as _;
-use yaml_serde::{Mapping, Value};
+use yaml_serde::{
+    Mapping,
+    Value,
+};
 
 /// Apply `<<` merge keys, drop tags, and spell every scalar key as a string.
 ///

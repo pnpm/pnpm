@@ -1,16 +1,28 @@
 use super::{
-    ApproveArgs, Capabilities, PromptAvailability,
-    decisions::{PackageDecisions, confirmation},
+    ApproveArgs,
+    Capabilities,
+    PromptAvailability,
+    decisions::{
+        PackageDecisions,
+        confirmation,
+    },
     render_permissions,
 };
 use pnpm_config::{
     Config,
-    PermissionCapability::{Build, Skills},
+    PermissionCapability::{
+        Build,
+        Skills,
+    },
     SkillsPermission,
 };
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 fn pending(

@@ -2,13 +2,29 @@ mod no_runtime;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_graph_hasher::{host_arch, host_platform};
-use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_platform,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fs,
-    io::{Cursor, Write},
-    path::{Path, PathBuf},
+    io::{
+        Cursor,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use tempfile::TempDir;
@@ -1049,7 +1065,7 @@ fn devengines_runtime_range_does_not_replace_the_running_node_version() {
 
 fn running_node_major() -> u64 {
     let output = Command::new("node")
-        .arg("--version")
+        .with_arg("--version")
         .output()
         .expect("run node --version");
     assert!(output.status.success(), "node --version must succeed");
@@ -1337,7 +1353,9 @@ fn build_zip(name: &str, target_os: &str, prefix: Option<&str>, node_extras: boo
             .compression_method(zip::CompressionMethod::Stored)
             .unix_permissions(0o100755);
         let path = |relative: &str| {
-            prefix.map_or_else(|| relative.to_string(), |p| format!("{p}/{relative}"))
+            prefix
+                .map(|p| format!("{p}/{relative}"))
+                .unwrap_or_else(|| relative.to_string())
         };
         writer
             .start_file(path(runtime_bin_path(name, target_os).as_str()), options)

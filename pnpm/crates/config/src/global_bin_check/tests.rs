@@ -1,5 +1,12 @@
-use super::{CheckGlobalBinDirError, check_global_bin_dir, has_unexpanded_env_reference};
-use std::path::{Path, PathBuf};
+use super::{
+    CheckGlobalBinDirError,
+    check_global_bin_dir,
+    has_unexpanded_env_reference,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn no_path_env_when_unset_or_empty() {

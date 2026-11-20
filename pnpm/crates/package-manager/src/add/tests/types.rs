@@ -1,4 +1,7 @@
-use super::{package_body, test_add};
+use super::{
+    package_body,
+    test_add,
+};
 use crate::add::manifest::prepare_single_add;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;

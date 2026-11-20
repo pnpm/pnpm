@@ -1,7 +1,11 @@
 use std::{
     fs,
     path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 pub(super) struct ProcessStamp {

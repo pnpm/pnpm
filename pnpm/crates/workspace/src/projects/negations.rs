@@ -1,6 +1,12 @@
-use super::{FindWorkspaceProjectsError, Path};
+use super::{
+    FindWorkspaceProjectsError,
+    Path,
+};
 use crate::directory_patterns::negated_directory_pattern;
-use wax::{Glob, Program as _};
+use wax::{
+    Glob,
+    Program as _,
+};
 
 pub(super) struct CompiledNegations {
     pub(super) user: wax::Any<'static>,

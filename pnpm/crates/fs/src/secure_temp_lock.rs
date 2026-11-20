@@ -1,6 +1,10 @@
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Create or validate a process-shared lock directory in the current user's
@@ -88,16 +92,27 @@ fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
 #[cfg(any(target_os = "android", all(test, unix)))]
 fn android_user_lock_root(home: Option<std::ffi::OsString>) -> PathBuf {
     home.filter(|home| !home.is_empty())
-        .map_or_else(|| PathBuf::from("/data/local/tmp"), |home| PathBuf::from(home).join(".cache"))
+        .map(PathBuf::from)
+        .map(|value| value.join(".cache"))
+        .unwrap_or_else(|| PathBuf::from("/data/local/tmp"))
 }
 
 #[cfg(windows)]
 fn user_lock_root() -> io::Result<PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt as _, ptr, slice};
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::OsStringExt as _,
+        ptr,
+        slice,
+    };
     use windows_sys::Win32::{
         Foundation::S_OK,
         System::Com::CoTaskMemFree,
-        UI::Shell::{FOLDERID_LocalAppData, KF_FLAG_DONT_VERIFY, SHGetKnownFolderPath},
+        UI::Shell::{
+            FOLDERID_LocalAppData,
+            KF_FLAG_DONT_VERIFY,
+            SHGetKnownFolderPath,
+        },
     };
 
     let mut path = ptr::null_mut();
@@ -211,7 +226,10 @@ fn native_path_bytes(path: &Path) -> Vec<u8> {
 
 #[cfg(unix)]
 fn secure_unix_directory(directory: &Path) -> io::Result<()> {
-    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    use std::os::unix::fs::{
+        MetadataExt as _,
+        PermissionsExt as _,
+    };
 
     let metadata = fs::symlink_metadata(directory)?;
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.

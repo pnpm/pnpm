@@ -2,15 +2,23 @@
 //! against an unchanged registry, sharing one metadata cache. The cases and
 //! their metadata request logs are shared with pnpm v11, see the table's
 //! `description`.
+use command_extra::CommandExtra;
 
 use assert_cmd::prelude::*;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     registry::RecordedRequest,
 };
 use pretty_assertions::assert_eq;
 use serde_json::Value;
-use std::{collections::HashMap, fs, io};
+use std::{
+    collections::HashMap,
+    fs,
+    io,
+};
 
 const CASE_TABLE: &str =
     include_str!("../../../../../pnpr/.fixtures/request-logs/metadata-three-installs.json");
@@ -36,7 +44,8 @@ fn every_case_of_the_shared_table() {
             .as_array()
             .expect("case args")
             .iter()
-            .map(|arg| arg.as_str().expect("case arg"))
+            .map(Value::as_str)
+            .map(|text| text.expect("case arg"))
             .collect();
         let expected: Vec<Vec<String>> =
             serde_json::from_value(case["installs"].clone()).expect("case installs");
@@ -77,7 +86,7 @@ fn frozen_install_metadata_requests(
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 
-    pacquet.arg("install");
+    pacquet = pacquet.with_arg("install");
     pacquet.assert().success();
     drop(mock_instance.take_requests());
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove installed modules");
@@ -90,7 +99,7 @@ fn frozen_install_metadata_requests(
             .expect("set default-equivalent lockfileDir");
     }
 
-    pacquet.arg("--frozen-lockfile");
+    pacquet = pacquet.with_arg("--frozen-lockfile");
     pacquet.assert().success();
     let mut requests: Vec<_> = mock_instance
         .take_requests()
@@ -126,7 +135,7 @@ fn three_installs(
     let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
     fs::write(&workspace_yaml, format!("{yaml}{}\n", settings.join("\n")))
         .expect("write pnpm-workspace.yaml");
-    pacquet.arg("install").args(args);
+    pacquet = pacquet.with_arg("install").with_args(args);
 
     let installs: Vec<Vec<RecordedRequest>> = (0..3)
         .map(|_| {

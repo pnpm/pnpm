@@ -1,4 +1,8 @@
-use super::{Diagnostic, Display, Error};
+use super::{
+    Diagnostic,
+    Display,
+    Error,
+};
 
 /// `frozenStore` was enabled together with a configured `pnprServer`.
 /// The pnpr path writes resolved files into the store, which `frozenStore`

@@ -1,8 +1,18 @@
 use crate::State;
-use miette::{Context as _, IntoDiagnostic as _};
+use miette::{
+    Context as _,
+    IntoDiagnostic as _,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, ResolvedDependencyMap};
-use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
+use pnpm_lockfile::{
+    Lockfile,
+    ResolvedDependencyMap,
+};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pnpm_package_manager::allow_build_key_from_ignored_build;
 use pnpm_reporter::Reporter;
 use std::path::Path;
@@ -27,7 +37,8 @@ pub(super) fn has_pending_direct_non_registry_builds(
     };
     let ignored_keys: Vec<String> = ignored
         .iter()
-        .map(|dep_path| allow_build_key_from_ignored_build(dep_path.as_str()))
+        .map(pnpm_modules_yaml::DepPath::as_str)
+        .map(allow_build_key_from_ignored_build)
         .collect();
     Ok(!approved_direct_build_keys(config, cache_dir, &ignored_keys)?.is_empty())
 }
@@ -93,13 +104,17 @@ fn collect_direct_build_keys(
     let policy = pnpm_deps_restorer::AllowBuildPolicy::from_config(config).into_diagnostic()?;
     let mut approved = Vec::new();
     for (alias, dep) in direct_deps {
-        if config.allow_builds.get(&alias.to_string()) == Some(&false) {
+        if !config.allow_builds
+            .get(&alias.to_string())
+            .copied()
+            .unwrap_or(true)
+        {
             continue;
         }
         let Some(dep_path) = dep.version.resolved_key(alias).map(|key| key.to_string()) else {
             continue;
         };
-        if policy.check(&dep_path) == Some(false) {
+        if !policy.check(&dep_path).unwrap_or(true) {
             continue;
         }
         let allow_key = allow_build_key_from_ignored_build(&dep_path);

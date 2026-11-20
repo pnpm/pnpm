@@ -1,13 +1,17 @@
 //! Coverage for the [`resolveDependency`](super::resolve_dependency)
 //! resolver chain that needs no outside network. Most cases resolve
-//! through the local-filesystem branch of the chain (or exhaust it) — the
+//! through the local-filesystem branch of the chain (or exhaust it), the
 //! runtime resolvers never run for a `file:` / `link:` spec because the
 //! local-scheme resolver claims it first; the registry cases point the
 //! default registry at a `mockito` server on localhost.
 
 use std::collections::HashMap;
 
-use super::{ResolveDependencyOptions, WantedDependencyInput, run_resolve_blocking};
+use super::{
+    ResolveDependencyOptions,
+    WantedDependencyInput,
+    run_resolve_blocking,
+};
 
 /// Options anchored at `dir`, pinned `offline` so a stray registry-shaped
 /// spec can't reach the network from a unit test.

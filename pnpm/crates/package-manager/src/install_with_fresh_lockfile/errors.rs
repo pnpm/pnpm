@@ -1,9 +1,16 @@
 use crate::{
-    CreateVirtualStoreError, DependenciesGraphToLockfileError, InstallPackageFromRegistryError,
-    LinkRootComponentMembersError, LinkVirtualStoreBinsError, SymlinkDirectDependenciesError,
+    CreateVirtualStoreError,
+    DependenciesGraphToLockfileError,
+    InstallPackageFromRegistryError,
+    LinkRootComponentMembersError,
+    LinkVirtualStoreBinsError,
+    SymlinkDirectDependenciesError,
     VersionPolicyError,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_lockfile::SaveLockfileError;
@@ -52,14 +59,14 @@ pub enum InstallWithFreshLockfileError {
 
     /// Surfaces failures from [`crate::lockfile_to_hoisted_dep_graph`]
     /// when a fresh install runs under `nodeLinker: hoisted`. Same
-    /// shape the frozen-lockfile path surfaces — see
+    /// shape the frozen-lockfile path surfaces; see
     /// `InstallFrozenLockfileError::HoistedDepGraph`.
     #[diagnostic(transparent)]
     HoistedDepGraph(#[error(source)] crate::HoistedDepGraphError),
 
     /// Surfaces failures from [`crate::link_hoisted_modules()`] while
     /// materializing the on-disk hoisted tree on the fresh path. Same
-    /// shape the frozen-lockfile path surfaces — see
+    /// shape the frozen-lockfile path surfaces; see
     /// `InstallFrozenLockfileError::LinkHoistedModules`.
     #[diagnostic(transparent)]
     LinkHoistedModules(#[error(source)] crate::LinkHoistedModulesError),
@@ -133,12 +140,12 @@ pub enum InstallWithFreshLockfileError {
 
     /// `allowBuilds` patterns in `pnpm-workspace.yaml` couldn't be
     /// parsed. Same `VersionPolicyError` shape the frozen-lockfile
-    /// path surfaces — see `InstallFrozenLockfileError::VersionPolicy`.
+    /// path surfaces; see `InstallFrozenLockfileError::VersionPolicy`.
     #[diagnostic(transparent)]
     AllowBuildsPolicy(#[error(source)] VersionPolicyError),
 
     /// Surfaces any failure from the shared lifecycle-script build
-    /// phase — `patchedDependencies` resolution, the `BuildModules`
+    /// phase, `patchedDependencies` resolution, the `BuildModules`
     /// run, or the post-build top-level bin link. Shared with the
     /// frozen-lockfile path via `run_build_phase`.
     #[diagnostic(transparent)]

@@ -4,10 +4,22 @@
 use std::sync::LazyLock;
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_policy::{Identity, PackageRules, Permission, RuleTable};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use pnpr_policy::{
+    Identity,
+    PackageRules,
+    Permission,
+    RuleTable,
+};
 
-use super::{Action, AppState, RegistrySource};
+use super::{
+    Action,
+    AppState,
+    RegistrySource,
+};
 
 /// The rules of the concrete registry a request resolved to: the grants that
 /// cover it. Every check consults the one registry that serves the package.
@@ -32,7 +44,7 @@ fn source_rules(state: &AppState, source: &RegistrySource) -> PackageRules {
 /// registry's grants. Returns `Ok(())`
 /// when the call is allowed; otherwise the appropriate `Unauthenticated` /
 /// `Forbidden` error. The identity is resolved once by [`authenticate`](super::authenticate), so
-/// every handler — including the search endpoint that filters many packages —
+/// every handler (including the search endpoint that filters many packages)
 /// authorizes synchronously against it.
 pub(in crate::server) fn authorize(
     state: &AppState,
@@ -128,7 +140,8 @@ fn packument_owners(packument: &serde_json::Value) -> Vec<String> {
         .and_then(serde_json::Value::as_array)
         .into_iter()
         .flatten()
-        .filter_map(|entry| entry.get("userId").and_then(serde_json::Value::as_str))
+        .map(|entry| entry.get("userId"))
+        .filter_map(|value| value.and_then(serde_json::Value::as_str))
         .map(str::to_string)
         .collect()
 }

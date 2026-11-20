@@ -7,21 +7,44 @@
 //! Revoking removes that grant. Other grants that name the team stay.
 
 use super::{
-    AppState, Identity, RegistryError, Response, StatusCode,
-    grant_directory::{reload_written_grants, written},
+    AppState,
+    Identity,
+    RegistryError,
+    Response,
+    StatusCode,
+    grant_directory::{
+        reload_written_grants,
+        written,
+    },
     json,
-    organizations::{team_registry, visible_teams},
+    organizations::{
+        team_registry,
+        visible_teams,
+    },
     parse_json_body,
     request_access::require_access_admin,
     team_directory::team_id,
-    team_mutations::{TeamScope, respond},
+    team_mutations::{
+        TeamScope,
+        respond,
+    },
 };
 use axum::body::Bytes;
 use pnpr_policy::Action;
-use pnpr_registry::{Ecosystem, PackagePattern};
-use pnpr_storage::database::{GrantContent, GrantWrite, StoredGrant};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
+use pnpr_storage::database::{
+    GrantContent,
+    GrantWrite,
+    StoredGrant,
+};
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// The body of `npm access grant`.
 #[derive(Deserialize)]
@@ -159,7 +182,7 @@ async fn put_named(
     state.inner.storage.put_grant(&id, content, None).await
 }
 
-/// `GET /-/team/{scope}/{team}/package` — the package patterns that grants
+/// `GET /-/team/{scope}/{team}/package`: the package patterns that grants
 /// give the team in `@{scope}`'s registry, as `{"<pattern>": "read-only" |
 /// "read-write"}`. A grant that covers every package is listed as `**`.
 pub(super) fn list_team_packages(

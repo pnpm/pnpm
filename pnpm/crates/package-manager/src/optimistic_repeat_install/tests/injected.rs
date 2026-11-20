@@ -2,14 +2,21 @@
 //! consumer's `node_modules` through a `file:` snapshot.
 
 use super::{
-    super::Decision, backdate_validated_files, content_check_decision, isolated_included,
-    record_installed, write_state,
+    super::Decision,
+    backdate_validated_files,
+    content_check_decision,
+    isolated_included,
+    record_installed,
+    write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ProjectEntry;
-use std::{collections::BTreeMap, fs};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'

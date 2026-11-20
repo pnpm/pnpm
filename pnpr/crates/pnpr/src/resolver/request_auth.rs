@@ -1,8 +1,20 @@
-use super::{ResolveRequest, Resolver};
-use pnpm_network::{AuthHeaders, UpstreamRouteHook};
+use super::{
+    ResolveRequest,
+    Resolver,
+};
+use pnpm_network::{
+    AuthHeaders,
+    UpstreamRouteHook,
+};
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, RouteHook};
-use std::sync::{Arc, Mutex};
+use pnpr_route::{
+    Footprint,
+    RouteHook,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
 impl Resolver {
     /// Build the request's [`AuthHeaders`] with the route hook installed:

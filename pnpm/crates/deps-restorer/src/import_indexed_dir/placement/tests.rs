@@ -1,17 +1,40 @@
 use super::{
-    FsRemoveDirAll, FsRemoveNonDirDirent, Placement, clear_dir_blocking_file,
-    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir,
+    FsRemoveDirAll,
+    FsRemoveNonDirDirent,
+    Placement,
+    clear_dir_blocking_file,
+    clear_dirent_blocking_dir,
+    dir_fits_at,
+    entries_by_target_dir,
     exact::all_imported_entries_match_exactly,
-    file_fits_at, marker_file, populate_dir,
-    symlinks::{SymlinkRoots, final_link_target},
+    file_fits_at,
+    marker_file,
+    populate_dir,
+    symlinks::{
+        SymlinkRoots,
+        final_link_target,
+    },
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
-    sync::{Mutex, PoisonError, atomic::AtomicU8},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Mutex,
+        PoisonError,
+        atomic::AtomicU8,
+    },
 };
 use tempfile::tempdir;
 

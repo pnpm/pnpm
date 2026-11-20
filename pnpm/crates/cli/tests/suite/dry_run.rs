@@ -7,8 +7,15 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// A fresh `pacquet` command rooted at `workspace`.
 fn pacquet_at(workspace: &Path) -> Command {

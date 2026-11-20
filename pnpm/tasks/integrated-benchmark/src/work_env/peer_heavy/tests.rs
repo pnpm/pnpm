@@ -1,7 +1,24 @@
-use super::{manifest, package_json, peer_heavy_packages, publish_document, tarball};
-use crate::work_env::{PEER_HEAVY_DEPTH, PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use serde_json::{Map, Value, json};
+use super::{
+    manifest,
+    package_json,
+    peer_heavy_packages,
+    publish_document,
+    tarball,
+};
+use crate::work_env::{
+    PEER_HEAVY_DEPTH,
+    PEER_HEAVY_PROVIDER,
+    PEER_HEAVY_WIDTH,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::io::Read as _;
 
 /// A package's archive holds its manifest as `package.json`, and is the

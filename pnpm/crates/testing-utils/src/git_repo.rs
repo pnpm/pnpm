@@ -1,21 +1,25 @@
 //! Local git repositories for tests that install a git-hosted dependency.
 //!
 //! A test points its manifest at a repo on disk (`git+file://...`) rather
-//! than a real forge, so the whole git install path — `ls-remote`
-//! resolution, clone, `prepare`, packlist, link — runs without network
+//! than a real forge, so the whole git install path (`ls-remote`
+//! resolution, clone, `prepare`, packlist, link) runs without network
 //! access. The TypeScript suite uses the same technique for its
 //! `prepare`-script coverage (`createGitPreparePackage` in
 //! `installing/deps-installer/test/install/lifecycleScripts.ts`).
 //!
 //! Repos that need a *host* identity (a `codeload.github.com` archive
-//! URL, `gitHosted: true`) can't be modeled this way — those resolve to
+//! URL, `gitHosted: true`) can't be modeled this way; those resolve to
 //! a tarball and are covered at the resolver level instead.
+use command_extra::CommandExtra;
 
 use std::{
     fmt::Write as _,
     fs,
     io::Write,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -34,7 +38,7 @@ impl GitRepoFixture {
     /// Create an empty repo under `root`, as a work tree at
     /// `<root>/<name>-src` and a bare clone at `<root>/<name>.git`.
     ///
-    /// Put `root` outside the project being installed into — a git repo
+    /// Put `root` outside the project being installed into, a git repo
     /// nested inside the workspace would be picked up as part of it.
     #[must_use]
     pub fn init(root: &Path, name: &str) -> Self {
@@ -123,7 +127,7 @@ impl GitRepoFixture {
         git(&self.work, &["rev-parse", "HEAD"]).trim().to_string()
     }
 
-    /// `file://` URL of the bare repo — the transport half of a git
+    /// `file://` URL of the bare repo, the transport half of a git
     /// specifier, and the `repo` field a `type: git` resolution records.
     #[must_use]
     pub fn file_url(&self) -> String {
@@ -271,13 +275,13 @@ fn quote_config_value(value: &str) -> String {
 
 /// Run `git` with `args` in `cwd` and return its stdout.
 ///
-/// Panics when `git` is missing or the command fails — per
+/// Panics when `git` is missing or the command fails, per
 /// `pnpm/AGENTS.md`, a test must not tolerate an under-provisioned
 /// environment by skipping.
 fn git(cwd: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+        .with_args(args)
+        .with_current_dir(cwd)
         .output()
         .unwrap_or_else(|err| panic!("run `git {}`: {err}", args.join(" ")));
     assert!(
@@ -311,7 +315,7 @@ impl GitCommandLog {
         let log = bin_dir.join("acquisitions.log");
         let ls_remote_log = bin_dir.join("ls-remote.log");
         let output = Command::new("sh")
-            .args(["-c", "command -v git"])
+            .with_args(["-c", "command -v git"])
             .output()
             .unwrap();
         assert!(output.status.success(), "locate git: {output:?}");

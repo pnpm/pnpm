@@ -1,6 +1,13 @@
-use super::{RustSelection, find_rust_candidate, next_on_path};
+use super::{
+    RustSelection,
+    find_rust_candidate,
+    next_on_path,
+};
 use crate::shim_dispatch::Candidate;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn the_nearest_toolchain_file_decides() {
@@ -48,7 +55,8 @@ fn the_next_program_on_path_skips_the_shim_directory() {
 
     assert_eq!(
         next_on_path("cargo", &shims, &shims.join(&program), &path)
-            .map(|found| dunce::canonicalize(found).unwrap()),
+            .map(dunce::canonicalize)
+            .map(Result::unwrap),
         Some(dunce::canonicalize(rustup.join(&program)).unwrap()),
     );
     assert_eq!(
@@ -68,7 +76,8 @@ fn the_next_program_on_path_skips_the_shim_directory() {
     let path = std::env::join_paths([&linked, &rustup]).unwrap();
     assert_eq!(
         next_on_path("cargo", &shims, &shims.join(&program), &path)
-            .map(|found| dunce::canonicalize(found).unwrap()),
+            .map(dunce::canonicalize)
+            .map(Result::unwrap),
         Some(dunce::canonicalize(rustup.join(&program)).unwrap()),
     );
 }

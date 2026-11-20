@@ -3,21 +3,40 @@
 //! the pipeline data directory. The stable task identity is the same
 //! `<workspace-relative dir>#<task>` the dry-run output uses.
 
-use super::{Selection, SelectionMode, cache::CacheDisposition};
+use super::{
+    Selection,
+    SelectionMode,
+    cache::CacheDisposition,
+};
 use crate::cli_args::recursive::ExecutionStatus;
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
-use pnpm_workspace_task_scheduler::{TaskKey, format_task};
-use serde_json::{Value, json};
+use pnpm_workspace_task_scheduler::{
+    TaskKey,
+    format_task,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
-    time::{SystemTime, UNIX_EPOCH},
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// What a `--report` submission carries to the pnpr server: the same

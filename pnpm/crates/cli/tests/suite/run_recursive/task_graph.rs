@@ -1,6 +1,15 @@
 use super::{
-    CommandExtra, CommandTempCwd, Value, append_line_script, build_appends_run_order,
-    build_writes_marker, fs, json, summary_statuses, wait_for_marker_script, write_marker_script,
+    CommandExtra,
+    CommandTempCwd,
+    Value,
+    append_line_script,
+    build_appends_run_order,
+    build_writes_marker,
+    fs,
+    json,
+    summary_statuses,
+    wait_for_marker_script,
+    write_marker_script,
     write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -41,7 +50,7 @@ fn filter_keeps_dependency_tasks_outside_the_selection_from_running() {
 }
 
 /// `slow` waits for a marker only `mid` writes, and `mid` may start only
-/// once `dep` is done — so the run completes only if `mid` is dispatched
+/// once `dep` is done, so the run completes only if `mid` is dispatched
 /// while the unrelated `slow` is still in flight. Any barrier between
 /// dependency-independent tasks deadlocks this fixture.
 #[test]
@@ -260,7 +269,7 @@ fn regexp_selector_with_tasks_skips_a_matched_hidden_script() {
 
     pacquet
         .with_args(["-r", "run", "/test/"])
-        .env_remove("npm_lifecycle_event")
+        .without_env("npm_lifecycle_event")
         .assert()
         .success();
 
@@ -296,7 +305,7 @@ fn regexp_selector_runs_a_matched_hidden_script_named_in_depends_on() {
 
     pacquet
         .with_args(["-r", "run", "/test/"])
-        .env_remove("npm_lifecycle_event")
+        .without_env("npm_lifecycle_event")
         .assert()
         .success();
 
@@ -333,7 +342,7 @@ fn a_depends_on_reference_exempts_only_the_hidden_task_it_targets() {
 
     pacquet
         .with_args(["-r", "run", "/test|lint|setup/"])
-        .env_remove("npm_lifecycle_event")
+        .without_env("npm_lifecycle_event")
         .assert()
         .success();
 
@@ -378,7 +387,7 @@ fn an_explicit_same_name_depends_on_exempts_the_hidden_task_it_targets() {
 
     pacquet
         .with_args(["-r", "run", "/test|lint|setup/"])
-        .env_remove("npm_lifecycle_event")
+        .without_env("npm_lifecycle_event")
         .assert()
         .success();
 
@@ -424,7 +433,7 @@ fn reverse_run_still_rejects_a_hidden_script_name_with_depends_on() {
 
     let output = pacquet
         .with_args(["-r", "run", "--reverse", ".secret"])
-        .env_remove("npm_lifecycle_event")
+        .without_env("npm_lifecycle_event")
         .output()
         .expect("spawn pacquet");
 

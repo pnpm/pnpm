@@ -1,7 +1,14 @@
-use super::{TokenBackend, sha256_hex, unix_millis};
+use super::{
+    TokenBackend,
+    sha256_hex,
+    unix_millis,
+};
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tokio::sync::Semaphore;
 

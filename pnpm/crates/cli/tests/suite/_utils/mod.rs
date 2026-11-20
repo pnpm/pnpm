@@ -7,26 +7,61 @@ pub use pnpm_testing_utils::bin::read_v11_bundle_path;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use pnpm_modules_yaml::{Host as ModulesHost, Modules, read_modules_manifest};
-use pnpm_store_dir::{CafsFileInfo, StoreDir, StoreIndex};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotEntry,
+};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    Modules,
+    read_modules_manifest,
+};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
     fs::is_symlink_or_junction,
 };
 use pnpm_workspace_state::WorkspaceState;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     ffi::OsStr,
     fmt::Write as _,
     fs,
     io::Write as _,
-    path::{Path, PathBuf},
-    process::{Child, Command, ExitStatus, Output},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Output,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::TempDir;
 
@@ -34,8 +69,7 @@ use tempfile::TempDir;
 /// config cleared.
 #[must_use]
 pub fn v11_in(bundle: &OsStr, workspace: &Path) -> Command {
-    let mut command = Command::new("node");
-    command.arg(bundle);
+    let command = Command::new("node").with_arg(bundle);
     command.with_current_dir(workspace).without_ambient_pnpm_config()
 }
 
@@ -139,8 +173,7 @@ pub fn assert_child_output_stays_absent(child: &mut Child, path: &Path, unexpect
 /// asserts on the styling. [`without_colors`] is the counterpart.
 #[must_use]
 pub fn with_colors(mut command: Command) -> Command {
-    command.env_remove("NO_COLOR");
-    command.env("FORCE_COLOR", "1");
+    command = command.without_env("NO_COLOR").with_env("FORCE_COLOR", "1");
     command
 }
 
@@ -148,9 +181,10 @@ pub fn with_colors(mut command: Command) -> Command {
 /// [`with_colors`] for why a test pins this.
 #[must_use]
 pub fn without_colors(mut command: Command) -> Command {
-    command.env_remove("FORCE_COLOR");
-    command.env_remove("CLICOLOR_FORCE");
-    command.env("NO_COLOR", "1");
+    command = command
+        .without_env("FORCE_COLOR")
+        .without_env("CLICOLOR_FORCE")
+        .with_env("NO_COLOR", "1");
     command
 }
 
@@ -161,7 +195,8 @@ pub fn without_colors(mut command: Command) -> Command {
 pub fn flatten_report(report: &str) -> String {
     report
         .chars()
-        .filter(|ch| !ch.is_whitespace() && !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
+        .filter(|ch| !ch.is_whitespace())
+        .filter(|ch| !matches!(ch, '│' | '├' | '╰' | '─' | '▶' | '×'))
         .collect()
 }
 
@@ -177,7 +212,7 @@ pub fn enable_gvs_in_workspace_yaml(workspace: &Path, extra_yaml: &str) {
     assert_ne!(
         flipped, yaml,
         "expected the default `enableGlobalVirtualStore: false` line written by \
-         `CommandTempCwd::add_mocked_registry` — has the helper changed?",
+         `CommandTempCwd::add_mocked_registry`: has the helper changed?",
     );
     let mut yaml = flipped;
     if !yaml.ends_with('\n') {
@@ -191,8 +226,8 @@ pub fn enable_gvs_in_workspace_yaml(workspace: &Path, extra_yaml: &str) {
 ///
 /// The mocked registry publishes `@pnpm.e2e/bravo-dep` at 1.0.0
 /// (2022-02-01), 1.0.1 (2022-02-22), and 1.1.0 (2022-05-01, the `latest`
-/// tag) — see `version_publish_time` in `pnpr/crates/pnpr-fixtures/src/lib.rs`
-/// — so this cutoff makes 1.1.0 the only immature version.
+/// tag) (see `version_publish_time` in `pnpr/crates/pnpr-fixtures/src/lib.rs`)
+/// so this cutoff makes 1.1.0 the only immature version.
 #[must_use]
 pub fn bravo_dep_mature_up_to_1_0_1_minimum_release_age() -> u64 {
     minutes_since(1_646_092_800) // 2022-03-01T00:00:00Z
@@ -228,7 +263,7 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
         !yaml
             .lines()
             .any(|line| line.starts_with(&key_prefix)),
-        "pnpm-workspace.yaml already has a `{key}:` key — update this helper",
+        "pnpm-workspace.yaml already has a `{key}:` key, update this helper",
     );
     if !yaml.ends_with('\n') {
         yaml.push('\n');
@@ -237,7 +272,7 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
-/// The sorted `packages:` keys of the lockfile in `dir` — what the
+/// The sorted `packages:` keys of the lockfile in `dir`, what the
 /// upstream tests read as `lockfile.packages['<name>@<version>']`.
 #[must_use]
 pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
@@ -255,11 +290,11 @@ pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
 pub fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    // Fail loudly if the harness ever starts writing `updateConfig` —
+    // Fail loudly if the harness ever starts writing `updateConfig`,
     // appending a second top-level mapping key produces invalid YAML.
     assert!(
         !yaml.contains("updateConfig:"),
-        "pnpm-workspace.yaml already has an `updateConfig:` key — update this helper",
+        "pnpm-workspace.yaml already has an `updateConfig:` key, update this helper",
     );
     if !yaml.ends_with('\n') {
         yaml.push('\n');
@@ -279,7 +314,7 @@ pub fn set_minimum_release_age(workspace: &Path, minutes: u64) {
 /// Snapshot-friendly view of every row in `<store>/v11/index.db`.
 ///
 /// The outer key is the `SQLite` key (`"{integrity}\t{pkgId}"`). The inner
-/// map is the package's files — one entry per path inside the tarball.
+/// map is the package's files; one entry per path inside the tarball.
 /// `checked_at` is scrubbed because its value depends on install time.
 #[must_use]
 pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String, CafsFileInfo>> {
@@ -306,7 +341,7 @@ pub fn index_file_contents(store_dir: &Path) -> BTreeMap<String, BTreeMap<String
     out
 }
 
-/// Parse `<workspace>/node_modules/.pnpm/lock.yaml` — the current
+/// Parse `<workspace>/node_modules/.pnpm/lock.yaml`, the current
 /// lockfile describing what the last install materialized.
 #[must_use]
 pub fn read_current_lockfile(workspace: &Path) -> pnpm_lockfile::Lockfile {
@@ -374,10 +409,10 @@ impl WorkspaceFixture {
             .expect("find the pnpm binary")
             .with_current_dir(cwd)
             .without_ambient_pnpm_config()
-            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
-            .env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
-            .arg("--reporter=ndjson")
-            .args(args)
+            .with_env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .with_env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
+            .with_arg("--reporter=ndjson")
+            .with_args(args)
             .output()
             .expect("run pacquet")
     }
@@ -388,11 +423,11 @@ impl WorkspaceFixture {
         Arg: AsRef<OsStr>,
     {
         v11_in(bundle, cwd)
-            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
-            .env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
-            .arg("--config.confirm-modules-purge=false")
-            .arg("--reporter=ndjson")
-            .args(args)
+            .with_env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .with_env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
+            .with_arg("--config.confirm-modules-purge=false")
+            .with_arg("--reporter=ndjson")
+            .with_args(args)
             .output()
             .expect("run the pnpm v11 bundle")
     }
@@ -580,7 +615,7 @@ pub fn read_lockfile(path: &Path) -> Lockfile {
 }
 
 /// Rewrite one snapshot's dependency pin in the lockfile at
-/// `lockfile_path` — the structured stand-in for the hand-written
+/// `lockfile_path`, the structured stand-in for the hand-written
 /// lockfiles the upstream tests use to stage wanted/current divergence.
 /// `new_ref` takes any `snapshots:` dependency shape (`100.0.0`,
 /// `link:packages/foo`, ...).
@@ -615,7 +650,7 @@ pub fn repin_snapshot_dependency(
 /// portable stand-in for `touch`, which Windows has no program for.
 ///
 /// The path is relative, so the marker lands in whatever directory the
-/// runner gave the script — which is what the recursive suites assert on.
+/// runner gave the script, which is what the recursive suites assert on.
 #[must_use]
 pub fn write_marker_script(relative_path: &str) -> String {
     format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
@@ -1142,7 +1177,8 @@ fn declared_dependencies(manifest: &Value, groups: &[&str]) -> Vec<String> {
     let mut names = groups
         .iter()
         .filter_map(|group| manifest[*group].as_object())
-        .flat_map(|deps| deps.keys().cloned())
+        .map(Map::keys)
+        .flat_map(std::iter::Iterator::cloned)
         .collect::<Vec<_>>();
     names.sort();
     names.dedup();
@@ -1157,7 +1193,8 @@ pub fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> 
             dir.file_name()
                 .is_none_or(|base| base != "node_modules")
         })
-        .map(|dir| dir.join("node_modules").join(name))
+        .map(|dir| dir.join("node_modules"))
+        .map(|joined| joined.join(name))
         .find(|candidate| candidate.join("package.json").is_file())
 }
 
@@ -1165,7 +1202,10 @@ pub fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> 
 /// it: native, forward-slashed, or the `/mnt/<drive>` form Windows shims use.
 pub fn assert_shim_omits_path(shim: &str, path: &Path) {
     let path = path.to_string_lossy().replace('\\', "/");
-    let without_drive = path.split_once(':').map_or(path.as_str(), |(_, rest)| rest);
+    let without_drive = path
+        .split_once(':')
+        .map(|(_, rest)| rest)
+        .unwrap_or(path.as_str());
     assert!(
         !shim.replace('\\', "/").contains(without_drive),
         "the shim must not contain {path:?}: {shim:?}",

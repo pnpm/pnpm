@@ -2,10 +2,17 @@
 pub(crate) mod tests;
 
 use icu_normalizer::{
-    DecomposingNormalizerBorrowed, properties::CanonicalCombiningClassMapBorrowed,
+    DecomposingNormalizerBorrowed,
+    properties::CanonicalCombiningClassMapBorrowed,
 };
-use pnpr_error::{RegistryError, Result};
-use unicode_security::{GeneralSecurityProfile as _, MixedScript as _};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use unicode_security::{
+    GeneralSecurityProfile as _,
+    MixedScript as _,
+};
 
 /// Maximum password length accepted by pnpr to prevent bcrypt 72-byte truncation issues.
 pub const MAX_PASSWORD_BYTES: usize = 71;
@@ -70,7 +77,8 @@ fn rejected_username_reason(username: &str) -> Option<&'static str> {
     }
     if username
         .chars()
-        .any(|character| !character.is_ascii() && !character.identifier_allowed())
+        .filter(|character| !character.is_ascii())
+        .any(|character| !character.identifier_allowed())
     {
         return Some("username contains restricted Unicode characters");
     }

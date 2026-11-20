@@ -1,10 +1,23 @@
 use super::{
-    AddMockedRegistry, Command, CommandExtra, CommandTempCwd, STORE_VERSION, fs,
-    is_symlink_or_junction, pacquet_in, write_required_incompatible_engine_fixture,
+    AddMockedRegistry,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    STORE_VERSION,
+    fs,
+    is_symlink_or_junction,
+    pacquet_in,
+    write_required_incompatible_engine_fixture,
 };
 #[cfg(unix)]
-use super::{Pipe, enable_gvs_in_workspace_yaml};
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use super::{
+    Pipe,
+    enable_gvs_in_workspace_yaml,
+};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 #[test]
 fn install_rejects_a_non_string_dependency_before_writing_a_lockfile() {
@@ -348,7 +361,7 @@ fn fresh_isolated_install_allows_required_incompatible_engine_without_strict_mod
 #[test]
 fn store_dir_cli_option_overrides_config_and_resolves_from_dir() {
     let CommandTempCwd {
-        mut pacquet,
+        pacquet,
         root,
         workspace,
         npmrc_info,
@@ -369,10 +382,10 @@ fn store_dir_cli_option_overrides_config_and_resolves_from_dir() {
     fs::write(&manifest_path, package_json_content.to_string()).expect("write to package.json");
 
     pacquet
-        .current_dir(root.path())
-        .arg("--dir")
-        .arg(&workspace)
-        .args(["install", "--store-dir", "cli-store"])
+        .with_current_dir(root.path())
+        .with_arg("--dir")
+        .with_arg(&workspace)
+        .with_args(["install", "--store-dir", "cli-store"])
         .assert()
         .success();
 
@@ -542,8 +555,8 @@ fn install_fails_on_env_var_in_project_npmrc_registry() {
 /// fix for pnpm/pnpm#11814.
 ///
 /// Also asserts that the project gets registered under
-/// `<store_dir>/v11/projects/`, mirroring the frozen-lockfile branch
-/// — the prune sweep walks that directory to learn which projects
+/// `<store_dir>/v11/projects/`, mirroring the frozen-lockfile branch,
+/// the prune sweep walks that directory to learn which projects
 /// still reference the shared store.
 #[cfg(unix)]
 #[test]
@@ -601,7 +614,7 @@ fn fresh_install_honors_enable_global_virtual_store() {
 /// `virtualStoreOnly` populates the virtual store and creates no
 /// importer links. `.pnp.cjs` is how a `PnP` project resolves, so it is a
 /// project-level artifact of the same kind and must not be written
-/// either — otherwise the project claims to resolve out of a store it
+/// either; otherwise the project claims to resolve out of a store it
 /// was never linked into.
 ///
 /// Covers the fresh-resolution path: `pnpm fetch` pins

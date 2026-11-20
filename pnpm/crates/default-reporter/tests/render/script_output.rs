@@ -1,5 +1,12 @@
 use super::{
-    CWD, Colors, ReporterState, emitted_lines, lifecycle_line, lifecycle_script, render, state,
+    CWD,
+    Colors,
+    ReporterState,
+    emitted_lines,
+    lifecycle_line,
+    lifecycle_script,
+    render,
+    state,
 };
 use pnpm_default_reporter::format::visible_width;
 

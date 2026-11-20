@@ -1,6 +1,9 @@
 //! Storing a file of a package the way a publish does, for tests.
 
-use crate::{PromotedArchive, Storage};
+use crate::{
+    PromotedArchive,
+    Storage,
+};
 use pnpr_package_name::CanonicalPackageName;
 
 /// Store `bytes` as the file `file` of `name` and map the file to them,

@@ -2,19 +2,41 @@
 //! read, retag, deprecate, and unpublish, with no package document written
 //! to the hosted store.
 
-use crate::npm::{npm_tgz, publish_doc, sri_sha512};
+use crate::npm::{
+    npm_tgz,
+    publish_doc,
+    sri_sha512,
+};
 
 use axum::{
     Router,
-    body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use pnpr::{Config, MaxUsers, router};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
 use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
 };
 use tempfile::TempDir;
@@ -30,7 +52,10 @@ fn sqlite_config(storage: &Path) -> Config {
 }
 
 fn request(method: &str, path: &str, token: &str, body: Option<&Value>) -> Request<Body> {
-    let body = body.map_or_else(Body::empty, |body| Body::from(serde_json::to_vec(body).unwrap()));
+    let body = body
+        .map(serde_json::to_vec)
+        .map(Result::unwrap)
+        .map_or_else(Body::empty, Body::from);
     Request::builder()
         .method(method)
         .uri(path)

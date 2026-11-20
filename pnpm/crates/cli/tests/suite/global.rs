@@ -3,7 +3,11 @@
 //! create real symlinks / bin shims, so they are Unix-gated.
 
 #[cfg(unix)]
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, without_colors};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    set_minimum_release_age,
+    without_colors,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 #[cfg(unix)]
@@ -12,8 +16,14 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 #[cfg(unix)]
 use pnpm_testing_utils::command_env::CommandTestExt;
 #[cfg(unix)]
-use std::path::{Path, PathBuf};
-use std::{fs, process::Command};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// Create the global bin directory and seed the pnpm home with the mocked
 /// registry / store / cache. A `-g` install anchors its config at the pnpm
@@ -83,13 +93,13 @@ fn run_global_prompt(
     answer: &str,
 ) -> std::process::Output {
     without_colors(with_global_env(Command::new("python3"), workspace, pnpm_home))
-        .env("CI", "false")
-        .env_remove("GITHUB_ACTION")
-        .env("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", answer)
-        .arg("-c")
-        .arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
-        .arg(env!("CARGO_BIN_EXE_pnpm"))
-        .args(args)
+        .with_env("CI", "false")
+        .without_env("GITHUB_ACTION")
+        .with_env("PNPM_TEST_MINIMUM_RELEASE_AGE_ANSWER", answer)
+        .with_arg("-c")
+        .with_arg(include_str!("../fixtures/minimum_release_age_prompt.py"))
+        .with_arg(env!("CARGO_BIN_EXE_pnpm"))
+        .with_args(args)
         .output()
         .expect("run the interactive global command in a pseudo-terminal")
 }
@@ -276,7 +286,7 @@ fn global_add_list_remove_round_trip() {
 }
 
 /// A mutating global command must create a missing global bin directory
-/// instead of failing `ERR_PNPM_PNPM_DIR_NOT_WRITABLE` — pnpm's config
+/// instead of failing `ERR_PNPM_PNPM_DIR_NOT_WRITABLE`, pnpm's config
 /// reader runs `mkdir -p` on the bin dir for every `--global` command. A
 /// fresh `PNPM_HOME` whose `bin` is on `PATH` but not yet on disk (e.g.
 /// provisioned by a CI setup action) must work on the first `add -g` /
@@ -324,7 +334,7 @@ fn global_add_creates_a_missing_global_bin_dir() {
 
 /// `pnpm add -g node@22.0.0` installs the Node.js runtime, because a bare
 /// tool name names the tool. A Package URL names a package in a registry,
-/// so the global path has to install that package instead — the mark a purl
+/// so the global path has to install that package instead, the mark a purl
 /// carries reaches `tool_install_selectors` through the group each request
 /// splits into.
 #[cfg(unix)]
@@ -473,8 +483,8 @@ fn global_bin_resolves_hoisted_dependencies() {
         .success();
 
     let output = Command::new(pnpm_home.join("bin/bin-requires-hoisted-dep"))
-        .current_dir(&workspace)
-        .env_remove("NODE_PATH")
+        .with_current_dir(&workspace)
+        .without_env("NODE_PATH")
         .output()
         .expect("run the installed global bin");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -829,8 +839,8 @@ fn global_add_ignores_ambient_global_workspace_yaml() {
 
 /// A global install must not inherit the caller project's dependency-graph
 /// configuration. A project `overrides` entry that references a `catalog:`
-/// — resolved against the caller's catalogs, which the isolated global
-/// install does not see — would otherwise fail the install with
+/// (resolved against the caller's catalogs, which the isolated global
+/// install does not see) would otherwise fail the install with
 /// `ERR_PNPM_CATALOG_IN_OVERRIDES`. `catalogMode: strict` is included for
 /// the same reason. Regression test for that leak.
 #[cfg(unix)]
@@ -868,7 +878,7 @@ fn global_add_ignores_caller_project_overrides() {
 }
 
 /// A global install must not use the caller project's `.npmrc` for network
-/// settings — a repo `.npmrc` could otherwise redirect the registry or
+/// settings, a repo `.npmrc` could otherwise redirect the registry or
 /// downgrade TLS for a global runtime/package fetch. pnpm runs the install
 /// with `cwd` = the pnpm home; pacquet anchors the global-install config
 /// there. Pointing the caller project at a dead registry proves the global
@@ -1235,7 +1245,7 @@ fn global_update_latest_upgrades_npm_aliases_and_runtimes_across_majors_without_
 }
 
 /// `--latest` resolves the `latest` dist-tag, which can point at an older
-/// release than the one installed — that is what rolled a self-updated pnpm
+/// release than the one installed, that is what rolled a self-updated pnpm
 /// back in pnpm/pnpm#14270. An update must never move a global package
 /// backwards.
 #[cfg(unix)]

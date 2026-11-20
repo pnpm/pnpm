@@ -2,7 +2,10 @@
 //! uses for its `ci` default. Keeping the two in step keeps frozen
 //! installs and prompt suppression consistent across both CLIs.
 
-use crate::api::{EnvVar, Host};
+use crate::api::{
+    EnvVar,
+    Host,
+};
 use std::sync::OnceLock;
 
 /// Variables whose non-empty value marks a CI environment: `ci-info`'s

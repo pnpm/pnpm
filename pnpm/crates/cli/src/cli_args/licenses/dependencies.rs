@@ -1,7 +1,19 @@
 use super::{
-    BelongsTo, DepType, HashMap, Include, InstallabilityOptions, LicenseInfo, Lockfile, Ordering,
-    PackageKey, PeerEdgeOptions, PeerSatisfactionEdges, ResolvedDependencyMap, WantedPlatformRef,
-    detect_dep_types, platform_is_supported_with_inference,
+    BelongsTo,
+    DepType,
+    HashMap,
+    Include,
+    InstallabilityOptions,
+    LicenseInfo,
+    Lockfile,
+    Ordering,
+    PackageKey,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    ResolvedDependencyMap,
+    WantedPlatformRef,
+    detect_dep_types,
+    platform_is_supported_with_inference,
 };
 
 pub(super) fn collect_dependencies(

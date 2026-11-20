@@ -1,11 +1,38 @@
 use super::{
-    Arc, AuditAdvisory, AuditError, BTreeMap, DependencyGroup, HashMap, HashSet, Lockfile,
-    PackageVersionGuard, PublishInfoLookup, Range, RangeSpecStyle, Reporter, ResolutionObserver,
-    State, Update, Version, blue, color_severity, green, package_semver, red,
-    resolve_minimum_release_age_excludes, satisfies_including_prerelease, severity_name,
-    severity_number, write_age_excludes,
+    Arc,
+    AuditAdvisory,
+    AuditError,
+    BTreeMap,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    Lockfile,
+    PackageVersionGuard,
+    PublishInfoLookup,
+    Range,
+    RangeSpecStyle,
+    Reporter,
+    ResolutionObserver,
+    State,
+    Update,
+    Version,
+    blue,
+    color_severity,
+    green,
+    package_semver,
+    red,
+    resolve_minimum_release_age_excludes,
+    satisfies_including_prerelease,
+    severity_name,
+    severity_number,
+    write_age_excludes,
 };
-use crate::cli_args::audit::{ReleaseAgeExclusions, patched_range_for_style, report::AdvisoryId};
+use crate::cli_args::audit::{
+    ReleaseAgeExclusions,
+    patched_range_for_style,
+    report::AdvisoryId,
+};
+use miette::WrapErr;
 use pnpm_resolving_deps_resolver::UpdateTargets;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can
@@ -17,8 +44,8 @@ pub(crate) struct UpdateClassification {
     pub(crate) vulnerabilities: HashMap<String, Vec<(AdvisoryId, Range)>>,
     pub(crate) unfixable: HashMap<String, Vec<AdvisoryId>>,
     /// Advisory ids whose `vulnerable_versions` failed to parse. The registry
-    /// is untrusted, so a malformed range must not silently drop the advisory
-    /// — it is counted as remaining rather than read as a clean exit.
+    /// is untrusted, so a malformed range must not silently drop the advisory;
+    /// it is counted as remaining rather than read as a clean exit.
     pub(crate) unparsable: Vec<AdvisoryId>,
 }
 
@@ -85,8 +112,8 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // A missing lockfile here means the update couldn't be verified; mirror
     // pnpm's `fixWithUpdate`, which errors rather than reporting everything
     // fixed against an empty installed set.
-    let Some(updated) = Lockfile::load_wanted_from_dir(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("re-read the lockfile after update"))?
+    let Some(updated) =
+        Lockfile::load_wanted_from_dir(lockfile_dir).wrap_err("re-read the lockfile after update")?
     else {
         return Err(AuditError::NoLockfileAfterUpdate.into());
     };
@@ -182,7 +209,7 @@ pub(crate) struct InstalledPackages {
 /// its package is gone, or every installed semver version of it escapes the
 /// vulnerable range. It stays **remaining** when a vulnerable version is still
 /// installed, when the package survives only under non-semver keys (`file:` /
-/// git / tarball — unverifiable), when its range is `>=0.0.0` / `*` and the
+/// git / tarball, unverifiable), when its range is `>=0.0.0` / `*` and the
 /// package is still installed, or when its range was unparsable. The
 /// conservative bias keeps `audit --fix update` from reporting a clean state
 /// it can't prove.

@@ -1,10 +1,28 @@
 //! Running package build scripts once the tree is materialized.
 
 use super::{
-    BuildModules, BuildModulesError, Config, Diagnostic, Display, Error, ExtendedPatchInfo,
-    HashMap, IgnoredScriptsLog, LinkBinsError, Lockfile, LogEvent, LogLevel, PackageKey,
-    PackageMetadata, PatchKeyConflictError, Reporter, ResolvePatchedDependenciesError,
-    SkippedSnapshots, SnapshotEntry, direct_dep_names_for_importer, get_patch_info,
+    BuildModules,
+    BuildModulesError,
+    Config,
+    Diagnostic,
+    Display,
+    Error,
+    ExtendedPatchInfo,
+    HashMap,
+    IgnoredScriptsLog,
+    LinkBinsError,
+    Lockfile,
+    LogEvent,
+    LogLevel,
+    PackageKey,
+    PackageMetadata,
+    PatchKeyConflictError,
+    Reporter,
+    ResolvePatchedDependenciesError,
+    SkippedSnapshots,
+    SnapshotEntry,
+    direct_dep_names_for_importer,
+    get_patch_info,
     importer_root_dir,
 };
 use pnpm_lockfile::PlatformSelector;
@@ -18,7 +36,7 @@ mod tests;
 /// Error type of [`crate::run_build_phase`] and [`crate::install_frozen_lockfile::build_phase::resolve_snapshot_patches`].
 ///
 /// Each variant is `#[diagnostic(transparent)]` so the surfaced
-/// `ERR_PNPM_*` code comes from the wrapped error — the two install
+/// `ERR_PNPM_*` code comes from the wrapped error, the two install
 /// paths embed this in their own error enums (also transparently), so
 /// a failed build reports identically regardless of which path ran it.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -33,7 +51,7 @@ pub enum BuildPhaseError {
 
     /// Surfaces `ERR_PNPM_PATCH_KEY_CONFLICT` when more
     /// than one configured version range matches a snapshot. Refuses
-    /// to silently pick one — the user must add an exact-version
+    /// to silently pick one, the user must add an exact-version
     /// entry to disambiguate.
     #[diagnostic(transparent)]
     PatchKeyConflict(#[error(source)] PatchKeyConflictError),
@@ -121,7 +139,7 @@ pub struct BuildPhaseInputs<'a> {
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
-/// re-link top-level bins — the shared tail both install paths run
+/// re-link top-level bins, the shared tail both install paths run
 /// after the virtual store is materialized.
 ///
 /// Runs a single `buildModules` + `pnpm:ignored-scripts` emit +
@@ -160,9 +178,9 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     // see the list. The event
     // carries `strict_dep_builds` (the final, post-`updateConfig` value
     // the strict-failure check also reads) so the default reporter can
-    // suppress the rendered warning box under strict mode — where the
+    // suppress the rendered warning box under strict mode (where the
     // install fails with `ERR_PNPM_IGNORED_BUILDS` and the box would only
-    // duplicate the error — without a stale reporter-side flag. The
+    // duplicate the error) without a stale reporter-side flag. The
     // display is gated on `!strictDepBuilds`; the strict path throws.
     Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
         level: LogLevel::Debug,
@@ -182,7 +200,7 @@ fn finish_bin_links(
     let config = inputs.policy.config;
     // `virtual_store_only` links no importer bins, so there is nothing
     // for the pass below to re-resolve. Dependency *build* scripts still
-    // ran above — only the importer-facing linking stops, matching
+    // ran above, only the importer-facing linking stops, matching
     // `pnpm fetch`.
     if config.virtual_store_only {
         return Ok(());
@@ -216,6 +234,27 @@ fn finish_dependency_bin_links(
     Ok(())
 }
 
+/// No rebuild or patch was asked for, and every installed snapshot is known
+/// not to require a build.
+fn nothing_to_build(
+    inputs: &BuildPhaseInputs<'_>,
+    patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
+) -> bool {
+    inputs.policy.rebuild.is_none()
+        && patches.is_none_or(HashMap::is_empty)
+        && inputs.graph.snapshots.is_none_or(|snapshots| {
+            snapshots
+                .keys()
+                .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
+                .all(|snapshot_key| {
+                    !inputs.cache.requires_build_by_snapshot
+                        .get(snapshot_key)
+                        .copied()
+                        .unwrap_or(true)
+                })
+        })
+}
+
 fn build_or_defer<Reporter: self::Reporter>(
     inputs: &BuildPhaseInputs<'_>,
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
@@ -227,7 +266,7 @@ fn build_or_defer<Reporter: self::Reporter>(
     // `preinstall` / `install` / `postinstall` lifecycle scripts.
     // Under isolated, the directories live under the virtual-store slot
     // layout; under hoisted, they live at the project-tree paths the
-    // walker assigned — threaded in via `pkg_roots_by_key`.
+    // walker assigned, threaded in via `pkg_roots_by_key`.
     let can_defer_without_build_modules = config.ignore_scripts
         && inputs.policy.rebuild.is_none()
         && patches.is_none_or(HashMap::is_empty)
@@ -246,17 +285,7 @@ fn build_or_defer<Reporter: self::Reporter>(
             mutated_slots: false,
             mutated_snapshot_keys: std::collections::HashSet::default(),
         }
-    } else if inputs.policy.rebuild.is_none()
-        && patches.is_none_or(HashMap::is_empty)
-        && inputs.graph.snapshots.is_none_or(|snapshots| {
-            snapshots
-                .keys()
-                .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
-                .all(|snapshot_key| {
-                    inputs.cache.requires_build_by_snapshot.get(snapshot_key) == Some(&false)
-                })
-        })
-    {
+    } else if nothing_to_build(inputs, patches) {
         crate::BuildModulesOutput::default()
     } else {
         let variations_platform = crate::runtime_platform_selector(inputs.supported_architectures);
@@ -368,8 +397,8 @@ fn link_importer_top_level_bins(
     } else {
         &[]
     };
-    // When nothing this phase can change actually changed — no script,
-    // patch, or side-effects overlay touched a linked slot — the
+    // When nothing this phase can change actually changed (no script,
+    // patch, or side-effects overlay touched a linked slot) the
     // isolated link phase's own bin pass already shimmed exactly this
     // candidate set, so re-resolving it would only re-read every direct
     // dep's manifest per importer. Hoisted installs always relink: this
@@ -440,7 +469,10 @@ fn auto_installed_peer_bin_locations(
             packages
                 .get(&key.without_peer())
                 .is_some_and(crate::link_bins::may_have_bin)
-                || inputs.cache.requires_build_by_snapshot.get(key) == Some(&true)
+                || inputs.cache.requires_build_by_snapshot
+                    .get(key)
+                    .copied()
+                    .unwrap_or(false)
         })
         .map(|key| {
             inputs.directories.layout

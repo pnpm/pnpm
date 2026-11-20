@@ -81,33 +81,77 @@ use crate::multi_ecosystem;
 
 use axum::{
     Router,
-    body::{Body, Bytes, to_bytes},
-    http::{HeaderValue, Request, StatusCode, header},
+    body::{
+        Body,
+        Bytes,
+        to_bytes,
+    },
+    http::{
+        HeaderValue,
+        Request,
+        StatusCode,
+        header,
+    },
 };
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, HostedConfig, IpNetwork, MaxUsers, PackagePattern,
-    PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
+    AccessList,
+    AuthState,
+    Config,
+    Ecosystem,
+    HostedConfig,
+    IpNetwork,
+    MaxUsers,
+    PackagePattern,
+    PackageRule,
+    PackageRules,
+    PublicRoute,
+    Registries,
+    Registry,
+    router,
+    router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{blob_segment, package_segments};
-use serde_json::{Value, json};
-use ssri::{Algorithm, IntegrityOpts};
+use pnpr_storage::layout::{
+    blob_segment,
+    package_segments,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 use std::{
     convert::Infallible,
     fs,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
     net::TcpListener,
 };
 use tower::ServiceExt;
@@ -336,7 +380,10 @@ fn hosted_publish_request(
     tarball: &[u8],
     token: &str,
 ) -> Request<Body> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
 
     let tarball = &crate::npm::publishable_tgz(package, version, tarball);
     let basename = package.rsplit('/').next().unwrap();
@@ -364,7 +411,10 @@ fn hosted_publish_request(
 /// The 40-char hex SHA-1 the way pre-2017 npm publishes carry it in the
 /// legacy `dist.shasum` field.
 fn sha1_hex_of(bytes: &[u8]) -> String {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
     let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
     opts.input(bytes);
     let integrity = opts.result();
@@ -554,7 +604,8 @@ fn header_of(response: &axum::response::Response, name: impl header::AsHeaderNam
     response
         .headers()
         .get(name)
-        .and_then(|value| value.to_str().ok())
+        .map(HeaderValue::to_str)
+        .and_then(Result::ok)
 }
 
 fn foo_packument(upstream_url: &str) -> Value {
@@ -609,8 +660,8 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
     body
 }
 
-/// Build a config with two public upstream registries — `corp` claiming `@corp/*`
-/// and a pattern-less `npmjs` catch-all — and a `main` router over them,
+/// Build a config with two public upstream registries (`corp` claiming `@corp/*`
+/// and a pattern-less `npmjs` catch-all) and a `main` router over them,
 /// aliased by the path-less base.
 fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);

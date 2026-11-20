@@ -3,8 +3,15 @@
 //! pick that asks the same question.
 
 use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, Mutex, MutexGuard},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+    },
 };
 
 /// The memo per packument route and scan range: the packument snapshot the
@@ -12,12 +19,20 @@ use std::{
 type NarrowedMemo = HashMap<(String, String), (Arc<Package>, Option<Arc<Package>>)>;
 
 use pnpm_registry::PackageDistribution;
-use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreDir, StoreIndex, store_index_key};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    StoreDir,
+    StoreIndex,
+    store_index_key,
+};
 
 use super::Package;
 use crate::{
     npm_resolver::dist_integrity,
-    pick_package_from_meta::{filter_pkg_metadata_versions, semver_range::semver_satisfies_loose},
+    pick_package_from_meta::{
+        filter_pkg_metadata_versions,
+        semver_range::semver_satisfies_loose,
+    },
 };
 
 /// The install's store index plus a memo of what it holds. Offline installs

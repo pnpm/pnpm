@@ -1,17 +1,40 @@
 use super::{
-    WindowsDirSecurity, WindowsPathRole, can_write_windows_dir_security, deserialize_vec_or_one,
-    is_safe_windows_dir_security, is_unc_windows_path,
+    WindowsDirSecurity,
+    WindowsPathRole,
+    can_write_windows_dir_security,
+    deserialize_vec_or_one,
+    is_safe_windows_dir_security,
+    is_unc_windows_path,
 };
 use base64::Engine as _;
-use rustc_hash::{FxHashMap, FxHashSet};
+use command_extra::CommandExtra;
+use rustc_hash::{
+    FxHashMap,
+    FxHashSet,
+};
 use serde::Deserialize;
 use std::{
     fs,
     io::Read as _,
-    path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
-    sync::{Mutex, OnceLock, PoisonError},
-    time::{Duration, Instant, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
+    sync::{
+        Mutex,
+        OnceLock,
+        PoisonError,
+    },
+    time::{
+        Duration,
+        Instant,
+        SystemTime,
+    },
 };
 
 const CACHE_TTL: Duration = Duration::from_secs(60);
@@ -103,7 +126,8 @@ struct CachedDirSecurity {
 pub(in crate::cli_args::doctor::probe_path) fn prefetch_windows_dir_security(dirs: &[PathBuf]) {
     let valid: Vec<PathBuf> = dirs
         .iter()
-        .filter(|dir| !is_unc_windows_path(dir) && is_real_windows_dir(dir))
+        .filter(|dir| !is_unc_windows_path(dir))
+        .filter(|dir| is_real_windows_dir(dir))
         .cloned()
         .collect();
     if !valid.is_empty() {
@@ -325,13 +349,13 @@ fn try_exec_powershell(
         IdentityQuery::Include => "0",
         IdentityQuery::Skip => "1",
     };
-    let mut cmd = Command::new(executable);
-    cmd.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded_script])
-        .env("PNPM_DOCTOR_PATHS", payload)
-        .env("PNPM_DOCTOR_SKIP_ID", skip_flag)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+    let mut cmd = Command::new(executable)
+        .with_args(["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded_script])
+        .with_env("PNPM_DOCTOR_PATHS", payload)
+        .with_env("PNPM_DOCTOR_SKIP_ID", skip_flag)
+        .with_stdin(Stdio::null())
+        .with_stdout(Stdio::piped())
+        .with_stderr(Stdio::null());
     ensure_fallback_appdata_env(&mut cmd);
     let mut child = cmd.spawn().ok()?;
     let stdout_bytes = wait_for_powershell_stdout(&mut child)?;
@@ -381,7 +405,8 @@ fn powershell_executables() -> Vec<PathBuf> {
     let available: Vec<PathBuf> = raw
         .into_iter()
         .flatten()
-        .filter(|path| seen.insert(cache_key(path)) && path.is_file())
+        .filter(|path| seen.insert(cache_key(path)))
+        .filter(|path| path.is_file())
         .collect();
     if available.is_empty() { vec![default_winps] } else { available }
 }

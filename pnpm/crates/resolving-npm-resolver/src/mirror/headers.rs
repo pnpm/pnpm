@@ -1,5 +1,8 @@
 use pnpm_registry::Package;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 
 /// Cached headers persisted as the mirror's first line. The cached

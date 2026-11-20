@@ -1,13 +1,43 @@
 use pnpr_policy::Identity;
 
 use super::{
-    Action, AppState, AuthedCaller, CanonicalPackageName, Deserialize, Ecosystem, HeaderMap,
-    IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
-    StatusCode, TargetRegistry, authorize_package, authorize_package_write, caller_scoped,
-    check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, hosted_storage,
-    not_found, private_no_cache, publish_package, remove_dist_tag, resolve_write_target,
-    serve_package_tarball, serve_packument, serve_search, serve_tarball, serve_version_manifest,
-    set_dist_tag, split_package_identifier, update_packument,
+    Action,
+    AppState,
+    AuthedCaller,
+    CanonicalPackageName,
+    Deserialize,
+    Ecosystem,
+    HeaderMap,
+    IntoResponse,
+    MAX_PUBLISH_BODY_BYTES,
+    Path,
+    RawQuery,
+    RegistrySource,
+    Response,
+    State,
+    StatusCode,
+    TargetRegistry,
+    authorize_package,
+    authorize_package_write,
+    caller_scoped,
+    check_publish_tombstone,
+    delete_package,
+    delete_tarball,
+    get_dist_tags,
+    hosted_storage,
+    not_found,
+    private_no_cache,
+    publish_package,
+    remove_dist_tag,
+    resolve_write_target,
+    serve_package_tarball,
+    serve_packument,
+    serve_search,
+    serve_tarball,
+    serve_version_manifest,
+    set_dist_tag,
+    split_package_identifier,
+    update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -72,7 +102,7 @@ pub(super) struct DistTagPath {
 }
 
 // --------------------------------------------------------------------
-// Package reads — packument, version manifest, tarball.
+// Package reads, packument, version manifest, tarball.
 // --------------------------------------------------------------------
 
 /// `GET {base}/{pkg}`.
@@ -96,8 +126,8 @@ pub(super) async fn get_packument(
     serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name).await
 }
 
-/// `GET {base}/@{scope}/{pkg}` — a scoped package's packument — or
-/// `GET {base}/{pkg}/{version-or-tag}` — a version manifest for a package
+/// `GET {base}/@{scope}/{pkg}` (a scoped package's packument) or
+/// `GET {base}/{pkg}/{version-or-tag}`, a version manifest for a package
 /// whose name fits one segment.
 pub(super) async fn get_packument_or_version_manifest(
     State(state): State<AppState>,
@@ -164,7 +194,7 @@ pub(super) async fn get_search(
 }
 
 // --------------------------------------------------------------------
-// Package writes — publish, unpublish, dist-tags.
+// Package writes, publish, unpublish, dist-tags.
 // --------------------------------------------------------------------
 
 async fn preauthorize_publish(
@@ -258,7 +288,7 @@ pub(super) async fn put_package(
     publish_package(&state, &identity, registry.as_deref(), &path.name, body_bytes).await
 }
 
-/// `PUT {base}/@{scope}/{pkg}` — publish a scoped package. A first segment
+/// `PUT {base}/@{scope}/{pkg}`: publish a scoped package. A first segment
 /// that is not a scope names no publishable package.
 pub(super) async fn put_scoped_package(
     State(state): State<AppState>,
@@ -284,7 +314,7 @@ pub(super) async fn put_scoped_package(
     publish_package(&state, &identity, registry.as_deref(), &full, body_bytes).await
 }
 
-/// `PUT {base}/{pkg}/-rev/{rev}` — the full mutated packument, which is how
+/// `PUT {base}/{pkg}/-rev/{rev}`: the full mutated packument, which is how
 /// npm spells a partial unpublish.
 pub(super) async fn put_packument_revision(
     State(state): State<AppState>,
@@ -306,7 +336,7 @@ pub(super) async fn put_packument_revision(
         .await
 }
 
-/// `PUT {base}/@{scope}/{pkg}/-rev/{rev}` — full mutated packument or
+/// `PUT {base}/@{scope}/{pkg}/-rev/{rev}`: full mutated packument or
 /// maintainer update for a scoped package.
 pub(super) async fn put_scoped_packument_revision(
     State(state): State<AppState>,
@@ -332,7 +362,7 @@ pub(super) async fn put_scoped_packument_revision(
     update_packument(&state, &identity, registry.as_deref(), (&full, &rev), &body_bytes).await
 }
 
-/// `DELETE {base}/{pkg}` and `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole
+/// `DELETE {base}/{pkg}` and `DELETE {base}/{pkg}/-rev/{rev}`, remove a whole
 /// package (`pnpm unpublish --force`), or remove one version's tarball when the
 /// segment is `{pkg}@{version}`.
 pub(super) async fn unpublish_package(
@@ -354,7 +384,7 @@ pub(super) async fn unpublish_package(
     delete_package(&state, &identity, registry.as_deref(), &path.name).await
 }
 
-/// `DELETE {base}/@{scope}/{pkg}` — remove a whole scoped package, or remove
+/// `DELETE {base}/@{scope}/{pkg}`: remove a whole scoped package, or remove
 /// one scoped version's tarball when the second segment is `{pkg}@{version}`.
 pub(super) async fn delete_scoped_package(
     State(state): State<AppState>,
@@ -365,7 +395,7 @@ pub(super) async fn delete_scoped_package(
     unpublish_scoped(&state, &identity, registry.as_deref(), &path.first, &path.second).await
 }
 
-/// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}` — remove a whole scoped package,
+/// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}`: remove a whole scoped package,
 /// or remove one scoped version's tarball when the second segment is
 /// `{pkg}@{version}` (`DELETE {dist.tarball}/-rev/{rev}`).
 pub(super) async fn unpublish_scoped_package(
@@ -415,7 +445,7 @@ async fn unpublish_version_tarball(
     delete_tarball(state, identity, registry, raw_name, &filename).await
 }
 
-/// `DELETE {base}/{pkg}/-/{filename}/-rev/{rev}` — remove one version's
+/// `DELETE {base}/{pkg}/-/{filename}/-rev/{rev}`: remove one version's
 /// tarball, a step of `pnpm unpublish <pkg>@<version>`.
 pub(super) async fn unpublish_tarball(
     State(state): State<AppState>,
@@ -426,7 +456,7 @@ pub(super) async fn unpublish_tarball(
     delete_tarball(&state, &identity, registry.as_deref(), &path.name, &path.filename).await
 }
 
-/// `DELETE {base}/@{scope}/{pkg}/-/{filename}/-rev/{rev}` — remove one scoped
+/// `DELETE {base}/@{scope}/{pkg}/-/{filename}/-rev/{rev}`: remove one scoped
 /// version's tarball. The unpublish flow reconstructs this URL from the
 /// packument's `dist.tarball`, which spells a scoped name with a literal
 /// slash.

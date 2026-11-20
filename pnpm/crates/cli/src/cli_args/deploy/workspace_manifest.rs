@@ -1,9 +1,24 @@
 use super::{
-    Config, ConvertCtx, HashMap, IntoDiagnostic, Lockfile, Path, PathBuf,
-    approve_workspace_project_builds, install::configured_virtual_store_dir, relative_path,
+    Config,
+    ConvertCtx,
+    HashMap,
+    IntoDiagnostic,
+    Lockfile,
+    Path,
+    PathBuf,
+    approve_workspace_project_builds,
+    install::configured_virtual_store_dir,
+    relative_path,
 };
-use serde_json::{Map, Number, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use serde_json::{
+    Map,
+    Number,
+    Value,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 pub(super) struct DeployPeerSettings {
     pub(super) add_missing_peer_types: bool,

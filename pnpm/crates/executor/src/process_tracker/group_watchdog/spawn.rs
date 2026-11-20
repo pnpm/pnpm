@@ -1,11 +1,23 @@
-use super::{Command, GroupWatchdog};
+use super::{
+    Command,
+    GroupWatchdog,
+};
 use std::{
-    io::{self, Read},
-    os::fd::{AsRawFd, RawFd},
+    io::{
+        self,
+        Read,
+    },
+    os::fd::{
+        AsRawFd,
+        RawFd,
+    },
     process::Child,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

@@ -1,6 +1,21 @@
 use super::{
-    Body, Duration, GzDecoder, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes,
-    body_json, config_for, enable_osv, foo_packument, json, osv_database, router, sha1_hex_of,
+    Body,
+    Duration,
+    GzDecoder,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    body_json,
+    config_for,
+    enable_osv,
+    foo_packument,
+    json,
+    osv_database,
+    router,
+    sha1_hex_of,
     sha512_integrity,
 };
 use std::io::Read;
@@ -157,7 +172,8 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     assert_eq!(
         get.headers()
             .get("last-modified")
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some(expected),
     );
 
@@ -178,12 +194,13 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     assert_eq!(
         head.headers()
             .get("last-modified")
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some(expected),
     );
 
     // A document without a parsable `time.modified` omits the header
-    // instead of guessing — absent and garbled values alike.
+    // instead of guessing, absent and garbled values alike.
     let no_time = app
         .clone()
         .oneshot(
@@ -530,7 +547,8 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
         response
             .headers()
             .get("content-encoding")
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("gzip"),
         "a packument should be gzipped when the client accepts gzip",
     );
@@ -574,7 +592,8 @@ async fn packument_is_zstd_compressed_for_clients_that_prefer_it() {
         response
             .headers()
             .get("content-encoding")
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("zstd"),
     );
     let body = decode_zstd(&body_bytes(response.into_body()).await).await;

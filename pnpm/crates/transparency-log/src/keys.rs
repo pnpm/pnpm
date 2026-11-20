@@ -5,10 +5,22 @@ pub use signer::*;
 
 mod signer;
 
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use derive_more::{Display, Error};
-use ed25519_dalek::{Signature, VerifyingKey};
-use std::{fmt, str::FromStr};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use ed25519_dalek::{
+    Signature,
+    VerifyingKey,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
 
 /// The signature type byte of an Ed25519 note signature.
 pub const ED25519_SIGNATURE_TYPE: u8 = 0x01;

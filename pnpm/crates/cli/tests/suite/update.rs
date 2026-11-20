@@ -1,19 +1,36 @@
 use crate::_utils;
 
 use _utils::{
-    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
-    importer_specifier, importer_version, lockfile_package_keys, read_lockfile,
-    set_ignore_dependencies, set_minimum_release_age,
+    append_workspace_yaml_key,
+    bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    importer_specifier,
+    importer_version,
+    lockfile_package_keys,
+    read_lockfile,
+    set_ignore_dependencies,
+    set_minimum_release_age,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pretty_assertions::assert_eq;
-use std::{ffi::OsStr, fmt::Write as _, fs, path::Path, process::Command};
+use std::{
+    ffi::OsStr,
+    fmt::Write as _,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
@@ -86,7 +103,7 @@ fn add_workspace_package(workspace: &Path, name: &str, version: &str) {
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
-/// [`append_workspace_yaml_key`] for `dedupePeerDependents: false` — the
+/// [`append_workspace_yaml_key`] for `dedupePeerDependents: false`, the
 /// setting under which pnpm/pnpm#12456 reproduces on the TypeScript stack.
 fn disable_dedupe_peer_dependents(workspace: &Path) {
     append_workspace_yaml_key(workspace, "dedupePeerDependents", false);
@@ -132,7 +149,7 @@ fn list_virtual_store(workspace: &Path) -> Vec<String> {
 }
 
 /// `pacquet update` re-resolves a dependency to the highest version
-/// inside its range, even when the lockfile pins an older one — the
+/// inside its range, even when the lockfile pins an older one, the
 /// behaviour that distinguishes it from a plain `install` (which keeps
 /// the pin because it still satisfies the range).
 #[test]
@@ -601,7 +618,7 @@ fn update_latest_preserves_equals_pin() {
     drop((root, anchor));
 }
 
-/// `--no-save` bumps the lockfile but leaves `package.json` untouched —
+/// `--no-save` bumps the lockfile but leaves `package.json` untouched,
 /// ports pnpm's "update --no-save should not update package.json" test.
 /// The bump stays inside the kept range: `--latest` would reach 101.0.0,
 /// which the retained `^100.0.0` cannot record.
@@ -1053,8 +1070,8 @@ fn update_latest_preserves_local_protocol_dependencies() {
     workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
     fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
 
-    // Package `a` links three local, unpublished packages — `b` via `workspace:*`,
-    // `c` via `file:`, and `d` via `link:` — alongside a real registry dependency
+    // Package `a` links three local, unpublished packages, `b` via `workspace:*`,
+    // `c` via `file:`, and `d` via `link:`, alongside a real registry dependency
     // so `--latest` has work to do. `c` and `d` live under `packages/a/fixtures`,
     // which the `packages/*` glob does not match, so they are plain local deps
     // rather than workspace members.
@@ -1248,7 +1265,7 @@ fn update_no_save_runs_read_package_once_for_kept_importer_specifier() {
 }
 
 /// A requested range names no version until resolution runs, so the specifier
-/// the manifest keeps decides — `>=101.0.0` cannot pull the lockfile past
+/// the manifest keeps decides, `>=101.0.0` cannot pull the lockfile past
 /// `^100.0.0`. Regression test for
 /// <https://github.com/pnpm/pnpm/issues/12764>.
 #[test]

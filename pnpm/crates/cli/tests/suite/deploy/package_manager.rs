@@ -1,6 +1,12 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, append_workspace_yaml_key, fs, pacquet_cmd,
-    write_project, write_workspace,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    append_workspace_yaml_key,
+    fs,
+    pacquet_cmd,
+    write_project,
+    write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::path::Path;

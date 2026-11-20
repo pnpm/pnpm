@@ -1,4 +1,7 @@
-use super::{SizeChange, compare_sizes};
+use super::{
+    SizeChange,
+    compare_sizes,
+};
 use crate::cli_args::Lto;
 use pretty_assertions::assert_eq;
 

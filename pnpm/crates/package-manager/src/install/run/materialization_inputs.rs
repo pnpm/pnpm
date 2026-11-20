@@ -2,10 +2,20 @@
 
 use super::{
     super::{
-        Arc, AtomicU8, IncludedDependencies, PackageManifest, PathBuf, RebuildOptions,
-        prior_hoisted_dependencies, prior_hoisted_locations,
+        Arc,
+        AtomicU8,
+        IncludedDependencies,
+        PackageManifest,
+        PathBuf,
+        RebuildOptions,
+        prior_hoisted_dependencies,
+        prior_hoisted_locations,
     },
-    Dispatched, InstallScope, Loaded, Lockfiles, Verification,
+    Dispatched,
+    InstallScope,
+    Loaded,
+    Lockfiles,
+    Verification,
 };
 
 /// The install's borrowed and `Copy` inputs, as one value every phase reads.
@@ -45,12 +55,10 @@ impl super::InstallWorkspace<'_> {
             lockfile_specifier_project_manifests,
             workspace_packages: self.loaded_workspace
                 .packages_of(workspace_projects)
-                .map_or(
-                    crate::install::materialize::WorkspacePackageSource::Projects(
-                        workspace_projects,
-                    ),
-                    crate::install::materialize::WorkspacePackageSource::Shared,
-                ),
+                .map(crate::install::materialize::WorkspacePackageSource::Shared)
+                .unwrap_or(crate::install::materialize::WorkspacePackageSource::Projects(
+                    workspace_projects,
+                )),
             requested_importer_ids: scope.importers.requested_importer_ids.as_ref(),
             real_importer_ids: &scope.importers.real_importer_ids,
             workspace_root: &self.dirs.workspace_root,

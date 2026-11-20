@@ -1,9 +1,16 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, fs, pacquet, remove_dir_if_exists, setup_installed,
-    setup_installed_workspace_project, setup_installed_workspace_project_with_yaml,
+    AddMockedRegistry,
+    CommandTempCwd,
+    fs,
+    pacquet,
+    remove_dir_if_exists,
+    setup_installed,
+    setup_installed_workspace_project,
+    setup_installed_workspace_project_with_yaml,
     write_patch_edit,
 };
 use assert_cmd::assert::OutputAssertExt;
+use command_extra::CommandExtra;
 
 #[test]
 fn patch_commit_exact_version_writes_patch_and_reinstalls() {
@@ -324,7 +331,7 @@ fn patch_commit_no_changes_does_not_create_patches_dir() {
         let mut patch_commit =
             pacquet(&workspace, ["patch-commit", edit_dir.to_str().expect("utf8 edit dir")]);
         if let Some(reporter) = reporter {
-            patch_commit.arg(reporter);
+            patch_commit = patch_commit.with_arg(reporter);
         }
         let output = patch_commit.output().expect("run patch-commit");
 

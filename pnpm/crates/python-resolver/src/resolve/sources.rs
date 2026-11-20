@@ -1,9 +1,28 @@
-use super::{Package, Provider};
-use crate::{Packages, WheelMetadata};
-use miette::{IntoDiagnostic, Result, bail};
+use super::{
+    Package,
+    Provider,
+};
+use crate::{
+    Packages,
+    WheelMetadata,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
-use std::collections::{BTreeMap, BTreeSet};
+use pep508_rs::{
+    ExtraName,
+    MarkerEnvironment,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 #[derive(Default)]
 struct SourceGraph {

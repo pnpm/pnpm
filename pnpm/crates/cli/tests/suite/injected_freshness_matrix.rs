@@ -14,18 +14,31 @@
 //!   another project.
 
 use crate::_utils::{
-    ManifestDeps, WorkspaceFixture, assert_success, copy_sources, read_manifest,
-    read_v11_bundle_path, set_dependency, walk_files, write_manifest_value,
+    ManifestDeps,
+    WorkspaceFixture,
+    assert_success,
+    copy_sources,
+    read_manifest,
+    read_v11_bundle_path,
+    set_dependency,
+    walk_files,
+    write_manifest_value,
 };
 
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 #[derive(Debug, Clone, Copy)]
 struct Layout {

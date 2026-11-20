@@ -1,5 +1,9 @@
 use pnpm_config::Config;
-use pnpm_publish::{Access, OidcHttpOptions, PublishPackedPkgOptions};
+use pnpm_publish::{
+    Access,
+    OidcHttpOptions,
+    PublishPackedPkgOptions,
+};
 
 use super::PublishArgs;
 use crate::cli_args::release_notes::notes_registries;

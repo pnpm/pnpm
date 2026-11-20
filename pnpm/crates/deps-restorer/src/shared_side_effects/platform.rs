@@ -1,10 +1,26 @@
-use crate::{install_frozen_lockfile::find_runtime_node_major, process::Command};
+use crate::{
+    install_frozen_lockfile::find_runtime_node_major,
+    process::Command,
+};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use pnpm_lockfile::{PackageKey, ProjectSnapshot};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    ProjectSnapshot,
+};
 use pnpm_pnpr_client::{
-    LinuxGlibcPlatform, MacOsPlatform, WindowsPlatform, linux_glibc_supported_tags,
-    linux_glibc_tag, macos_supported_tags, macos_tag, windows_supported_tags, windows_tag,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    WindowsPlatform,
+    linux_glibc_supported_tags,
+    linux_glibc_tag,
+    macos_supported_tags,
+    macos_tag,
+    windows_supported_tags,
+    windows_tag,
 };
 use std::collections::HashMap;
 #[cfg(windows)]
@@ -130,7 +146,9 @@ pub(super) fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {
     Some(value.split_once(')')?.0.to_string())
 }
 pub(super) fn package_version(package_key: &PackageKey, metadata_version: Option<&str>) -> String {
-    metadata_version.map_or_else(|| package_key.suffix.version().to_string(), ToString::to_string)
+    metadata_version
+        .map(ToString::to_string)
+        .unwrap_or_else(|| package_key.suffix.version().to_string())
 }
 pub(super) fn digest_integrity(digest: &str) -> Result<String, String> {
     if !digest.len().is_multiple_of(2) {

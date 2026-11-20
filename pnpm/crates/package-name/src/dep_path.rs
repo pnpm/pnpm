@@ -1,5 +1,7 @@
 use pnpm_deps_path::{
-    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_registry_qualified_version,
+    get_pkg_id_with_patch_hash,
+    index_of_dep_path_suffix,
+    parse_registry_qualified_version,
     version_separator_index,
 };
 use std::borrow::Cow;

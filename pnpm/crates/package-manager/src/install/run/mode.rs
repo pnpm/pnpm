@@ -1,12 +1,22 @@
 use super::{
-    super::{effective_node_version, included_dependencies},
-    InstallError, InstallExecution, InstallOwned, InstallRunOptions, InstallView,
+    super::{
+        effective_node_version,
+        included_dependencies,
+    },
+    InstallError,
+    InstallExecution,
+    InstallOwned,
+    InstallRunOptions,
+    InstallView,
 };
 use crate::install::state_options::ResolveOnly;
 use pnpm_config::Config;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_store_dir::VerifiedFileIntegrity;
-use std::{io::IsTerminal, path::PathBuf};
+use std::{
+    io::IsTerminal,
+    path::PathBuf,
+};
 
 /// What the run's flags settle into before anything is read from disk.
 pub(super) struct RunMode {
@@ -27,7 +37,7 @@ impl RunMode {
         options: &InstallRunOptions<'_, '_>,
     ) -> Result<Self, InstallError> {
         // Taken before any fetching so the store-verification figures
-        // this install reports are its own — a recursive workspace run
+        // this install reports are its own, a recursive workspace run
         // and a long-lived embedder (the NAPI addon) both drive several
         // installs through the same process-global tally.
         let verified_file_integrity_baseline = VerifiedFileIntegrity::snapshot();
@@ -118,12 +128,12 @@ fn reject_lockfile_only_without_lockfile(
 }
 
 /// `enableModulesDir: false` (with the global virtual store off) is "resolve
-/// and write the lockfile, materialize nothing" — the same pipeline
+/// and write the lockfile, materialize nothing", the same pipeline
 /// `--lockfile-only` takes, entered from config, except that the packages
 /// are still fetched into the store (`RunMode::fetches_into_store`). It stays
 /// outside the `lockfile: false` conflict (pnpm accepts that combination and
-/// writes nothing), and never turns a rebuild — which runs against an
-/// already-materialized `node_modules` — into a silent no-op.
+/// writes nothing), and never turns a rebuild (which runs against an
+/// already-materialized `node_modules`) into a silent no-op.
 fn effective_lockfile_only(
     config: &Config,
     lockfile_only: bool,

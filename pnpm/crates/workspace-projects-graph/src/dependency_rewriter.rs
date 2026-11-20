@@ -1,4 +1,7 @@
-use crate::base_project::{DependencyGroups, GraphProject};
+use crate::base_project::{
+    DependencyGroups,
+    GraphProject,
+};
 
 /// Rewrites a project's declared dependency specifiers into the ones
 /// the install resolves, before [`create_projects_graph`] reads them

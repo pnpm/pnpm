@@ -1,18 +1,39 @@
 use crate::{
-    LibsqlConnector, first_row,
+    LibsqlConnector,
+    first_row,
     pool::ConnectionPool,
-    testing::{Primary, SYNC_STALL, serve_primary},
+    testing::{
+        Primary,
+        SYNC_STALL,
+        serve_primary,
+    },
 };
-use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
-use libsql::{Builder, Database};
+use axum::{
+    Json,
+    Router,
+    extract::State,
+    http::StatusCode,
+    routing::post,
+};
+use libsql::{
+    Builder,
+    Database,
+};
 use pnpr_error::RegistryError;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashSet,
     fmt::Write as _,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

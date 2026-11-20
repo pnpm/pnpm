@@ -3,13 +3,35 @@
 //!
 //! <https://forge.rust-lang.org/infra/channel-layout.html>
 
-use crate::{Channel, ChannelName, RustToolchainError, ToolchainRequest, channel::parse_date};
-use pnpm_config::{Config, DEFAULT_RUST_DIST_SERVER, Tool};
-use pnpm_crypto_shasums_file::{TrustedReleaseKey, is_signed_by_trusted_key};
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use crate::{
+    Channel,
+    ChannelName,
+    RustToolchainError,
+    ToolchainRequest,
+    channel::parse_date,
+};
+use pnpm_config::{
+    Config,
+    DEFAULT_RUST_DIST_SERVER,
+    Tool,
+};
+use pnpm_crypto_shasums_file::{
+    TrustedReleaseKey,
+    is_signed_by_trusted_key,
+};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use serde::Deserialize;
-use ssri::{Algorithm, Integrity};
-use std::{collections::BTreeMap, sync::Arc};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// The Rust project's tag and release signing key, as
 /// <https://static.rust-lang.org/rust-key.gpg.ascii> publishes it.
@@ -93,7 +115,7 @@ pub(crate) fn parse_signed(
         return Err(RustToolchainError::SignatureInvalid { url });
     }
     let invalid = |reason: String| RustToolchainError::InvalidManifest { url: url.clone(), reason };
-    let text = std::str::from_utf8(body).map_err(|error| invalid(error.to_string()))?;
+    let text = std::str::from_utf8(body).map_err(|error| error.to_string()).map_err(invalid)?;
     let mut manifest: Manifest =
         toml::from_str(text).map_err(|error| invalid(error.message().to_string()))?;
     manifest.url = url;
@@ -215,7 +237,8 @@ impl Manifest {
         let build = targets
             .get(target)
             .or_else(|| targets.get("*"))
-            .filter(|build| build.available && !build.url.is_empty())?;
+            .filter(|build| build.available)
+            .filter(|build| !build.url.is_empty())?;
         Some(self.read_build(server, build))
     }
 

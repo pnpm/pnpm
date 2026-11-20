@@ -3,11 +3,15 @@
 //! re-invocation that must not re-enter it. The binary is copied under the
 //! alias name rather than linked, which reaches the same code on every
 //! platform.
+use command_extra::CommandExtra;
 
 use std::{
     env::consts::EXE_SUFFIX,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -22,11 +26,11 @@ fn launched_as_pnpx_injects_the_dlx_subcommand() {
     let pnpx = copy_executable(Path::new(pacquet), dir.path(), "pnpx");
 
     let via_pnpx = Command::new(&pnpx)
-        .arg("--help")
+        .with_arg("--help")
         .output()
         .expect("run `pnpx --help`");
     let via_dlx = Command::new(pacquet)
-        .args(["dlx", "--help"])
+        .with_args(["dlx", "--help"])
         .output()
         .expect("run `dlx --help`");
 
@@ -46,8 +50,8 @@ fn pnpx_version_prints_the_pnpm_version() {
 
     for flag in ["--version", "-v"] {
         let output = Command::new(&pnpx)
-            .current_dir(dir.path())
-            .arg(flag)
+            .with_current_dir(dir.path())
+            .with_arg(flag)
             .output()
             .expect("run `pnpx --version`");
         assert!(
@@ -73,19 +77,19 @@ fn launched_as_pnpx_hands_scripts_the_pnpm_beside_it() {
         .expect("write package manifest");
     let node = which::which("node").expect("find node");
 
-    let mut via_pnpx = Command::new(&pnpx);
-    via_pnpx.current_dir(pacquet.get_current_dir().unwrap_or(&workspace));
-    for (key, value) in pacquet.get_envs() {
-        match value {
-            Some(value) => via_pnpx.env(key, value),
-            None => via_pnpx.env_remove(key),
-        };
-    }
+    let mut via_pnpx =
+        Command::new(&pnpx).with_current_dir(pacquet.get_current_dir().unwrap_or(&workspace));
+    via_pnpx = pacquet
+        .get_envs()
+        .fold(via_pnpx, |via_pnpx, (key, value)| match value {
+            Some(value) => via_pnpx.with_env(key, value),
+            None => via_pnpx.without_env(key),
+        });
     let output = via_pnpx
-        .env_remove("npm_execpath")
-        .arg(format!("--package=file:{}", fixture.display()))
-        .arg(node)
-        .args(["-e", "console.log(process.env.npm_execpath)"])
+        .without_env("npm_execpath")
+        .with_arg(format!("--package=file:{}", fixture.display()))
+        .with_arg(node)
+        .with_args(["-e", "console.log(process.env.npm_execpath)"])
         .output()
         .expect("run pnpx");
 

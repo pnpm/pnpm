@@ -1,13 +1,29 @@
 //! The lockfile importers `audit` and `audit signatures` cover.
 
 use super::{
-    AuditError, AuditGraph, EnvLockfile, HashMap, HashSet, Include, Lockfile, PackageKey,
-    PackageMetadata, State, signatures, walk_reachable,
+    AuditError,
+    AuditGraph,
+    EnvLockfile,
+    HashMap,
+    HashSet,
+    Include,
+    Lockfile,
+    PackageKey,
+    PackageMetadata,
+    State,
+    signatures,
+    walk_reachable,
 };
 use crate::cli_args::recursive::{
-    print_no_projects_matched, selected_workspace_importer_ids, selectors_narrow_the_run,
+    print_no_projects_matched,
+    selected_workspace_importer_ids,
+    selectors_narrow_the_run,
 };
-use std::{borrow::Cow, collections::BTreeSet};
+use miette::WrapErr;
+use std::{
+    borrow::Cow,
+    collections::BTreeSet,
+};
 
 /// The lockfile narrowed to the importers of the projects that `--filter`,
 /// `--filter-prod`, or `--workspace-root` selected, or the whole lockfile
@@ -50,9 +66,7 @@ pub(super) fn load_audited_lockfiles<'lockfile>(
     state: &'lockfile State,
     lockfile_dir: &std::path::Path,
 ) -> miette::Result<Option<(Cow<'lockfile, Lockfile>, Option<EnvLockfile>)>> {
-    let lockfile = state.lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
     let Some(lockfile) = lockfile else {
         return Err(AuditError::NoLockfile.into());
     };
@@ -167,8 +181,7 @@ fn signature_package_for_key(
 }
 
 fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
-    EnvLockfile::read(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))
+    EnvLockfile::read(lockfile_dir).wrap_err("load the env lockfile")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

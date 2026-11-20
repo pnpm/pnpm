@@ -1,7 +1,19 @@
 use super::{
-    CRATES_SOURCE_DIRECTORY, GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitSource, IntoDiagnostic,
-    ManagedDirectory, Path, Result, SOURCES_CONFIG, SOURCES_CONFIG_DIRECTORY,
-    ensure_workspace_directory, force_workspace_symlink, io, is_crates_io, read_workspace_file,
+    CRATES_SOURCE_DIRECTORY,
+    GIT_SOURCE_DIRECTORY,
+    GIT_SOURCE_NAME,
+    GitSource,
+    IntoDiagnostic,
+    ManagedDirectory,
+    Path,
+    Result,
+    SOURCES_CONFIG,
+    SOURCES_CONFIG_DIRECTORY,
+    ensure_workspace_directory,
+    force_workspace_symlink,
+    io,
+    is_crates_io,
+    read_workspace_file,
     write_workspace_file,
 };
 use miette::WrapErr;

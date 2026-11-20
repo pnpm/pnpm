@@ -2,18 +2,39 @@
 //! `pnpm11/installing/commands/test/update/recursive.ts`.
 //!
 //! The cases that drive `latest` around mid-test run against a registry
-//! of their own — see [`setup_with_own_registry`] — because moving a
+//! of their own (see [`setup_with_own_registry`]) because moving a
 //! dist tag mutates the storage the registry serves.
 
-use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    lockfile_package_keys,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_modules_yaml::{Host as ModulesHost, IncludedDependencies, read_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    IncludedDependencies,
+    read_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 /// Published at 100.0.0, 100.1.0, and 101.0.0.
@@ -387,7 +408,7 @@ fn recursive_update_accepts_a_version_declared_by_any_project() {
     drop((root, anchor));
 }
 
-/// A selector that names no single version -- a tag or a range -- has nothing
+/// A selector that names no single version (a tag or a range) has nothing
 /// to record either, but updating within the dependents' ranges is a
 /// reasonable reading of it. Those warn rather than fail.
 #[test]
@@ -562,7 +583,7 @@ fn recursive_update_latest_only_reaches_the_named_packages() {
 }
 
 /// At `--depth 0` a transitive dependency is never traversed, so a selector
-/// that names one is out of scope rather than an unrecordable request — even
+/// that names one is out of scope rather than an unrecordable request, even
 /// alongside a selector that does match a direct dependency.
 #[test]
 fn recursive_update_depth_zero_leaves_an_indirect_selector_out_of_scope() {

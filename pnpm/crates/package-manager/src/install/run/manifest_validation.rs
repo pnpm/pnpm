@@ -1,4 +1,8 @@
-use super::{InstallError, InstallScope, RunExecution};
+use super::{
+    InstallError,
+    InstallScope,
+    RunExecution,
+};
 use crate::ProjectMutation;
 use pnpm_package_manifest::PackageManifest;
 use std::path::PathBuf;

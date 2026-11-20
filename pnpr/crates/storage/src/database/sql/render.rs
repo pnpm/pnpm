@@ -8,20 +8,50 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
-    cache::{FragmentKey, RENDERER_VERSION, RenderCache, Representation, ViewKey},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
+    cache::{
+        FragmentKey,
+        RENDERER_VERSION,
+        RenderCache,
+        Representation,
+        ViewKey,
+    },
     cargo_rows,
-    commit::{PackageRow, package_row_from, package_row_query, parse_json, parse_optional_json},
+    commit::{
+        PackageRow,
+        package_row_from,
+        package_row_query,
+        parse_json,
+        parse_optional_json,
+    },
     oci_rows,
-    packument::{Assembled, DEPRECATED, Interpretation, README, README_FILENAME, write_packument},
+    packument::{
+        Assembled,
+        DEPRECATED,
+        Interpretation,
+        README,
+        README_FILENAME,
+        write_packument,
+    },
     pypi_rows,
     tags::tags_from_rows,
-    to_column, to_generation,
+    to_column,
+    to_generation,
 };
-use crate::database::{ARCHIVE_MANIFEST_FIELD, PackageView};
+use crate::database::{
+    ARCHIVE_MANIFEST_FIELD,
+    PackageView,
+};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::sync::Arc;
 
 enum ListedRows {

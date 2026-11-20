@@ -1,5 +1,14 @@
-use super::{Backend, INDEX_DIR, StoreIndex, StoreIndexError, files::FilesIndex};
-use serde::{Deserialize, Serialize};
+use super::{
+    Backend,
+    INDEX_DIR,
+    StoreIndex,
+    StoreIndexError,
+    files::FilesIndex,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::path::Path;
 
 /// How a store keeps its package index: the `storeIndexFormat` setting.

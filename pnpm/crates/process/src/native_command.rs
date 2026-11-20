@@ -1,7 +1,17 @@
 #[cfg(unix)]
 use crate::spawning;
-use crate::{Child, ExitStatus, Output};
-use std::{ffi::OsStr, io, ops::Deref, path::Path, process::Stdio};
+use crate::{
+    Child,
+    ExitStatus,
+    Output,
+};
+use std::{
+    ffi::OsStr,
+    io,
+    ops::Deref,
+    path::Path,
+    process::Stdio,
+};
 
 pub struct Command {
     inner: std::process::Command,

@@ -1,10 +1,32 @@
 use super::{
-    Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, ServiceExt, StatusCode,
-    TempDir, body_json, config_for, enable_osv, header, hosted_with_access, json, router,
+    Body,
+    Config,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_json,
+    config_for,
+    enable_osv,
+    header,
+    hosted_with_access,
+    json,
+    router,
     router_config,
 };
-use flate2::{Compression, write::GzEncoder};
-use std::{fs, io::Write, path::PathBuf};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
+use std::{
+    fs,
+    io::Write,
+    path::PathBuf,
+};
 
 fn three_tier_router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     let mut config = router_config(npmjs_url, corp_url, storage);

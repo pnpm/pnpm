@@ -2,13 +2,26 @@
 //! executables it links are reachable) and, for mutating commands, be
 //! writable.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU32, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU32,
+        Ordering,
+    },
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 /// Failure from [`check_global_bin_dir`]. Codes use pnpm's
@@ -46,7 +59,7 @@ pub enum CheckGlobalBinDirError {
 ///
 /// `path_env` is the value of `PATH` (the caller reads it so this stays
 /// testable). When `should_allow_write` is set, the directory must also
-/// exist and be writable — pnpm enforces this for every command except
+/// exist and be writable, pnpm enforces this for every command except
 /// `root` and `prefix`, which only print a path.
 pub fn check_global_bin_dir(
     global_bin_dir: &Path,
@@ -116,7 +129,7 @@ fn dirs_equal(dir1: &Path, dir2: &Path) -> bool {
 }
 
 /// Collapse `.` / `..` / redundant separators without touching the
-/// filesystem (it never resolves symlinks — neither does Node's
+/// filesystem (it never resolves symlinks; neither does Node's
 /// `path.relative`).
 fn lexically_normalize(path: &Path) -> PathBuf {
     use std::path::Component;

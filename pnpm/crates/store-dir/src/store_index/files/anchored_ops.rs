@@ -1,8 +1,15 @@
-use super::{StoreIndexError, TEMP_FILE_PREFIX, decode_entry};
+use super::{
+    StoreIndexError,
+    TEMP_FILE_PREFIX,
+    decode_entry,
+};
 use pnpm_fs::OpenDir;
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     sync::Arc,
 };
 

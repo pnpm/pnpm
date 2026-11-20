@@ -3,10 +3,22 @@
 //! published upstream after the fetch is served before the packument expires.
 
 use super::{
-    Body, Duration, Request, ServiceExt, StatusCode, TempDir, body_bytes, config_for, json, router,
+    Body,
+    Duration,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    config_for,
+    json,
+    router,
     sha512_integrity,
 };
-use std::{path::Path, time::SystemTime};
+use std::{
+    path::Path,
+    time::SystemTime,
+};
 
 const TTL: Duration = Duration::from_hours(24);
 

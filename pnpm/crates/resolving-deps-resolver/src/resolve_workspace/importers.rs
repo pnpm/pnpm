@@ -4,18 +4,27 @@
 
 use super::{
     broken_optional,
-    options::{PassSettings, WorkspaceImporter},
+    options::{
+        PassSettings,
+        WorkspaceImporter,
+    },
     time_based::TimeBasedCutoff,
 };
 use crate::{
     resolve_dependency_tree::WorkspaceTreeCtx,
     resolve_importer::{
-        ImporterHoistState, ResolveImporterError, ResolveImporterOptions, SeededImporter,
+        ImporterHoistState,
+        ResolveImporterError,
+        ResolveImporterOptions,
+        SeededImporter,
     },
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::Resolver;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 /// The importers in id order, each with its options.
 pub(super) struct SortedImporters<'i, 'a> {
@@ -27,7 +36,7 @@ pub(super) struct SortedImporters<'i, 'a> {
 /// and the resolve loop see the same per-importer wiring.
 /// `auto_install_peers` and `dedupe_peer_dependents` are workspace-wide
 /// (one setting per install), so the workspace-level values override
-/// whatever the per-importer callback set — the importer hoist loop and
+/// whatever the per-importer callback set, the importer hoist loop and
 /// the tree walk's shadow pruning must agree.
 ///
 /// Sorted by importer id: children-owner claims are ranked by importer

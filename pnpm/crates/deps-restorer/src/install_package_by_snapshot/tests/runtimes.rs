@@ -1,14 +1,27 @@
 use super::{
-    super::{host_platform_selector, runtime_platform_selector},
-    build_runtime_tarball_fixture, leaked_offline_config,
+    super::{
+        host_platform_selector,
+        runtime_platform_selector,
+    },
+    build_runtime_tarball_fixture,
+    leaked_offline_config,
 };
 use crate::install_package_by_snapshot::runtime::{
-    runtime_platform_of, synthesize_runtime_manifest_bytes,
+    runtime_platform_of,
+    synthesize_runtime_manifest_bytes,
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PackageKey,
+    PlatformSelector,
 };
-use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    ArchitectureAxes,
+    SupportedArchitectures,
+};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -74,7 +87,7 @@ fn runtime_platform_selector_prefers_the_host_among_the_platforms_a_list_names()
         host.cpu,
         host.libc
             .as_deref()
-            .map_or(String::new(), |libc| format!("-{libc}")),
+            .map_or_default(|libc| format!("-{libc}")),
     );
     let supported = SupportedArchitectures::Platforms(vec![
         "linux-ppc64le-musl".parse().unwrap(),
@@ -138,7 +151,7 @@ fn synthesize_runtime_manifest_emits_name_version_and_bin_single() {
     assert_eq!(parsed["name"], "node");
     assert_eq!(parsed["version"], "22.0.0");
     // pnpm's bin resolver treats `bin: "bin/node"` as "one binary,
-    // named after the package" — so the shim is
+    // named after the package", so the shim is
     // `<modules_dir>/.bin/node` → `<slot>/bin/node`.
     assert_eq!(parsed["bin"], "bin/node");
 }
@@ -201,7 +214,11 @@ fn synthesize_runtime_manifest_preserves_scoped_name() {
 /// `getBinName` with `dlx_read_manifest`.
 #[tokio::test]
 async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
-    use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
+    use pnpm_store_dir::{
+        SharedVerifiedFilesCache,
+        StoreIndex,
+        StoreIndexWriter,
+    };
     use pnpm_tarball::ArchiveStoreProjection;
     use std::sync::atomic::AtomicU8;
 
@@ -215,7 +232,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         .result();
 
     let store_tmp = tempfile::tempdir().expect("tempdir");
-    // `offline: true` is safe — a `file:` URL bypasses the offline gate,
+    // `offline: true` is safe, a `file:` URL bypasses the offline gate,
     // and it guarantees the install never reaches the network.
     let config = leaked_offline_config("https://registry.test", store_tmp.path());
     let (writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
@@ -309,7 +326,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     writer_task.await.expect("join the writer task").expect("flush the store index");
 
     // The persisted row must carry the synthesized `package.json` in both
-    // its `files` map and its bundled `manifest` — this is the copy a warm
+    // its `files` map and its bundled `manifest`; this is the copy a warm
     // materialization reads back.
     let LockfileResolution::Binary(binary) = &metadata.resolution else {
         unreachable!("the fixture uses a binary resolution")
@@ -334,7 +351,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         "the bundled manifest carries the runtime bin",
     );
 
-    // Warm reinstall — nodeRuntime.ts's `rimraf node_modules` + offline
+    // Warm reinstall, nodeRuntime.ts's `rimraf node_modules` + offline
     // reinstall. Delete the archive so the store is the only possible
     // source, then materialize straight from the persisted row; the slot's
     // `package.json` can come only from that row.

@@ -2,7 +2,10 @@
 //! length as a big-endian 16-bit integer.
 
 use crate::tiles::TILE_WIDTH;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 
 /// The largest entry a bundle can hold.
 pub const MAX_ENTRY_SIZE: usize = u16::MAX as usize;

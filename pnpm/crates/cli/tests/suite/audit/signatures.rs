@@ -1,16 +1,22 @@
 use super::{
-    CommandTempCwd, Path, assert_failure, assert_success, fs, stderr, stdout,
-    write_minimal_manifest, write_two_project_audit_workspace,
+    CommandTempCwd,
+    Path,
+    assert_failure,
+    assert_success,
+    fs,
+    stderr,
+    stdout,
+    write_minimal_manifest,
+    write_two_project_audit_workspace,
 };
+use command_extra::CommandExtra;
 use pnpm_testing_utils::trusted_tls_server::TrustedTlsServer;
 
 const SIGNATURE_KEYID: &str = "SHA256:test";
 
 #[test]
 fn audit_signatures_reports_verified_packages() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
     let integrity = "sha512-YWJj";
@@ -25,8 +31,8 @@ fn audit_signatures_reports_verified_packages() {
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -43,9 +49,7 @@ fn audit_signatures_cannot_cover_missing_or_different_lockfile_integrity() {
     for resolution in
         ["{tarball: https://registry.example/signed-pkg.tgz}", "{integrity: sha512-ZGVm}", "env"]
     {
-        let CommandTempCwd {
-            mut pacquet, workspace, root: _root, ..
-        } = CommandTempCwd::init();
+        let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
         let mut registry = mockito::Server::new();
         let key = signing_key();
         let integrity = "sha512-YWJj";
@@ -74,7 +78,7 @@ fn audit_signatures_cannot_cover_missing_or_different_lockfile_integrity() {
         };
         fs::write(&lockfile_path, &lockfile).unwrap();
         let output = pacquet
-            .args(["audit", "signatures", "--json"])
+            .with_args(["audit", "signatures", "--json"])
             .output()
             .unwrap();
         assert_failure(&output);
@@ -95,9 +99,7 @@ fn audit_signatures_cannot_cover_missing_or_different_lockfile_integrity() {
 
 #[test]
 fn audit_signatures_skips_runtime_entries() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
     let integrity = "sha512-YWJj";
@@ -129,7 +131,7 @@ fn audit_signatures_skips_runtime_entries() {
     fs::write(lockfile_path, lockfile).unwrap();
 
     let output = pacquet
-        .args(["audit", "signatures", "--json"])
+        .with_args(["audit", "signatures", "--json"])
         .output()
         .expect("run audit signatures");
 
@@ -144,9 +146,7 @@ fn audit_signatures_skips_runtime_entries() {
 
 #[test]
 fn audit_signatures_filter_checks_only_the_selected_projects() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
     let integrity = "sha512-YWJj";
@@ -166,10 +166,10 @@ fn audit_signatures_filter_checks_only_the_selected_projects() {
     write_two_project_audit_workspace(&workspace, &registry.url());
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
-        .arg("--filter")
-        .arg("project-b")
+        .with_arg("audit")
+        .with_arg("signatures")
+        .with_arg("--filter")
+        .with_arg("project-b")
         .output()
         .expect("run audit signatures");
 
@@ -182,9 +182,7 @@ fn audit_signatures_filter_checks_only_the_selected_projects() {
 
 #[test]
 fn audit_signatures_json_reports_counts() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
     let integrity = "sha512-YWJj";
@@ -199,9 +197,9 @@ fn audit_signatures_json_reports_counts() {
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
-        .arg("--json")
+        .with_arg("audit")
+        .with_arg("signatures")
+        .with_arg("--json")
         .output()
         .expect("run audit signatures");
 
@@ -231,9 +229,7 @@ fn audit_signatures_json_reports_counts() {
 
 #[test]
 fn audit_signatures_flags_missing_signature() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
     let keys_mock = keys_mock(&mut registry, &public_key_b64(&key)).create();
@@ -246,8 +242,8 @@ fn audit_signatures_flags_missing_signature() {
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -261,9 +257,7 @@ fn audit_signatures_flags_missing_signature() {
 
 #[test]
 fn audit_signatures_flags_invalid_signature() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
     // Sign a different integrity than the packument advertises: the signature
@@ -284,8 +278,8 @@ fn audit_signatures_flags_invalid_signature() {
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -299,9 +293,7 @@ fn audit_signatures_flags_invalid_signature() {
 
 #[test]
 fn audit_signatures_skips_registry_without_signing_keys() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let keys_mock = registry
         .mock("GET", "/-/npm/v1/keys")
@@ -311,8 +303,8 @@ fn audit_signatures_skips_registry_without_signing_keys() {
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -328,9 +320,7 @@ fn audit_signatures_skips_registry_without_signing_keys() {
 
 #[test]
 fn audit_signatures_fails_when_keys_endpoint_errors() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let keys_mock = registry
         .mock("GET", "/-/npm/v1/keys")
@@ -340,8 +330,8 @@ fn audit_signatures_fails_when_keys_endpoint_errors() {
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -358,9 +348,7 @@ fn audit_signatures_fails_when_keys_endpoint_errors() {
 
 #[test]
 fn audit_signatures_fails_when_keys_response_is_too_large() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let keys_mock = registry
         .mock("GET", "/-/npm/v1/keys")
@@ -371,8 +359,8 @@ fn audit_signatures_fails_when_keys_response_is_too_large() {
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -385,9 +373,7 @@ fn audit_signatures_fails_when_keys_response_is_too_large() {
 
 #[test]
 fn audit_signatures_follows_a_keys_redirect_with_the_target_tls_settings() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let key = signing_key();
     let integrity = "sha512-YWJj";
     let signature = sign_b64(&key, &format!("signed-pkg@1.0.0:{integrity}"));
@@ -421,8 +407,8 @@ fn audit_signatures_follows_a_keys_redirect_with_the_target_tls_settings() {
     .expect("write .npmrc");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -435,17 +421,15 @@ fn audit_signatures_follows_a_keys_redirect_with_the_target_tls_settings() {
 
 #[test]
 fn audit_signatures_redacts_registry_credentials_on_network_error() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     // A registry with embedded credentials pointed at an address whose connect
     // fails at once: the keys fetch fails at the transport layer, and the
     // resulting error must not leak the `user:pass@` userinfo into stderr.
     write_signatures_workspace(&workspace, "https://user:pass@0.0.0.0:1", "signed-pkg");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -458,9 +442,7 @@ fn audit_signatures_redacts_registry_credentials_on_network_error() {
 
 #[test]
 fn audit_signatures_errors_when_no_packages() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     fs::write(workspace.join(".npmrc"), "registry=https://registry.npmjs.org/\n")
         .expect("write .npmrc");
     fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 0\n")
@@ -479,8 +461,8 @@ importers:
     .expect("write lockfile");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -489,9 +471,7 @@ importers:
 }
 #[test]
 fn audit_signatures_errors_when_lockfile_has_unresolved_dependency() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     fs::write(workspace.join(".npmrc"), "registry=https://registry.npmjs.org/\n")
         .expect("write .npmrc");
     write_minimal_manifest(&workspace);
@@ -516,8 +496,8 @@ snapshots: {}
     .expect("write lockfile");
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
+        .with_arg("audit")
+        .with_arg("signatures")
         .output()
         .expect("run audit signatures");
 
@@ -531,15 +511,13 @@ snapshots: {}
 
 #[test]
 fn audit_signatures_rejects_extra_subcommand_argument() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     write_minimal_manifest(&workspace);
 
     let output = pacquet
-        .arg("audit")
-        .arg("signatures")
-        .arg("extra")
+        .with_arg("audit")
+        .with_arg("signatures")
+        .with_arg("extra")
         .output()
         .expect("run pacquet audit");
 
@@ -564,7 +542,10 @@ pub(super) fn public_key_b64(key: &p256::ecdsa::SigningKey) -> String {
 
 pub(super) fn sign_b64(key: &p256::ecdsa::SigningKey, message: &str) -> String {
     use base64::Engine as _;
-    use p256::ecdsa::{Signature, signature::Signer};
+    use p256::ecdsa::{
+        Signature,
+        signature::Signer,
+    };
     let signature: Signature = key.sign(message.as_bytes());
     base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes())
 }

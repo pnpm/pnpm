@@ -1,6 +1,15 @@
-use super::{DeployedGraph, ancestor_peer_providers, dependents_by_snapshot};
+use super::{
+    DeployedGraph,
+    ancestor_peer_providers,
+    dependents_by_snapshot,
+};
 use pnpm_lockfile::{
-    PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;

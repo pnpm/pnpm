@@ -1,7 +1,10 @@
 use super::WatchdogAddress;
 use crate::process::Command;
 use std::{
-    io::{BufRead, BufReader},
+    io::{
+        BufRead,
+        BufReader,
+    },
     process::Stdio,
 };
 

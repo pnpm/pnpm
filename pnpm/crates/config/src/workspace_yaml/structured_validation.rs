@@ -6,11 +6,20 @@
 //! that later commands would reject on load.
 
 use super::{
-    MachineSettings, Path, SystemEnv, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    has_env_placeholder, parse_settings, validation::is_valid_concurrency_group_name,
+    MachineSettings,
+    Path,
+    SystemEnv,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    has_env_placeholder,
+    parse_settings,
+    validation::is_valid_concurrency_group_name,
 };
 use serde::de::DeserializeOwned;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Which YAML configuration file `pnpm config set` is targeting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,7 +79,8 @@ fn validate_concurrency_groups(value: &Value, target: YamlConfigTarget) -> Resul
     if let Some(group) = settings.concurrency_groups
         .iter()
         .flat_map(|groups| groups.keys())
-        .find(|group| !has_env_placeholder(group) && !is_valid_concurrency_group_name(group))
+        .filter(|group| !has_env_placeholder(group))
+        .find(|group| !is_valid_concurrency_group_name(group))
     {
         return Err(format!("invalid concurrency group name {group:?}"));
     }
@@ -81,7 +91,8 @@ fn validate_global_packages(value: &Value) -> Result<(), String> {
     require_object(value)?;
     let settings = parse_yaml_setting::<MachineSettings>("globalPackagesConfig", value)?;
     settings.global_packages_config
-        .map_or(Ok(()), |section| section.validate_all_sections())
+        .map(|section| section.validate_all_sections())
+        .unwrap_or(Ok(()))
         .map_err(|error| error.to_string())
 }
 

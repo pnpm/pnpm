@@ -1,7 +1,13 @@
-use super::{PickPolicy, create_configured_registry_resolver};
+use super::{
+    PickPolicy,
+    create_configured_registry_resolver,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    WantedDependency,
+};
 use std::sync::Arc;
 
 #[tokio::test]

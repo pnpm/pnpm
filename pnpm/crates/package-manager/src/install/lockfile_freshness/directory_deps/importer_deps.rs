@@ -2,15 +2,25 @@
 //! one, and the lockfile entry each resolves to.
 
 use super::{
-    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_local_directory,
-    is_deploy_file_url_key, local_dependency_outdated,
+    FreshnessCheckError,
+    ImporterSatisfactionCheck,
+    LocalDepContext,
+    is_declared_local_directory,
+    is_deploy_file_url_key,
+    local_dependency_outdated,
     package::check_single_directory_dep_freshness,
-    scope::{Visited, importer_aliases},
-    spec, spec_dirs,
+    scope::{
+        Visited,
+        importer_aliases,
+    },
+    spec,
+    spec_dirs,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_deps_resolver::{
-    dependency_is_injected, dependency_meta_is_injected, directory_package_dir,
+    dependency_is_injected,
+    dependency_meta_is_injected,
+    directory_package_dir,
 };
 
 pub(crate) fn check_directory_dependencies_freshness(

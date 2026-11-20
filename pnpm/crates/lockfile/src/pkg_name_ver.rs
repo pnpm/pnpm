@@ -1,5 +1,11 @@
-use crate::{ParsePkgNameSuffixError, PkgNameSuffix};
-use node_semver::{SemverError, Version};
+use crate::{
+    ParsePkgNameSuffixError,
+    PkgNameSuffix,
+};
+use node_semver::{
+    SemverError,
+    Version,
+};
 
 /// Syntax: `{name}@{version}`
 ///

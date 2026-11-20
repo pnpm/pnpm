@@ -1,8 +1,15 @@
 use std::{
     collections::HashSet,
     env,
-    ffi::{OsStr, OsString},
-    path::{self, Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        self,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Build the `PATH` env value for a lifecycle script spawn.
@@ -47,7 +54,8 @@ pub fn extend_path(
     if let Some(orig) = original_path {
         let added: HashSet<OsString> = path_arr
             .iter()
-            .map(|entry| entry.as_os_str().to_os_string())
+            .map(|entry| entry.as_os_str())
+            .map(OsStr::to_os_string)
             .collect();
         path_arr.extend(
             pnpm_fs::split_paths(orig).filter(|entry| !added.contains(entry.as_os_str())),
@@ -58,7 +66,7 @@ pub fn extend_path(
 }
 
 /// Join `paths` with the platform PATH separator (`;` on Windows,
-/// `:` elsewhere) by plain string concatenation — no validation. If a
+/// `:` elsewhere) by plain string concatenation, no validation. If a
 /// path component itself contains the separator the spawned shell sees
 /// an embedded entry; `std::env::join_paths` would instead have erred
 /// and dropped the entire computed PATH in that case.
@@ -93,7 +101,7 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     // relative paths anchor against the process cwd, and an empty head
     // (which happens when `wd` starts with `node_modules/`) means
     // "use cwd". This anchoring makes the result cwd-dependent when the
-    // caller passes a relative wd — pacquet's production call sites
+    // caller passes a relative wd, pacquet's production call sites
     // always pass an absolute pkg_root, so the dependency is a
     // non-issue in practice.
     let mut acc = if head.is_empty() {

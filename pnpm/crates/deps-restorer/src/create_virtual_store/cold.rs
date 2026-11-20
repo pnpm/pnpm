@@ -1,28 +1,64 @@
 use super::{
-    ConcurrentCheck, CreateVirtualStoreError, CreateVirtualStoreStoreContext, LinkPlan,
-    PackageBins, PackageManifests, RequiresBuildBySnapshot, WantedEntries,
+    ConcurrentCheck,
+    CreateVirtualStoreError,
+    CreateVirtualStoreStoreContext,
+    LinkPlan,
+    PackageBins,
+    PackageManifests,
+    RequiresBuildBySnapshot,
+    WantedEntries,
     cache_keys::SlotReuse,
-    cas_paths_key, requires_build_from_cas_paths, run_checked,
-    slot_linking::{LinkSlotsParallel, link_cold_chunk},
+    cas_paths_key,
+    requires_build_from_cas_paths,
+    run_checked,
+    slot_linking::{
+        LinkSlotsParallel,
+        link_cold_chunk,
+    },
     snapshot_needs_build_marker,
     warm::SlotBuilds,
 };
-use crate::{CasPathsByPkgId, InstallPackageBySnapshot, InstallPackageBySnapshotError};
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use crate::{
+    CasPathsByPkgId,
+    InstallPackageBySnapshot,
+    InstallPackageBySnapshotError,
+};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotEntry,
+};
 use pnpm_reporter::{
-    LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 use pnpm_store_dir::store_index_key;
-use pnpm_tarball::{PrefetchResult, pending_progress_key};
+use pnpm_tarball::{
+    PrefetchResult,
+    pending_progress_key,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     ops::ControlFlow,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 
@@ -65,10 +101,10 @@ pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<
 /// `reason=fetch_failure` so the user learns the package is missing.
 ///
 /// Scoped via [`is_fetch_side_failure`] to the tarball-fetch / git-fetch /
-/// CAS-write variants — the fetch-side surface an optional snapshot is allowed
+/// CAS-write variants, the fetch-side surface an optional snapshot is allowed
 /// to swallow. Local materialization (`CreateVirtualDir`) and config-shape
 /// errors (`MissingTarballIntegrity`, `UnsupportedResolution`) abort even for
-/// optional snapshots — they sit outside the swallowed fetch surface.
+/// optional snapshots; they sit outside the swallowed fetch surface.
 pub(super) fn swallow_optional_fetch_failure<Reporter: self::Reporter, Captured>(
     snapshot_key: &PackageKey,
     snapshot: &SnapshotEntry,
@@ -129,7 +165,7 @@ pub(super) struct ColdBatch<'a> {
 /// The downloads run as one cooperative fan-out on this task. Their slot
 /// links (`defer_link: true`) run on a thread of their own, because a
 /// blocking link pass inside this task would leave every in-flight
-/// download unpolled for as long as the pass takes — seconds on a slow
+/// download unpolled for as long as the pass takes, seconds on a slow
 /// volume. See [`link_while_downloading`].
 pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
     batch: ColdBatch<'a>,
@@ -435,24 +471,24 @@ pub(super) fn record_cold_outcome<'a>(
     Some(captured)
 }
 /// True for the [`InstallPackageBySnapshotError`] variants pacquet
-/// classifies as **fetch-side** — the failures that happen while
+/// classifies as **fetch-side**, the failures that happen while
 /// fetching a package into the CAS. These are the ones an optional
 /// snapshot is allowed to swallow:
 ///
-/// - `DownloadTarball` — HTTP fetch, integrity check, gzip decode,
+/// - `DownloadTarball`, HTTP fetch, integrity check, gzip decode,
 ///   CAS write.
-/// - `GitFetch` — `git` CLI clone / checkout / preparePackage /
+/// - `GitFetch`, `git` CLI clone / checkout / preparePackage /
 ///   packlist / CAS import.
-/// - `DirectoryFetch` — local-directory walk / manifest read /
+/// - `DirectoryFetch`, local-directory walk / manifest read /
 ///   packlist for injected workspace deps. Swallowed for optional
 ///   snapshots uniformly with the tarball / git paths.
 ///
-/// Excluded (propagate even for optional snapshots — they happen
+/// Excluded (propagate even for optional snapshots; they happen
 /// after the fetch, while linking the package into its slot):
 ///
-/// - `CreateVirtualDir` — local materialization (clone / hardlink /
+/// - `CreateVirtualDir`, local materialization (clone / hardlink /
 ///   copy / symlink from CAS into the slot dir).
-/// - `MissingTarballIntegrity`, `UnsupportedResolution` —
+/// - `MissingTarballIntegrity`, `UnsupportedResolution`,
 ///   config/shape errors raised before any fetch runs.
 pub(super) fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     matches!(

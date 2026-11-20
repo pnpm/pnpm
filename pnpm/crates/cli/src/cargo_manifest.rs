@@ -1,8 +1,12 @@
 pub(crate) mod workspace;
 
 pub(crate) use workspace::{
-    ConfiguredWorkspace, configured_workspace_state, lookup_inherited_workspace_entry,
-    resolve_local_path, workspace_dependency_spec, workspace_includes_member,
+    ConfiguredWorkspace,
+    configured_workspace_state,
+    lookup_inherited_workspace_entry,
+    resolve_local_path,
+    workspace_dependency_spec,
+    workspace_includes_member,
 };
 
 mod inheritance;
@@ -10,20 +14,48 @@ mod sanitize;
 mod spans;
 
 use inheritance::{
-    DetachedShape, ResolvedWorkspaceDep, build_detached_inheritance, format_detached_replacement,
+    DetachedShape,
+    ResolvedWorkspaceDep,
+    build_detached_inheritance,
+    format_detached_replacement,
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use sanitize::prepare_workspace_detach;
 use spans::{
-    append_new_table, apply_edits, collect_header_spans, dotted_prefix, dotted_table_end,
-    end_of_line, find_entry, format_key, full_line_range, inline_entry_removal_range,
-    insert_into_inline_table, insert_line_at, is_explicit_header, is_inline_table,
-    lookup_table_path, quoted, replace_range, section_end,
+    append_new_table,
+    apply_edits,
+    collect_header_spans,
+    dotted_prefix,
+    dotted_table_end,
+    end_of_line,
+    find_entry,
+    format_key,
+    full_line_range,
+    inline_entry_removal_range,
+    insert_into_inline_table,
+    insert_line_at,
+    is_explicit_header,
+    is_inline_table,
+    lookup_table_path,
+    quoted,
+    replace_range,
+    section_end,
 };
-use std::{fs, ops::Range, path::Path};
+use std::{
+    fs,
+    ops::Range,
+    path::Path,
+};
 use toml::{
     Spanned,
-    de::{DeTable, DeValue},
+    de::{
+        DeTable,
+        DeValue,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,11 +1,20 @@
 //! `engineStrict` against the engines a `patchedDependencies` patch leaves.
 
-use crate::_utils::{enable_gvs_in_workspace_yaml, pacquet_in};
+use crate::_utils::{
+    enable_gvs_in_workspace_yaml,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 const INCOMPATIBLE_ENGINES_PATCH: &str = "\
 diff --git a/package.json b/package.json
@@ -108,14 +117,16 @@ fn engine_strict_leaves_a_skipped_optional_patch_out_of_its_global_virtual_store
     let version_dir = store_dir.join(STORE_VERSION).join("links/@pnpm.e2e/for-legacy-node/1.0.0");
     let slots: Vec<_> = fs::read_dir(&version_dir)
         .unwrap_or_else(|err| panic!("read {}: {err}", version_dir.display()))
-        .map(|entry| entry.expect("read slot entry").path())
+        .map(|entry| entry.expect("read slot entry"))
+        .map(|value| value.path())
         .collect();
     assert_eq!(slots.len(), 1, "expected one slot under {}", version_dir.display());
     let scope = slots[0].join("node_modules/@pnpm.e2e");
     let entries: Vec<_> = fs::read_dir(&scope)
         .map(|entries| {
             entries
-                .map(|entry| entry.expect("read entry").file_name())
+                .map(|entry| entry.expect("read entry"))
+                .map(|value| value.file_name())
                 .collect()
         })
         .unwrap_or_default();

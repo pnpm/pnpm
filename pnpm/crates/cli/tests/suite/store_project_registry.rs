@@ -1,11 +1,20 @@
-use crate::_utils::{append_workspace_yaml_key, enable_gvs_in_workspace_yaml};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    enable_gvs_in_workspace_yaml,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

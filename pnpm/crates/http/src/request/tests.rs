@@ -1,7 +1,13 @@
 use super::Request;
 use crate::{
-    Client, Method,
-    header::{AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, HeaderName},
+    Client,
+    Method,
+    header::{
+        AUTHORIZATION,
+        CONTENT_LENGTH,
+        CONTENT_TYPE,
+        HeaderName,
+    },
 };
 
 #[test]

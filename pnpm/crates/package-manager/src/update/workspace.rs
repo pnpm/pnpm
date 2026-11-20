@@ -1,13 +1,26 @@
 use super::{
-    UpdateError, UpdateOptions,
-    selectors::{ParsedSelector, matcher_one},
+    UpdateError,
+    UpdateOptions,
+    selectors::{
+        ParsedSelector,
+        matcher_one,
+    },
 };
-use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_config::{
+    Config,
+    SaveWorkspaceProtocol,
+};
 use pnpm_matcher::create_matcher;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
-use pnpm_resolving_npm_resolver::{DeclaredSpecifiers, calc_specifier_for_workspace_dep};
-use pnpm_resolving_resolver_base::{WorkspacePackages, WorkspacePackagesByVersion};
+use pnpm_resolving_npm_resolver::{
+    DeclaredSpecifiers,
+    calc_specifier_for_workspace_dep,
+};
+use pnpm_resolving_resolver_base::{
+    WorkspacePackages,
+    WorkspacePackagesByVersion,
+};
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 
 /// `--workspace` with nothing to link falls through to the ordinary
@@ -50,7 +63,7 @@ pub(super) struct WorkspaceLinkTarget {
 /// With no selectors every direct dependency that a workspace project
 /// publishes is linked (minus `updateConfig.ignoreDependencies`); the
 /// rest keep their registry specifiers. With selectors, each *matched*
-/// direct dependency must be a workspace package — naming one that isn't
+/// direct dependency must be a workspace package, naming one that isn't
 /// is the failure the `--workspace` help text advertises.
 pub(super) fn workspace_link_targets(
     selectors: &[ParsedSelector],
@@ -69,7 +82,7 @@ pub(super) fn workspace_link_targets(
         .collect::<Vec<_>>();
     let matcher = create_matcher(&patterns);
     // Per-selector matchers, compiled once, map a matched dependency back
-    // to the selector that claimed it — and so to the version it asked for.
+    // to the selector that claimed it, and so to the version it asked for.
     let claims = selectors
         .iter()
         .map(|selector| (matcher_one(&selector.pattern), selector.version.as_deref()))
@@ -130,7 +143,7 @@ pub(super) fn all_workspace_link_targets(
 /// dependency.
 ///
 /// `--workspace` is an explicit request for the protocol, so unlike
-/// `pnpm add` this never declines on [`SaveWorkspaceProtocol::Off`] —
+/// `pnpm add` this never declines on [`SaveWorkspaceProtocol::Off`],
 /// the setting only chooses the shape.
 pub(super) fn workspace_specifier(
     target: &WorkspaceLinkTarget,

@@ -21,22 +21,35 @@
 //! `--env-file` is this binary's own option: [`strip_flags`] removes its
 //! tokens from the argv a dispatched pnpm receives (an older pnpm would
 //! reject the unknown flag), and the loaded variables travel by
-//! environment inheritance instead. Tokens past the passthrough point —
-//! script arguments after `--`, or after a `run`/`exec` script name — are
+//! environment inheritance instead. Tokens past the passthrough point
+//! (script arguments after `--`, or after a `run`/`exec` script name) are
 //! left alone (see `crate::parse_boundary`).
 
 mod parse;
 
 use crate::{
     flag_relocation::ArgTable,
-    parse_boundary::{option_width, passthrough_from, union_arity},
+    parse_boundary::{
+        option_width,
+        passthrough_from,
+        union_arity,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
     collections::HashSet,
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Raised when an `--env-file` file cannot be read.
@@ -72,8 +85,8 @@ pub fn load_from_argv(argv: &[OsString]) -> miette::Result<()> {
 
 /// Remove the `--env-file` tokens from an argv that still carries the
 /// program name at index 0 (the shape the entry point builds the child argv
-/// from), keeping every other token — including tokens past the passthrough
-/// point — in place.
+/// from), keeping every other token (including tokens past the passthrough
+/// point) in place.
 pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
     scan(argv).1
 }
@@ -192,15 +205,20 @@ fn strip_env_file_prefix(token: &OsStr) -> Option<PathBuf> {
         token
             .as_bytes()
             .strip_prefix(b"--env-file=")
-            .map(|bytes| PathBuf::from(OsStr::from_bytes(bytes)))
+            .map(OsStr::from_bytes)
+            .map(PathBuf::from)
     }
     #[cfg(windows)]
     {
-        use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+        use std::os::windows::ffi::{
+            OsStrExt as _,
+            OsStringExt as _,
+        };
         let wide: Vec<u16> = token.encode_wide().collect();
         let prefix: Vec<u16> = "--env-file=".encode_utf16().collect();
         wide.strip_prefix(prefix.as_slice())
-            .map(|rest| PathBuf::from(OsString::from_wide(rest)))
+            .map(OsString::from_wide)
+            .map(PathBuf::from)
     }
     #[cfg(not(any(unix, target_os = "wasi", windows)))]
     {

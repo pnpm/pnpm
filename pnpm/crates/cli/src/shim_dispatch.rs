@@ -8,11 +8,11 @@
 //! For a runtime pin, the dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, `.node-version`, or `.nvmrc`,
 //! materializes the release in pnpm's global virtual store, and executes
-//! it directly — never through the project's `node_modules/.bin`. A
+//! it directly, never through the project's `node_modules/.bin`. A
 //! publisher-signature-verified stable Node release runs without prompting.
 //!
-//! Everything else eligible — ordinary package bins, unsigned runtime
-//! channels — is a trust decision, gated twice. First, the
+//! Everything else eligible (ordinary package bins, unsigned runtime
+//! channels) is a trust decision, gated twice. First, the
 //! candidate must resolve through its aliases to a package whose manifest
 //! name matches the global provider. Second, the exact candidate must be
 //! approved on the terminal (`Do you trust this project?`). Answers are
@@ -26,50 +26,115 @@ pub(crate) mod runtime_env;
 pub(crate) mod rust_toolchain;
 
 pub(crate) use native_shim::{
-    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
-    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
-    refresh_native_shims, remove_native_shim,
+    ShimTarget,
+    install_native_shim,
+    is_legacy_context_aware_shim,
+    migrate_legacy_shims,
+    native_shim_is_installed,
+    native_shim_paths,
+    native_shim_target,
+    native_shims,
+    refresh_native_shims,
+    remove_native_shim,
 };
-pub(crate) use runtime_env::{MaterializedRuntime, materialize_runtime};
-pub(crate) use settings::{apply_settings_above_global_config, global_shims_setting};
+pub(crate) use runtime_env::{
+    MaterializedRuntime,
+    materialize_runtime,
+};
+pub(crate) use settings::{
+    apply_settings_above_global_config,
+    global_shims_setting,
+};
 
 use crate::{
     cli_args::{
         package_manager::wanted_package_manager,
-        reporter::{CliReporter, EventFilter},
+        reporter::{
+            CliReporter,
+            EventFilter,
+        },
     },
     engine_pm::{
-        channel::{Channel, PackageManager},
-        provision::{ProvisionedEngine, provision},
+        channel::{
+            Channel,
+            PackageManager,
+        },
+        provision::{
+            ProvisionedEngine,
+            provision,
+        },
     },
 };
 use derive_more::Display;
-use identity::{local_bin_identity, provider_of_target};
+use identity::{
+    local_bin_identity,
+    provider_of_target,
+};
 use native_shim::dispatch_legacy_shim;
 use pnpm_config::{
-    Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, MachineSettings,
-    SettingsRead, ShimPolicy, TrustedSettings, default_config_dir, default_pnpm_home_dir,
-    default_state_dir, resolve_configured_state_dir,
+    Config,
+    GlobalShims,
+    GlobalShimsSetting,
+    Host,
+    LoadWorkspaceYamlError,
+    MachineSettings,
+    SettingsRead,
+    ShimPolicy,
+    TrustedSettings,
+    default_config_dir,
+    default_pnpm_home_dir,
+    default_state_dir,
+    resolve_configured_state_dir,
 };
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
+use pnpm_crypto_hash::{
+    create_hex_hash,
+    create_hex_hash_bytes,
+};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
-use pnpm_rust_toolchain::{ToolchainRequest, rustup_settings_file};
-use run_program::{exec_program, exec_program_with_bin_dirs, run_global_target, run_held_program};
-use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
+use pnpm_rust_toolchain::{
+    ToolchainRequest,
+    rustup_settings_file,
+};
+use run_program::{
+    exec_program,
+    exec_program_with_bin_dirs,
+    run_global_target,
+    run_held_program,
+};
+use runtime_env::{
+    PACKAGE_MANAGER_ENVS_DIR_NAME,
+    trusted_runtime_config,
+};
 use rust_toolchain::{
-    RUST_SHIM_PACKAGE, RustSelection, find_rust_candidate, overrides_toolchain, run_global_rust,
-    run_next_on_path, run_rust_toolchain,
+    RUST_SHIM_PACKAGE,
+    RustSelection,
+    find_rust_candidate,
+    overrides_toolchain,
+    run_global_rust,
+    run_next_on_path,
+    run_rust_toolchain,
 };
 use serde_json::Value;
 use settings::{
-    is_automatic_runtime, manifest_package_manager_pin, package_manager_runs_promptless,
-    runtime_pin, trusted_package_manager_config, trusted_shim_settings, validate_candidate,
+    is_automatic_runtime,
+    manifest_package_manager_pin,
+    package_manager_runs_promptless,
+    runtime_pin,
+    trusted_package_manager_config,
+    trusted_shim_settings,
+    validate_candidate,
 };
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicBool,
+        Ordering,
+    },
 };
 use trust::is_trusted;
 
@@ -165,7 +230,7 @@ impl ShimLaunch {
     /// invocation of the dispatcher it replaced. `None` means this is pnpm
     /// itself and the regular CLI should proceed; `Some(code)` means the
     /// dispatch ran (or failed) and the process must exit with `code`. On Unix
-    /// a successful dispatch never returns at all — the target is `exec`ed in
+    /// a successful dispatch never returns at all, the target is `exec`ed in
     /// place.
     pub(crate) fn dispatch(&self, argv: &[OsString]) -> Option<i32> {
         match self {
@@ -294,7 +359,7 @@ fn run_trusted_candidate(
             // fingerprinting and execution; revalidate so the approved
             // bytes are the ones that run. The remaining race is
             // process-scale and needs an attacker already executing code as
-            // the user — outside this gate's threat model, since a hostile
+            // the user, outside this gate's threat model, since a hostile
             // repository is static.
             if !local_bin_unchanged(&bin, name, &identity) {
                 return run_global_target(shim, args);
@@ -348,7 +413,7 @@ fn bypass_requested() -> bool {
 
 /// A project-provided replacement for the invoked global bin.
 enum Candidate {
-    /// The project has `node_modules/.bin/<name>` — an installed
+    /// The project has `node_modules/.bin/<name>`, an installed
     /// dependency (including a materialized runtime) providing the bin.
     LocalBin { project_dir: PathBuf, bin: PathBuf, identity: String },
     /// The project pins the runtime `<name>` in `devEngines.runtime`,
@@ -450,12 +515,12 @@ fn candidate_in(
 }
 
 /// The runnable `node_modules/.bin` entry for `name` under `dir`, if any.
-/// A broken symlink does not count — `is_file` follows links.
+/// A broken symlink does not count, `is_file` follows links.
 fn local_bin_path(dir: &Path, name: &str) -> Option<PathBuf> {
     let bin_dir = dir.join("node_modules").join(".bin");
     // No `.exe` candidate: project `.bin` dirs never legitimately carry
     // one, and provider identity is derived from the extensionless
-    // sibling script — a planted `.exe` would execute while a benign
+    // sibling script, a planted `.exe` would execute while a benign
     // script passed validation.
     let candidates: Vec<String> = if cfg!(windows) {
         vec![format!("{name}.cmd"), name.to_string()]

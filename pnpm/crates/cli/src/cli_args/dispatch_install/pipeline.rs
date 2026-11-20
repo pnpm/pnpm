@@ -1,7 +1,19 @@
 use super::{
-    super::install_test, CommandFuture, Config, InstallArgs, PipelineArgs, PipelineInvocation,
-    ReporterType, RunCtx, UpdateCheckPolicy, WatchInvocation, install_with_config,
-    install_with_update_check, reporter_emit, run_pipeline, run_watch,
+    super::install_test,
+    CommandFuture,
+    Config,
+    InstallArgs,
+    PipelineArgs,
+    PipelineInvocation,
+    ReporterType,
+    RunCtx,
+    UpdateCheckPolicy,
+    WatchInvocation,
+    install_with_config,
+    install_with_update_check,
+    reporter_emit,
+    run_pipeline,
+    run_watch,
 };
 use crate::cli_args::reporter::selected_reporter;
 
@@ -127,7 +139,7 @@ fn pipeline_invocation(args: PipelineArgs) -> (PipelineInvocation, InstallArgs) 
 }
 
 /// Publish the run to the configured pnpr server. A run that could not be
-/// reported still ran — the submission failure is a warning, not the
+/// reported still ran, the submission failure is a warning, not the
 /// run's exit code.
 async fn report_pipeline_run(
     cfg: &Config,

@@ -12,7 +12,10 @@ use std::{
     path::Path,
     process::Command,
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 mod breakaway;
@@ -165,7 +168,7 @@ fn node_executable() -> &'static std::path::Path {
     static NODE: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
     NODE.get_or_init(|| {
         let output = Command::new("node")
-            .args(["-p", "process.execPath"])
+            .with_args(["-p", "process.execPath"])
             .output()
             .expect("ask node for its executable");
         let path = String::from_utf8(output.stdout).expect("node prints its path as UTF-8");
@@ -181,17 +184,16 @@ fn node_launching_pacquet(pacquet: &Command, args: &[&str], on_close: &str) -> C
     let pacquet_path_json = serde_json::to_string(&pacquet.get_program().to_string_lossy())
         .expect("quote pacquet path");
     let args_json = serde_json::to_string(args).expect("quote pacquet args");
-    let mut node = Command::new(node_executable());
-    node.arg("-e").arg(format!(
+    let mut node = Command::new(node_executable()).with_arg("-e").with_arg(format!(
         "const child = require('child_process').spawn({pacquet_path_json}, {args_json}, {{ stdio: 'inherit' }}); child.on('close', code => {{ {on_close} }})",
     ));
     if let Some(dir) = pacquet.get_current_dir() {
-        node.current_dir(dir);
+        node = node.with_current_dir(dir);
     }
     for (name, value) in pacquet.get_envs() {
-        match value {
-            Some(value) => node.env(name, value),
-            None => node.env_remove(name),
+        node = match value {
+            Some(value) => node.with_env(name, value),
+            None => node.without_env(name),
         };
     }
     node

@@ -21,23 +21,39 @@
 //! in their tiers and range check:
 //!
 //! | Peer | Tiers | Range check |
-//! | --- | --- | --- |
+//! | (|) |, |
 //! | required | current providers, then importer pins | `includePrerelease`, one range |
 //! | optional | [`ProviderTiers::optional`] | strict, every recorded range |
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, path::Path};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
-    get_peer_version_range, is_valid_semver_range, parse_strict_semver_range,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
+    get_peer_version_range,
+    is_valid_semver_range,
+    parse_strict_semver_range,
 };
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
 
 use crate::{
-    PeerDep, parent_pkg_aliases::ParentPkgAliases, resolve_peers::satisfies_with_prereleases,
+    PeerDep,
+    parent_pkg_aliases::ParentPkgAliases,
+    resolve_peers::satisfies_with_prereleases,
 };
 
 /// One workspace-root dep the loop can satisfy a peer with.
@@ -67,8 +83,8 @@ pub struct MissingPeerInfo {
 /// silently produce the second copy the override exists to prevent.
 /// Returns the overriding specifier, `"-"` when the override drops the
 /// peer, or `None` when no override claims it. The path is the directory
-/// of the importer the peer is hoisted into — the manifest that would
-/// have declared the dependency — which a `link:` / `file:` override
+/// of the importer the peer is hoisted into (the manifest that would
+/// have declared the dependency) which a `link:` / `file:` override
 /// target is made relative to.
 pub type DependencyOverrider = dyn Fn(&str, &str, &Path) -> Option<String> + Send + Sync;
 
@@ -267,7 +283,8 @@ fn highest_provider_version<'a, 'tier>(
     };
     tiers
         .into_iter()
-        .find_map(|tier| highest_in(Some(tier)))
+        .map(Some)
+        .find_map(highest_in)
         .or_else(|| highest_in(None))
 }
 
@@ -389,7 +406,7 @@ fn max_hoistable_optional_version(
 /// over a package-name match (an `npm:` alias can install the same
 /// package under a different slot), and among package-name matches the
 /// lexicographically first alias wins so the pick is stable. Only a
-/// dependency that has a normalized specifier is a candidate — the
+/// dependency that has a normalized specifier is a candidate, the
 /// callers have nothing to install or bound the peer with otherwise.
 fn find_workspace_root_dep<'a>(
     workspace_root_deps: &'a [WorkspaceRootDep],
@@ -518,7 +535,7 @@ pub(crate) fn dependencies_named_as_peers(
                 .and_then(|meta| meta.get(name))
                 .and_then(|entry| entry.get("optional"))
                 .and_then(Value::as_bool)
-                == Some(true);
+                .unwrap_or(false);
             (name, is_optional_peer)
         })
 }

@@ -4,37 +4,90 @@
 //! pins fixed blocks below scrolling non-fixed blocks, with one rendering
 //! path per log channel.
 
-pub use options::{LifecycleOptions, ProgressOptions, ReporterOptions, ScopeOptions};
+pub use options::{
+    LifecycleOptions,
+    ProgressOptions,
+    ReporterOptions,
+    ScopeOptions,
+};
 
 mod options;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    path::{Component, Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 use jiff::Timestamp;
 use pnpm_reporter::{
-    AddedRoot, ContextLog, DedupeCheckLog, DependencyType, DeprecationLog, ExecutionTimeLog,
-    FetchingProgressMessage, HookLog, IgnoredScriptsLog, InstallingConfigDepsLog,
-    InstallingConfigDepsStatus, LifecycleMessage, LifecycleStdio, LockfileVerificationMessage,
-    LogEvent, LogLevel, PackageImportMethod, PackageManifestMessage, PendingSkillsLog,
-    ProgressMessage, RemovedRoot, RequestRetryLog, ScopeLog, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, Stage, StatsMessage, UpdateCheckLog,
+    AddedRoot,
+    ContextLog,
+    DedupeCheckLog,
+    DependencyType,
+    DeprecationLog,
+    ExecutionTimeLog,
+    FetchingProgressMessage,
+    HookLog,
+    IgnoredScriptsLog,
+    InstallingConfigDepsLog,
+    InstallingConfigDepsStatus,
+    LifecycleMessage,
+    LifecycleStdio,
+    LockfileVerificationMessage,
+    LogEvent,
+    LogLevel,
+    PackageImportMethod,
+    PackageManifestMessage,
+    PendingSkillsLog,
+    ProgressMessage,
+    RemovedRoot,
+    RequestRetryLog,
+    ScopeLog,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    Stage,
+    StatsMessage,
+    UpdateCheckLog,
 };
 use serde_json::Value;
 
 use pnpm_config::standalone_install_command;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 
-use self::approvals::{PendingApprovals, pending_approval_packages};
+use self::approvals::{
+    PendingApprovals,
+    pending_approval_packages,
+};
 use crate::{
-    MaxLogLevel, SummaryScope,
+    MaxLogLevel,
+    SummaryScope,
     colors::Colors,
     format::{
-        contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
-        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, printable_script_line, relative,
-        visible_width, zoom_out,
+        contains_path,
+        cut_line,
+        format_prefix,
+        format_prefix_no_trim,
+        highlight_last_folder,
+        normalize,
+        pretty_bytes,
+        pretty_ms,
+        pretty_ms_compact,
+        printable_script_line,
+        relative,
+        visible_width,
+        zoom_out,
     },
 };
 
@@ -359,7 +412,7 @@ impl ReporterState {
     /// `pnpm` / `pnpm:global` misc streams filter per message level in
     /// [`Self::on_pnpm`], so errors always pass. Lifecycle events always
     /// pass: below `info`, [`Self::on_lifecycle`] buffers each script and
-    /// prints only failed ones. Dedupe-check issues always pass too —
+    /// prints only failed ones. Dedupe-check issues always pass too,
     /// upstream reports them as an error-level log
     /// (`ERR_PNPM_DEDUPE_CHECK_ISSUES` in `reportError.ts`).
     fn level_permits(&self, event: &LogEvent) -> bool {
@@ -403,7 +456,8 @@ fn progress_label(checked: u64, entries: u64) -> String {
 /// verification run and this install cannot render a negative age.
 fn cached_verdict(verified_at: Option<&str>, now: Timestamp) -> String {
     let elapsed_ms = verified_at
-        .and_then(|verified_at| pnpm_time::parse_rfc3339(verified_at).ok())
+        .map(pnpm_time::parse_rfc3339)
+        .and_then(Result::ok)
         .map(|verified_at| {
             now.duration_since(verified_at)
                 .as_millis()
@@ -426,7 +480,11 @@ mod summary;
 
 mod manifest_diff;
 use manifest_diff::{
-    added_diff, diff_key, manifest_dep_versions, record_missing, remove_optional_from_prod,
+    added_diff,
+    diff_key,
+    manifest_dep_versions,
+    record_missing,
+    remove_optional_from_prod,
     removed_diff,
 };
 
@@ -437,10 +495,18 @@ mod approvals;
 mod notices;
 
 mod update_check;
-use update_check::{detect_install_source, is_strictly_newer, update_command};
+use update_check::{
+    detect_install_source,
+    is_strictly_newer,
+    update_command,
+};
 
 mod frame;
-use frame::{BlockPlacement, BlockSlot, Frame};
+use frame::{
+    BlockPlacement,
+    BlockSlot,
+    Frame,
+};
 
 mod paths;
 use paths::normalized_prefix;

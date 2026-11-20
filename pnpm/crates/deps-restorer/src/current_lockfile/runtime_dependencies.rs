@@ -1,5 +1,10 @@
 use crate::SkippedSnapshots;
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, PackageKey, Prefix};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    Prefix,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 

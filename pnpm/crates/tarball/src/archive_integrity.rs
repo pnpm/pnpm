@@ -1,9 +1,16 @@
 //! The integrities one archive extraction establishes, and which of them a
 //! pinned integrity is checked against.
 
-use crate::{BodyHasher, TarballError, VerifyChecksumError};
+use crate::{
+    BodyHasher,
+    TarballError,
+    VerifyChecksumError,
+};
 use pnpm_lockfile::IntegrityTarget;
-use ssri::{Algorithm, Integrity};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 use std::io::Read;
 
 /// Which hash of an archive a pinned integrity names.

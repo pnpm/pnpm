@@ -1,6 +1,11 @@
 use super::{
-    CWD, package_manifest_initial_at, package_manifest_updated_at, render, state,
-    state_without_summary_prefix_filter, summary,
+    CWD,
+    package_manifest_initial_at,
+    package_manifest_updated_at,
+    render,
+    state,
+    state_without_summary_prefix_filter,
+    summary,
 };
 
 #[test]

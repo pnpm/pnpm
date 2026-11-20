@@ -2,24 +2,46 @@ mod recursive;
 
 use super::reporter::ReporterType;
 use crate::{
-    path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
-    process::{Command, ExitStatus, Stdio},
+    path_env::{
+        BadPathDir,
+        prepend_dirs_to_path,
+        set_command_path,
+    },
+    process::{
+        Command,
+        ExitStatus,
+        Stdio,
+    },
 };
 
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_executor::{
-    ProcessTracker, ScriptExit, ScriptOutput, StreamedScript, exit_like, push_script_arg,
-    select_shell, spawn_child,
+    ProcessTracker,
+    ScriptExit,
+    ScriptOutput,
+    StreamedScript,
+    exit_like,
+    push_script_arg,
+    select_shell,
+    spawn_child,
 };
 use pnpm_package_manager::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
     pnp_path_for_execution,
 };
 use pnpm_workspace::read_project_name;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 /// Run a shell command in the context of a project.
 ///
@@ -226,7 +248,7 @@ fn command_in_dir(
         // into a single string and hands it to the shell verbatim (no
         // per-token escaping). Mirror that with the platform shell,
         // appending the joined string through `push_script_arg` so the
-        // Windows `cmd /d /s /c` verbatim path uses `raw_arg` — matching
+        // Windows `cmd /d /s /c` verbatim path uses `raw_arg`, matching
         // execa's `windowsVerbatimArguments` and keeping embedded quoting
         // (e.g. `node -e "..."`) intact.
         let shell = select_shell(None, cfg!(windows)).expect("default shell selection never fails");
@@ -248,7 +270,7 @@ fn command_in_dir(
 
     cmd.current_dir(dir);
     // `updateConfig`-provided env, applied first so pnpm's own keys
-    // below (PATH, user-agent, NODE_OPTIONS, PWD) win on conflict — matching
+    // below (PATH, user-agent, NODE_OPTIONS, PWD) win on conflict, matching
     // TS `makeEnv`, which spreads `...extraEnv` into the base. Empty
     // unless an install-family command populated it.
     cmd.envs(project_extra_env(config, project, project_name.as_deref()));

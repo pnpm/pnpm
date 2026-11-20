@@ -1,10 +1,28 @@
 use super::{
-    Context, DependencyGroup, IncludedDependencies, InstallFamilySelection, Lockfile,
-    MaybeLazyLockfile, NodeLinker, PnprLink, PnprRequestInputs, PnprSession, Reporter,
-    ResolveProject, SkippedSnapshots, State, TarballPrefetcher, build_resolution_verifiers,
-    local_lockfile_verification, materialization_closure, merge_filtered_wanted_lockfile,
-    record_lockfile_verified, record_pnpmfile, verify_pnpr_input_lockfile,
-    verify_settled_pnpr_lockfile, workspace_install_selection,
+    Context,
+    DependencyGroup,
+    IncludedDependencies,
+    InstallFamilySelection,
+    Lockfile,
+    MaybeLazyLockfile,
+    NodeLinker,
+    PnprLink,
+    PnprRequestInputs,
+    PnprSession,
+    Reporter,
+    ResolveProject,
+    SkippedSnapshots,
+    State,
+    TarballPrefetcher,
+    build_resolution_verifiers,
+    local_lockfile_verification,
+    materialization_closure,
+    merge_filtered_wanted_lockfile,
+    record_lockfile_verified,
+    record_pnpmfile,
+    verify_pnpr_input_lockfile,
+    verify_settled_pnpr_lockfile,
+    workspace_install_selection,
 };
 
 /// Link `node_modules` from the server-produced lockfile through the normal
@@ -224,7 +242,7 @@ pub(super) async fn install_from_local_lockfile<Reporter: self::Reporter + 'stat
     // waits for every in-flight prefetch download (each task holds a
     // store-index writer handle), which would hold the fail-fast
     // abort hostage to the remaining transfers. The index rows are
-    // best-effort — a dropped row only costs a later re-download.
+    // best-effort, a dropped row only costs a later re-download.
     result.wrap_err("restoring dependencies from the local lockfile via pnpr verification")?;
 
     if let Some(prefetcher) = prefetcher {

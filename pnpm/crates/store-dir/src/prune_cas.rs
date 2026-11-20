@@ -1,15 +1,27 @@
 use crate::{
-    StoreDir, StoreIndex, StoreIndexError, decode_package_files_index,
+    StoreDir,
+    StoreIndex,
+    StoreIndexError,
+    decode_package_files_index,
     private_install::PRIVATE_INSTALLS_DIR,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
     collections::HashSet,
     ffi::OsStr,
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -235,9 +247,13 @@ fn hard_link_count(_path: &Path, metadata: &fs::Metadata) -> Result<u64, PruneCa
 
 #[cfg(windows)]
 fn hard_link_count(path: &Path, _metadata: &fs::Metadata) -> Result<u64, PruneCasError> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use std::{
+        mem::MaybeUninit,
+        os::windows::io::AsRawHandle as _,
+    };
     use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+        BY_HANDLE_FILE_INFORMATION,
+        GetFileInformationByHandle,
     };
 
     let file = fs::File::open(path)

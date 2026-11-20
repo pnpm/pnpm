@@ -1,13 +1,26 @@
 use super::{
-    DelayedAliasResolver, DependencyGroup, HashMap, Mutex, OverlayPickResolver, RecordingHooks,
-    ResolveDependencyTreeError, ResolveDependencyTreeOptions, ResolveOptions, StubResolver,
-    assert_eq, dependency_result, fake_manifest, fake_result, resolve_dependency_tree,
-    resolve_settlement_tree, settlement_versions,
+    DelayedAliasResolver,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    OverlayPickResolver,
+    RecordingHooks,
+    ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    assert_eq,
+    dependency_result,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
+    resolve_settlement_tree,
+    settlement_versions,
 };
 
-/// A package's children follow the occurrence that owns them — the
+/// A package's children follow the occurrence that owns them (the
 /// shallowest, here the one under `wrap`, whose level prefers
-/// `pin@1.0.0` — however slowly that occurrence resolves
+/// `pin@1.0.0`) however slowly that occurrence resolves
 /// (<https://github.com/pnpm/pnpm/issues/13685>).
 #[tokio::test(start_paused = true)]
 async fn children_follow_the_shallowest_occurrence_however_late_it_resolves() {
@@ -205,7 +218,7 @@ async fn shallower_revisit_takes_over_shared_children_context() {
 }
 
 /// A chain that declines every spec (every `resolve()` returns
-/// `Ok(None)`) must NOT silently drop the edge — that would leave
+/// `Ok(None)`) must NOT silently drop the edge, that would leave
 /// installs missing transitive deps and report success. The walker
 /// surfaces `SpecNotSupported` with the offending specifier
 /// rendered as `alias@specifier`, so callers can produce the
@@ -249,7 +262,10 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
 /// instance apart from registry packages and substitute its raw manifest.
 #[tokio::test]
 async fn read_package_hook_receives_the_directory_of_directory_resolutions() {
-    use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+    use pnpm_lockfile::{
+        DirectoryResolution,
+        LockfileResolution,
+    };
 
     let mut injected = fake_result(
         "injected",

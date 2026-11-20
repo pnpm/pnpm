@@ -1,14 +1,24 @@
 //! The pnpmfile's `preResolution` hook.
 
 use super::{
-    super::{Arc, InstallError, Lockfile, Path, Reporter},
+    super::{
+        Arc,
+        InstallError,
+        Lockfile,
+        Path,
+        Reporter,
+    },
     InstallView,
     lockfile_load::Loaded,
     validate_frozen::PreparedFrozenRun,
     wanted::WantedLockfile,
     workspace::InstallWorkspace,
 };
-use pnpm_reporter::{HookLog, LogEvent, LogLevel};
+use pnpm_reporter::{
+    HookLog,
+    LogEvent,
+    LogLevel,
+};
 use serde_json::Value;
 
 pub(super) async fn apply_or_run_pre_resolution_hook<Reporter: self::Reporter>(
@@ -90,10 +100,10 @@ pub(super) async fn run_pre_resolution_hook<Reporter: self::Reporter>(
 
 /// The hook sees a missing lockfile as `{}`.
 fn lockfile_json(lockfile: Option<&Lockfile>) -> Result<Value, InstallError> {
-    lockfile.map_or_else(
-        || Ok(Value::Object(serde_json::Map::new())),
-        |lockfile| serde_json::to_value(lockfile).map_err(InstallError::PreResolutionSerialize),
-    )
+    lockfile
+        .map(serde_json::to_value)
+        .map(|value| value.map_err(InstallError::PreResolutionSerialize))
+        .unwrap_or_else(|| Ok(Value::Object(serde_json::Map::new())))
 }
 
 fn parse_hooked_lockfile(field: &'static str, value: Value) -> Result<Lockfile, InstallError> {

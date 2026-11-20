@@ -3,11 +3,22 @@
 
 use std::sync::Arc;
 
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 use serde_json::Value;
 
-use pnpm_hooks::{CustomResolver, HookError, PnpmfileHooks};
-use pnpm_lockfile::{Lockfile, PackageKey, SnapshotEntry};
+use pnpm_hooks::{
+    CustomResolver,
+    HookError,
+    PnpmfileHooks,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    SnapshotEntry,
+};
 
 /// Whether the install's custom resolvers require a fresh resolution.
 /// A `true` result prevents the prefer-frozen-lockfile optimization.
@@ -22,7 +33,7 @@ pub(crate) async fn force_resolve_from_pnpmfile(
 
 /// Whether any custom resolver's `shouldRefreshResolution` returns true
 /// for any package in `lockfile`. The hook is called independently of
-/// `canResolve` — each resolver does its own filtering.
+/// `canResolve`; each resolver does its own filtering.
 pub(crate) async fn check_custom_resolver_force_resolve(
     custom_resolvers: &[Arc<dyn CustomResolver>],
     lockfile: &Lockfile,
@@ -73,7 +84,8 @@ fn merged_package_snapshot_json(
     if let Some(Value::Object(fields)) = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&dep_path.without_peer()))
-        .and_then(|metadata| serde_json::to_value(metadata).ok())
+        .map(serde_json::to_value)
+        .and_then(Result::ok)
     {
         merged.extend(fields);
     }

@@ -1,6 +1,12 @@
 use crate::tree::Tree;
-use std::collections::{BTreeMap, BTreeSet};
-use toml::{Table, Value};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
+use toml::{
+    Table,
+    Value,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DependencyKind {
@@ -139,7 +145,8 @@ fn is_excluded(dir: &str, excluded: &[Vec<&str>]) -> bool {
 
 fn path_components(path: &str) -> Vec<&str> {
     path.split('/')
-        .filter(|component| !component.is_empty() && *component != ".")
+        .filter(|component| !component.is_empty())
+        .filter(|component| *component != ".")
         .collect()
 }
 
@@ -179,7 +186,8 @@ fn dependencies(
         .chain(
             targets
                 .into_iter()
-                .flat_map(|targets| targets.values().filter_map(Value::as_table)),
+                .map(Table::values)
+                .flat_map(|values| values.filter_map(Value::as_table)),
         );
     let mut found = Vec::new();
     for section in sections {
@@ -203,7 +211,10 @@ fn dependency_package(
     if let Some(package) = renamed_package(value) {
         return package.to_owned();
     }
-    let inherits = value.get("workspace").and_then(Value::as_bool) == Some(true);
+    let inherits = value
+        .get("workspace")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     match workspace_packages.get(key) {
         Some(package) if inherits => package.clone(),
         _ => key.to_owned(),

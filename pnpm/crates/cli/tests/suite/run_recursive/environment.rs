@@ -1,8 +1,16 @@
 #[cfg(unix)]
 use super::process_group_probe;
 use super::{
-    CONCURRENCY_PROBE_COMMAND, CommandExtra, CommandTempCwd, fs, json, wait_for_marker_script,
-    write_concurrency_probe, write_marker_script, write_node_bin, write_workspace,
+    CONCURRENCY_PROBE_COMMAND,
+    CommandExtra,
+    CommandTempCwd,
+    fs,
+    json,
+    wait_for_marker_script,
+    write_concurrency_probe,
+    write_marker_script,
+    write_node_bin,
+    write_workspace,
 };
 #[cfg(unix)]
 use crate::_utils::terminal::Terminal;
@@ -10,11 +18,11 @@ use assert_cmd::assert::OutputAssertExt;
 
 /// A per-task `concurrency: 1` serializes the scripts just as firmly as a
 /// dependency chain does, so at a terminal they must stay in pacquet's
-/// process group too — the scheduler never has two of them in flight to
+/// process group too, the scheduler never has two of them in flight to
 /// keep apart.
 ///
 /// Unix-only by subject: the assertion compares POSIX process groups,
-/// which Windows has no counterpart for — pnpm keeps a script's children
+/// which Windows has no counterpart for, pnpm keeps a script's children
 /// in a job object there instead.
 #[cfg(unix)]
 #[test]
@@ -59,7 +67,8 @@ fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
     let mut lines = groups.lines();
     let parent_group = lines
         .next()
-        .and_then(|line| line.split_whitespace().nth(1))
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.nth(1))
         .expect("parent process group")
         .to_string();
     for line in groups.lines() {

@@ -1,9 +1,16 @@
 use crate::package_manifest_prefix;
 use node_semver::Version;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 use pnpm_resolving_resolver_base::parse_strict_semver_range;
 
-use super::{LatestRewriteCtx, MatchedRewrite};
+use super::{
+    LatestRewriteCtx,
+    MatchedRewrite,
+};
 
 /// What an update that does not save may do with a requested specifier, given
 /// the specifier the manifest keeps.

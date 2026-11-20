@@ -3,14 +3,27 @@
 
 pub(super) use constraint::ProviderConstraint;
 
-use super::{super::NextFormatError, children};
+use super::{
+    super::NextFormatError,
+    children,
+};
 use crate::{
-    BoundProviders, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer,
-    SnapshotDepRef, SnapshotEntry, split_peer_suffix_segments,
+    BoundProviders,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    SnapshotDepRef,
+    SnapshotEntry,
+    split_peer_suffix_segments,
 };
 use pnpm_deps_path::link_path_to_peer_version;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::OnceLock,
 };
 
@@ -47,7 +60,8 @@ pub(super) fn transitive_named_in_key<'a>(
                 .map(|segments| {
                     segments
                         .iter()
-                        .filter_map(|segment| segment.parse::<PkgNameVerPeer>().ok())
+                        .map(|segment| segment.parse::<PkgNameVerPeer>())
+                        .filter_map(Result::ok)
                         .collect()
                 })
         });

@@ -1,22 +1,42 @@
-pub(crate) use saved_spec::{format_cargo_saved_spec, without_build_metadata};
+pub(crate) use saved_spec::{
+    format_cargo_saved_spec,
+    without_build_metadata,
+};
 mod saved_spec;
 
 use crate::{
     cargo_manifest::{
-        ConfiguredWorkspace, configured_workspace_state, lookup_inherited_workspace_entry,
-        resolve_local_path, upsert_dependency_in_dir, workspace_includes_member,
+        ConfiguredWorkspace,
+        configured_workspace_state,
+        lookup_inherited_workspace_entry,
+        resolve_local_path,
+        upsert_dependency_in_dir,
+        workspace_includes_member,
     },
     cli_args::outdated::OutdatedQuery,
 };
 use cargo_lock::Lockfile as CargoLockfile;
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_matcher::Matcher;
 use pnpm_package_manifest::DependencyGroup;
-use semver::{Version, VersionReq};
+use semver::{
+    Version,
+    VersionReq,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     str::FromStr,
 };
 
@@ -311,7 +331,7 @@ fn is_workspace_inherited(value: &toml::Value) -> bool {
         .as_table()
         .and_then(|table| table.get("workspace"))
         .and_then(toml::Value::as_bool)
-        == Some(true)
+        .unwrap_or(false)
 }
 
 fn extract_registry_spec(alias: &str, value: &toml::Value) -> Option<(String, String)> {

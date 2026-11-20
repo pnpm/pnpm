@@ -1,12 +1,19 @@
 //! Registry routing for `@jsr/*` lockfile entries during supply-chain policy
 //! verification, the shape reported in
 //! [pnpm/pnpm#14649](https://github.com/pnpm/pnpm/issues/14649).
+use command_extra::CommandExtra;
 
-use crate::_utils::{flatten_report, pacquet_in};
+use crate::_utils::{
+    flatten_report,
+    pacquet_in,
+};
 
 use assert_cmd::prelude::*;
 use std::fs;
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// The integrity is a placeholder: the run fails at the metadata lookup this
 /// test is about, so no artifact is ever fetched or hashed. What matters is
@@ -60,7 +67,7 @@ fn a_jsr_lockfile_entry_is_verified_against_the_jsr_registry() {
     let root = jsr_project();
 
     let assert = pacquet_in(root.path())
-        .args(["install", "--frozen-lockfile", "--offline"])
+        .with_args(["install", "--frozen-lockfile", "--offline"])
         .assert()
         .failure();
 

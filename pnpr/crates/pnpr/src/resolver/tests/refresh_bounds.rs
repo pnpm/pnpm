@@ -1,20 +1,37 @@
 use std::{
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
 
-use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint};
+use pnpm_package_manager::{
+    ResolutionObserver,
+    ResolvedPackageHint,
+};
 use pnpm_resolving_resolver_base::PackageVersionGuard;
-use pnpr_config::{IpNetwork, PublicRoute};
+use pnpr_config::{
+    IpNetwork,
+    PublicRoute,
+};
 use pnpr_policy::Identity;
 use pnpr_route::Footprint;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    },
     net::TcpListener,
     time::Instant,
 };
@@ -22,16 +39,27 @@ use tokio::{
 use super::{
     super::{
         Resolver,
-        limits::{CancelToken, GraphLimitTracker, RESOLVE_TIMEOUT_CODE, STREAM_CHANNEL_CAPACITY},
+        limits::{
+            CancelToken,
+            GraphLimitTracker,
+            RESOLVE_TIMEOUT_CODE,
+            STREAM_CHANNEL_CAPACITY,
+        },
         protocol::ResolveRequest,
         request_tarball_router,
         streaming::{
-            CacheScope, StreamCacheTarget, StreamedResolve, StreamedResolveInputs, TerminalSender,
+            CacheScope,
+            StreamCacheTarget,
+            StreamedResolve,
+            StreamedResolveInputs,
+            TerminalSender,
             stream_resolution,
         },
         wire::StreamObserver,
     },
-    deps, registry_config, tarball_router,
+    deps,
+    registry_config,
+    tarball_router,
 };
 
 struct PostFetchCancelObserver {
@@ -105,7 +133,8 @@ async fn read_http_path(socket: &mut tokio::net::TcpStream) -> String {
     let head = String::from_utf8_lossy(&buf);
     head.lines()
         .next()
-        .and_then(|line| line.split_whitespace().nth(1))
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.nth(1))
         .unwrap_or("/")
         .to_string()
 }

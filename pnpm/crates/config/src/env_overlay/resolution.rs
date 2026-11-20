@@ -1,7 +1,11 @@
 //! The peer and resolution settings of the environment overlay.
 
 use super::{
-    HoistingLimits, LinkWorkspacePackages, StringReader, WorkspaceSettings, parse_json,
+    HoistingLimits,
+    LinkWorkspacePackages,
+    StringReader,
+    WorkspaceSettings,
+    parse_json,
     parse_json_or_string,
 };
 

@@ -1,10 +1,20 @@
-use std::{collections::BTreeSet, fs};
+use std::{
+    collections::BTreeSet,
+    fs,
+};
 
 use pep508_rs::Requirement;
 use pnpm_config::Config;
 
-use super::{rewrite_manifest_text, rewrite_pyproject, rewrite_pyproject_many};
-use crate::{PythonDependencyGroup, discover};
+use super::{
+    rewrite_manifest_text,
+    rewrite_pyproject,
+    rewrite_pyproject_many,
+};
+use crate::{
+    PythonDependencyGroup,
+    discover,
+};
 
 fn req(text: &str) -> Requirement {
     text.parse().unwrap()

@@ -4,15 +4,24 @@
 pub(super) use registries::follow_graph;
 
 use super::{
-    adapter::{Connection, Row},
+    adapter::{
+        Connection,
+        Row,
+    },
     batch::WriteTransaction,
     records::advance_record_generation,
     to_generation,
     transactions::Freshness,
 };
 use crate::Storage;
-use pnpr_error::{RegistryError, Result};
-use registries::{stored_registries, unknown_registry};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use registries::{
+    stored_registries,
+    unknown_registry,
+};
 use std::collections::HashMap;
 
 mod registries;

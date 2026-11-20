@@ -1,15 +1,34 @@
 use super::{
-    super::{Install, ProjectMutation},
-    InstallDirs, PARTIAL_INSTALL_LOCKFILE, scoped_package_body,
+    super::{
+        Install,
+        ProjectMutation,
+    },
+    InstallDirs,
+    PARTIAL_INSTALL_LOCKFILE,
+    scoped_package_body,
     seed_placeholder_virtual_store_slot,
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_modules_yaml::{Host, NodeLinker, read_modules_manifest};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    NodeLinker,
+    read_modules_manifest,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_testing_utils::registry::TestRegistry;
 use std::sync::Mutex;
 use tempfile::tempdir;
@@ -118,7 +137,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
 /// Section B of pnpm/pacquet#433: a snapshot whose wiring and
 /// integrity match the current lockfile *and* whose virtual-store
 /// slot exists on disk is dropped from the install graph entirely.
-/// We prove this by pointing the lockfile at a bogus tarball URL —
+/// We prove this by pointing the lockfile at a bogus tarball URL,
 /// any code path that reaches the fetch site would fail, so a
 /// successful install demonstrates the skip path took over.
 #[tokio::test]
@@ -127,7 +146,7 @@ pub(super) async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches(
 
     let manifest_path = dirs.path().join("package.json");
     let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
-    // Manifest must match `PARTIAL_INSTALL_LOCKFILE` — the freshness
+    // Manifest must match `PARTIAL_INSTALL_LOCKFILE`, the freshness
     // check (<https://github.com/pnpm/pacquet/issues/447>) rejects any drift between the on-disk manifest and
     // the lockfile importer entry.
     manifest.add_dependency("placeholder", "1.0.0", DependencyGroup::Prod).unwrap();
@@ -219,7 +238,7 @@ pub(super) async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches(
          (bogus integrity + URL would otherwise fail the install)",
     );
 
-    // `lock.yaml` survives the install — the end-of-install write
+    // `lock.yaml` survives the install, the end-of-install write
     // persists the wanted lockfile back to disk.
     let written = Lockfile::load_current_from_install_state_dir(&dirs.virtual_store_dir)
         .expect("read written current lockfile")
@@ -356,7 +375,7 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
 
     // The first install must have persisted the lockfile under the
     // virtual store. If `save_current_to_install_state_dir` regressed
-    // for non-empty lockfiles, this check fails — and so does the
+    // for non-empty lockfiles, this check fails, and so does the
     // false→true assertion below, which is the whole point of pinning
     // the read-after-write loop.
     let lock_yaml = dirs.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
@@ -460,7 +479,7 @@ pub(super) async fn context_log_reflects_current_lockfile_after_first_install() 
 ///    so an isolated install never produces a hoisted-only key).
 ///
 /// The empty-lockfile shape exercises every branch on `is_hoisted`
-/// without needing a real package fetch — proving the wiring
+/// without needing a real package fetch, proving the wiring
 /// composes with the existing pipeline phases.
 #[tokio::test]
 async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {

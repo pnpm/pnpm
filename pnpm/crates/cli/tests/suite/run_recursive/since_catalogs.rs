@@ -1,11 +1,18 @@
-use super::{CommandExtra, CommandTempCwd, build_writes_marker, fs, json, write_workspace};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    build_writes_marker,
+    fs,
+    json,
+    write_workspace,
+};
 use assert_cmd::assert::OutputAssertExt;
 use std::path::Path;
 
 fn git(cwd: &Path, args: &[&str]) {
     let output = std::process::Command::new("git")
-        .args(args)
-        .current_dir(cwd)
+        .with_args(args)
+        .with_current_dir(cwd)
         .output()
         .expect("spawn git");
     assert!(

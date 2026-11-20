@@ -1,13 +1,29 @@
 //! pnpm's tests inject a `_config` / `_context`; pacquet builds a [`Config`]
 //! and sets the public fields the command reads ([`Config::config_dir`],
-//! [`Config::explicit_settings`], [`Config::raw_auth_config`]) — the same
+//! [`Config::explicit_settings`], [`Config::raw_auth_config`]), the same
 //! injection, expressed against pacquet's loaded-config shape.
 
-use super::{ConfigFlags, ConfigLocation, config_get, config_list, config_set, ini};
+use super::{
+    ConfigFlags,
+    ConfigLocation,
+    config_get,
+    config_list,
+    config_set,
+    ini,
+};
 use indexmap::IndexMap;
-use pnpm_config::{Config, Host};
-use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use pnpm_config::{
+    Config,
+    Host,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use tempfile::TempDir;
 
 fn config_with_dir(config_dir: &Path) -> Config {
@@ -969,8 +985,8 @@ fn list_shows_a_registry_network_concurrency() {
     );
 }
 
-/// `registry` and `@jsr:registry` answer the merged routes — the built-in
-/// defaults when nothing routes them elsewhere — rather than `undefined`.
+/// `registry` and `@jsr:registry` answer the merged routes (the built-in
+/// defaults when nothing routes them elsewhere) rather than `undefined`.
 #[test]
 fn get_registry_and_jsr_answer_the_merged_routes() {
     let config = config_for_get(&[], &[]);
@@ -987,7 +1003,7 @@ fn get_registry_and_jsr_answer_the_merged_routes() {
     assert_eq!(listed["registry"], json!("https://registry.npmjs.org/"));
     assert_eq!(listed["@jsr:registry"], json!("https://npm.jsr.io/"));
 
-    // The resolved default — wherever it was routed from — wins over a raw
+    // The resolved default (wherever it was routed from) wins over a raw
     // `.npmrc` row, so `get` and `list` cannot contradict the `registries`
     // view.
     let mut routed = config_for_get(&[], &[("registry", "https://from-npmrc.example.com/")]);

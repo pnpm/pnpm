@@ -1,5 +1,11 @@
 use super::{
-    HashMap, HashSet, SbomComponent, SbomComponentType, SbomResult, base64_to_hex, build_purl,
+    HashMap,
+    HashSet,
+    SbomComponent,
+    SbomComponentType,
+    SbomResult,
+    base64_to_hex,
+    build_purl,
     generate_uuid_v4,
 };
 

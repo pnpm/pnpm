@@ -1,9 +1,24 @@
-use pnpm_cmd_shim::{DirectoryBinPlan, Host, LinkBinsError, LinkBinsOptions, PackageBinSource};
+use pnpm_cmd_shim::{
+    DirectoryBinPlan,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+};
 use pnpm_lockfile::PackageKey;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 #[derive(Default)]

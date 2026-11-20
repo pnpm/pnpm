@@ -1,14 +1,34 @@
 use super::{
-    CommandTempCwd, Matcher, advisory_entry, advisory_response, assert_failure, assert_success, fs,
+    CommandTempCwd,
+    Matcher,
+    advisory_entry,
+    advisory_response,
+    assert_failure,
+    assert_success,
+    fs,
     pacquet_cmd,
     signatures::{
-        keys_mock, packument_body, public_key_b64, sign_b64, signatures_json, signing_key,
+        keys_mock,
+        packument_body,
+        public_key_b64,
+        sign_b64,
+        signatures_json,
+        signing_key,
     },
-    stderr, stdout, write_minimal_manifest,
+    stderr,
+    stdout,
+    write_minimal_manifest,
 };
-use crate::_utils::{append_workspace_yaml_key, gzipped_tarball};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    gzipped_tarball,
+};
 use assert_cmd::assert::OutputAssertExt;
-use pnpm_testing_utils::{bin::AddMockedRegistry, git_repo::GitRepoFixture};
+use command_extra::CommandExtra;
+use pnpm_testing_utils::{
+    bin::AddMockedRegistry,
+    git_repo::GitRepoFixture,
+};
 
 #[test]
 fn audit_reports_vulnerabilities_after_installing_tarball_file_git_and_named_registry_deps() {
@@ -190,9 +210,7 @@ fn audit_fix_update_re_resolves_vulnerable_named_registry_dependency() {
 
 #[test]
 fn audit_signatures_verifies_named_registry_packages_and_skips_non_registry_deps() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut default_registry = mockito::Server::new();
     let mut work_registry = mockito::Server::new();
 
@@ -327,7 +345,7 @@ snapshots:
     .expect("write pnpm-lock.yaml");
 
     let output = pacquet
-        .args(["audit", "signatures", "--json"])
+        .with_args(["audit", "signatures", "--json"])
         .output()
         .expect("run audit signatures --json");
     let out = stdout(&output);
@@ -363,9 +381,7 @@ snapshots:
 
 #[test]
 fn audit_signatures_fails_when_named_registry_prefix_is_undeclared() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "fetchRetries: 0\n")
         .expect("write pnpm-workspace.yaml");
     write_minimal_manifest(&workspace);
@@ -392,7 +408,7 @@ snapshots:
     .expect("write pnpm-lock.yaml");
 
     let output = pacquet
-        .args(["audit", "signatures"])
+        .with_args(["audit", "signatures"])
         .output()
         .expect("run audit signatures");
     let err = stderr(&output);
@@ -403,9 +419,7 @@ snapshots:
 
 #[test]
 fn audit_signatures_redacts_credentials_from_named_registry_urls_in_issues() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut work_registry = mockito::Server::new();
     let work_key = signing_key();
     let host_port = work_registry.host_with_port();
@@ -451,7 +465,7 @@ snapshots:
     .expect("write pnpm-lock.yaml");
 
     let output = pacquet
-        .args(["audit", "signatures", "--json"])
+        .with_args(["audit", "signatures", "--json"])
         .output()
         .expect("run audit signatures --json");
     let out = stdout(&output);
@@ -547,9 +561,7 @@ fn audit_signatures_ties_tar_integrity_for_named_registry_packages() {
 
 #[test]
 fn audit_signatures_ignores_untrusted_workspace_state_registry_routes() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
 
     let mut untrusted_registry = mockito::Server::new();
     let mut configured_registry = mockito::Server::new();
@@ -620,7 +632,7 @@ snapshots:
         .expect("write workspace state");
 
     let output = pacquet
-        .args(["audit", "signatures", "--json"])
+        .with_args(["audit", "signatures", "--json"])
         .output()
         .expect("run audit signatures --json");
     assert_success(&output);

@@ -5,18 +5,30 @@
 
 #![cfg(unix)]
 
-use crate::_utils::{ManifestDeps, write_project_manifest};
+use crate::_utils::{
+    ManifestDeps,
+    write_project_manifest,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pnpm_workspace_state::WORKSPACE_STATE_FILENAME;
 use std::{
     fs,
-    os::unix::{fs::PermissionsExt, process::ExitStatusExt},
-    path::{Path, PathBuf},
+    os::unix::{
+        fs::PermissionsExt,
+        process::ExitStatusExt,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -37,14 +49,15 @@ const PLAIN_FILE_REL: &str = concat!(
 fn pnpm_with_umask(dir: &Path, umask: libc::mode_t, args: &[&str]) {
     let pnpm = Command::cargo_bin("pnpm").expect("find the pnpm binary");
     // Set the mask before exec without a `pre_exec` hook.
-    let mut command = Command::new("/bin/sh").with_current_dir(dir).without_ambient_pnpm_config();
-    command
-        .arg("-c")
-        .arg(r#"umask "$1" || exit; shift; exec "$@""#)
-        .arg("sh")
-        .arg(format!("{umask:o}"))
-        .arg(pnpm.get_program())
-        .args(args);
+    let mut command = Command::new("/bin/sh")
+        .with_current_dir(dir)
+        .without_ambient_pnpm_config()
+        .with_arg("-c")
+        .with_arg(r#"umask "$1" || exit; shift; exec "$@""#)
+        .with_arg("sh")
+        .with_arg(format!("{umask:o}"))
+        .with_arg(pnpm.get_program())
+        .with_args(args);
     let output = command.output().expect("run pnpm");
     assert!(
         output.status.success(),
@@ -287,7 +300,8 @@ fn files_pnpm_writes_into_a_project_follow_the_umask() {
     let owner_only: Vec<_> = walkdir::WalkDir::new(&workspace)
         .into_iter()
         .map(|entry| entry.expect("walk the project"))
-        .filter(|entry| entry.file_type().is_file() && file_mode(entry.path()) & 0o044 == 0)
+        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| file_mode(entry.path()) & 0o044 == 0)
         .map(|entry| {
             entry
                 .path()

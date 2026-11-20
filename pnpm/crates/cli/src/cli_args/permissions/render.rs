@@ -1,6 +1,15 @@
-use super::{disambiguated_labels, pending_permissions};
-use pnpm_config::{Config, SkillsPermission};
-use std::{collections::BTreeMap, fmt::Write as _};
+use super::{
+    disambiguated_labels,
+    pending_permissions,
+};
+use pnpm_config::{
+    Config,
+    SkillsPermission,
+};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+};
 
 pub(crate) fn render_permissions(config: &Config) -> miette::Result<String> {
     let mut granted: BTreeMap<String, Vec<String>> = BTreeMap::new();

@@ -2,8 +2,16 @@
 //! discovery never reports projects from. See
 //! [`FindWorkspaceProjectsOpts::ignored_directories`](super::FindWorkspaceProjectsOpts::ignored_directories).
 
-use super::{Path, PathBuf, walk::is_always_ignored_name};
-use std::{ffi::OsStr, fs, path::Component};
+use super::{
+    Path,
+    PathBuf,
+    walk::is_always_ignored_name,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Component,
+};
 
 /// Whether `path` sits under one of the directories returned by
 /// [`resolve_ignored_directories`]. `path` is normalized lexically first:

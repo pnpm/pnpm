@@ -5,12 +5,21 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_store_dir::STORE_VERSION;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
@@ -64,7 +73,7 @@ fn store_path_accepts_the_silent_shorthand() {
 
 #[test]
 fn store_path_should_return_store_dir_from_pnpm_workspace_yaml() {
-    // `storeDir` is a project-structural setting — in pnpm 11 (and
+    // `storeDir` is a project-structural setting, in pnpm 11 (and
     // pacquet) it's only honoured from `pnpm-workspace.yaml`, not `.npmrc`.
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
 
@@ -111,10 +120,10 @@ fn store_path_resolves_global_and_dotted_overrides_from_workspace_root() {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(root.path())
-            .arg("--dir")
-            .arg(&package_dir)
-            .arg(store_arg)
-            .args(["store", "path"])
+            .with_arg("--dir")
+            .with_arg(&package_dir)
+            .with_arg(store_arg)
+            .with_args(["store", "path"])
             .output()
             .expect("run pacquet store path with override");
         eprintln!("stderr={}", String::from_utf8_lossy(&output.stderr));
@@ -138,8 +147,8 @@ fn store_path_expands_a_quoted_home_override() {
     fs::create_dir_all(&home_dir).expect("create home directory");
     let output = pacquet
         .with_args(["store", "path", "--store-dir=~/pacquet-quoted-store"])
-        .env("HOME", &home_dir)
-        .env("USERPROFILE", &home_dir)
+        .with_env("HOME", &home_dir)
+        .with_env("USERPROFILE", &home_dir)
         .output()
         .expect("run pacquet store path with home-relative override");
     if !output.status.success() {
@@ -164,7 +173,7 @@ fn empty_store_dir_override_restores_the_platform_default() {
     let default_output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .args(["store", "path"])
+        .with_args(["store", "path"])
         .output()
         .expect("read the default store path");
     eprintln!("default status={}", default_output.status);
@@ -179,7 +188,7 @@ fn empty_store_dir_override_restores_the_platform_default() {
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
-            .args(["store", "path", store_arg])
+            .with_args(["store", "path", store_arg])
             .output()
             .expect("run store path with an empty override");
         eprintln!("stderr={}", String::from_utf8_lossy(&output.stderr));
@@ -192,19 +201,18 @@ fn empty_store_dir_override_restores_the_platform_default() {
 
 #[test]
 fn store_status_reports_an_untouched_store() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     pacquet
-        .arg("add")
-        .arg("is-odd@3.0.1")
+        .with_arg("add")
+        .with_arg("is-odd@3.0.1")
         .assert()
         .success();
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .args(["store", "status"])
+        .with_args(["store", "status"])
         .output()
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -215,12 +223,11 @@ fn store_status_reports_an_untouched_store() {
 
 #[test]
 fn store_status_reports_a_package_edited_after_it_was_linked_out() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     pacquet
-        .arg("add")
-        .arg("is-odd@3.0.1")
+        .with_arg("add")
+        .with_arg("is-odd@3.0.1")
         .assert()
         .success();
 
@@ -231,7 +238,7 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .args(["store", "status"])
+        .with_args(["store", "status"])
         .output()
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -250,15 +257,14 @@ fn store_status_reports_a_package_edited_after_it_was_linked_out() {
 /// disk and reports every peer-resolved package as modified.
 #[test]
 fn store_status_checks_packages_in_peer_suffixed_slots() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     // `@pnpm.e2e/abc` peer-depends on peer-a, peer-b, and peer-c. With
     // auto-install-peers (the default) all three resolve, suffixing
     // abc's snapshot key.
     pacquet
-        .arg("add")
-        .arg("@pnpm.e2e/abc@1.0.0")
+        .with_arg("add")
+        .with_arg("@pnpm.e2e/abc@1.0.0")
         .assert()
         .success();
 
@@ -278,7 +284,7 @@ fn store_status_checks_packages_in_peer_suffixed_slots() {
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .args(["store", "status"])
+        .with_args(["store", "status"])
         .output()
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -299,7 +305,7 @@ fn store_status_checks_packages_in_peer_suffixed_slots() {
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .args(["store", "status"])
+        .with_args(["store", "status"])
         .output()
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -321,7 +327,7 @@ fn store_status_checks_packages_in_peer_suffixed_slots() {
 #[test]
 fn store_status_ignores_skipped_optional_packages() {
     let CommandTempCwd {
-        mut pacquet,
+        pacquet,
         workspace,
         root: _root,
         npmrc_info,
@@ -342,7 +348,7 @@ fn store_status_ignores_skipped_optional_packages() {
     );
 
     pacquet
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -397,7 +403,7 @@ fn store_status_ignores_skipped_optional_packages() {
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .args(["store", "status"])
+        .with_args(["store", "status"])
         .output()
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -411,20 +417,19 @@ fn store_status_ignores_skipped_optional_packages() {
 
 #[test]
 fn store_status_does_not_falsely_report_package_with_postinstall_script_as_modified() {
-    let CommandTempCwd {
-        mut pacquet, workspace, root: _root, ..
-    } = CommandTempCwd::init().add_mocked_registry();
+    let CommandTempCwd { pacquet, workspace, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
     pacquet
-        .arg("add")
-        .arg("@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0")
-        .arg("--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example")
+        .with_arg("add")
+        .with_arg("@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0")
+        .with_arg("--allow-build=@pnpm.e2e/pre-and-postinstall-scripts-example")
         .assert()
         .success();
 
     let output = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(&workspace)
-        .args(["store", "status"])
+        .with_args(["store", "status"])
         .output()
         .expect("run pacquet store status");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1028,11 +1033,11 @@ fn store_add_waits_for_the_store_operation_lock() {
             "add",
             "@pnpm.e2e/foo@100.0.0",
         ])
-        .env("TMPDIR", &alternate_temp)
-        .env("TEMP", &alternate_temp)
-        .env("TMP", &alternate_temp)
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(&output_path).expect("create store add output"))
+        .with_env("TMPDIR", &alternate_temp)
+        .with_env("TEMP", &alternate_temp)
+        .with_env("TMP", &alternate_temp)
+        .with_stdout(Stdio::null())
+        .with_stderr(fs::File::create(&output_path).expect("create store add output").into())
         .spawn()
         .expect("spawn store add");
     _utils::wait_for_child_output(
@@ -1061,13 +1066,14 @@ fn store_operation_lock_lives_in_the_xdg_runtime_dir() {
 
     pacquet
         .with_args(["store", "add", "@pnpm.e2e/foo@100.0.0"])
-        .env("XDG_RUNTIME_DIR", &runtime_dir)
+        .with_env("XDG_RUNTIME_DIR", &runtime_dir)
         .assert()
         .success();
 
     let lock_dirs: Vec<_> = fs::read_dir(&runtime_dir)
         .expect("read XDG_RUNTIME_DIR")
-        .map(|entry| entry.expect("read XDG_RUNTIME_DIR entry").path())
+        .map(|entry| entry.expect("read XDG_RUNTIME_DIR entry"))
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
@@ -1365,7 +1371,10 @@ fn store_prune_reclaims_packages_of_an_expired_dlx_cache_entry() {
 #[test]
 fn install_keeps_a_group_writable_store() {
     use pnpm_testing_utils::bin::AddMockedRegistry;
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -1401,7 +1410,7 @@ fn install_keeps_a_group_writable_store() {
     };
 
     pacquet_at(&workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_index("first install");
@@ -1425,7 +1434,7 @@ fn install_keeps_a_group_writable_store() {
     }
 
     pacquet_at(&workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     assert_index("second install");

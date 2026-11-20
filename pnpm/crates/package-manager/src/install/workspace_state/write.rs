@@ -2,7 +2,13 @@
 //! goes through.
 
 use super::{
-    Catalogs, Config, PackageManifest, Path, PathBuf, WorkspaceState, build_workspace_state,
+    Catalogs,
+    Config,
+    PackageManifest,
+    Path,
+    PathBuf,
+    WorkspaceState,
+    build_workspace_state,
     recorded_auto_dedupe,
 };
 use pnpm_modules_yaml::Host;

@@ -10,9 +10,19 @@
 
 use super::Member;
 use crate::registry::Resolution;
-use pep440_rs::{Version, VersionSpecifiers};
-use pep508_rs::{PackageName, Requirement, VersionOrUrl};
-use std::{collections::BTreeMap, path::Path};
+use pep440_rs::{
+    Version,
+    VersionSpecifiers,
+};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 /// The resolution failure, naming the two members that disagree when two
 /// of them do.

@@ -1,14 +1,40 @@
 use super::{
-    Arc, Config, ConvertCtx, DirectSpecs, HashMap, Lockfile, Path, PathBuf, PreferredVersions,
-    Reporter, ResolveBases, SelectedProject, State, convert_package_key,
-    convert_resolved_dependency_spec, convert_snapshot, create_file_url_key,
-    get_preferred_versions_from_lockfile_and_manifests, importer_id_from_root_dir,
+    Arc,
+    Config,
+    ConvertCtx,
+    DirectSpecs,
+    HashMap,
+    Lockfile,
+    Path,
+    PathBuf,
+    PreferredVersions,
+    Reporter,
+    ResolveBases,
+    SelectedProject,
+    State,
+    convert_package_key,
+    convert_resolved_dependency_spec,
+    convert_snapshot,
+    create_file_url_key,
+    get_preferred_versions_from_lockfile_and_manifests,
+    importer_id_from_root_dir,
     lexical_normalize,
-    lockfile::{convert_deploy_packages, importer_package_dirs},
-    project_snapshot_to_snapshot_entry, same_path, warn,
+    lockfile::{
+        convert_deploy_packages,
+        importer_package_dirs,
+    },
+    project_snapshot_to_snapshot_entry,
+    same_path,
+    warn,
 };
-use pnpm_lockfile::{ImporterDepVersion, SnapshotDepRef};
-use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    SnapshotDepRef,
+};
+use pnpm_lockfile_verification::{
+    VerifyLockfileResolutionsOptions,
+    verify_lockfile_resolutions,
+};
 use pnpm_package_manager::build_resolution_verifiers;
 
 /// The source workspace lockfile whose pins a legacy deploy prefers.

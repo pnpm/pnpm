@@ -6,13 +6,26 @@ pub use predicate::*;
 mod predicate;
 
 use crate::{
-    dsse::{DsseError, Envelope, IN_TOTO_PAYLOAD_TYPE},
+    dsse::{
+        DsseError,
+        Envelope,
+        IN_TOTO_PAYLOAD_TYPE,
+    },
     profile::Profile,
     record::StoredRecord,
 };
-use derive_more::{Display, Error};
-use pnpm_transparency_log::{KeySet, NoteSigner};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_transparency_log::{
+    KeySet,
+    NoteSigner,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 use std::collections::BTreeMap;
 

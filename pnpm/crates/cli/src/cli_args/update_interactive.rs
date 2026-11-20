@@ -19,12 +19,19 @@ pub(crate) use global::select_global_package_groups;
 
 use crate::{
     checkbox_prompt::{
-        CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
+        CheckboxAnswer,
+        CheckboxChoice,
+        CheckboxItem,
+        CheckboxPrompt,
+        CheckboxTheme,
     },
     cli_args::{
         global::has_pnpm_cli_dependency,
         outdated::{
-            OutdatedPackage, OutdatedQuery, TargetVersion, collect_outdated_for_importer,
+            OutdatedPackage,
+            OutdatedQuery,
+            TargetVersion,
+            collect_outdated_for_importer,
             ignored_dependencies_matcher,
         },
         pipelines::InstallFamilySelection,
@@ -32,14 +39,32 @@ use crate::{
     },
 };
 
-use miette::{IntoDiagnostic, miette};
-use owo_colors::{OwoColorize, Stream};
+use miette::{
+    IntoDiagnostic,
+    miette,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use std::{collections::HashSet, path::Path, sync::Arc};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::Arc,
+};
 
 struct InteractiveUpdateProject<'a> {
     manifest: &'a PackageManifest,
@@ -140,8 +165,8 @@ impl PromptStyle {
 /// How `update --interactive` asks which dependencies to update.
 ///
 /// `clap` never sets it. It exists so a test can answer the prompt the
-/// way the upstream suite answers its own — by mocking
-/// `@inquirer/prompts` — which a prompt reading the terminal cannot offer.
+/// way the upstream suite answers its own (by mocking
+/// `@inquirer/prompts`) which a prompt reading the terminal cannot offer.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) enum UpdatePrompt {
     #[default]
@@ -187,9 +212,9 @@ fn report_cancelled<Reporter: self::Reporter>() {
 }
 
 /// Gather outdated direct dependencies, prompt the user, and return the
-/// selected package names. `Ok(None)` means "nothing to do" — either no
+/// selected package names. `Ok(None)` means "nothing to do" (either no
 /// dependency has an update available or the prompt was answered with an
-/// empty selection — and the caller should not run an update.
+/// empty selection) and the caller should not run an update.
 pub(crate) async fn select_packages<Reporter: self::Reporter>(
     root: &Path,
     manifest: &PackageManifest,
@@ -330,7 +355,7 @@ fn flatten_groups(groups: &[choices::ChoiceGroup]) -> Vec<PromptRow> {
 }
 
 /// The values behind `indices`, in the order the user checked them and
-/// without repeats — the same package can be offered by two importers.
+/// without repeats, the same package can be offered by two importers.
 fn selected_packages(rows: &[PromptRow], indices: &[usize]) -> Vec<String> {
     let mut selected = Vec::new();
     let mut seen = HashSet::new();
@@ -356,7 +381,10 @@ mod gather;
 mod notes;
 
 use gather::gather_choices_for_projects;
-use notes::{ChoiceNotes, choice_notes};
+use notes::{
+    ChoiceNotes,
+    choice_notes,
+};
 
 #[cfg(test)]
 mod tests;

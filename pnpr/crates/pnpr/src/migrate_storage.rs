@@ -1,8 +1,16 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
-use pnpr_config::{Config, DatabaseBackend, HostedStoreConfig, S3Settings};
+use pnpr_config::{
+    Config,
+    DatabaseBackend,
+    HostedStoreConfig,
+    S3Settings,
+};
 use pnpr_package_name::Ecosystem;
-use pnpr_storage::{Storage, database::BlobRef};
+use pnpr_storage::{
+    Storage,
+    database::BlobRef,
+};
 use std::path::PathBuf;
 
 #[derive(Debug, Default)]

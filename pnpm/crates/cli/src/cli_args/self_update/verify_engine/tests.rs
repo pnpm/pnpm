@@ -1,19 +1,39 @@
 use super::{
-    EngineComponent, EngineToVerify, FailureCategory, PlatformBinaries, SelfUpdateError,
-    SignatureFailure, build_client, collect_engine_components, find_signature_failure,
+    EngineComponent,
+    EngineToVerify,
+    FailureCategory,
+    PlatformBinaries,
+    SelfUpdateError,
+    SignatureFailure,
+    build_client,
+    collect_engine_components,
+    find_signature_failure,
     plain_version,
 };
 use crate::cli_args::self_update::{
-    install_pnpm::{exe_platform_pkg_dir_name, native_target_name},
+    install_pnpm::{
+        exe_platform_pkg_dir_name,
+        native_target_name,
+    },
     verify_engine::signatures::{
-        NpmSigningKey, PackageSignature, signature_validates_against, verify_one,
+        NpmSigningKey,
+        PackageSignature,
+        signature_validates_against,
+        verify_one,
     },
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
-use pnpm_lockfile::{EnvLockfile, SnapshotDepRef};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    SnapshotDepRef,
+};
 use pnpm_network::RetryOpts;
 use std::time::Duration;
 
@@ -31,7 +51,10 @@ fn public_key_b64(key: &SigningKey) -> String {
 }
 
 fn sign_b64(key: &SigningKey, message: &str) -> String {
-    use p256::ecdsa::{Signature, signature::Signer};
+    use p256::ecdsa::{
+        Signature,
+        signature::Signer,
+    };
     let signature: Signature = key.sign(message.as_bytes());
     base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes())
 }
@@ -324,7 +347,7 @@ fn tolerable_without_signature_requires_a_soft_category_and_a_non_canonical_regi
     assert!(!failure(FailureCategory::Absent, mirror).tolerable_without_signature());
     assert!(!failure(FailureCategory::Invalid, mirror).tolerable_without_signature());
     // The canonical registry always provides signatures for genuine
-    // releases, so nothing is tolerated there — under any URL-equivalent
+    // releases, so nothing is tolerated there, under any URL-equivalent
     // spelling of it.
     for canonical in [
         "https://registry.npmjs.org",

@@ -1,17 +1,33 @@
 use axum::{
     body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, PackageRemoval, wait_after_document_write_conflict};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    PackageRemoval,
+    wait_after_document_write_conflict,
+};
 
 use super::{
     super::{
-        Action, AppState, AuthorizationDecision, RegistrySource, authorize_package,
-        authorize_without_owners, hosted_storage, resolve_write_target,
+        Action,
+        AppState,
+        AuthorizationDecision,
+        RegistrySource,
+        authorize_package,
+        authorize_without_owners,
+        hosted_storage,
+        resolve_write_target,
     },
     read_authorized_packument,
 };

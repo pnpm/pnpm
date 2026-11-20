@@ -1,6 +1,10 @@
 //! Semver questions the audit asks of advisory ranges.
 
-use super::{Range, RangeSpecStyle, Version};
+use super::{
+    Range,
+    RangeSpecStyle,
+    Version,
+};
 
 pub(crate) fn satisfies_safe(version: &str, range: &str) -> bool {
     let Ok(version) = version.parse::<Version>() else { return false };
@@ -84,8 +88,11 @@ pub(crate) fn last_upper_bound(input: &str) -> Option<(&str, &str)> {
 pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> String {
     patched
         .strip_prefix(">=")
-        .and_then(|version| version.trim().parse::<Version>().ok())
-        .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
+        .map(str::trim)
+        .map(str::parse::<Version>)
+        .and_then(Result::ok)
+        .map(|version| format!("{}{version}", style.range_prefix()))
+        .unwrap_or_else(|| patched.to_string())
 }
 
 pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {

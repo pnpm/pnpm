@@ -4,61 +4,129 @@ pub mod test_support;
 pub use background_drop::background_drop;
 pub use canonical_paths::CanonicalPaths;
 pub use capabilities::*;
-pub use copy_dirent::{copy_dir_contents, copy_dirent, create_symlink};
+pub use copy_dirent::{
+    copy_dir_contents,
+    copy_dirent,
+    create_symlink,
+};
 pub use copy_file_exclusive::{
-    CopyPermissions, copy_file_atomic, copy_file_atomic_with_permissions, copy_file_exclusive,
-    copy_file_exclusive_with, copy_permissions, read_file_permissions,
+    CopyPermissions,
+    copy_file_atomic,
+    copy_file_atomic_with_permissions,
+    copy_file_exclusive,
+    copy_file_exclusive_with,
+    copy_permissions,
+    read_file_permissions,
 };
 pub use cross_device::is_cross_device;
 pub use dir_lock::DirLock;
 pub use ensure_file::*;
 pub use exchange_dirents::exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
-pub use file_lock::{lock_file, try_lock_file};
+pub use file_lock::{
+    lock_file,
+    try_lock_file,
+};
 pub use internal_symlink::{
-    AdmittedSymlink, SymlinkPlacement, SymlinkPlacementContext, SymlinkTargetKind, SymlinkTargets,
-    admit_internal_symlink, is_symlink, is_symlink_metadata, recreate_internal_symlink,
-    relative_link_target, resolve_symlink_placement, selected_paths_and_ancestors,
+    AdmittedSymlink,
+    SymlinkPlacement,
+    SymlinkPlacementContext,
+    SymlinkTargetKind,
+    SymlinkTargets,
+    admit_internal_symlink,
+    is_symlink,
+    is_symlink_metadata,
+    recreate_internal_symlink,
+    relative_link_target,
+    resolve_symlink_placement,
+    selected_paths_and_ancestors,
     symlink_file_or_copy,
 };
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
-pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
-pub use link_failure::{LinkFailure, LinkFallback, LinkFallbackPolicy};
+pub use lexical_normalize::{
+    lexical_normalize,
+    lexical_normalize_posix,
+};
+pub use link_failure::{
+    LinkFailure,
+    LinkFallback,
+    LinkFallbackPolicy,
+};
 pub use lock_mode::LockMode;
 pub use mapped_drive_path::canonicalize_preserving_mapped_drive;
-pub use open_dir::{ChildFileStat, OpenDir};
+pub use open_dir::{
+    ChildFileStat,
+    OpenDir,
+};
 #[cfg(unix)]
 pub use pending_temp::die_from_signal;
 pub use pending_temp::{
-    PendingTempFile, install_temp_file_cleanup, remove_pending_temp_files, track_temp_file,
+    PendingTempFile,
+    install_temp_file_cleanup,
+    remove_pending_temp_files,
+    track_temp_file,
 };
 pub use private_named_tempfile::private_named_tempfile_in;
 pub use read_modules_dir::read_modules_dir;
-pub use realpath_missing::{realpath_missing, resolve_path_with_symlinks, symlinked_dir_real_path};
-pub use relative_path::{join_slash_separated_path, push_slash_separated_path, relative_path};
+pub use realpath_missing::{
+    realpath_missing,
+    resolve_path_with_symlinks,
+    symlinked_dir_real_path,
+};
+pub use relative_path::{
+    join_slash_separated_path,
+    push_slash_separated_path,
+    relative_path,
+};
 pub use remove_dirent::remove_dirent;
 pub use rename_even_across_devices::rename_even_across_devices;
 pub use rename_to_free_name::rename_to_free_name;
 pub use retry::{
-    create_dir_all_with_retry, create_dir_with_retry, is_transient_file_lock_error,
-    metadata_with_retry, remove_dir_all_with_retry, remove_dir_with_retry, remove_file_with_retry,
-    rename_with_retry, symlink_metadata_with_retry,
+    create_dir_all_with_retry,
+    create_dir_with_retry,
+    is_transient_file_lock_error,
+    metadata_with_retry,
+    remove_dir_all_with_retry,
+    remove_dir_with_retry,
+    remove_file_with_retry,
+    rename_with_retry,
+    symlink_metadata_with_retry,
 };
 pub use secure_temp_lock::{
-    open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir, secure_user_lock_file_path,
+    open_secure_lock_file,
+    secure_temp_lock_dir,
+    secure_user_lock_dir,
+    secure_user_lock_file_path,
 };
-pub use store_file::{CasPaths, StoreFile, cas_paths_from_paths};
+pub use store_file::{
+    CasPaths,
+    StoreFile,
+    cas_paths_from_paths,
+};
 pub use symlink_dir::*;
 pub use sync_file::sync_file;
-pub use umask_named_tempfile::{named_tempfile_with_mode_in, umask_named_tempfile_in};
+pub use umask_named_tempfile::{
+    named_tempfile_with_mode_in,
+    umask_named_tempfile_in,
+};
 #[cfg(target_os = "wasi")]
 pub use wasi_fs::{
-    check_file_owner, create_inheriting_mode as create_file_inheriting_mode,
-    create_new as create_new_with_mode, executable_access, file_link_count, lock_file,
-    open_nofollow as open_file_without_following, register_sqlite_permissions, try_lock_file,
+    check_file_owner,
+    create_inheriting_mode as create_file_inheriting_mode,
+    create_new as create_new_with_mode,
+    executable_access,
+    file_link_count,
+    lock_file,
+    open_nofollow as open_file_without_following,
+    register_sqlite_permissions,
+    try_lock_file,
 };
-pub use write_atomic::{write_atomic, write_atomic_private, write_atomic_private_if_new};
+pub use write_atomic::{
+    write_atomic,
+    write_atomic_private,
+    write_atomic_private_if_new,
+};
 
 mod background_drop;
 mod canonical_paths;
@@ -115,9 +183,18 @@ pub fn temp_dir() -> std::path::PathBuf {
 #[cfg(any(target_family = "wasm", all(test, unix)))]
 mod path_list;
 #[cfg(target_family = "wasm")]
-pub use path_list::{JoinPathsError, join_paths, split_paths};
+pub use path_list::{
+    JoinPathsError,
+    join_paths,
+    split_paths,
+};
 #[cfg(not(target_family = "wasm"))]
 pub use std::{
-    env::{JoinPathsError, join_paths, split_paths, temp_dir},
+    env::{
+        JoinPathsError,
+        join_paths,
+        split_paths,
+        temp_dir,
+    },
     process::id as process_id,
 };

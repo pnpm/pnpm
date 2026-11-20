@@ -4,14 +4,29 @@
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, RawQuery, State},
-    http::{HeaderMap, Method, StatusCode},
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        RawQuery,
+        State,
+    },
+    http::{
+        HeaderMap,
+        Method,
+        StatusCode,
+    },
     routing::get,
 };
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, TcpListener},
-    sync::{Arc, Mutex},
+    net::{
+        Ipv4Addr,
+        TcpListener,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
     thread,
 };
 
@@ -125,7 +140,8 @@ fn record(
             query,
             authorization: headers
                 .get("authorization")
-                .and_then(|value| value.to_str().ok())
+                .map(axum::http::HeaderValue::to_str)
+                .and_then(Result::ok)
                 .map(str::to_string),
         });
 }

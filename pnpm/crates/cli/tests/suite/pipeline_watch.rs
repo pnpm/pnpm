@@ -4,14 +4,32 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{command_env::CommandTestExt, git_repo::GitRepoFixture};
+use pnpm_testing_utils::{
+    command_env::CommandTestExt,
+    git_repo::GitRepoFixture,
+};
 use std::{
     fs,
-    io::{self, BufRead as _, BufReader},
-    path::{Path, PathBuf},
-    process::{Child, Command, ExitStatus, Stdio},
+    io::{
+        self,
+        BufRead as _,
+        BufReader,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Stdio,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 fn agent_tick(root: &Path, repo: &str) -> assert_cmd::assert::Assert {
@@ -131,7 +149,7 @@ fn watch_agent_refuses_a_zero_poll_interval() {
     let result = Command::cargo_bin("pnpm")
         .unwrap()
         .without_ambient_pnpm_config()
-        .args(["pipeline", "--watch", "--repo", "unused", "--interval", "0"])
+        .with_args(["pipeline", "--watch", "--repo", "unused", "--interval", "0"])
         .assert()
         .failure();
     let error = String::from_utf8_lossy(&result.get_output().stderr);

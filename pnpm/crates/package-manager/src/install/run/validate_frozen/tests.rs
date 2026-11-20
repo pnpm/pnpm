@@ -1,8 +1,16 @@
 use super::{
-    Arc, HookedManifests, Lockfile, PreparedFrozenInstall, PreparedPreResolution,
+    Arc,
+    HookedManifests,
+    Lockfile,
+    PreparedFrozenInstall,
+    PreparedPreResolution,
     matches_verified_lockfile,
 };
-use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile, WantedLockfileSelection};
+use pnpm_lockfile::{
+    LazyLockfile,
+    MaybeLazyLockfile,
+    WantedLockfileSelection,
+};
 use std::fs;
 use tempfile::tempdir;
 

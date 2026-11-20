@@ -3,7 +3,13 @@ use pnpm_registry::RangeSpecStyle;
 
 #[test]
 fn matches_pnpm_infer_range_spec_style() {
-    use RangeSpecStyle::{Exact, Major, Minor, None as NoneVariant, Patch};
+    use RangeSpecStyle::{
+        Exact,
+        Major,
+        Minor,
+        None as NoneVariant,
+        Patch,
+    };
     let cases: &[(&str, Option<RangeSpecStyle>)] = &[
         ("^1.0.0", Some(Major)),
         ("~1.0.0", Some(Minor)),

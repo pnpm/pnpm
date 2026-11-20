@@ -1,5 +1,9 @@
 use super::{
-    PartialSpec, correct_url, git_spec_committish_and_path, parse_bare_specifier, parse_git_params,
+    PartialSpec,
+    correct_url,
+    git_spec_committish_and_path,
+    parse_bare_specifier,
+    parse_git_params,
 };
 
 #[test]

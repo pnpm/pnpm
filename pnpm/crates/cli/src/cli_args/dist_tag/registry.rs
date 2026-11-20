@@ -1,22 +1,49 @@
 use super::{
-    AuthType, BTreeMap, DIST_TAG_ERROR_BODY_LIMIT, DIST_TAGS_BODY_LIMIT, DistTagContext,
-    DistTagError, RequestBuilder, Response, StatusCode, encode_uri_component, read_limited_body,
-    redact_url_credentials, retry_async, sanitize, send_with_retry,
+    AuthType,
+    BTreeMap,
+    DIST_TAG_ERROR_BODY_LIMIT,
+    DIST_TAGS_BODY_LIMIT,
+    DistTagContext,
+    DistTagError,
+    RequestBuilder,
+    Response,
+    StatusCode,
+    encode_uri_component,
+    read_limited_body,
+    redact_url_credentials,
+    retry_async,
+    sanitize,
+    send_with_retry,
 };
 use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
-        OtpHost, apply_auth_and_otp, auth_header_for_package, join_registry_endpoint,
-        resolve_target_registry_for_package, web_auth_fetch_options,
+        OtpHost,
+        apply_auth_and_otp,
+        auth_header_for_package,
+        join_registry_endpoint,
+        resolve_target_registry_for_package,
+        web_auth_fetch_options,
     },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_network::escaped_package_name;
 use pnpm_network_web_auth::{
-    OtpChallenge, OtpError, WithOtpError, otp_challenge_from_unauthorized_body, with_otp_handling,
+    OtpChallenge,
+    OtpError,
+    WithOtpError,
+    otp_challenge_from_unauthorized_body,
+    with_otp_handling,
 };
-use pnpm_publish::{Host, OidcHttpOptions, fetch_token_and_provenance_by_oidc};
+use pnpm_publish::{
+    Host,
+    OidcHttpOptions,
+    fetch_token_and_provenance_by_oidc,
+};
 use pnpm_reporter::Reporter;
 use reqwest::Method;
 

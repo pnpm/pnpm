@@ -4,16 +4,32 @@
 //! it never reaches them.
 
 use super::{
-    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_deploy_file_url,
+    FreshnessCheckError,
+    ImporterSatisfactionCheck,
+    LocalDepContext,
+    is_deploy_file_url,
     package::check_single_directory_dep_freshness,
-    scope::{AliasScope, Visited, importer_aliases, snapshot_aliases},
+    scope::{
+        AliasScope,
+        Visited,
+        importer_aliases,
+        snapshot_aliases,
+    },
     spec_dirs,
 };
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PkgName, SnapshotDepRef, SnapshotEntry,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// A directory package beneath a package that is not one.
 pub(crate) struct NestedDirectoryPackage {
@@ -134,9 +150,7 @@ impl<'n> NestedByImporter<'n> {
     }
 
     pub(crate) fn of(&self, importer_id: &str) -> &[&'n NestedDirectoryPackage] {
-        self.0
-            .get(importer_id)
-            .map_or(&[], Vec::as_slice)
+        self.0.get(importer_id).map_or_default(Vec::as_slice)
     }
 }
 

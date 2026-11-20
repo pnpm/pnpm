@@ -1,24 +1,47 @@
 use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use pnpm_lockfile::LockfileResolution;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
-use pnpm_store_dir::{PackageFilesIndex, StoreIndex, store_index_key};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreIndex,
+    store_index_key,
+};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
 use crate::{
-    ABBREVIATED_META_DIR, NamedRegistryResolver, OfflineStoreView, merge_named_registries,
+    ABBREVIATED_META_DIR,
+    NamedRegistryResolver,
+    OfflineStoreView,
+    merge_named_registries,
     persist_meta_to_mirror,
     pick_package::{
-        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+        InMemoryPackageMetaCache,
+        shared_packument_fetch_locker,
+        shared_picked_manifest_cache,
     },
 };
 
-/// Packument for `@acme/private` served under a named registry —
+/// Packument for `@acme/private` served under a named registry,
 /// matches the fixture upstream uses in
 /// `resolveNamedRegistry.test.ts`.
 const ACME_PRIVATE_BODY: &str = r#"{
@@ -239,7 +262,7 @@ async fn resolves_user_defined_named_registry() {
 async fn declines_non_named_specifiers() {
     let (resolver, _tempdir) = build_resolver(HashMap::new());
 
-    // Plain semver — npm's slot, not named-registry's. No mock means
+    // Plain semver, npm's slot, not named-registry's. No mock means
     // the test fails if the resolver tries to hit the network.
     for bare in ["^1.0.0", "npm:@acme/private@1.0.0", "jsr:@acme/private"] {
         let wanted = WantedDependency {
@@ -315,8 +338,8 @@ async fn update_requested_keeps_preferred_versions() {
     // would: preferred versions (manifest pins, versions propagated
     // down the dependency chain) keep steering the pick even with
     // `update_requested=true`. The target's own lockfile pins never
-    // reach the resolver — the install layer withholds them from the
-    // seed — so nothing needs bypassing here.
+    // reach the resolver (the install layer withholds them from the
+    // seed) so nothing needs bypassing here.
     let mut server = mockito::Server::new_async().await;
     let _mock = server
         .mock("GET", "/@acme%2Fprivate")
@@ -331,7 +354,7 @@ async fn update_requested_keeps_preferred_versions() {
     let (resolver, _tempdir) = build_resolver(user);
 
     // Preferred = 2.0.0 (older). Range = ^2.0.0 admits both 2.0.0 and
-    // latest 2.1.0. The picker honors the preferred version — an update
+    // latest 2.1.0. The picker honors the preferred version, an update
     // that jumped to 2.1.0 would install a duplicate a reinstall from
     // scratch would not reproduce.
     let mut preferred = pnpm_resolving_resolver_base::PreferredVersions::new();
@@ -395,14 +418,14 @@ async fn update_requested_keeps_non_version_selectors() {
     let mut preferred = pnpm_resolving_resolver_base::PreferredVersions::new();
     preferred.insert("@acme/private".to_string(), {
         let mut selectors = pnpm_resolving_resolver_base::VersionSelectors::new();
-        // A propagated exact pin — dropped, so it can't hold the target down.
+        // A propagated exact pin, dropped, so it can't hold the target down.
         selectors.insert(
             "2.1.0".to_string(),
             pnpm_resolving_resolver_base::VersionSelectorEntry::Plain(
                 pnpm_resolving_resolver_base::VersionSelectorType::Version,
             ),
         );
-        // A `range` preference on 2.0.0 — must survive update_requested.
+        // A `range` preference on 2.0.0, must survive update_requested.
         selectors.insert(
             "2.0.0".to_string(),
             pnpm_resolving_resolver_base::VersionSelectorEntry::Weighted(

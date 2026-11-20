@@ -1,5 +1,12 @@
 use super::{
-    Arc, HashMap, NodeId, ResolvedTree, SyncCursor, SyncLog, WorkspaceTreeCtx, lock_recoverable,
+    Arc,
+    HashMap,
+    NodeId,
+    ResolvedTree,
+    SyncCursor,
+    SyncLog,
+    WorkspaceTreeCtx,
+    lock_recoverable,
     merge_synced_child_spec,
 };
 

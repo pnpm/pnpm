@@ -3,16 +3,24 @@
 //! invoke the helper directly with a hand-built
 //! [`WorkspacePackages`] map.
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    WantedDependency, WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+    WantedDependency,
+    WorkspacePackage,
+    WorkspacePackages,
+    WorkspacePackagesByVersion,
 };
 use serde_json::json;
 
 use super::{
-    ResolveFromWorkspaceError, ResolveFromWorkspaceOptions, SavedSpecifierOptions,
+    ResolveFromWorkspaceError,
+    ResolveFromWorkspaceOptions,
+    SavedSpecifierOptions,
     try_resolve_from_workspace,
 };
 
@@ -240,7 +248,7 @@ fn no_matching_version_available_versions_deterministic_ordering() {
 #[test]
 fn no_matching_version_lists_semver_versions_before_non_semver_ones() {
     let mut entries: WorkspacePackagesByVersion = BTreeMap::new();
-    for version in ["10.0.0", "100", "2.0.0", "3", "\u{E000}", "\u{10000}"] {
+    for version in ["10.0.0", "100", "2.0.0", "3", "\u{E000}", "𐀀"] {
         entries.insert(
             version.to_string(),
             WorkspacePackage {
@@ -256,10 +264,7 @@ fn no_matching_version_lists_semver_versions_before_non_semver_ones() {
     let err = try_resolve_from_workspace(&wanted("mixed", "workspace:^50.0.0"), &opts).unwrap_err();
     match err {
         ResolveFromWorkspaceError::NoMatchingVersionInsideWorkspace { available, .. } => {
-            assert_eq!(
-                available,
-                ". Available versions: 10.0.0, 2.0.0, \u{E000}, \u{10000}, 3, 100",
-            );
+            assert_eq!(available, ". Available versions: 10.0.0, 2.0.0, \u{E000}, 𐀀, 3, 100");
         }
         other => panic!("expected NoMatchingVersionInsideWorkspace, got {other:?}"),
     }

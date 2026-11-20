@@ -1,12 +1,21 @@
 use crate::{
     dependencies::Reach,
     modules::CrateModules,
-    surface::{self, Surface},
+    surface::{
+        self,
+        Surface,
+    },
     use_tree::UsePath,
-    visibility::{self, Exported},
+    visibility::{
+        self,
+        Exported,
+    },
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
 };
 
@@ -117,11 +126,14 @@ fn leaked_items(
     let covered = |path: &[String]| {
         reexported
             .iter()
-            .any(|reexport| !reexport.is_empty() && path.starts_with(reexport))
+            .filter(|reexport| !reexport.is_empty())
+            .any(|reexport| path.starts_with(reexport))
     };
     exposed
         .iter()
-        .filter(|path| path.len() > 1 && path[0] == lib && !covered(path))
+        .filter(|path| path.len() > 1)
+        .filter(|path| path[0] == lib)
+        .filter(|path| !covered(path))
         .map(|path| path.join("::"))
         .collect()
 }

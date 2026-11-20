@@ -1,7 +1,15 @@
 use super::{
-    super::{GraphToLockfileOptions, ImporterLockfileInput},
-    EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, NPM_REGISTRIES, dependencies_graph_to_lockfile,
-    make_node, single_importer_opts, write_manifest,
+    super::{
+        GraphToLockfileOptions,
+        ImporterLockfileInput,
+    },
+    EMPTY_NAMED_REGISTRIES,
+    EMPTY_REGISTRY_OPTIONS,
+    NPM_REGISTRIES,
+    dependencies_graph_to_lockfile,
+    make_node,
+    single_importer_opts,
+    write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_resolving_deps_resolver::DependenciesGraph;

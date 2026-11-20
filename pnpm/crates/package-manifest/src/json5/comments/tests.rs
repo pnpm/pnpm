@@ -1,5 +1,12 @@
-use super::{RELOCATION_MARKER, extract_comments, restore_comments};
-use serde_json::{Value, json};
+use super::{
+    RELOCATION_MARKER,
+    extract_comments,
+    restore_comments,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn assert_restored(original: &str, expected: &Value, comments: &[&str]) -> String {
     json5::from_str::<Value>(original).unwrap();

@@ -1,7 +1,21 @@
 use super::{
-    AccessList, Body, Registries, Registry, Request, ServiceExt, StatusCode, TempDir, config_for,
-    drain_resolve_response, hosted_publish_request, hosted_with_access, json, package_tar_and_tgz,
-    router_with_auth, sha512_integrity, spawn_counting_server,
+    AccessList,
+    Body,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    config_for,
+    drain_resolve_response,
+    hosted_publish_request,
+    hosted_with_access,
+    json,
+    package_tar_and_tgz,
+    router_with_auth,
+    sha512_integrity,
+    spawn_counting_server,
 };
 use crate::tokens::issue_token;
 use std::sync::atomic::Ordering;

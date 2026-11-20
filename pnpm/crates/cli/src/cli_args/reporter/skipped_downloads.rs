@@ -1,8 +1,15 @@
 use pnpm_network::redact_and_sanitize;
 use pnpm_reporter::{
-    LogEvent, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
+    LogEvent,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
 };
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{
+    Mutex,
+    MutexGuard,
+    PoisonError,
+};
 
 /// The optional dependencies [`super::CliReporter`] saw skipped because their
 /// download failed, while a [`SkippedDownloads`] guard is alive. Recorded even

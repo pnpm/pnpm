@@ -1,10 +1,25 @@
 //! Tying a lockfile's tar integrity to the `.tgz` integrity a registry
 //! signature covers.
 
-use super::{Config, HashMap, Packument, SignaturePackage, ThrottledClient};
+use super::{
+    Config,
+    HashMap,
+    Packument,
+    SignaturePackage,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
-use pnpm_store_dir::{StoreIndex, StoreIndexWriter, store_index_key};
-use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, ResolutionStore, TarballPackage};
+use pnpm_store_dir::{
+    StoreIndex,
+    StoreIndexWriter,
+    store_index_key,
+};
+use pnpm_tarball::{
+    FetchTarballForResolution,
+    IntegrityKind,
+    ResolutionStore,
+    TarballPackage,
+};
 use ssri::Integrity;
 
 /// The integrity a registry signature covers, for every package whose

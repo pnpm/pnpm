@@ -1,5 +1,8 @@
 use super::{
-    MAX_PUBLICATION_NAME_BYTES, NotesList, is_in_upgrade_range, is_publication_name,
+    MAX_PUBLICATION_NAME_BYTES,
+    NotesList,
+    is_in_upgrade_range,
+    is_publication_name,
     is_publication_segment,
 };
 use node_semver::Version;

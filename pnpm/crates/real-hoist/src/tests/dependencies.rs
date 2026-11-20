@@ -1,8 +1,27 @@
 use super::{
-    HashMap, HoistOpts, Lockfile, ProjectSnapshot, Rc, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry, assert_eq, child_of, dep_key,
-    empty_lockfile, hoist, lockfile_version, nm_hoist, percent_encode_path, pkg_metadata_with_peer,
-    pkg_name, resolved_dep, tree_node, tree_root, ver_peer,
+    HashMap,
+    HoistOpts,
+    Lockfile,
+    ProjectSnapshot,
+    Rc,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    assert_eq,
+    child_of,
+    dep_key,
+    empty_lockfile,
+    hoist,
+    lockfile_version,
+    nm_hoist,
+    percent_encode_path,
+    pkg_metadata_with_peer,
+    pkg_name,
+    resolved_dep,
+    tree_node,
+    tree_root,
+    ver_peer,
 };
 
 #[test]
@@ -106,7 +125,7 @@ fn version_conflict_keeps_loser_at_parent() {
 
 /// The most-depended-on version of a shared name wins the root
 /// slot, even when a less-used version is discovered first in the
-/// depth-first walk — a first-visitor rule would hoist the wrong
+/// depth-first walk, a first-visitor rule would hoist the wrong
 /// one. Ports the "most used version wins" guarantee of yarn's
 /// `getHoistIdentMap`.
 #[test]
@@ -360,7 +379,7 @@ fn same_locator_node_is_not_deduped_when_its_parent_provides_a_different_peer() 
 }
 
 /// Peer variants of an injected directory dependency are exempt from
-/// the collapse — see [`pkg_id`] for why. The fixture mirrors the
+/// the collapse; see [`pkg_id`] for why. The fixture mirrors the
 /// teambit/bit root-components layout that caught the regression: two
 /// importers on the same `file:` package, pinning conflicting peers.
 #[test]
@@ -402,7 +421,7 @@ fn file_dep_peer_variants_keep_their_own_copies() {
         hoist(&lockfile, &HoistOpts::default()).expect("file-variant hoist should succeed");
 
     // Node resolution walks up from the importer, so the copy an
-    // importer sees is the one nested in its own subtree — or the
+    // importer sees is the one nested in its own subtree, or the
     // root's, when its variant was hoisted there. Either placement is
     // correct only if the reference reached this way is the variant
     // the importer declared.

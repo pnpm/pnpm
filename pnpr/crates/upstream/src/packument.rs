@@ -1,13 +1,21 @@
 pub use routes::{
-    revision_route_tarball_version, tarball_basename, tarball_basename_for_package,
+    revision_route_tarball_version,
+    tarball_basename,
+    tarball_basename_for_package,
     version_route_tarball_version,
 };
 
 mod routes;
 
 use super::{
-    CanonicalPackageName, Integrity, MAX_TARBALL_REVISION, TarballRevision, Value,
-    has_complete_sha512_digest, is_revision_registry_tarball_url, revision_registry_tarball_url,
+    CanonicalPackageName,
+    Integrity,
+    MAX_TARBALL_REVISION,
+    TarballRevision,
+    Value,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    revision_registry_tarball_url,
 };
 use routes::is_addressable_version;
 
@@ -59,7 +67,7 @@ pub(super) fn rewrite_dist_tarball(
     public_url: &str,
 ) {
     // Every string `dist.tarball` must be rewritten to a route on *this*
-    // server, where integrity and OSV are enforced — never passed through.
+    // server, where integrity and OSV are enforced, never passed through.
     let version = value
         .get("version")
         .and_then(Value::as_str)
@@ -170,7 +178,8 @@ pub(super) fn unique_revision_url(
                 && entry
                     .get("integrity")
                     .and_then(Value::as_str)
-                    .and_then(|integrity| integrity.parse::<Integrity>().ok())
+                    .map(str::parse::<Integrity>)
+                    .and_then(Result::ok)
                     .is_some_and(|candidate| candidate == integrity)
                 && entry.get("tarball").and_then(Value::as_str) == Some(revision_url.as_str())
         })
@@ -218,7 +227,8 @@ pub(super) fn rewrite_revision_tarball(
     let has_sha512 = revision
         .get("integrity")
         .and_then(Value::as_str)
-        .and_then(|integrity| integrity.parse::<Integrity>().ok())
+        .map(str::parse::<Integrity>)
+        .and_then(Result::ok)
         .is_some_and(|integrity| has_complete_sha512_digest(&integrity));
     if !has_sha512 {
         return false;

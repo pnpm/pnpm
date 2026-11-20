@@ -1,6 +1,16 @@
 use super::{
-    Body, Duration, Request, ServiceExt, StatusCode, TempDir, body_bytes, config_for,
-    foo_packument, json, public_cache_blob, router,
+    Body,
+    Duration,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    config_for,
+    foo_packument,
+    json,
+    public_cache_blob,
+    router,
 };
 
 #[tokio::test]

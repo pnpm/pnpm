@@ -1,11 +1,34 @@
 use super::{
-    ABBREVIATED_META_DIR, Arc, AuthHeaders, FAKE_INTEGRITY, LockfileResolution, MetadataCacheScope,
-    Package, PkgName, ResolutionVerification, ScopeHook, TarballResolution, TempDir, TrustPolicy,
-    UpstreamRouteHook, assert_eq, create_npm_resolution_verifier, ctx, default_opts,
-    fake_integrity, get_pkg_mirror_path, load_meta, now_at, persist_meta_to_mirror,
-    registry_resolution, stable_trust_packument,
+    ABBREVIATED_META_DIR,
+    Arc,
+    AuthHeaders,
+    FAKE_INTEGRITY,
+    LockfileResolution,
+    MetadataCacheScope,
+    Package,
+    PkgName,
+    ResolutionVerification,
+    ScopeHook,
+    TarballResolution,
+    TempDir,
+    TrustPolicy,
+    UpstreamRouteHook,
+    assert_eq,
+    create_npm_resolution_verifier,
+    ctx,
+    default_opts,
+    fake_integrity,
+    get_pkg_mirror_path,
+    load_meta,
+    now_at,
+    persist_meta_to_mirror,
+    registry_resolution,
+    stable_trust_packument,
 };
-use crate::{InMemoryPackageMetaCache, PackageMetaCache};
+use crate::{
+    InMemoryPackageMetaCache,
+    PackageMetaCache,
+};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 #[tokio::test]

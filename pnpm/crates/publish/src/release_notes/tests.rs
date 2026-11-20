@@ -1,4 +1,7 @@
-use super::{PublicationNotes, ReleaseNotesTarget};
+use super::{
+    PublicationNotes,
+    ReleaseNotesTarget,
+};
 use crate::registry_config_keys::parse_supported_registry_url;
 use pretty_assertions::assert_eq;
 use serde_json::json;

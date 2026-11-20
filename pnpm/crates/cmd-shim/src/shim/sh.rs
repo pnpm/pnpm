@@ -1,10 +1,23 @@
 #[cfg(not(windows))]
-use super::relocatable::{ShNodePathEntry, sh_node_path_entries};
+use super::relocatable::{
+    ShNodePathEntry,
+    sh_node_path_entries,
+};
 #[cfg(any(windows, test))]
-use super::{NodePathEnvVar, normalize_node_path_env_var};
 use super::{
-    Path, ScriptRuntime, relative_target,
-    relocatable::{BASEDIR_ABS_PRELUDE, is_within_root, marker_target, shim_target_markers},
+    NodePathEnvVar,
+    normalize_node_path_env_var,
+};
+use super::{
+    Path,
+    ScriptRuntime,
+    relative_target,
+    relocatable::{
+        BASEDIR_ABS_PRELUDE,
+        is_within_root,
+        marker_target,
+        shim_target_markers,
+    },
     sh_single_quote,
 };
 use std::fmt::Write as _;

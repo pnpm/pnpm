@@ -1,11 +1,17 @@
 //! The teams of the instance and the accounts in them.
 
 use super::{
-    adapter::Connection, batch::WriteTransaction, records::advance_record_generation,
-    to_generation, transactions::Freshness,
+    adapter::Connection,
+    batch::WriteTransaction,
+    records::advance_record_generation,
+    to_generation,
+    transactions::Freshness,
 };
 use crate::Storage;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

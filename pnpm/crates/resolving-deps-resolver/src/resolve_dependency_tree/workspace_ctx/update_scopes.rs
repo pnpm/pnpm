@@ -1,7 +1,12 @@
 //! Which `pacquet update` scope each importer is judged against, and the
 //! [`TargetDistances`] of that scope.
 
-use super::{Arc, UpdateReuseScope, WorkspaceTreeCtx, lock_recoverable};
+use super::{
+    Arc,
+    UpdateReuseScope,
+    WorkspaceTreeCtx,
+    lock_recoverable,
+};
 use crate::resolve_dependency_tree::reuse::TargetDistances;
 
 impl WorkspaceTreeCtx {

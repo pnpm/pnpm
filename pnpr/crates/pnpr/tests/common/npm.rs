@@ -1,9 +1,18 @@
 //! The npm publish fixtures the integration suites send: the document a
 //! client `PUT`s for one version, and the two digests it carries.
 
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde_json::{Value, json};
-use std::{fmt::Write, io::Write as _};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fmt::Write,
+    io::Write as _,
+};
 
 /// A `.tgz` an npm client would publish for `name@version`: a
 /// `package/package.json` naming the version, and `payload` as

@@ -1,4 +1,11 @@
-use super::{MANIFEST_LIMIT, blob, collect, name, retained_image_with_layers, setup};
+use super::{
+    MANIFEST_LIMIT,
+    blob,
+    collect,
+    name,
+    retained_image_with_layers,
+    setup,
+};
 use pnpr_package_name::Ecosystem;
 use std::time::Duration;
 
@@ -144,7 +151,8 @@ async fn collection_audit_logs_keep_namespace_context_at_warn_level() {
     let output = std::fs::read_to_string(path).unwrap();
     let removed: Vec<serde_json::Value> = output
         .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
+        .map(serde_json::from_str)
+        .map(Result::unwrap)
         .filter(|event: &serde_json::Value| event["fields"]["message"] == "removed archive")
         .collect();
     assert_eq!(removed.len(), 2, "{output}");

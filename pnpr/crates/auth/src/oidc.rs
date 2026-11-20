@@ -1,6 +1,13 @@
 pub use handoffs::HANDOFF_TTL;
-pub use sessions::{LoginReturn, LoginSession};
-pub use web_login::{WEB_LOGIN_TTL, WebLoginPoll, WebLoginTokens};
+pub use sessions::{
+    LoginReturn,
+    LoginSession,
+};
+pub use web_login::{
+    WEB_LOGIN_TTL,
+    WebLoginPoll,
+    WebLoginTokens,
+};
 
 mod workload_verification;
 
@@ -11,11 +18,18 @@ mod web_login;
 use sessions::BrowserSessions;
 
 mod provider_config;
-use provider_config::{build_providers, secure_url};
+use provider_config::{
+    build_providers,
+    secure_url,
+};
 
 mod workload;
 use workload::{
-    bound_user, match_workload_binding, token_payload, token_verifier, verify_workload,
+    bound_user,
+    match_workload_binding,
+    token_payload,
+    token_verifier,
+    verify_workload,
 };
 
 mod network;
@@ -26,33 +40,85 @@ mod pending_login;
 use pending_login::PendingLogin;
 
 mod provider_metadata;
-use provider_metadata::{MetadataCache, MetadataFreshness};
+use provider_metadata::{
+    MetadataCache,
+    MetadataFreshness,
+};
 
 mod transport;
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
+use base64::{
+    Engine as _,
+    engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD,
+};
 use jiff::Timestamp;
 use openidconnect::{
-    AccessTokenHash, AuthType, AuthorizationCode, ClientId, ClientSecret, CsrfToken,
-    EndpointMaybeSet, EndpointNotSet, EndpointSet, HttpRequest, HttpResponse, IssuerUrl,
-    JsonWebKeySetUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl,
+    AccessTokenHash,
+    AuthType,
+    AuthorizationCode,
+    ClientId,
+    ClientSecret,
+    CsrfToken,
+    EndpointMaybeSet,
+    EndpointNotSet,
+    EndpointSet,
+    HttpRequest,
+    HttpResponse,
+    IssuerUrl,
+    JsonWebKeySetUrl,
+    Nonce,
+    OAuth2TokenResponse,
+    PkceCodeChallenge,
+    PkceCodeVerifier,
+    RedirectUrl,
     TokenResponse,
     core::{
-        CoreAuthenticationFlow, CoreClient, CoreClientAuthMethod, CoreIdToken, CoreIdTokenVerifier,
-        CoreJsonWebKeySet, CoreJwsSigningAlgorithm, CoreProviderMetadata, CoreTokenResponse,
+        CoreAuthenticationFlow,
+        CoreClient,
+        CoreClientAuthMethod,
+        CoreIdToken,
+        CoreIdTokenVerifier,
+        CoreJsonWebKeySet,
+        CoreJwsSigningAlgorithm,
+        CoreProviderMetadata,
+        CoreTokenResponse,
     },
 };
-use p256::ecdsa::{Signature, SigningKey};
-use pnpr_config::oidc::{OidcBinding, OidcProvider, OidcTeamGrant, OidcWorkload};
-use pnpr_error::{RegistryError, Result};
-use serde::{Deserialize, Serialize};
+use p256::ecdsa::{
+    Signature,
+    SigningKey,
+};
+use pnpr_config::oidc::{
+    OidcBinding,
+    OidcProvider,
+    OidcTeamGrant,
+    OidcWorkload,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
-use tokio::sync::{Mutex as AsyncMutex, Semaphore};
+use tokio::sync::{
+    Mutex as AsyncMutex,
+    Semaphore,
+};
 use url::Url;
 
 const MAX_ENTRIES: usize = 1024;

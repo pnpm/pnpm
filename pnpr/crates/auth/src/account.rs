@@ -1,8 +1,16 @@
 use crate::{
-    RegistryError, Result, dummy_verify, htpasswd::verify_sha1, is_bcrypt_hash, is_sha_hash,
+    RegistryError,
+    Result,
+    dummy_verify,
+    htpasswd::verify_sha1,
+    is_bcrypt_hash,
+    is_sha_hash,
     verify_bcrypt,
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Lifecycle state of an account record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

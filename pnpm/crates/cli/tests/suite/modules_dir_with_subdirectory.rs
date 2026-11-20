@@ -1,10 +1,16 @@
 //! A `modulesDir` of several path segments, such as `www/modules`, is
 //! joined whole onto every project's directory, as pnpm 11 does.
 
-use crate::_utils::{append_workspace_yaml_key, pacquet_in};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
 use std::fs;
 

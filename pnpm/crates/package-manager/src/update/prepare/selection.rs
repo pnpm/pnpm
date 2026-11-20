@@ -1,13 +1,20 @@
 use super::{
     super::{
-        UpdateOptions, UpdateSeed,
+        UpdateOptions,
+        UpdateSeed,
         catalogs::CatalogUpdates,
         seed_policy::{
-            importer_seed_policy, matching::selectors_match_ignored_direct, selected_seed_policy,
+            importer_seed_policy,
+            matching::selectors_match_ignored_direct,
+            selected_seed_policy,
         },
         selectors::parse_selectors,
     },
-    SelectedUpdatePreparation, UpdatePreparation, UpdateResources, declared_direct, merge_catalogs,
+    SelectedUpdatePreparation,
+    UpdatePreparation,
+    UpdateResources,
+    declared_direct,
+    merge_catalogs,
 };
 use pnpm_package_manifest::PackageManifest;
 

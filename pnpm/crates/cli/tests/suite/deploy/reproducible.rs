@@ -1,4 +1,11 @@
-use super::{AddMockedRegistry, CommandExtra, CommandTempCwd, fs, pacquet_cmd, write_workspace};
+use super::{
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    fs,
+    pacquet_cmd,
+    write_workspace,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 /// `SOURCE_DATE_EPOCH` replaces the current time in the bookkeeping files a

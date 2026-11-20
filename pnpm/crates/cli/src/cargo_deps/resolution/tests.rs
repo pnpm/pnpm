@@ -1,7 +1,14 @@
 #[cfg(unix)]
 use super::configs_in_scope;
-use super::{ResolutionSubcommand, resolution_command, resolution_settings};
-use crate::cargo_deps::{CargoLockfilePolicy, build_std};
+use super::{
+    ResolutionSubcommand,
+    resolution_command,
+    resolution_settings,
+};
+use crate::cargo_deps::{
+    CargoLockfilePolicy,
+    build_std,
+};
 use std::fs;
 use tempfile::TempDir;
 
@@ -57,7 +64,8 @@ replace-with = "checkout-source"
     );
     let args = command
         .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .collect::<Vec<_>>();
     eprintln!("Only audited checkout settings may reach Cargo: {args:?}");
     assert!(

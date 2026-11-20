@@ -1,8 +1,16 @@
-use std::{path::Path, time::Duration};
+use std::{
+    path::Path,
+    time::Duration,
+};
 
 use pretty_assertions::assert_eq;
 
-use super::{ShasumsTrust, read_cached_shasums, shasums_cache_path, write_cached_shasums};
+use super::{
+    ShasumsTrust,
+    read_cached_shasums,
+    shasums_cache_path,
+    write_cached_shasums,
+};
 
 #[test]
 fn maps_a_shasums_url_under_the_cache_dir() {

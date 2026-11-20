@@ -3,8 +3,15 @@ use std::future::Future;
 use pnpm_reporter::Reporter;
 
 use crate::{
-    capabilities::{EnterKeyListener, OpenUrl, StdinIsTty},
-    global_log::{global_info, global_warn},
+    capabilities::{
+        EnterKeyListener,
+        OpenUrl,
+        StdinIsTty,
+    },
+    global_log::{
+        global_info,
+        global_warn,
+    },
 };
 
 #[cfg(test)]
@@ -14,13 +21,13 @@ mod tests;
 /// browser" prompt.
 ///
 /// While `poll` runs, an Enter keypress opens `auth_url` in the user's
-/// browser. The poll is awaited on its own — the keypress is a
-/// fire-and-forget side effect — so authentication that completes on
+/// browser. The poll is awaited on its own (the keypress is a
+/// fire-and-forget side effect) so authentication that completes on
 /// another device (phone QR scan, pasted URL) returns without the user
 /// ever pressing Enter. Whatever `poll` resolves to (token or error) is
 /// returned, and the listener is always closed.
 ///
-/// Falls back to awaiting `poll` directly — no prompt — when stdin is not a
+/// Falls back to awaiting `poll` directly (no prompt) when stdin is not a
 /// TTY, when `auth_url` is not an `http(s)` URL (it comes from an untrusted
 /// registry response), or when the listener fails to set up.
 ///

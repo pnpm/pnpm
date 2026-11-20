@@ -1,6 +1,14 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Lockfile, PkgName, fs, pacquet_cmd,
-    write_ambiguous_peer_workspace, write_peer_workspace, write_project,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Lockfile,
+    PkgName,
+    fs,
+    pacquet_cmd,
+    write_ambiguous_peer_workspace,
+    write_peer_workspace,
+    write_project,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -123,8 +131,8 @@ fn shared_lockfile_deploy_binds_the_peer_of_a_workspace_package_linked_from_its_
 }
 
 /// Deploy does not adjudicate peer ranges. Injecting the package binds the
-/// consumer's version even when it falls outside the declared range — pnpm
-/// treats that as a resolution-time warning — so the non-injected path binds
+/// consumer's version even when it falls outside the declared range (pnpm
+/// treats that as a resolution-time warning) so the non-injected path binds
 /// it too rather than inventing a stricter rule for linked packages.
 #[test]
 fn shared_lockfile_deploy_binds_a_singleton_peer_outside_the_declared_range() {

@@ -1,9 +1,27 @@
 use super::{
-    Arc, FAKE_INTEGRITY, Integrity, LockfileResolution, PkgName, PlatformAssetResolution,
-    REVISION_ONE_DIGEST, REVISION_TWO_DIGEST, REVISION_ZERO_DIGEST, RegistryResolution,
-    ResolutionVerification, TarballResolution, TarballRevision, VariationsResolution, assert_eq,
-    create_npm_resolution_verifier, ctx, default_opts, fake_integrity, now_at,
-    observed_dist_stats_sink, revision_integrity, tarball_resolution,
+    Arc,
+    FAKE_INTEGRITY,
+    Integrity,
+    LockfileResolution,
+    PkgName,
+    PlatformAssetResolution,
+    REVISION_ONE_DIGEST,
+    REVISION_TWO_DIGEST,
+    REVISION_ZERO_DIGEST,
+    RegistryResolution,
+    ResolutionVerification,
+    TarballResolution,
+    TarballRevision,
+    VariationsResolution,
+    assert_eq,
+    create_npm_resolution_verifier,
+    ctx,
+    default_opts,
+    fake_integrity,
+    now_at,
+    observed_dist_stats_sink,
+    revision_integrity,
+    tarball_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
@@ -143,7 +161,7 @@ async fn missing_integrity_is_rejected_before_any_metadata_lookup() {
     );
 }
 
-/// `integrity: ''` parses into zero hashes, which pins nothing — the
+/// `integrity: ''` parses into zero hashes, which pins nothing, the
 /// same verdict as an absent field.
 #[tokio::test]
 async fn empty_integrity_counts_as_missing() {
@@ -164,7 +182,7 @@ async fn empty_integrity_counts_as_missing() {
 }
 
 /// URL-keyed deps carry their spec in the version slot, which skips
-/// the registry policies — but not the missing-integrity check, whose
+/// the registry policies, but not the missing-integrity check, whose
 /// verdict doesn't depend on the registry's metadata.
 #[tokio::test]
 async fn missing_integrity_is_rejected_on_a_non_semver_version() {
@@ -278,7 +296,7 @@ async fn verify_flags_tarball_url_mismatch() {
 
 /// A lockfile URL that differs from the registry metadata only by an
 /// explicit default port and the http/https scheme is a benign
-/// normalization, not tampering — `same_tarball_url` must canonicalize
+/// normalization, not tampering, `same_tarball_url` must canonicalize
 /// it away (this is what `canonical_tarball_url`'s URL parse buys over a
 /// plain string compare).
 #[tokio::test]

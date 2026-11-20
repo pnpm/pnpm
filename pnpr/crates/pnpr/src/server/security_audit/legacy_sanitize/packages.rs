@@ -1,11 +1,25 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use super::{
-    LocalScopePool, PACKAGE_SPEC_FIELDS, REDACTED_SCOPE_PREFIX, SanitizeCtx,
-    collect_reserved_scope_indices, copy_bool_fields, copy_sri_integrity, entry_bool,
-    is_safe_semver_version, node_modules_segments, parse_npm_alias,
+    LocalScopePool,
+    PACKAGE_SPEC_FIELDS,
+    REDACTED_SCOPE_PREFIX,
+    SanitizeCtx,
+    collect_reserved_scope_indices,
+    copy_bool_fields,
+    copy_sri_integrity,
+    entry_bool,
+    is_safe_semver_version,
+    node_modules_segments,
+    parse_npm_alias,
 };
 
 struct ResolvedPackageCoordinate {

@@ -1,8 +1,23 @@
-use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_v11_bundle_path};
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    assert_success,
+    read_v11_bundle_path,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_testing_utils::registry::TestRegistry;
-use serde_json::{Value, json};
-use std::{ffi::OsStr, fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+};
 
 #[test]
 fn changing_a_consumer_keeps_optional_peer_pins_on_cycles() {

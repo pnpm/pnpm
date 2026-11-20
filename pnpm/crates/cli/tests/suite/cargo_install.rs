@@ -4,9 +4,19 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cargo_resolver::CRATES_IO_SOURCE;
-use pnpm_testing_utils::{diagnostics::assert_diagnostic_contains, git_repo::GitRepoFixture};
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    diagnostics::assert_diagnostic_contains,
+    git_repo::GitRepoFixture,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 /// A `.crate` archive holding the one source file a dependent needs, laid
@@ -622,8 +632,8 @@ fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
     }
     for project in [&root, &root.join("a/nested")] {
         Command::new("cargo")
-            .args(["generate-lockfile", "--offline"])
-            .current_dir(project)
+            .with_args(["generate-lockfile", "--offline"])
+            .with_current_dir(project)
             .assert()
             .success();
     }
@@ -649,14 +659,14 @@ fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
         fs::write(&log, "").unwrap();
         Command::cargo_bin("pnpm")
             .unwrap()
-            .current_dir(&root)
-            .args(["install", "--frozen-lockfile"])
-            .env("PATH", &path)
-            .env("REAL_CARGO", &cargo)
-            .env("CARGO_CALL_LOG", &log)
-            .env("NPM_CONFIG_WORKSPACE_DIR", &alias)
-            .env("PNPM_CONFIG_CACHE_DIR", repository.path().join("cache"))
-            .env("PNPM_CONFIG_STORE_DIR", repository.path().join("store"))
+            .with_current_dir(&root)
+            .with_args(["install", "--frozen-lockfile"])
+            .with_env("PATH", &path)
+            .with_env("REAL_CARGO", &cargo)
+            .with_env("CARGO_CALL_LOG", &log)
+            .with_env("NPM_CONFIG_WORKSPACE_DIR", &alias)
+            .with_env("PNPM_CONFIG_CACHE_DIR", repository.path().join("cache"))
+            .with_env("PNPM_CONFIG_STORE_DIR", repository.path().join("store"))
             .assert()
             .success();
         assert_eq!(fs::read_to_string(&log).unwrap(), "metadata\nmetadata\n", "{alias:?}");

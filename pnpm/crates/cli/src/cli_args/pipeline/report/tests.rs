@@ -1,5 +1,8 @@
 use super::RunReport;
-use crate::cli_args::pipeline::{Selection, SelectionMode};
+use crate::cli_args::pipeline::{
+    Selection,
+    SelectionMode,
+};
 use std::collections::HashSet;
 
 #[test]

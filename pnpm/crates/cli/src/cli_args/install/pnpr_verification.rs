@@ -1,8 +1,20 @@
 use super::{
-    InstallFrozenLockfileError, LocalLockfileInstall, Lockfile, LockfileVerificationOverride,
-    PnprClient, PnprClientError, PnprLink, PnprSession, Reporter, State, VerifiedOfflineLockfile,
-    VerifyLockfileOptions, VerifyLockfileResolutionsOptions, build_resolution_verifiers,
-    record_lockfile_verified, verify_lockfile_resolutions,
+    InstallFrozenLockfileError,
+    LocalLockfileInstall,
+    Lockfile,
+    LockfileVerificationOverride,
+    PnprClient,
+    PnprClientError,
+    PnprLink,
+    PnprSession,
+    Reporter,
+    State,
+    VerifiedOfflineLockfile,
+    VerifyLockfileOptions,
+    VerifyLockfileResolutionsOptions,
+    build_resolution_verifiers,
+    record_lockfile_verified,
+    verify_lockfile_resolutions,
 };
 
 /// Offline structural and shape verification for an existing lockfile before

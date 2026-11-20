@@ -1,6 +1,13 @@
 use crate::{
-    group::{PatchInput, group_patched_dependencies},
-    types::{ExtendedPatchInfo, PatchGroup, PatchGroupRangeItem},
+    group::{
+        PatchInput,
+        group_patched_dependencies,
+    },
+    types::{
+        ExtendedPatchInfo,
+        PatchGroup,
+        PatchGroupRangeItem,
+    },
 };
 use pretty_assertions::assert_eq;
 

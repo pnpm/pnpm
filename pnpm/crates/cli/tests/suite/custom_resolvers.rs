@@ -5,17 +5,26 @@
 //! `installing/deps-installer/test/install/customResolvers.ts`.
 
 #[cfg(unix)]
-use crate::_utils::{terminal::Terminal, wait_for_child};
+use crate::_utils::{
+    terminal::Terminal,
+    wait_for_child,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     registry::TestRegistry,
 };
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use tempfile::TempDir;
@@ -56,7 +65,7 @@ fn declare_pnpr_registry(workspace: &Path, registry_url: &str) {
 }
 
 /// A resolver that claims `@pnpm.e2e/dep-of-pkg-with-1-dep` and resolves
-/// it to `100.1.0` — a version the built-in npm resolver would never pick
+/// it to `100.1.0`, a version the built-in npm resolver would never pick
 /// for the exact `100.0.0` specifier, so its presence in the result
 /// proves the custom resolver ran.
 fn overriding_pnpmfile(registry_url: &str, should_refresh: &str) -> String {
@@ -318,7 +327,7 @@ fn failing_custom_resolver_keeps_urls_intact_in_a_terminal() {
 /// Port of upstream's `'custom resolver receives currentPkg on
 /// subsequent installs'` (`installing/deps-installer/test/install/customResolvers.ts`).
 ///
-/// The first install records the npm resolver's pick — a `Registry`
+/// The first install records the npm resolver's pick, a `Registry`
 /// (`{integrity}`-only) lockfile entry. The second install is forced to
 /// re-resolve via `shouldRefreshResolution`; the resolver must receive
 /// that entry as `currentPkg` with the tarball URL re-derived from the

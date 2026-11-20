@@ -1,8 +1,16 @@
-use crate::{CatalogSnapshots, LockfileSettings, ResolvedCatalogEntry};
+use crate::{
+    CatalogSnapshots,
+    LockfileSettings,
+    ResolvedCatalogEntry,
+};
 use indexmap::IndexMap;
 use std::collections::BTreeMap;
 
-use super::{Winner, take_changed, winner};
+use super::{
+    Winner,
+    take_changed,
+    winner,
+};
 
 /// A merged graph is no resolution's output, so it records no
 /// [`crate::ResolutionSettings`] and no `projectScopedOptionalPeers`, and

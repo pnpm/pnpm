@@ -1,17 +1,38 @@
 use super::{
-    UpdateError, UpdateExplicitGroups, UpdateOptions, UpdateResources,
-    is_workspace_local_path_specifier, prepare_selected_manifests,
-    reject_versions_of_indirect_update_specs, selected_project_indices,
+    UpdateError,
+    UpdateExplicitGroups,
+    UpdateOptions,
+    UpdateResources,
+    is_workspace_local_path_specifier,
+    prepare_selected_manifests,
+    reject_versions_of_indirect_update_specs,
+    selected_project_indices,
 };
 use crate::update::{
-    install::persistence::{apply_bumped_manifest_specs, persist_selected_manifests},
-    rewrite::{KeptRangeVerdict, judge_against_kept_range, requested_version_rewrite},
+    install::persistence::{
+        apply_bumped_manifest_specs,
+        persist_selected_manifests,
+    },
+    rewrite::{
+        KeptRangeVerdict,
+        judge_against_kept_range,
+        requested_version_rewrite,
+    },
     selectors::{
-        expand_update_selectors, insert_update_target, parse_update_param, update_target_name,
+        expand_update_selectors,
+        insert_update_target,
+        parse_update_param,
+        update_target_name,
     },
 };
-use pnpm_config::{CatalogMode, Config};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_config::{
+    CatalogMode,
+    Config,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_workspace::Project;
 use serde_json::json;
@@ -541,7 +562,7 @@ async fn selected_update_latest_depth_zero_errors_when_no_project_matches() {
 }
 
 // No resolver in the latest-capable chain claims any of these, so none of
-// them may cost a network round trip during manifest preparation — which is
+// them may cost a network round trip during manifest preparation, which is
 // what the closed-port registry enforces. `runtime:` is covered end to end
 // by the `update_latest_keeps_runtime_dependency_on_the_runtime_resolver`
 // CLI test instead: its resolver does claim it, against a mocked mirror.
@@ -691,7 +712,7 @@ fn only_a_requested_version_gets_a_verdict() {
 }
 
 /// The update targets `selectors` produce for the lockfile name `name`,
-/// rendered as `(covers 1.x, covers 2.x)` — the shape the reuse walk asks
+/// rendered as `(covers 1.x, covers 2.x)`, the shape the reuse walk asks
 /// [`UpdateTargets::covers`] for.
 fn covers(selectors: &[&str], name: &str, versions: &[&str]) -> Vec<bool> {
     let parsed = selectors

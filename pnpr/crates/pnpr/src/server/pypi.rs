@@ -1,7 +1,7 @@
 //! The Python package index surface.
 //!
-//! The **Simple Repository API** — `simple/` (the project list) and
-//! `simple/<project>/` (a project's files) — is served as PEP 691 JSON or
+//! The **Simple Repository API** (`simple/` (the project list) and
+//! `simple/<project>/` (a project's files)) is served as PEP 691 JSON or
 //! PEP 503 HTML by `Accept`. A hosted project page is rendered from its
 //! stored [`ProjectDocument`]; an upstream's is read as JSON, cached beside
 //! the URL it came from, and re-rendered with every file URL pointing back at
@@ -16,7 +16,11 @@
 //! page requested under a non-normalized spelling redirects to the normalized
 //! URL, as pypi.org does.
 
-pub(super) use publication::{PypiPublication, authorize_upload, verify_upload};
+pub(super) use publication::{
+    PypiPublication,
+    authorize_upload,
+    verify_upload,
+};
 
 mod management;
 mod metadata;
@@ -25,42 +29,112 @@ mod upload_errors;
 use publication::post_upload;
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, Ownership, RegistrySource, TargetRegistry,
-    authorize_package, authorize_with_ownership,
-    documents::{lookup_in_hosted_document, read_hosted_document},
-    ecosystem::{
-        UpstreamCacheSubtree, UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
-        is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
-        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
+    Action,
+    AppState,
+    AuthedCaller,
+    HostedGate,
+    Ownership,
+    RegistrySource,
+    TargetRegistry,
+    authorize_package,
+    authorize_with_ownership,
+    documents::{
+        lookup_in_hosted_document,
+        read_hosted_document,
     },
-    hosted_gate, not_found,
+    ecosystem::{
+        UpstreamCacheSubtree,
+        UpstreamDocument,
+        addressed_registry,
+        caller_scoped,
+        hosted_sources,
+        is_fetchable_artifact_url,
+        load_upstream_document,
+        mount_bases,
+        registry_endpoint,
+        serve_hosted_blob,
+        serve_upstream_artifact,
+        sha256_hex,
+        sha256_integrity,
+        upstream_for,
+    },
+    hosted_gate,
+    not_found,
     package_owners::owner_routes,
     private_no_cache,
-    publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
+    publishing::{
+        PublishTarget,
+        StagedPublish,
+        resolve_publish_target_for,
+    },
     resolve_ecosystem_source,
 };
 use axum::{
     Router,
-    body::{Body, Bytes},
-    extract::{DefaultBodyLimit, Path, Request, State},
-    http::{HeaderMap, StatusCode, header},
-    response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    body::{
+        Body,
+        Bytes,
+    },
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        Request,
+        State,
+    },
+    http::{
+        HeaderMap,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        delete,
+        get,
+        post,
+        put,
+    },
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    is_safe_path_segment,
+};
 use pnpr_policy::Identity;
 use pnpr_pypi::{
-    DistributionKind, FILES_PATH, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE, ProjectDocument,
-    ProjectFile, SIMPLE_PATH, UPLOAD_PATH, Upload, Yanked, multipart, normalize_version,
-    parse_distribution_filename, parse_upload, render_project_list_html, render_project_list_json,
-    wants_json, wants_versioned_html,
+    DistributionKind,
+    FILES_PATH,
+    HTML_CONTENT_TYPE,
+    JSON_CONTENT_TYPE,
+    ProjectDocument,
+    ProjectFile,
+    SIMPLE_PATH,
+    UPLOAD_PATH,
+    Upload,
+    Yanked,
+    multipart,
+    normalize_version,
+    parse_distribution_filename,
+    parse_upload,
+    render_project_list_html,
+    render_project_list_json,
+    wants_json,
+    wants_versioned_html,
 };
 use pnpr_registry::Ecosystem;
 use pnpr_storage::publish::now_iso;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::value::RawValue;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
 /// The largest Simple API page accepted from an upstream.
@@ -107,7 +181,8 @@ fn bad_request(reason: impl std::fmt::Display) -> RegistryError {
 fn html_response(headers: &HeaderMap, html: String) -> Response {
     let accept = headers
         .get(header::ACCEPT)
-        .and_then(|value| value.to_str().ok());
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok);
     let content_type =
         if wants_versioned_html(accept) { HTML_CONTENT_TYPE } else { "text/html; charset=utf-8" };
     Response::builder()
@@ -131,7 +206,8 @@ fn accepts_json(headers: &HeaderMap) -> bool {
     wants_json(
         headers
             .get(header::ACCEPT)
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
     )
 }
 
@@ -141,7 +217,7 @@ struct VisibleName<'a> {
     name: &'a str,
 }
 
-/// `GET simple/` — every hosted project the caller may read through the
+/// `GET simple/`: every hosted project the caller may read through the
 /// addressed registry. Upstream sources are not enumerated: an upstream
 /// index's full project list is not something installers ask for, and
 /// pypi.org's runs to hundreds of thousands of names.

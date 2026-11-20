@@ -2,7 +2,10 @@
 use super::narrow_mode;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// `create_dir_all` that, on Unix, gives each directory it creates the
@@ -146,7 +149,10 @@ fn add_opened_dir_mode_bits(
     restricted: bool,
     extra: u32,
 ) -> io::Result<()> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::{
+        MetadataExt,
+        PermissionsExt,
+    };
     let meta = child.metadata()?;
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
     if restricted && meta.uid() != unsafe { libc::geteuid() } {
@@ -207,7 +213,10 @@ fn open_directory_at(
     parent: &std::fs::File,
     name: &std::ffi::OsStr,
 ) -> io::Result<(std::fs::File, bool)> {
-    use std::os::fd::{AsRawFd, FromRawFd};
+    use std::os::fd::{
+        AsRawFd,
+        FromRawFd,
+    };
     let name = path_to_cstring(Path::new(name))?;
     let flags = libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
     // SAFETY: the name is NUL-terminated and the parent descriptor stays open.
@@ -255,7 +264,10 @@ fn chmod_restricted_directory(
     child: &std::fs::File,
     mode: u32,
 ) -> io::Result<()> {
-    use std::os::unix::{fs::PermissionsExt, io::AsRawFd};
+    use std::os::unix::{
+        fs::PermissionsExt,
+        io::AsRawFd,
+    };
     let path = format!("/proc/self/fd/{}", child.as_raw_fd());
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
 }

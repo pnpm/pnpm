@@ -1,4 +1,9 @@
-use super::{is_config_file_key, is_ini_config_key, is_type_key, type_includes_number};
+use super::{
+    is_config_file_key,
+    is_ini_config_key,
+    is_type_key,
+    type_includes_number,
+};
 
 #[test]
 fn type_membership() {
@@ -140,7 +145,10 @@ fn pnpm_types_are_partitioned_between_global_and_excluded_keys() {
 
 #[test]
 fn validate_structured_setting_accepts_placeholders_and_enforces_target_trust_rules() {
-    use crate::{YamlConfigTarget, validate_structured_setting};
+    use crate::{
+        YamlConfigTarget,
+        validate_structured_setting,
+    };
     use serde_json::json;
 
     validate_structured_setting(
@@ -251,7 +259,10 @@ fn validate_structured_setting_accepts_placeholders_and_enforces_target_trust_ru
 
 #[test]
 fn render_yaml_top_level_field_preserves_multiple_trailing_newlines() {
-    use serde_json::{Value, json};
+    use serde_json::{
+        Value,
+        json,
+    };
 
     for value in [
         json!("text\n\n"),

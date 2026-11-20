@@ -1,6 +1,12 @@
-use super::{fs, pacquet};
+use super::{
+    fs,
+    pacquet,
+};
 use assert_cmd::assert::OutputAssertExt;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const CHECKSUM: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const CRATES_IO: &str = "registry+https://github.com/rust-lang/crates.io-index";

@@ -11,17 +11,28 @@
 //! upstream would make these tests depend on the network and on versions
 //! published after they were written.
 
-use crate::_utils::{append_workspace_yaml_key, lockfile_package_keys, read_lockfile};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    lockfile_package_keys,
+    read_lockfile,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn assert_no_import_backups(lockfile_dir: &Path) {
     let leftovers: Vec<_> = fs::read_dir(lockfile_dir)
         .expect("read the lockfile directory")
-        .map(|entry| entry.expect("read a lockfile directory entry").file_name())
+        .map(|entry| entry.expect("read a lockfile directory entry"))
+        .map(|value| value.file_name())
         .filter(|name| name.to_string_lossy().ends_with(".import.bak"))
         .collect();
     assert!(leftovers.is_empty(), "import backups left behind: {leftovers:?}");

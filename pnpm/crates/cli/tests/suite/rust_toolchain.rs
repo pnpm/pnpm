@@ -3,9 +3,15 @@
 
 #[cfg(unix)]
 use crate::_utils::write_executable;
-use crate::_utils::{pacquet_in, write_fake_bin};
+use crate::_utils::{
+    pacquet_in,
+    write_fake_bin,
+};
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
+};
 use serde_json::json;
 use std::fs;
 
@@ -113,7 +119,8 @@ fn dlx_runs_a_tool_of_the_release_it_names() {
     assert_eq!(
         lines
             .next()
-            .map(|dir| fs::canonicalize(dir).unwrap()),
+            .map(fs::canonicalize)
+            .map(Result::unwrap),
         Some(fs::canonicalize(&toolchain).unwrap()),
     );
     drop(root);

@@ -8,28 +8,54 @@
 //! dispatch-free at this layer.
 
 pub use offline_checks::{
-    RESOLUTION_SHAPE_CACHE_VERSION, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-    collect_resolution_shape_violations, verify_lockfile_dependency_names,
-    verify_lockfile_importer_snapshot_links, verify_lockfile_resolution_shapes,
+    RESOLUTION_SHAPE_CACHE_VERSION,
+    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    collect_resolution_shape_violations,
+    verify_lockfile_dependency_names,
+    verify_lockfile_importer_snapshot_links,
+    verify_lockfile_resolution_shapes,
     with_offline_check_cache_identities,
 };
 
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
-use futures_util::{StreamExt, stream::FuturesUnordered};
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName};
-use pnpm_reporter::{LockfileVerificationMessage, LogLevel, Reporter};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+};
+use pnpm_reporter::{
+    LockfileVerificationMessage,
+    LogLevel,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
 };
 use tokio::sync::Semaphore;
 
 use crate::{
     cache::{
-        CachePrecomputed, lockfile_verification_is_cached_by_hash, record_verification,
+        CachePrecomputed,
+        lockfile_verification_is_cached_by_hash,
+        record_verification,
         try_lockfile_verification_cache,
     },
-    errors::{RenderedViolation, VerifyError},
+    errors::{
+        RenderedViolation,
+        VerifyError,
+    },
     hash_lockfile,
 };
 
@@ -41,7 +67,7 @@ const DEFAULT_CONCURRENCY: usize = 64;
 #[derive(Debug, Default, Clone)]
 pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
-    /// the internal `DEFAULT_CONCURRENCY` (`64`).
+    /// an internal default of `64`.
     pub concurrency: Option<usize>,
     /// Absolute path of the lockfile being verified. Required for
     /// the on-disk verification cache (the stat shortcut + per-path
@@ -153,7 +179,7 @@ impl<'a> VerifiedOfflineLockfile<'a> {
 }
 
 /// Whether a recorded verification already covers `lockfile` as it sits
-/// at `lockfile_path` under the policy `verifiers` currently demand —
+/// at `lockfile_path` under the policy `verifiers` currently demand,
 /// i.e. whether a [`verify_lockfile_resolutions`] call would
 /// short-circuit on the cache without running the fan-out. The offline
 /// structural dependency-name gate runs here too (it is cheap and the
@@ -389,7 +415,7 @@ fn record_verdict(
 
 /// Collect-mode sibling of [`verify_lockfile_resolutions`] that
 /// returns violations as data instead of throwing on the first batch.
-/// No reporter emits, no cache wiring — for callers that need to
+/// No reporter emits, no cache wiring, for callers that need to
 /// inspect violations.
 pub async fn collect_resolution_policy_violations(
     lockfile: &Lockfile,
@@ -404,7 +430,7 @@ pub async fn collect_resolution_policy_violations(
         return Ok(shape_violations);
     }
     // `Err(message)` is a transport failure the caller must surface rather than
-    // treat as "no violations" — see [`run_fan_out`].
+    // treat as "no violations"; see [`run_fan_out`].
     run_fan_out(collect_candidates(lockfile), verifiers, concurrency, &mut || {}).await
 }
 
@@ -415,6 +441,17 @@ mod candidates;
 mod offline_checks;
 mod progress;
 
-use candidates::{Candidate, build_verification_error, collect_candidates, run_fan_out};
-use offline_checks::{verify_offline_structural_checks, verify_structure_before_install};
-use progress::{VerificationProgress, emit};
+use candidates::{
+    Candidate,
+    build_verification_error,
+    collect_candidates,
+    run_fan_out,
+};
+use offline_checks::{
+    verify_offline_structural_checks,
+    verify_structure_before_install,
+};
+use progress::{
+    VerificationProgress,
+    emit,
+};

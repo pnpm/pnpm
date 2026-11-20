@@ -1,6 +1,17 @@
-pub use environments::{Metadata, Solved, Target, environment_marker};
-pub use files::{LockedSdist, LockedWheel};
-pub use index::{LockIndex, LockedPin};
+pub use environments::{
+    Metadata,
+    Solved,
+    Target,
+    environment_marker,
+};
+pub use files::{
+    LockedSdist,
+    LockedWheel,
+};
+pub use index::{
+    LockIndex,
+    LockedPin,
+};
 pub use inputs::Inputs;
 
 mod environments;
@@ -8,12 +19,33 @@ mod files;
 mod index;
 mod inputs;
 
-use crate::packages::{Candidate, IndexCandidate, Packages};
-use environments::{check_environment_decides, referenced_marker_keys};
-use miette::{IntoDiagnostic, Result, WrapErr, bail, miette};
+use crate::packages::{
+    Candidate,
+    IndexCandidate,
+    Packages,
+};
+use environments::{
+    check_environment_decides,
+    referenced_marker_keys,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+    miette,
+};
 use pep440_rs::Version;
-use pep508_rs::{MarkerEnvironment, MarkerTree, PackageName, Requirement};
-use serde::{Deserialize, Serialize};
+use pep508_rs::{
+    MarkerEnvironment,
+    MarkerTree,
+    PackageName,
+    Requirement,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -212,7 +244,8 @@ impl Lockfile {
             .collect::<Result<Vec<_>>>()?;
         let markers = environments
             .iter()
-            .map(|marker| marker.parse::<MarkerTree>().into_diagnostic())
+            .map(|marker| marker.parse::<MarkerTree>())
+            .map(miette::IntoDiagnostic::into_diagnostic)
             .collect::<Result<Vec<_>>>()?;
         for ((environment, marker), written) in solved
             .iter()
@@ -413,5 +446,7 @@ fn check_one_version_per_environment(packages: &[LockedPackage]) -> Result<()> {
 fn marker_tree(package: &LockedPackage) -> Result<MarkerTree> {
     package.marker
         .as_deref()
-        .map_or(Ok(MarkerTree::TRUE), |marker| marker.parse().into_diagnostic())
+        .map(str::parse)
+        .map(miette::IntoDiagnostic::into_diagnostic)
+        .unwrap_or(Ok(MarkerTree::TRUE))
 }

@@ -1,4 +1,9 @@
-use super::{is_camel_case, is_strictly_kebab_case, to_camel_case, to_kebab_case};
+use super::{
+    is_camel_case,
+    is_strictly_kebab_case,
+    to_camel_case,
+    to_kebab_case,
+};
 
 #[test]
 fn strictly_kebab_case() {

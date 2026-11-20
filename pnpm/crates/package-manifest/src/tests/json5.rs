@@ -1,5 +1,8 @@
 use crate::{
-    DependencyGroup, PackageManifest, PackageManifestError, safe_read_project_manifest_from_dir,
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+    safe_read_project_manifest_from_dir,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;

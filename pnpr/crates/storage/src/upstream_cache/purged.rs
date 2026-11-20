@@ -1,13 +1,27 @@
 use super::{
-    CanonicalPackageName, Ecosystem, ErrorKind, Path, PathBuf, Result, Store, fs, write_atomic,
+    CanonicalPackageName,
+    Ecosystem,
+    ErrorKind,
+    Path,
+    PathBuf,
+    Result,
+    Store,
+    fs,
+    write_atomic,
 };
 use crate::BoundedCache;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::HashSet,
     sync::{
         Mutex,
-        atomic::{AtomicU8, Ordering},
+        atomic::{
+            AtomicU8,
+            Ordering,
+        },
     },
 };
 

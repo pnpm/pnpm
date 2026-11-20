@@ -2,7 +2,14 @@
 //! every request is bounded to a public destination and a 1 MiB body.
 
 use super::{
-    HttpRequest, HttpResponse, OidcState, RegistryError, Result, network, secure_url, unavailable,
+    HttpRequest,
+    HttpResponse,
+    OidcState,
+    RegistryError,
+    Result,
+    network,
+    secure_url,
+    unavailable,
 };
 
 impl OidcState {

@@ -1,18 +1,39 @@
 //! Private-scope secret rotation, symlink hardening, dry-run parity, and WAL verdict trim tests.
 
-use super::{create_file_with_age, test_config};
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir, StoreIndex};
+use super::{
+    create_file_with_age,
+    test_config,
+};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndex,
+};
 use pnpr::{
     Config,
     cache_maintenance::{
-        CacheGcEffect, CacheGcOptions, CacheGcScope, active_cache_namespaces, collect_cache,
+        CacheGcEffect,
+        CacheGcOptions,
+        CacheGcScope,
+        active_cache_namespaces,
+        collect_cache,
     },
 };
 use rusqlite::Connection;
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 use tempfile::TempDir;
 

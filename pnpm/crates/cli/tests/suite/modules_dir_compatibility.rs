@@ -4,15 +4,24 @@
 //! `pnpm11/installing/deps-installer/src/install/`.
 
 use crate::_utils::{
-    append_workspace_yaml_key, enable_gvs_in_workspace_yaml, flatten_report, pacquet_in,
+    append_workspace_yaml_key,
+    enable_gvs_in_workspace_yaml,
+    flatten_report,
+    pacquet_in,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]
@@ -399,7 +408,8 @@ fn read_json(path: &Path) -> serde_json::Value {
 fn recorded_path(record: &serde_json::Value, field: &str) -> PathBuf {
     record[field]
         .as_str()
-        .map(|raw| pnpm_fs::lexical_normalize(Path::new(raw)))
+        .map(Path::new)
+        .map(pnpm_fs::lexical_normalize)
         .unwrap_or_else(|| panic!("{field} is recorded"))
 }
 

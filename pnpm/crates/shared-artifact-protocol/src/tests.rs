@@ -1,22 +1,65 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashSet,
+};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use p256::{
     SecretKey,
-    ecdsa::{SigningKey, signature::Signer as _},
-    pkcs8::{EncodePrivateKey as _, EncodePublicKey as _},
+    ecdsa::{
+        SigningKey,
+        signature::Signer as _,
+    },
+    pkcs8::{
+        EncodePrivateKey as _,
+        EncodePublicKey as _,
+    },
 };
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 
 use crate::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints,
-    CompatibilityScopes, DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS, LinuxGlibcPlatform, MacOsPlatform,
-    OwnerScope, PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM, SYMLINK_MODE,
-    SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX,
-    WORKSPACE_TASK_SIZE_LIMITS, WindowsPlatform, blob_id, compatibility_rank, compatibility_scopes,
-    linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
-    platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags, windows_tag,
+    ARTIFACT_KIND,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    BuilderProfile,
+    CompatibilityConstraints,
+    CompatibilityScopes,
+    DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    OwnerScope,
+    PackageIdentity,
+    PublishArtifactRequest,
+    SIGNATURE_ALGORITHM,
+    SYMLINK_MODE,
+    SignedArtifactEnvelope,
+    WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    WORKSPACE_TASK_SIZE_LIMITS,
+    WindowsPlatform,
+    blob_id,
+    compatibility_rank,
+    compatibility_scopes,
+    linux_glibc_supported_tags,
+    linux_glibc_tag,
+    macos_supported_tags,
+    macos_tag,
+    platform_fingerprint,
+    validate_manifest_path,
+    verify_blob,
+    windows_supported_tags,
+    windows_tag,
 };
 
 fn integrity(bytes: &[u8]) -> String {

@@ -9,9 +9,15 @@
 use super::NextImporter;
 use crate::{
     ImporterDepVersion,
-    implied_version::{link_target, workspace_name},
+    implied_version::{
+        link_target,
+        workspace_name,
+    },
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Each linked project's importer id, by package name. A name that two
 /// importers claim, or an importer that two names claim, has no entry.
@@ -30,7 +36,8 @@ pub(super) fn linked_importers(importers: &HashMap<String, NextImporter>) -> Lin
             if !importers.contains_key(&target_id) {
                 continue;
             }
-            let name = workspace_name(target).map_or_else(|| alias.to_string(), str::to_string);
+            let name =
+                workspace_name(target).map(str::to_string).unwrap_or_else(|| alias.to_string());
             claim(&mut linked, name, target_id);
         }
     }

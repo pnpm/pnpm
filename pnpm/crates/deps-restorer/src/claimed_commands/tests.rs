@@ -1,6 +1,14 @@
 use super::ClaimedCommands;
-use pnpm_cmd_shim::{Host, LinkBinsOptions, link_bins};
-use std::{collections::HashSet, fs, path::Path};
+use pnpm_cmd_shim::{
+    Host,
+    LinkBinsOptions,
+    link_bins,
+};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+};
 
 fn commands(names: &[&str]) -> HashSet<String> {
     names
@@ -75,7 +83,8 @@ fn link_package_bins(modules_dir: &Path, names: &[&str]) {
 fn assert_bins(bins_dir: &Path, kept: &[&str], removed: &[&str]) {
     let remaining: Vec<_> = fs::read_dir(bins_dir)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     dbg!(bins_dir, &remaining);
     for command in kept {

@@ -1,9 +1,22 @@
 //! The global-virtual-store tests that exercise the build policy.
 
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, StoreDir, StoreIndex, allow_builds_yaml, fs,
-    hash_dirs, is_symlink_or_junction, pacquet, pkg_in_slot, pkg_version_dir,
-    read_modules_manifest, set_gvs_workspace_yaml, sole_hash_dir, write_manifest,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    StoreDir,
+    StoreIndex,
+    allow_builds_yaml,
+    fs,
+    hash_dirs,
+    is_symlink_or_junction,
+    pacquet,
+    pkg_in_slot,
+    pkg_version_dir,
+    read_modules_manifest,
+    set_gvs_workspace_yaml,
+    sole_hash_dir,
+    write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
@@ -11,8 +24,8 @@ use pnpm_testing_utils::git_repo::GitRepoFixture;
 /// TS: `GVS hashes are engine-agnostic for packages not in allowBuilds`
 /// (`globalVirtualStore.ts:132`).
 ///
-/// The hash of a package covers the engine only when the package — or
-/// something in its dependency closure — is allowed to build. Allowing
+/// The hash of a package covers the engine only when the package (or
+/// something in its dependency closure) is allowed to build. Allowing
 /// the *transitive* dep therefore has to change the *parent's* hash.
 #[test]
 fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
@@ -22,7 +35,7 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
 
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
-    eprintln!("Scenario 1: nothing may build — hashes must omit the engine...");
+    eprintln!("Scenario 1: nothing may build, hashes must omit the engine...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
     pacquet(&workspace)
         .with_arg("install")
@@ -31,7 +44,7 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_no_builds = sole_hash_dir(&version_dir);
 
-    eprintln!("Scenario 2: the transitive dep may build — the parent hash must change...");
+    eprintln!("Scenario 2: the transitive dep may build, the parent hash must change...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     set_gvs_workspace_yaml(
         &workspace,
@@ -395,7 +408,8 @@ fn gvs_build_failure_leaves_no_package_in_the_slot() {
     let entries = fs::read_dir(&scope_dir)
         .map(|entries| {
             entries
-                .map(|entry| entry.expect("read entry").file_name())
+                .map(|entry| entry.expect("read entry"))
+                .map(|value| value.file_name())
                 .collect()
         })
         .unwrap_or_else(|_| Vec::new());
@@ -537,7 +551,7 @@ fn gvs_ignore_scripts_and_building_installs_use_different_slots() {
 
 /// TS: `GVS rebuilds successfully after simulated build failure cleanup`
 /// (`globalVirtualStore.ts:367`). With the hash directory gone the warm
-/// fast path must not fire — the install re-fetches, re-imports and
+/// fast path must not fire, the install re-fetches, re-imports and
 /// re-builds into a fresh slot.
 #[test]
 fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
@@ -893,8 +907,8 @@ fn concurrent_installs_build_one_shared_slot() {
         .map(|project| {
             pacquet(project)
                 .with_arg("install")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::piped())
+                .with_stdout(std::process::Stdio::null())
+                .with_stderr(std::process::Stdio::piped())
                 .spawn()
                 .expect("spawn an install")
         })
@@ -913,7 +927,8 @@ fn concurrent_installs_build_one_shared_slot() {
     }
     let leftovers: Vec<_> = fs::read_dir(slot.join("node_modules/@pnpm.e2e"))
         .expect("read the slot's scope")
-        .map(|entry| entry.expect("read entry").file_name())
+        .map(|entry| entry.expect("read entry"))
+        .map(|value| value.file_name())
         .filter(|name| name.to_string_lossy().starts_with('.'))
         .collect();
     assert!(leftovers.is_empty(), "staging directories left behind: {leftovers:?}");

@@ -1,11 +1,23 @@
 use super::overridden_project_dependencies;
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::{GraphPkg, Project};
-use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
+use pnpm_workspace_projects_graph::{
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// The dependencies the changed-catalog check reads for one project with
 /// `manifest`, under `overrides` and a `local` catalog mapping `lib` to

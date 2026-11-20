@@ -1,23 +1,52 @@
-//! `pacquet store add` — fetch packages into the store without installing
+//! `pacquet store add`: fetch packages into the store without installing
 //! them anywhere.
 
 use crate::cli_args::registry_client::build_registry_client;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use futures_util::StreamExt;
-use miette::{Diagnostic, WrapErr};
+use miette::{
+    Diagnostic,
+    WrapErr,
+};
 use pnpm_config::Config;
-use pnpm_deps_restorer::{manifest_file_count, manifest_unpacked_size};
+use pnpm_deps_restorer::{
+    manifest_file_count,
+    manifest_unpacked_size,
+};
 use pnpm_lockfile::LockfileResolution;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, emit_global_warning};
-use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_standalone_chain};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    emit_global_warning,
+};
+use pnpm_resolving_default_resolver::standalone::{
+    StandaloneChainOptions,
+    build_standalone_chain,
+};
 use pnpm_resolving_local_resolver::LocalTarballResolution;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pnpm_resolving_resolver_base::{ResolveOptions, ResolveResult, WantedDependency};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    ResolveResult,
+    WantedDependency,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreIndex,
+    StoreIndexWriter,
+};
 use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 use tokio::sync::OnceCell;
 
 mod downloaded_tarball;
@@ -56,7 +85,7 @@ pub struct FrozenStoreAddError;
 ///
 /// The code is pacquet's own because pnpm has none to match: pnpm's
 /// `storeAdd` fetches these successfully. That makes this the same kind of
-/// marker as `ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED` — a gap that
+/// marker as `ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED`, a gap that
 /// fails loudly and by name rather than one that quietly does something
 /// other than what was asked.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -77,8 +106,8 @@ pub struct UnsupportedSpecError {
 
 /// The archive a resolution points at, if it points at one.
 ///
-/// A tarball published without an integrity hash is still fetchable —
-/// pnpm fetches those unverified — so the hash is optional.
+/// A tarball published without an integrity hash is still fetchable
+/// (pnpm fetches those unverified) so the hash is optional.
 fn archive_to_fetch(resolution: &LockfileResolution) -> Option<(&str, Option<Integrity>)> {
     match resolution {
         LockfileResolution::Tarball(tarball) => {
@@ -190,7 +219,7 @@ fn store_resolve_options(dir: &Path) -> ResolveOptions {
 ///
 /// The command keeps going so one bad specifier doesn't strand
 /// the rest, which leaves this line as the only place the cause
-/// is reported — so it carries the code the top-level handler
+/// is reported, so it carries the code the top-level handler
 /// would otherwise have printed.
 fn report_add_failure<Reporter: self::Reporter>(error: &miette::Report) {
     let code = error

@@ -1,6 +1,13 @@
 use super::{
-    Config, PmOnFail, SwitchSource, TempDir, pin_roots, switch_target, write_dev_engine_manifest,
-    write_lockfile, write_manifest,
+    Config,
+    PmOnFail,
+    SwitchSource,
+    TempDir,
+    pin_roots,
+    switch_target,
+    write_dev_engine_manifest,
+    write_lockfile,
+    write_manifest,
 };
 
 #[test]

@@ -1,13 +1,36 @@
 pub use self::{
-    catalogs::update_config_hook_catalogs, package_settings::apply_config_dependency_settings,
+    catalogs::update_config_hook_catalogs,
+    package_settings::apply_config_dependency_settings,
 };
 
 use self::apply::apply_hook_delta;
 use super::{
-    Arc, BTreeMap, Config, HashMap, HookContext, HookLog, Host, IntoDiagnostic, LogEvent, LogFn,
-    LogLevel, Path, PathBuf, PnpmLog, PnpmfileHooks, Reporter, Result, TrustedSettings, Value,
-    WorkspaceSettings, apply_store_dir_override, default_state_dir, finder,
-    get_catalogs_from_workspace_manifest, install_config_deps, is_known_setting_key,
+    Arc,
+    BTreeMap,
+    Config,
+    HashMap,
+    HookContext,
+    HookLog,
+    Host,
+    IntoDiagnostic,
+    LogEvent,
+    LogFn,
+    LogLevel,
+    Path,
+    PathBuf,
+    PnpmLog,
+    PnpmfileHooks,
+    Reporter,
+    Result,
+    TrustedSettings,
+    Value,
+    WorkspaceSettings,
+    apply_store_dir_override,
+    default_state_dir,
+    finder,
+    get_catalogs_from_workspace_manifest,
+    install_config_deps,
+    is_known_setting_key,
     resolve_configured_state_dir,
 };
 use miette::WrapErr;
@@ -40,7 +63,8 @@ pub fn may_update_config(config: &Config, root_dir: &Path) -> bool {
     }
     let has_config_plugin = config.config_dependencies
         .as_ref()
-        .is_some_and(|dependencies| dependencies.keys().any(|name| finder::is_plugin_name(name)));
+        .map(BTreeMap::keys)
+        .is_some_and(|mut keys| keys.any(|name| finder::is_plugin_name(name)));
     has_config_plugin
         || !finder::find_pnpmfiles(root_dir, pnpm_package_manager::pnpmfile_selection(config))
             .is_empty()
@@ -68,8 +92,8 @@ pub fn load_before_packing_hooks(
 ///
 /// The entry point for commands outside the install family, each of which
 /// resolves its own [`Config`]: pnpm applies `updateConfig` once per
-/// invocation, before the command runs, so a hook's settings — including
-/// `extraEnv` and `extraBinPaths` — reach every command's child processes.
+/// invocation, before the command runs, so a hook's settings (including
+/// `extraEnv` and `extraBinPaths`) reach every command's child processes.
 pub async fn prepare_config<Reporter: self::Reporter>(
     config: &mut Config,
     dir: &Path,
@@ -101,8 +125,8 @@ pub async fn prepare_config<Reporter: self::Reporter>(
 /// hook changes is applied back the same way `pnpm-workspace.yaml` is. Only
 /// the keys a hook actually changed are applied, so values resolved from
 /// `.npmrc` or CLI flags that the hooks leave untouched are not clobbered.
-/// The `catalog:`/`catalogs:` blocks — which pacquet models outside
-/// `WorkspaceSettings` — are seeded into the hook input and, when changed,
+/// The `catalog:`/`catalogs:` blocks (which pacquet models outside
+/// `WorkspaceSettings`) are seeded into the hook input and, when changed,
 /// captured into [`Config::catalogs`] for install and packing commands.
 pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     config: &mut Config,
@@ -250,7 +274,8 @@ fn same_registry_route(left: &str, right: &str) -> bool {
 }
 
 fn normalized_registry_route(route: &str) -> String {
-    let mut normalized = url::Url::parse(route).map_or_else(|_| route.to_string(), String::from);
+    let mut normalized =
+        url::Url::parse(route).map(String::from).unwrap_or_else(|_| route.to_string());
     if !normalized.ends_with('/') {
         normalized.push('/');
     }
@@ -337,7 +362,10 @@ fn hook_base_dir(config: &Config, root_dir: &Path) -> Result<PathBuf> {
         return Ok(root_dir.to_path_buf());
     }
     Ok(match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
-        Some((path, _)) => path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
+        Some((path, _)) => path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| root_dir.to_path_buf()),
         None => root_dir.to_path_buf(),
     })
 }

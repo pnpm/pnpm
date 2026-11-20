@@ -1,13 +1,26 @@
 //! The notes a publish carries, stored in its transaction with the digest of
 //! the text each was published with.
 
-use super::{NoteSubject, write_note};
+use super::{
+    NoteSubject,
+    write_note,
+};
 use crate::database::{
-    ArtifactMember, PublishNotes, VersionNote, note_digest,
-    sql::{PackageKey, adapter::Query, batch::Batch},
+    ArtifactMember,
+    PublishNotes,
+    VersionNote,
+    note_digest,
+    sql::{
+        PackageKey,
+        adapter::Query,
+        batch::Batch,
+    },
     validate_note,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 /// Store the notes a publish carries, in its transaction, each with the
 /// digest of the text it was published with. A note is published only with

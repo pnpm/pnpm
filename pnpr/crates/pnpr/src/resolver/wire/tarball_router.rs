@@ -1,13 +1,37 @@
-use endpoints::{pnpr_tarball_url, upstream_endpoint_tarball_url};
+use endpoints::{
+    pnpr_tarball_url,
+    upstream_endpoint_tarball_url,
+};
 
 use super::{
-    Arc, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, CanonicalPackageName, HashMap, Identity, Lockfile,
-    LockfileResolution, MappedTarballUrl, PackageKey, PackageMetadata, PacquetConfig,
-    PublishedTarballUrlMapper, ReverseRoutedTarballUrl, RouteClass, RouteContext,
-    TarballResolution, VerificationRegistryRoutes, is_git_hosted_tarball_url, is_http_tarball_url,
-    pick_registry_for_package, revision_route_tarball_version, sanitize_registry_tarball_url,
-    strip_url_credentials, tarball_basename, tarball_basename_for_package,
-    tarball_url_and_integrity, version_route_tarball_version,
+    Arc,
+    BTreeMap,
+    BUILTIN_REGISTRIES_BY_PREFIX,
+    CanonicalPackageName,
+    HashMap,
+    Identity,
+    Lockfile,
+    LockfileResolution,
+    MappedTarballUrl,
+    PackageKey,
+    PackageMetadata,
+    PacquetConfig,
+    PublishedTarballUrlMapper,
+    ReverseRoutedTarballUrl,
+    RouteClass,
+    RouteContext,
+    TarballResolution,
+    VerificationRegistryRoutes,
+    is_git_hosted_tarball_url,
+    is_http_tarball_url,
+    pick_registry_for_package,
+    revision_route_tarball_version,
+    sanitize_registry_tarball_url,
+    strip_url_credentials,
+    tarball_basename,
+    tarball_basename_for_package,
+    tarball_url_and_integrity,
+    version_route_tarball_version,
 };
 
 mod endpoints;

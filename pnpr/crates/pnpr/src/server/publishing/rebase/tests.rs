@@ -105,8 +105,14 @@ fn a_publish_does_not_rebase_once_the_owners_changed() {
 
 #[test]
 fn a_client_revision_precondition_forbids_rebasing() {
-    use super::{StagedPublish, rebase_bases};
-    use crate::server::publishing::{StagedBase, Verification};
+    use super::{
+        StagedPublish,
+        rebase_bases,
+    };
+    use crate::server::publishing::{
+        StagedBase,
+        Verification,
+    };
     use pnpr_package_name::CanonicalPackageName;
     use pnpr_registry::Ecosystem;
 

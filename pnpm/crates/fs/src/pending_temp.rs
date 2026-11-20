@@ -2,8 +2,8 @@
 //! interrupted.
 //!
 //! An atomic write stages its content in a temp file next to the target and
-//! publishes it by `rename`. A signal — `Ctrl+C` at the terminal, a service
-//! manager's `SIGTERM` — takes the process down without running destructors,
+//! publishes it by `rename`. A signal (`Ctrl+C` at the terminal, a service
+//! manager's `SIGTERM`) takes the process down without running destructors,
 //! so a temp file caught mid-write would stay behind in the project
 //! ([pnpm/pnpm#1418](https://github.com/pnpm/pnpm/issues/1418)). Writers
 //! register each staged temp file with [`track_temp_file`]; the handler this
@@ -31,7 +31,11 @@
 use std::{
     path::Path,
     ptr,
-    sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
+    sync::atomic::{
+        AtomicPtr,
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 #[cfg(any(unix, windows))]
@@ -378,7 +382,10 @@ pub fn install_temp_file_cleanup() {
 /// sees the event first and stops it here while children are running.
 #[cfg(windows)]
 unsafe extern "system" fn clean_temp_files(event: u32) -> windows_sys::core::BOOL {
-    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+    use windows_sys::Win32::System::Console::{
+        CTRL_BREAK_EVENT,
+        CTRL_C_EVENT,
+    };
 
     if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
         return 0;

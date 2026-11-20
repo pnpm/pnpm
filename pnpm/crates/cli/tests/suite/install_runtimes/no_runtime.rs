@@ -1,14 +1,36 @@
 use super::{
-    RuntimeFixture, assert_installed, command, mock_node_release, prepare_workspace,
-    runtime_fixture, write_devengines_manifest, write_runtime_lockfile_for_group,
+    RuntimeFixture,
+    assert_installed,
+    command,
+    mock_node_release,
+    prepare_workspace,
+    runtime_fixture,
+    write_devengines_manifest,
+    write_runtime_lockfile_for_group,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_graph_hasher::{host_arch, host_platform};
-use pnpm_testing_utils::fs::{MTIME_STEP_MS, set_mtime_ms};
-use pnpm_workspace_state::{RuntimeOnFail, load_workspace_state, update_workspace_state};
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_platform,
+};
+use pnpm_testing_utils::fs::{
+    MTIME_STEP_MS,
+    set_mtime_ms,
+};
+use pnpm_workspace_state::{
+    RuntimeOnFail,
+    load_workspace_state,
+    update_workspace_state,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn hoisted_no_runtime_installs_can_be_repeated_and_restore_the_runtime() {
@@ -40,10 +62,10 @@ fn hoisted_no_runtime_installs_can_be_repeated_and_restore_the_runtime() {
     let wanted = fs::read(workspace.join("pnpm-lock.yaml")).unwrap();
 
     for extra in [None, None, Some("--force"), Some("--prod")] {
-        let mut install = command(&workspace);
-        install.args(["install", "--no-runtime", "--frozen-lockfile"]);
+        let mut install =
+            command(&workspace).with_args(["install", "--no-runtime", "--frozen-lockfile"]);
         if let Some(extra) = extra {
-            install.arg(extra);
+            install = install.with_arg(extra);
         }
         install.assert().success();
         assert!(!workspace.join("node_modules/node").exists());

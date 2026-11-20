@@ -1,8 +1,20 @@
 //! Peer-provider candidates from recorded edges and resolved manifests.
 
-use super::{HashMap, HashSet, dependency_edges};
-use pnpm_lockfile::{BoundProviders, Lockfile, PkgName, PkgNameVerPeer};
-use std::{cell::RefCell, sync::Arc};
+use super::{
+    HashMap,
+    HashSet,
+    dependency_edges,
+};
+use pnpm_lockfile::{
+    BoundProviders,
+    Lockfile,
+    PkgName,
+    PkgNameVerPeer,
+};
+use std::{
+    cell::RefCell,
+    sync::Arc,
+};
 
 pub(super) struct ProviderContexts {
     source: PeerSource,
@@ -68,7 +80,8 @@ impl ProviderContexts {
                     package.peer_set
                         .taken()
                         .keys()
-                        .filter_map(|name| name.parse().ok())
+                        .map(|name| name.parse())
+                        .filter_map(Result::ok)
                         .collect()
                 }) {
                     return names;

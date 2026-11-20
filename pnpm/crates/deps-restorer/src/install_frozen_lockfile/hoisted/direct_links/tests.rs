@@ -1,6 +1,13 @@
 use super::HoistedLinkScope;
-use pnpm_cmd_shim::{LinkBinsOptions, PackageBinSource};
-use std::{collections::BTreeMap, fs, path::Path};
+use pnpm_cmd_shim::{
+    LinkBinsOptions,
+    PackageBinSource,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+};
 
 fn write_package(root: &Path, command: &str) {
     fs::create_dir_all(root).unwrap();

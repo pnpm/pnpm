@@ -1,11 +1,31 @@
 use super::{
-    Arc, ComparablePeerRange, DepPath, HashMap, MissingPeer, MissingPeerInfo, NodeId,
-    NodePeersContext, ParentChain, ParentPkgInfo, PeerDep, PeerDependencyIssue, PeerId,
-    PeerWalkMode, ResolvedPackage, SharedChain, Walker, link_node_id_as_dep_path,
-    link_path_to_peer_version, peer_id_pair,
+    Arc,
+    ComparablePeerRange,
+    DepPath,
+    HashMap,
+    MissingPeer,
+    MissingPeerInfo,
+    NodeId,
+    NodePeersContext,
+    ParentChain,
+    ParentPkgInfo,
+    PeerDep,
+    PeerDependencyIssue,
+    PeerId,
+    PeerWalkMode,
+    ResolvedPackage,
+    SharedChain,
+    Walker,
+    link_node_id_as_dep_path,
+    link_path_to_peer_version,
+    peer_id_pair,
 };
 
-use crate::peer_provider::{PeerScope, ProviderPick, provider_for};
+use crate::peer_provider::{
+    PeerScope,
+    ProviderPick,
+    provider_for,
+};
 
 impl Walker<'_> {
     /// `true` when a missing-peer issue for `peer_name` under the
@@ -192,19 +212,19 @@ impl Walker<'_> {
     ///
     /// Precedence:
     ///
-    /// 1. **`link:<rel>` `NodeIds`** — emit
+    /// 1. **`link:<rel>` `NodeIds`**, emit
     ///    `PeerId::Pair { name: peer_alias, version: link_path_to_peer_version(rel) }`
     ///    so the peer-suffix segment reads as `name@encoded_path`
     ///    instead of carrying the raw link target. This branch fires
     ///    for both workspace-link parents and the
     ///    `excludeLinksFromLockfile` remap that points the parent at
     ///    `link:node_modules/<alias>`.
-    /// 2. **`dedupe_peers` enabled** — emit `name@version` from the
+    /// 2. **`dedupe_peers` enabled**, emit `name@version` from the
     ///    resolved package so recursive peer suffixes collapse like
     ///    `(foo@1.0.0(bar@2.0.0))` → `(foo@1.0.0)`.
-    /// 3. **The peer's `DepPath`** once it has been walked —
+    /// 3. **The peer's `DepPath`** once it has been walked,
     ///    `node_dep_paths` lookup, emitted as [`PeerId::DepPath`].
-    /// 4. **Cycle fallback** — `name@version` from the resolved package,
+    /// 4. **Cycle fallback**, `name@version` from the resolved package,
     ///    emitted as [`PeerId::Pair`].
     pub(super) fn build_peer_id(
         &self,

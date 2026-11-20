@@ -1,8 +1,16 @@
-use super::{configure, nerf, pacquet_at};
+use super::{
+    configure,
+    nerf,
+    pacquet_at,
+};
 use command_extra::CommandExtra;
 use mockito::Matcher;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Output};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 const NPM_ID_TOKEN: &str = "header.eyJhdWQiOiJucG06MTI3LjAuMC4xIn0.signature";
 
@@ -21,8 +29,8 @@ fn run_with_oidc(
         .without_env("GITLAB_CI")
         .without_env("GITHUB_ACTIONS")
         .without_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
-        .without_env("ACTIONS_ID_TOKEN_REQUEST_URL");
-    command.envs(env.iter().copied());
+        .without_env("ACTIONS_ID_TOKEN_REQUEST_URL")
+        .with_envs(env.iter().copied());
     command.output().expect("spawn pnpm dist-tag with OIDC token")
 }
 
@@ -178,9 +186,9 @@ fn github_oidc_uses_the_packages_scoped_registry() {
         .with_args(["dist-tag", "ls", "@scope/pkg"])
         .without_env("NPM_ID_TOKEN")
         .without_env("GITLAB_CI")
-        .env("GITHUB_ACTIONS", "true")
-        .env("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token")
-        .env("ACTIONS_ID_TOKEN_REQUEST_URL", format!("{}/identity", server.url()))
+        .with_env("GITHUB_ACTIONS", "true")
+        .with_env("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token")
+        .with_env("ACTIONS_ID_TOKEN_REQUEST_URL", format!("{}/identity", server.url()))
         .output()
         .expect("spawn pnpm dist-tag with GitHub OIDC");
 

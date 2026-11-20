@@ -1,6 +1,12 @@
-use super::{ConfigOverrides, LinkWorkspacePackages};
+use super::{
+    ConfigOverrides,
+    LinkWorkspacePackages,
+};
 use crate::cli_args::lockfile_dir::LockfileDirWithGlobal;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// A command-line setting that a `--global` command rejects. Mirrors
@@ -45,7 +51,7 @@ impl ConfigOverrides {
         if self.link_workspace_packages.is_some_and(|value| value != LinkWorkspacePackages::Off) {
             return Err(GlobalConflict::LinkWorkspacePackages);
         }
-        if self.shared_workspace_lockfile == Some(true) {
+        if self.shared_workspace_lockfile.unwrap_or(false) {
             return Err(GlobalConflict::SharedWorkspaceLockfile);
         }
         if self.unported

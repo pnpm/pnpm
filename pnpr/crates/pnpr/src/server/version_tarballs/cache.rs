@@ -1,12 +1,23 @@
 use super::{
-    CanonicalPackageName, DistBlock, PackumentDists, UpstreamTarballRoute, Value,
-    tarball_basename_for_package, tgz_integrity_key,
+    CanonicalPackageName,
+    DistBlock,
+    PackumentDists,
+    UpstreamTarballRoute,
+    Value,
+    tarball_basename_for_package,
+    tgz_integrity_key,
 };
 use pnpr_storage::DocumentStamp;
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 pub(super) struct VersionTgz {

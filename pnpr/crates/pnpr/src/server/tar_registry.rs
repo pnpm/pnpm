@@ -8,12 +8,27 @@
 
 pub(super) use pnpr_route::split_package_identifier;
 
-use super::{AppState, CanonicalPackageName, RegistryError, RegistrySource, Value};
-use pnpm_package_manifest::{MAX_PRECALCULATED_BINS_BYTES, serialize_precalculated_bins};
+use super::{
+    AppState,
+    CanonicalPackageName,
+    RegistryError,
+    RegistrySource,
+    Value,
+};
+use pnpm_package_manifest::{
+    MAX_PRECALCULATED_BINS_BYTES,
+    serialize_precalculated_bins,
+};
 use pnpr_config::RoutingConfig;
 use pnpr_storage::DerivedTar;
-use ssri::{Algorithm, Integrity};
-use std::{collections::BTreeMap, sync::Arc};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 /// Maximum cumulative serialized JSON byte size of `dist.pnpr.bins` across
 /// all versions in a single packument response.
@@ -176,7 +191,7 @@ fn apply_derived_tar_metadata(
     if let Some(requires_build) = derived.requires_build {
         pnpr.insert("requiresBuild".to_string(), Value::Bool(requires_build));
     }
-    if derived.requires_build == Some(false)
+    if !derived.requires_build.unwrap_or(true)
         && let Some((bins_value, bins_bytes)) =
             derived.bins.as_ref().and_then(serialize_precalculated_bins)
         && bins_bytes <= *bins_budget

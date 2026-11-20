@@ -1,6 +1,14 @@
 use super::{
-    BTreeMap, BTreeSet, DEPENDENCY_KINDS, EXCLUDED_DIRECTORIES, IntoDiagnostic, Path, PathBuf,
-    Result, fs, io,
+    BTreeMap,
+    BTreeSet,
+    DEPENDENCY_KINDS,
+    EXCLUDED_DIRECTORIES,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    Result,
+    fs,
+    io,
 };
 use crate::cargo_manifest::lookup_inherited_workspace_entry;
 use miette::WrapErr;
@@ -46,7 +54,7 @@ impl Checkout {
     /// naming this crate are resolved against their workspace.
     pub(super) fn find(&self, name: &str, version: &str) -> Result<Option<CheckoutPackage>> {
         // A repository may hold another crate of the same name that it
-        // cannot describe on its own — a fixture, or a member of a
+        // cannot describe on its own, a fixture, or a member of a
         // workspace the checkout does not reach. Only the one the
         // lockfile asks for has to be readable, so a candidate that is
         // not it takes its error out of the way.
@@ -72,7 +80,7 @@ impl Checkout {
             }
             return Ok(Some(CheckoutPackage { dir: dir.clone(), manifest: package.manifest }));
         }
-        unreadable.map_or(Ok(None), Err)
+        unreadable.map(Err).unwrap_or(Ok(None))
     }
 
     /// Every directory in the checkout that `cargo` reads a package from.
@@ -265,7 +273,7 @@ fn inherit_dependencies(
 }
 
 /// Resolve the inheritance markers in each of one table's dependency
-/// kinds — the manifest root, or one `[target.<cfg>]` section.
+/// kinds, the manifest root, or one `[target.<cfg>]` section.
 fn inherit_dependency_kinds(
     table: &mut toml::Table,
     workspace: Option<&toml::Table>,

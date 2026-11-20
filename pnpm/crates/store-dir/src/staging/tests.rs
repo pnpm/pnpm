@@ -1,4 +1,7 @@
-use super::{remove_abandoned_staging_dirs, staging_dir_name};
+use super::{
+    remove_abandoned_staging_dirs,
+    staging_dir_name,
+};
 use std::fs;
 use tempfile::tempdir;
 

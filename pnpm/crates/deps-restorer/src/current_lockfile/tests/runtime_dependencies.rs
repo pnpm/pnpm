@@ -1,5 +1,8 @@
 use crate::SkippedSnapshots;
-use pnpm_lockfile::{Lockfile, PackageKey};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use std::collections::HashSet;
 

@@ -4,7 +4,11 @@
 #![cfg(windows)]
 
 use windows_sys::Win32::System::Console::{
-    AllocConsole, CTRL_C_EVENT, FreeConsole, GenerateConsoleCtrlEvent, SetConsoleCtrlHandler,
+    AllocConsole,
+    CTRL_C_EVENT,
+    FreeConsole,
+    GenerateConsoleCtrlEvent,
+    SetConsoleCtrlHandler,
 };
 
 /// A private console attached to this test process for as long as the
@@ -49,7 +53,10 @@ impl PrivateConsole {
     pub fn close(self) {
         use windows_sys::Win32::{
             System::Console::GetConsoleWindow,
-            UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE},
+            UI::WindowsAndMessaging::{
+                PostMessageW,
+                WM_CLOSE,
+            },
         };
 
         // SAFETY: plain FFI call with no arguments.

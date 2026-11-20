@@ -11,9 +11,16 @@
 
 use std::{
     future::Future,
-    io::{self, IsTerminal},
+    io::{
+        self,
+        IsTerminal,
+    },
     sync::LazyLock,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 #[cfg(not(target_family = "wasm"))]
@@ -21,18 +28,34 @@ use std::{
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
     thread,
 };
 
 #[cfg(not(target_family = "wasm"))]
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use pnpm_network::{LimitedBody, read_limited_body};
+use crossterm::event::{
+    self,
+    Event,
+    KeyCode,
+    KeyEventKind,
+};
+use pnpm_network::{
+    LimitedBody,
+    read_limited_body,
+};
 
 use crate::poll_for_web_auth_token::{
-    WebAuthFetchOptions, WebAuthFetchResponse, body_may_carry_token,
+    WebAuthFetchOptions,
+    WebAuthFetchResponse,
+    body_may_carry_token,
 };
 
 /// Read the current wall-clock time as Unix-epoch milliseconds.
@@ -55,7 +78,7 @@ pub trait Sleep {
 /// headers, and a separately fallible body.
 ///
 /// The `Err` arm stands in for `fetch` itself rejecting (a network
-/// failure) — distinct from a successful response whose body fails to
+/// failure), distinct from a successful response whose body fails to
 /// parse, which the caller reads from
 /// [`WebAuthFetchResponse::token`](crate::WebAuthFetchResponse::token).
 pub trait WebAuthFetch {
@@ -65,7 +88,7 @@ pub trait WebAuthFetch {
     ) -> impl Future<Output = Result<WebAuthFetchResponse, WebAuthFetchError>>;
 }
 
-/// `fetch` itself failed — the request never produced a response. The
+/// `fetch` itself failed, the request never produced a response. The
 /// cause is intentionally opaque: the poll loop treats every fetch failure
 /// the same way (swallow and retry on the next tick), so it never inspects
 /// this value, matching the TS `catch { continue }`.
@@ -141,7 +164,9 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .map(|elapsed| elapsed.as_millis())
+            .map(u64::try_from)
+            .map_or(0, |converted| converted.unwrap_or(u64::MAX))
     }
 }
 
@@ -176,7 +201,8 @@ impl WebAuthFetch for Host {
         let retry_after = response
             .headers()
             .get(reqwest::header::RETRY_AFTER)
-            .and_then(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .map(str::to_owned);
         // The poll loop never reads the body of a non-ok or 202 response;
         // returning early leaves `response` unread, stopping the transfer.
@@ -245,7 +271,7 @@ const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// Production [`EnterKeyListener::Handle`]. Resolves once the background
 /// thread observes an Enter keypress, and stays resolved on re-polls;
 /// dropping it sets the cancel flag so that thread stops within one
-/// [`ENTER_POLL_INTERVAL`] — crossterm's blocking `event::read()` cannot be
+/// [`ENTER_POLL_INTERVAL`], crossterm's blocking `event::read()` cannot be
 /// cancelled, so the thread polls with a timeout instead of blocking
 /// forever.
 ///
@@ -260,8 +286,8 @@ pub struct HostEnterHandle {
 }
 
 /// Where a [`HostEnterHandle`] is in its lifecycle. `Completed` and
-/// `Disabled` are both terminal — the oneshot receiver must not be polled
-/// again — but they resolve differently: a completed handle re-polls as
+/// `Disabled` are both terminal (the oneshot receiver must not be polled
+/// again) but they resolve differently: a completed handle re-polls as
 /// `Ready` while a disabled one (stdin read error) stays `Pending` forever
 /// so the browser is not opened spuriously.
 #[cfg(not(target_family = "wasm"))]
@@ -312,7 +338,7 @@ impl EnterKeyListener for Host {
 
     /// Watch stdin for an Enter keypress without blocking uninterruptibly;
     /// the returned handle documents the cancellation contract. `crossterm`
-    /// reads in the terminal's default (cooked) mode — no raw mode — matching
+    /// reads in the terminal's default (cooked) mode (no raw mode) matching
     /// pnpm's plain `readline.createInterface({ input: process.stdin })`,
     /// which reacts to a submitted line rather than individual keys.
     fn listen() -> io::Result<HostEnterHandle> {
@@ -351,7 +377,7 @@ enum EnterPoll {
 /// Wait one interval for an Enter keypress.
 ///
 /// Input that is ready is skipped without consuming when the handle was
-/// dropped meanwhile — otherwise `read()` would steal a keystroke from
+/// dropped meanwhile; otherwise `read()` would steal a keystroke from
 /// whatever reads stdin next. The re-check is best-effort: a drop landing
 /// between it and `read()` can still lose one keystroke. That residual window
 /// is a few instructions wide and accepted; crossterm offers no way to close

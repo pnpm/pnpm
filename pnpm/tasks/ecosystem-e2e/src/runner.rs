@@ -1,16 +1,46 @@
 use crate::{
-    cli_args::{Binary, Layout},
-    stacks::{PROJECT_DIR, Serve, Stack},
+    cli_args::{
+        Binary,
+        Layout,
+    },
+    stacks::{
+        PROJECT_DIR,
+        Serve,
+        Stack,
+    },
 };
+use command_extra::CommandExtra;
 use std::{
     ffi::OsString,
-    fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, Write},
-    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    fs::{
+        self,
+        File,
+        OpenOptions,
+    },
+    io::{
+        BufRead,
+        BufReader,
+        Write,
+    },
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        TcpListener,
+        TcpStream,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// One grid cell: a stack installed by a binary under a layout.
@@ -40,7 +70,7 @@ impl Cell<'_> {
 /// dependencies. The generated tree is later copied into each cell.
 ///
 /// With `reuse`, an already-scaffolded template (a `<stack>/app` directory
-/// holding a `package.json`) is returned untouched — re-running a generator
+/// holding a `package.json`) is returned untouched, re-running a generator
 /// into a non-empty directory typically fails. Without it, the caller is
 /// expected to have wiped the work dir, so scaffolding starts clean.
 pub fn scaffold_template(
@@ -57,12 +87,11 @@ pub fn scaffold_template(
     }
     fs::create_dir_all(&template_dir).map_err(|error| format!("create {template_dir:?}: {error}"))?;
     for command in stack.scaffold {
-        let mut process = sandboxed_command(pnpm);
-        process
-            .current_dir(&template_dir)
-            .arg("dlx")
-            .arg(command.spec)
-            .args(command.args);
+        let mut process = sandboxed_command(pnpm)
+            .with_current_dir(&template_dir)
+            .with_arg("dlx")
+            .with_arg(command.spec)
+            .with_args(command.args);
         run(
             &format!("pnpm dlx {} {}", command.spec, command.args.join(" ")),
             &mut process,
@@ -156,8 +185,8 @@ fn run_install(
         Binary::Pnpm => pnpm,
         Binary::Pacquet => pacquet,
     };
-    let mut install = sandboxed_command(install_binary);
-    install.current_dir(project_dir).arg("install");
+    let mut install =
+        sandboxed_command(install_binary).with_current_dir(project_dir).with_arg("install");
     run("install", &mut install, log_path)
 }
 
@@ -183,7 +212,7 @@ fn prepare_cell(
 /// `dangerouslyAllowAllBuilds` lets dependency build scripts run unattended
 /// (esbuild, etc.) so the build stage exercises a real, fully-built
 /// `node_modules` instead of stopping at an approval prompt. That is the
-/// point of an ecosystem run, not a security stance — these are throwaway
+/// point of an ecosystem run, not a security stance; these are throwaway
 /// projects scaffolded from pinned generators.
 fn write_workspace_yaml(cell_dir: &Path, project_dir: &Path, layout: Layout) -> Result<(), String> {
     let store_dir = cell_dir.join("store");
@@ -217,15 +246,14 @@ fn run_build_script(project_dir: &Path, script_name: &str, log_path: &Path) -> R
 
     // Absolute `/bin/sh`, not `sh`: the child's PATH is prepended with the
     // project's `node_modules/.bin`, and Rust resolves a bare program name
-    // against that child PATH — a dependency shipping a `.bin/sh` would
+    // against that child PATH, a dependency shipping a `.bin/sh` would
     // otherwise run in place of the system shell. The script the shell runs
     // still resolves framework bins from `.bin` via that PATH.
-    let mut process = sandboxed_command("/bin/sh");
-    process
-        .current_dir(project_dir)
-        .arg("-c")
-        .arg(script)
-        .env("PATH", bin_path(project_dir)?);
+    let mut process = sandboxed_command("/bin/sh")
+        .with_current_dir(project_dir)
+        .with_arg("-c")
+        .with_arg(script)
+        .with_env("PATH", bin_path(project_dir)?);
     run(&format!("run {script_name}: {script}"), &mut process, log_path)
 }
 
@@ -259,14 +287,12 @@ const ENV_PASSTHROUGH: &[&str] = &[
 
 /// A [`Command`] whose environment is scrubbed down to [`ENV_PASSTHROUGH`].
 fn sandboxed_command(program: &str) -> Command {
-    let mut command = Command::new(program);
-    command.env_clear();
-    for key in ENV_PASSTHROUGH {
-        if let Some(value) = std::env::var_os(key) {
-            command.env(key, value);
-        }
-    }
-    command
+    ENV_PASSTHROUGH
+        .iter()
+        .filter_map(|key| Some((key, std::env::var_os(key)?)))
+        .fold(Command::new(program).with_no_env(), |command, (key, value)| {
+            command.with_env(key, value)
+        })
 }
 
 /// `PATH` with the project's `node_modules/.bin` prepended, so locally
@@ -314,17 +340,17 @@ fn run_serve(project_dir: &Path, serve: &Serve, log_path: &Path) -> Result<(), S
     );
 
     let mut child = sandboxed_command(&program_path.to_string_lossy())
-        .current_dir(project_dir)
-        .args(rest)
-        .env("PATH", bin_path(project_dir)?)
+        .with_current_dir(project_dir)
+        .with_args(rest)
+        .with_env("PATH", bin_path(project_dir)?)
         // Servers that take their port via env rather than a flag (nitro,
         // react-router-serve, etc.) honor these; for the rest the explicit
         // `{port}` flag wins and PORT is harmless.
-        .env("PORT", port.to_string())
-        .env("HOST", "127.0.0.1")
-        .stdin(Stdio::null())
-        .stdout(clone_handle(&log, log_path)?)
-        .stderr(clone_handle(&log, log_path)?)
+        .with_env("PORT", port.to_string())
+        .with_env("HOST", "127.0.0.1")
+        .with_stdin(Stdio::null())
+        .with_stdout(clone_handle(&log, log_path)?.into())
+        .with_stderr(clone_handle(&log, log_path)?.into())
         .spawn()
         .map_err(|error| format!("spawn server `{}`: {error}", args.join(" ")))?;
 
@@ -346,7 +372,7 @@ fn wait_until_serving(
         }
         // A 2xx/3xx means the server served the route through the installed
         // layout. A connection error or an HTTP error status is retried until
-        // the deadline — many dev servers briefly refuse connections or answer
+        // the deadline, many dev servers briefly refuse connections or answer
         // 4xx/5xx while warming up.
         let observation = match probe(port, serve.ready_path) {
             Ok(code) if (200..400).contains(&code) => return Ok(()),
@@ -383,7 +409,8 @@ fn probe(port: u16, path: &str) -> Result<u16, String> {
     status_line
         .split_whitespace()
         .nth(1)
-        .and_then(|code| code.parse().ok())
+        .map(str::parse)
+        .and_then(Result::ok)
         .ok_or_else(|| format!("unparsable status line: {status_line:?}"))
 }
 
@@ -425,9 +452,9 @@ fn clone_handle(log: &File, log_path: &Path) -> Result<File, String> {
 
 fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
     let status = Command::new("cp")
-        .arg("-R")
-        .arg(from)
-        .arg(to)
+        .with_arg("-R")
+        .with_arg(from)
+        .with_arg(to)
         .status()
         .map_err(|error| format!("spawn cp: {error}"))?;
     if status.success() {

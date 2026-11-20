@@ -1,22 +1,49 @@
 use axum::{
     Json,
-    extract::{Extension, Path, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
-    response::{IntoResponse, Response},
+    extract::{
+        Extension,
+        Path,
+        State,
+    },
+    http::{
+        HeaderMap,
+        HeaderValue,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use pnpr_auth::oidc::{LoginReturn, OidcState, WebLoginPoll};
+use pnpr_auth::oidc::{
+    LoginReturn,
+    OidcState,
+    WebLoginPoll,
+};
 use serde::Deserialize;
 use serde_json::json;
 
 use std::net::IpAddr;
 
 use super::{
-    AppState, TargetRegistry, not_found,
-    oidc::{is_valid_state, protect, redirect_to_provider},
+    AppState,
+    TargetRegistry,
+    not_found,
+    oidc::{
+        is_valid_state,
+        protect,
+        redirect_to_provider,
+    },
     private_no_cache,
 };
 
-use pages::{PROVIDER_UNAVAILABLE, UNUSABLE_CODE, code_page, provider_page};
+use pages::{
+    PROVIDER_UNAVAILABLE,
+    UNUSABLE_CODE,
+    code_page,
+    provider_page,
+};
 
 mod pages;
 #[cfg(test)]

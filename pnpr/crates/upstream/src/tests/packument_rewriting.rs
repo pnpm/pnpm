@@ -1,7 +1,14 @@
 use super::{
-    CanonicalPackageName, TarballRevision, abbreviate_packument,
-    extract_upstream_revision_integrity, extract_version_manifest, json, now, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, tarball_basename,
+    CanonicalPackageName,
+    TarballRevision,
+    abbreviate_packument,
+    extract_upstream_revision_integrity,
+    extract_version_manifest,
+    json,
+    now,
+    rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls,
+    tarball_basename,
 };
 
 #[test]
@@ -240,7 +247,7 @@ fn extract_upstream_revision_integrity_requires_matching_version_and_valid_revis
 #[test]
 fn rewrites_verdaccio_form_tarball_for_scoped() {
     // Verdaccio publishes scoped tarball URLs like
-    // `/@scope/name/-/@scope/name-1.0.0.tgz` — the scope is
+    // `/@scope/name/-/@scope/name-1.0.0.tgz`, the scope is
     // present twice. We only care about the basename.
     let mut doc = json!({
         "versions": {

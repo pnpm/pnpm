@@ -1,12 +1,31 @@
 use super::{
-    Arc, DistStats, LockfileResolution, NpmResolutionVerifier, OnceCell, PkgName,
-    PublishedTarballUrlMapper, RegistryArtifactHistory, ResolutionVerification,
-    TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TarballRevision, VerifyCtx,
-    current_history_violation, current_revision_number, has_complete_sha512_digest,
-    is_revision_registry_tarball_url, lockfile_revision, mapped_tarball_url_violation,
-    missing_artifact_violation, redact_url_credentials, select_revision, to_registry_url,
+    Arc,
+    DistStats,
+    LockfileResolution,
+    NpmResolutionVerifier,
+    OnceCell,
+    PkgName,
+    PublishedTarballUrlMapper,
+    RegistryArtifactHistory,
+    ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    TarballRevision,
+    VerifyCtx,
+    current_history_violation,
+    current_revision_number,
+    has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
+    lockfile_revision,
+    mapped_tarball_url_violation,
+    missing_artifact_violation,
+    redact_url_credentials,
+    select_revision,
+    to_registry_url,
 };
-use crate::pick_package::{ReleaseRecordError, ReleaseRecordRequest};
+use crate::pick_package::{
+    ReleaseRecordError,
+    ReleaseRecordRequest,
+};
 
 impl NpmResolutionVerifier {
     /// Confirm the lockfile-pinned tarball URL is the artifact the
@@ -15,7 +34,7 @@ impl NpmResolutionVerifier {
     /// Fail-closed: the entry passes only when the registry metadata
     /// affirmatively lists this version with a matching tarball URL. If the
     /// metadata can't be fetched, doesn't list the version, or omits
-    /// `dist.tarball`, the entry can't be confirmed and is rejected —
+    /// `dist.tarball`, the entry can't be confirmed and is rejected;
     /// otherwise a tampered lockfile could smuggle a malicious URL past the
     /// check by pointing it at a `name@version` the registry can't vouch for.
     pub(super) async fn run_registry_artifact_check(
@@ -381,7 +400,8 @@ fn pnpr_published_tarball_url(
     current_revision: Option<u64>,
 ) -> String {
     current_revision
-        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok)
         .and_then(|revision| {
             pnpm_lockfile::revision_registry_tarball_url(name, version, revision, registry)
         })

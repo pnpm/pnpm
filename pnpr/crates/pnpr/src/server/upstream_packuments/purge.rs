@@ -1,10 +1,26 @@
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    time::Duration,
+};
 
 use super::{
-    AppState, CacheValidators, CanonicalPackageName, PackumentFetch, PurgeRemoval, RegistryError,
-    Upstream, WriteVerdict, invalidate_upstream_package, lock_upstream_package, timed,
+    AppState,
+    CacheValidators,
+    CanonicalPackageName,
+    PackumentFetch,
+    PurgeRemoval,
+    RegistryError,
+    Upstream,
+    WriteVerdict,
+    invalidate_upstream_package,
+    lock_upstream_package,
+    timed,
 };
-use crate::server::upstream_integrity::{RefreshOutcome, refresh_cached_packument, schedule};
+use crate::server::upstream_integrity::{
+    RefreshOutcome,
+    refresh_cached_packument,
+    schedule,
+};
 
 pub(in crate::server) enum PurgeOutcome {
     Purged,

@@ -2,10 +2,17 @@ use pretty_assertions::assert_eq;
 use serde_json::Value;
 
 use super::{
-    RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+    RenderDependentsOptions,
+    render_dependents_json,
+    render_dependents_parseable,
     render_dependents_tree,
 };
-use crate::dependents::{DepField, DependentNode, DependentsTree, merge_trees};
+use crate::dependents::{
+    DepField,
+    DependentNode,
+    DependentsTree,
+    merge_trees,
+};
 
 fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> DependentsTree {
     DependentsTree {
@@ -462,7 +469,7 @@ fn depth_limits_parseable_output_depth() {
     let lines: Vec<&str> = output.split('\n').collect();
 
     eprintln!("output:\n{output}");
-    // With depth 1, mid-a cannot recurse further — it becomes a leaf.
+    // With depth 1, mid-a cannot recurse further; it becomes a leaf.
     assert_eq!(lines.len(), 2);
     assert!(lines.contains(&"mid-a@2.0.0 > target@1.0.0"));
     assert!(lines.contains(&"root-project@0.0.0 > target@1.0.0"));

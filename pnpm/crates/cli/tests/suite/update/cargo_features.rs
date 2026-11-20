@@ -1,6 +1,12 @@
-use super::{fs, pacquet};
+use super::{
+    fs,
+    pacquet,
+};
 use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const CHECKSUM: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 

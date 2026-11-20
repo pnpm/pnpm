@@ -1,6 +1,14 @@
 use super::{
-    EngineCallGuard, EngineMode, InstallOptions, LogSink, NativeRenderer, OutputSink,
-    build_renderer, engine_call_lock, napi, run_install_inner,
+    EngineCallGuard,
+    EngineMode,
+    InstallOptions,
+    LogSink,
+    NativeRenderer,
+    OutputSink,
+    build_renderer,
+    engine_call_lock,
+    napi,
+    run_install_inner,
 };
 use pnpm_package_manager::RebuildOptions;
 
@@ -33,7 +41,7 @@ fn run_rebuild_blocking(
     renderer: Option<NativeRenderer>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    // Restores the previous sink and renderer on drop — including on a
+    // Restores the previous sink and renderer on drop, including on a
     // panic in `run_install_inner`, which unwinds this dedicated thread.
     let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     let rebuild_options =
@@ -52,13 +60,14 @@ pub(super) fn rebuild_options(
     RebuildOptions {
         selected_names: selected_names
             .filter(|names| !names.is_empty())
-            .map(|names| names.into_iter().collect()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         // The engine API rebuilds dependencies only; running a workspace
         // project's own deferred scripts is `pnpm rebuild --pending`.
         pending_projects: Vec::new(),
         // The embedder rebuilds the lockfile it just installed or restored,
         // so of the settings it records only the patches, which change the
-        // build output, have to match the configuration — as in pnpm v11's
+        // build output, have to match the configuration, as in pnpm v11's
         // `rebuild`. Comparing the rest, like `pnpmfileChecksum`, fails a
         // rebuild of a lockfile resolved with other `readPackage` hooks or
         // settings.

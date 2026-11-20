@@ -1,4 +1,7 @@
-use super::{PeerSet, ResolvedPackage};
+use super::{
+    PeerSet,
+    ResolvedPackage,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
 use std::sync::Arc;
 

@@ -3,27 +3,51 @@
 //!
 //! The npm-resolver intercepts every `workspace:`-shaped wanted
 //! dependency *except* the path-relative forms (`workspace:./foo`,
-//! `workspace:../bar`) — those flow through unchanged so the
+//! `workspace:../bar`); those flow through unchanged so the
 //! local-resolver in the chain takes them as `link:`-shaped
 //! directory specs.
 
 use crate::{
-    calc_specifier_for_workspace_dep::{DeclaredSpecifiers, calc_specifier_for_workspace_dep},
+    calc_specifier_for_workspace_dep::{
+        DeclaredSpecifiers,
+        calc_specifier_for_workspace_dep,
+    },
     parse_bare_specifier::parse_bare_specifier,
-    pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
-    workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm},
+    pick_package_from_meta::{
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+    },
+    workspace_pref_to_npm::{
+        InvalidWorkspaceSpecError,
+        workspace_pref_to_npm,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_resolver_base::{
-    DependencyManifest, PkgResolutionId, ResolveResult, SaveWorkspaceProtocol, WantedDependency,
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+    DependencyManifest,
+    PkgResolutionId,
+    ResolveResult,
+    SaveWorkspaceProtocol,
+    WantedDependency,
+    WorkspacePackage,
+    WorkspacePackages,
+    WorkspacePackagesByVersion,
 };
 use pnpm_workspace_range_resolver::resolve_workspace_range;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Options threaded into [`try_resolve_from_workspace`].
 #[derive(Debug, Clone)]
@@ -65,7 +89,7 @@ pub struct ResolveFromWorkspaceOptions<'a> {
 /// options struct.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SavedSpecifierOptions {
-    /// `false` suppresses the computation entirely — nothing below an
+    /// `false` suppresses the computation entirely; nothing below an
     /// importer's direct dependencies is written to a manifest.
     pub calc_specifier: bool,
     /// Range operator to apply when the dependency declares none.
@@ -81,7 +105,7 @@ pub struct SavedSpecifierOptions {
 /// are part of the public contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveFromWorkspaceError {
-    /// The translated workspace spec failed to parse — practically
+    /// The translated workspace spec failed to parse, practically
     /// unreachable since the caller checks the `workspace:` prefix
     /// before invoking this entry point.
     #[diagnostic(transparent)]
@@ -316,7 +340,7 @@ pub fn resolve_workspace_package_dir(root_dir: &Path, manifest: &DependencyManif
     let link_directory = publish_config
         .and_then(|cfg| cfg.get("linkDirectory"))
         .and_then(serde_json::Value::as_bool);
-    if publish_dir.is_none() || link_directory == Some(false) {
+    if publish_dir.is_none() || !link_directory.unwrap_or(true) {
         return root_dir.to_path_buf();
     }
     root_dir.join(publish_dir.expect("guard above"))

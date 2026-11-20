@@ -1,29 +1,68 @@
 use crate::{
-    ConfigDepError, ConfigDependencyVerification, ConfigDepsInstallOptions, install_config_deps,
-    is_package_manager_resolved, pnpm_engine_packages, prune_env_lockfile,
-    resolve_and_install_config_deps, resolve_package_manager_integrities,
+    ConfigDepError,
+    ConfigDependencyVerification,
+    ConfigDepsInstallOptions,
+    install_config_deps,
+    is_package_manager_resolved,
+    pnpm_engine_packages,
+    prune_env_lockfile,
+    resolve_and_install_config_deps,
+    resolve_package_manager_integrities,
 };
 use pnpm_lockfile::{
-    EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    EnvLockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
 };
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
-use pnpm_reporter::{InstallingConfigDepsStatus, LogEvent, Reporter, SilentReporter};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
+use pnpm_reporter::{
+    InstallingConfigDepsStatus,
+    LogEvent,
+    Reporter,
+    SilentReporter,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    NpmResolver,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, NoMatchingVersionError, PkgResolutionId, ResolutionPolicyOptions,
-    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    NoMatchingVersionError,
+    PkgResolutionId,
+    ResolutionPolicyOptions,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::registry::TestRegistry;
 use pnpm_workspace_state::ConfigDependency;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 use tempfile::TempDir;
 
@@ -213,7 +252,7 @@ struct FixtureResolver {
     /// does for a release the registry does not publish.
     unpublished: std::collections::HashSet<String>,
     /// Resolve to tarball resolutions whose URL is not derivable from the
-    /// registry — the shape a load-balanced proxy or Artifactory-style
+    /// registry, the shape a load-balanced proxy or Artifactory-style
     /// mirror produces.
     non_derivable_tarball_urls: bool,
 }

@@ -1,14 +1,28 @@
-use super::{HASH_ALGORITHM, calculate_diff, upload, upload_with_diff};
+use super::{
+    HASH_ALGORITHM,
+    calculate_diff,
+    upload,
+    upload_with_diff,
+};
 #[cfg(unix)]
 use crate::SYMLINK_MODE;
 use crate::{
-    CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir, StoreIndex, StoreIndexWriter,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
     add_files_from_dir,
 };
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 #[cfg(unix)]

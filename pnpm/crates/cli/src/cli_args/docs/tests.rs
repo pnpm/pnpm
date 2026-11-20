@@ -1,10 +1,18 @@
-use super::{DocsArgs, documentation_url_from_manifest, is_http_url};
+use super::{
+    DocsArgs,
+    documentation_url_from_manifest,
+    is_http_url,
+};
 use crate::cli_args::view::ViewError;
+use command_extra::CommandExtra;
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_registry::PackageVersion;
 use serde_json::json;
-use std::{io, sync::Mutex};
+use std::{
+    io,
+    sync::Mutex,
+};
 
 fn packument() -> String {
     json!({
@@ -235,8 +243,8 @@ fn failing_browser_redacts_url_and_succeeds() {
     }
 
     let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--nocapture", "failing_browser_redacts_url_and_succeeds"])
-        .env(CHILD, "1")
+        .with_args(["--nocapture", "failing_browser_redacts_url_and_succeeds"])
+        .with_env(CHILD, "1")
         .output()
         .unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();

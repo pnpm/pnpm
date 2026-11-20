@@ -4,13 +4,19 @@
 
 #![cfg(unix)]
 
-use crate::_utils::{WorkspaceFixture, assert_success};
+use crate::_utils::{
+    WorkspaceFixture,
+    assert_success,
+};
 
 use std::{
     collections::BTreeMap,
     fs,
     os::unix::fs::symlink,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use serde_json::json;

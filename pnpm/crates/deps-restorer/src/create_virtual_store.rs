@@ -1,41 +1,82 @@
 pub(crate) mod cas;
-pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
+pub(crate) use cache_keys::{
+    dir_clone_cacheable,
+    package_content_changed,
+};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
-pub use output::{CreateVirtualStoreOutput, SideEffectsOutput, SnapshotPlacement};
+pub use output::{
+    CreateVirtualStoreOutput,
+    SideEffectsOutput,
+    SnapshotPlacement,
+};
 
 mod output;
 mod pipeline;
 
 mod warm;
-use warm::{snapshot_needs_build_marker, warm_cas_paths_by_pkg_id, warm_shared_base_cas_paths};
+use warm::{
+    snapshot_needs_build_marker,
+    warm_cas_paths_by_pkg_id,
+    warm_shared_base_cas_paths,
+};
 
 mod cold;
-use cold::{ColdCapture, add_cold_cas_paths};
+use cold::{
+    ColdCapture,
+    add_cold_cas_paths,
+};
 
 mod slot_linking;
 use slot_linking::LinkSlotsParallel;
 
 mod cache_keys;
 use cache_keys::{
-    SnapshotCacheKey, derive_cache_keys, integrity_equal, prefetch_keys, snapshot_deps_equal,
+    SnapshotCacheKey,
+    derive_cache_keys,
+    integrity_equal,
+    prefetch_keys,
+    snapshot_deps_equal,
 };
 
 use crate::{
-    CasPathsByPkgId, InstallPackageBySnapshotError, store_init::init_store_dir_best_effort,
+    CasPathsByPkgId,
+    InstallPackageBySnapshotError,
+    store_init::init_store_dir_best_effort,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_lockfile::{
-    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName,
-    PkgNameVerPeer, ProjectSnapshot, SnapshotEntry,
+    LockfileEntries,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgIdWithPatchHash,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    SnapshotEntry,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex};
-use pnpm_tarball::{PrefetchIntegrityCheck, PrefetchResult, prefetch_cas_paths};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreIndex,
+};
+use pnpm_tarball::{
+    PrefetchIntegrityCheck,
+    PrefetchResult,
+    prefetch_cas_paths,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::PathBuf,
     pin::Pin,
     sync::Arc,
@@ -80,18 +121,18 @@ pub fn lookup_known_bins<'a>(
 /// Per-snapshot side-effects-cache overlays, keyed by the snapshot's
 /// `PackageKey` and then by the dep-state cache key (the string
 /// `pnpm_graph_hasher::calc_dep_state` produces). The inner map
-/// is the post-build files map for that cache key — already with
+/// is the post-build files map for that cache key, already with
 /// the `added` / `deleted` overlay applied against the base files
 /// (see `pnpm_store_dir::VerifyResult.side_effects_maps`).
 ///
 /// Multiple snapshot peer-variants of the same package share one
-/// `Arc<_>` value — the store-index row is keyed peer-stripped, so
+/// `Arc<_>` value, the store-index row is keyed peer-stripped, so
 /// each `PackageKey::without_peer()` lookup returns the same
 /// underlying map.
 ///
 /// Hands off to `BuildModules`'s `is_built` gate (pnpm/pacquet#421):
 /// for a snapshot whose `calc_dep_state` cache key matches an entry
-/// here, the build is skipped — pacquet treats the package as
+/// here, the build is skipped, pacquet treats the package as
 /// already built (typically because pnpm seeded the cache on a
 /// previous install).
 pub type SideEffectsMapsBySnapshot =
@@ -142,9 +183,9 @@ pub struct CreateVirtualStoreStoreContext<'a> {
 ///
 /// [`CreateVirtualStore::run`] starts one itself when the caller passes
 /// none. A caller that has independent async work to do between
-/// planning and materialization — the frozen install path's
+/// planning and materialization (the frozen install path's
 /// installability host detection, whose `node --version` costs more
-/// than the entire prefetch — starts it early via [`Self::start`] and
+/// than the entire prefetch) starts it early via [`Self::start`] and
 /// hands it over through [`crate::VirtualStoreFetchInputs::cas_prefetch`], so the
 /// prefetch's store reads run under that work instead of after it.
 pub struct CasPrefetch {
@@ -170,7 +211,7 @@ impl CasPrefetch {
     /// Derive every snapshot's store-index cache key and spawn the
     /// warm-cache prefetch over the keys that exist. Read-only against
     /// the store apart from the `SQLite` open, so it is safe to run
-    /// concurrently with anything that does not write store rows —
+    /// concurrently with anything that does not write store rows,
     /// but, like the rest of the store planning, only after the
     /// offline lockfile checks.
     ///
@@ -193,7 +234,7 @@ impl CasPrefetch {
         // store (see <https://github.com/pnpm/pacquet/issues/260>). A
         // `None` here means the store has no `index.db` yet (first
         // install against an empty store), in which case every lookup
-        // would miss — so the handle stays `Option`al and lookups
+        // would miss, so the handle stays `Option`al and lookups
         // short-circuit. The open itself is synchronous SQLite I/O
         // parked on the blocking pool; `open_shared` degrades a
         // blocking-task failure to `None` so the install still makes
@@ -242,7 +283,7 @@ pub struct CreateVirtualStore<'a> {
     pub fetching: crate::VirtualStoreFetchInputs<'a>,
     pub selection: crate::SnapshotSelection<'a>,
     pub ctx: &'a crate::InstallContext<'a>,
-    /// The wanted lockfile's entries — what this run materializes.
+    /// The wanted lockfile's entries, what this run materializes.
     pub entries: LockfileEntries<'a>,
     /// Entries recorded by the previous install, parsed from
     /// `<install_state_dir>/lock.yaml`. Used for reuse decisions and child-link
@@ -397,7 +438,7 @@ struct CasIndexes {
     /// pass.
     shared_base: crate::shared_side_effects::BaseCasPaths,
     /// Built only for the hoisted linker, which materializes
-    /// `node_modules/` straight from these paths — see
+    /// `node_modules/` straight from these paths; see
     /// [`CreateVirtualStoreOutput::cas_paths_by_pkg_id`]. Keyed by
     /// [`PkgIdWithPatchHash`], the key the walker assigns each
     /// [`crate::DependenciesGraphNode`]; until pacquet has end-to-end
@@ -429,15 +470,13 @@ impl CasIndexes {
 
 /// Look up the obsolete child aliases for a slot, defaulting to an
 /// empty slice. The extra indirection lets the [`SlotLink`](crate::create_virtual_store::slot_linking::SlotLink) builders
-/// pass their multiply-borrowed `snapshot_key` straight through —
+/// pass their multiply-borrowed `snapshot_key` straight through,
 /// deref coercion narrows it to `&PackageKey` at the call site.
 fn removed_aliases_for<'a>(
     removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     snapshot_key: &PackageKey,
 ) -> &'a [PkgName] {
-    removed_aliases_by_key
-        .get(snapshot_key)
-        .map_or(&[], Vec::as_slice)
+    removed_aliases_by_key.get(snapshot_key).map_or_default(Vec::as_slice)
 }
 
 /// Child aliases linked by the previous install (`current`) that are

@@ -4,8 +4,14 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn set_branch(workspace: &Path, branch: &str) {
     let git_dir = workspace.join(".git");
@@ -232,7 +238,7 @@ fn merging_keeps_the_branch_lockfiles_when_lockfiles_are_disabled() {
 }
 
 /// `dedupe --check` reports what a dedupe would change and takes its
-/// lockfile back afterwards, so the merge it ran never reaches disk — and
+/// lockfile back afterwards, so the merge it ran never reaches disk, and
 /// the branch lockfiles it merged from have to survive it.
 #[test]
 fn merging_keeps_the_branch_lockfiles_on_a_check_only_dedupe() {
@@ -381,12 +387,12 @@ fn merging_with_nothing_to_merge_still_rejects_an_outdated_lockfile() {
 
 fn git(work: &Path, args: &[&str]) {
     let status = std::process::Command::new("git")
-        .args(args)
-        .current_dir(work)
-        .env("GIT_AUTHOR_NAME", "test")
-        .env("GIT_AUTHOR_EMAIL", "test@example.com")
-        .env("GIT_COMMITTER_NAME", "test")
-        .env("GIT_COMMITTER_EMAIL", "test@example.com")
+        .with_args(args)
+        .with_current_dir(work)
+        .with_env("GIT_AUTHOR_NAME", "test")
+        .with_env("GIT_AUTHOR_EMAIL", "test@example.com")
+        .with_env("GIT_COMMITTER_NAME", "test")
+        .with_env("GIT_COMMITTER_EMAIL", "test@example.com")
         .status()
         .expect("run git");
     assert!(status.success(), "git {args:?} failed");

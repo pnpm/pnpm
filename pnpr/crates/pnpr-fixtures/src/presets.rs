@@ -1,14 +1,43 @@
 use indexmap::IndexMap;
 use pnpr_config::{
-    ArtifactsFeature, AuthConfig, BackendConfig, Config, CorsConfig, HostedConfig,
-    HostedStoreConfig, LogConfig, OciConfig, OsvConfig, PipelineFeature, RegistryFeature,
-    ResolverFeature, RoutePolicy, TrustedProxyHeader, UiConfig, UpstreamConfig, default_cache_dir,
+    ArtifactsFeature,
+    AuthConfig,
+    BackendConfig,
+    Config,
+    CorsConfig,
+    HostedConfig,
+    HostedStoreConfig,
+    LogConfig,
+    OciConfig,
+    OsvConfig,
+    PipelineFeature,
+    RegistryFeature,
+    ResolverFeature,
+    RoutePolicy,
+    TrustedProxyHeader,
+    UiConfig,
+    UpstreamConfig,
+    default_cache_dir,
     default_database_path,
 };
-use pnpr_policy::{AccessList, PackageRule, PackageRules};
-use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+use pnpr_policy::{
+    AccessList,
+    PackageRule,
+    PackageRules,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+};
 use reqwest::header::HeaderMap;
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
 /// The package patterns [`MockConfigPresets::proxy`] declares on its flat-root hosted
 /// registry, so those names resolve locally rather than to the npm upstream: the

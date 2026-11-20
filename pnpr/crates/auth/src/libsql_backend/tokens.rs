@@ -1,8 +1,25 @@
-use super::{LibsqlAuth, RegistryError, Result, Row, TokenBackend, TokenRecord, first_row, params};
+use super::{
+    LibsqlAuth,
+    RegistryError,
+    Result,
+    Row,
+    TokenBackend,
+    TokenRecord,
+    first_row,
+    params,
+};
 use crate::{
-    NewToken, TokenKind,
-    token_store::{mint_token, sha256_hex, unix_millis},
-    validation::{token_timestamp_from_sql, token_timestamp_to_sql},
+    NewToken,
+    TokenKind,
+    token_store::{
+        mint_token,
+        sha256_hex,
+        unix_millis,
+    },
+    validation::{
+        token_timestamp_from_sql,
+        token_timestamp_to_sql,
+    },
 };
 use async_trait::async_trait;
 

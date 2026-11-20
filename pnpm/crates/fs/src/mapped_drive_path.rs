@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[cfg(all(windows, test))]
 #[path = "mapped_drive_path/tests.rs"]
@@ -32,8 +35,7 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
 pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
-    is_unc_path(path)
-        || drive_letter(path).is_some_and(|drive| is_mapped_drive(drive) == Some(true))
+    is_unc_path(path) || drive_letter(path).and_then(is_mapped_drive).unwrap_or(false)
 }
 
 /// The network share a path is on.
@@ -51,7 +53,10 @@ pub(crate) enum NetworkShare {
 /// [`is_mapped_drive_cached`].
 #[cfg(windows)]
 pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
-    use std::path::{Component, Prefix};
+    use std::path::{
+        Component,
+        Prefix,
+    };
 
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
@@ -79,7 +84,10 @@ pub(crate) fn network_share_cached(path: &Path) -> Option<NetworkShare> {
 /// drive, so it isn't cached.
 #[cfg(windows)]
 fn is_mapped_drive_cached(drive: char) -> bool {
-    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::atomic::{
+        AtomicU8,
+        Ordering,
+    };
 
     const UNKNOWN: u8 = 0;
     const LOCAL: u8 = 1;
@@ -127,7 +135,10 @@ fn is_mapped_drive(letter: char) -> Option<bool> {
 #[cfg(windows)]
 fn drive_kind_from_connection_result(result: u32) -> Option<bool> {
     use windows_sys::Win32::Foundation::{
-        ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NOT_CONNECTED, NO_ERROR,
+        ERROR_CONNECTION_UNAVAIL,
+        ERROR_MORE_DATA,
+        ERROR_NOT_CONNECTED,
+        NO_ERROR,
     };
 
     match result {
@@ -163,9 +174,13 @@ fn drive_letter(path: &Path) -> Option<char> {
 
 #[cfg(windows)]
 fn mapped_drive(letter: char) -> Option<PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::OsStringExt,
+    };
     use windows_sys::Win32::{
-        Foundation::ERROR_MORE_DATA, NetworkManagement::WNet::WNetGetConnectionW,
+        Foundation::ERROR_MORE_DATA,
+        NetworkManagement::WNet::WNetGetConnectionW,
     };
 
     let drive_name = [letter as u16, u16::from(b':'), 0];
@@ -199,22 +214,26 @@ fn mapped_drive_path(path: &Path, drive: char, remote: &Path) -> Option<PathBuf>
 
 #[cfg(windows)]
 fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
-    use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
-    use windows_sys::Win32::Globalization::{CSTR_EQUAL, CompareStringOrdinal};
+    use std::os::windows::ffi::{
+        OsStrExt as _,
+        OsStringExt as _,
+    };
+    use windows_sys::Win32::Globalization::{
+        CSTR_EQUAL,
+        CompareStringOrdinal,
+    };
 
+    let is_separator = |unit: &u16| matches!(*unit, 0x2f | 0x5c);
     let path: Vec<u16> = path.as_os_str().encode_wide().collect();
     let mut remote: Vec<u16> = remote
         .as_os_str()
         .encode_wide()
         .collect();
-    while remote
-        .last()
-        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
-    {
+    while remote.last().is_some_and(is_separator) {
         remote.pop();
     }
     if path.len() < remote.len()
-        || (path.len() > remote.len() && !matches!(path[remote.len()], 0x2f | 0x5c))
+        || (path.len() > remote.len() && !is_separator(&path[remote.len()]))
     {
         return None;
     }
@@ -232,10 +251,7 @@ fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
         return None;
     }
     let mut suffix = remote.len();
-    while path
-        .get(suffix)
-        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
-    {
+    while path.get(suffix).is_some_and(is_separator) {
         suffix += 1;
     }
     Some(PathBuf::from(std::ffi::OsString::from_wide(&path[suffix..])))
@@ -243,7 +259,10 @@ fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
 
 #[cfg(windows)]
 fn remove_verbatim_unc_prefix(path: &Path) -> PathBuf {
-    use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+    use std::os::windows::ffi::{
+        OsStrExt as _,
+        OsStringExt as _,
+    };
 
     let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
     let prefix = [

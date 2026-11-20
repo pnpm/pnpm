@@ -8,29 +8,58 @@
 
 pub(crate) use native_binary::link_exe_platform_binary;
 pub(super) use native_binary::{
-    exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, native_target_name,
+    exe_platform_pkg_dir_name,
+    exe_platform_pkg_dir_name_next,
+    native_target_name,
 };
 
 use super::SelfUpdateError;
 use crate::{
-    State, cli_args::add::add_package, executable_link::replace_executable, process::Command,
+    State,
+    cli_args::add::add_package,
+    executable_link::replace_executable,
+    process::Command,
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 
-use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
-use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
-use pnpm_global::{
-    GlobalPackageInfo, clean_orphaned_install_dirs, create_install_dir, scan_global_packages,
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    get_bins_from_package_manifest,
 };
-use pnpm_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageManagerBootstrap,
+};
+use pnpm_global::{
+    GlobalPackageInfo,
+    clean_orphaned_install_dirs,
+    create_install_dir,
+    scan_global_packages,
+};
+use pnpm_graph_hasher::{
+    format_global_virtual_store_path,
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_package_manifest::{DependencyGroup, parse_manifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    parse_manifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// From v12 the unscoped `pnpm` package is itself the native engine
@@ -93,7 +122,7 @@ pub(super) async fn install_pnpm<Reporter: self::Reporter + 'static>(
     Ok(InstallPnpmResult { install_dir, package_name, already_existed: false })
 }
 
-/// Fail unless the engine installed at `install_dir` can execute — a release can
+/// Fail unless the engine installed at `install_dir` can execute, a release can
 /// install cleanly and still not run, when its wrapper kept the placeholder bin
 /// of a platform package that shipped without a native.
 pub(super) fn assert_pnpm_runs(
@@ -161,7 +190,8 @@ fn engine_failure(
     let stderr = stderr.trim();
     let code = output.status
         .code()
-        .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+        .map(|code| format!("code {code}"))
+        .unwrap_or_else(|| "a signal".to_string());
     Ok(Some(if stderr.is_empty() {
         format!("it exited with {code}")
     } else {
@@ -266,7 +296,7 @@ fn reuse_global_engine(
 /// install does, since Node.js may be gone or the slot damaged since it was
 /// installed.
 ///
-/// The relink is best-effort *on the reuse decision only* — it does not
+/// The relink is best-effort *on the reuse decision only*; it does not
 /// weaken any check. [`link_exe_platform_binary`]'s wrapper-containment
 /// guard still runs and still refuses to link when the wrapper resolves
 /// outside `install_dir`; on refusal it links nothing. This helper
@@ -296,7 +326,7 @@ fn reuse_cached_engine(install_dir: &Path, package: PnpmPackageToInstall, versio
 /// Whether `version` can be installed at all. False for versions whose
 /// `@pnpm/exe` shipped platform packages with no binary, so it cannot run.
 /// Matched by version, not package: the pin is shared but the wrapper is not,
-/// so a developer on the JS `pnpm` — which does run at these versions — would
+/// so a developer on the JS `pnpm` (which does run at these versions) would
 /// otherwise pin one and break every teammate on `@pnpm/exe`.
 ///
 /// For callers that pick a version rather than being handed one, and so can
@@ -379,8 +409,8 @@ fn version_gte(version: &node_semver::Version, minimum: (u64, u64, u64)) -> bool
 /// prompt.
 ///
 /// `shared_engine_packages` selects the layout. `Some(packages)` installs
-/// into the shared global virtual store (`<store>/links/...`) — the layout
-/// engine provisioning reuses across invocations — with those packages
+/// into the shared global virtual store (`<store>/links/...`) (the layout
+/// engine provisioning reuses across invocations) with those packages
 /// marked buildable so the `ENGINE_NAME` is folded into their GVS hash and
 /// each platform resolves to its own slot instead of colliding. `None`
 /// keeps the engine self-contained inside `install_dir` (the `self-update`

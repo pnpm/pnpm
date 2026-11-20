@@ -1,5 +1,8 @@
 use crate::{
-    graph::{CrateGraph, Edge},
+    graph::{
+        CrateGraph,
+        Edge,
+    },
     layers::Layers,
 };
 use std::fmt::Write as _;

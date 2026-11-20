@@ -1,13 +1,21 @@
-//! `pacquet login` / `pacquet adduser` — authenticate with an npm registry
+//! `pacquet login` / `pacquet adduser`: authenticate with an npm registry
 //! and record the token in `auth.ini`. The command logic lives in
 //! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
 use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_auth_commands::login::{Host as AuthHost, LoginHost, LoginOptions, login};
+use pnpm_auth_commands::login::{
+    Host as AuthHost,
+    LoginHost,
+    LoginOptions,
+    login,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
 use std::path::Path;

@@ -1,15 +1,33 @@
-pub(super) use kept_range::{KeptRangeVerdict, judge_against_kept_range, kept_range_rewrite};
+pub(super) use kept_range::{
+    KeptRangeVerdict,
+    judge_against_kept_range,
+    kept_range_rewrite,
+};
 
 mod kept_range;
 
 use super::{
-    CatalogCtx, LatestResolverChain, LatestRewriteCtx, UpdateError, latest_specifier,
+    CatalogCtx,
+    LatestResolverChain,
+    LatestRewriteCtx,
+    UpdateError,
+    latest_specifier,
     overrides::{
-        override_governed, override_owned_latest_rewrite, override_owned_rewrite,
+        override_governed,
+        override_owned_latest_rewrite,
+        override_owned_rewrite,
         warn_pinned_override,
     },
-    seed_policy::{UpdatePlan, UpdateScope},
-    selectors::{ParsedSelector, insert_update_target, matcher_one, update_target_name},
+    seed_policy::{
+        UpdatePlan,
+        UpdateScope,
+    },
+    selectors::{
+        ParsedSelector,
+        insert_update_target,
+        matcher_one,
+        update_target_name,
+    },
     tag_version,
 };
 use crate::manifest_spec_bumps::split_registry_alias;
@@ -18,18 +36,29 @@ use crate::runtime_specifier::node_runtime_version_spec;
 use node_semver::Version;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_engine_runtime_node_resolver::{
-    normalize_node_runtime_version_specifier, parse_node_specifier,
+    normalize_node_runtime_version_specifier,
+    parse_node_specifier,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_deps_resolver::real_package_name_of;
-use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
-use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorType, parse_strict_semver_range,
+use pnpm_resolving_npm_resolver::{
+    calc_version_range,
+    infer_range_spec_style,
+    range_of_specifier,
 };
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, is_tool_specifier, strip_tool_protocol};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    VersionSelectorType,
+    parse_strict_semver_range,
+};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    is_tool_specifier,
+    strip_tool_protocol,
+};
 
 /// What one matched direct dependency is rewritten against.
 pub(super) struct MatchedRewriteInputs<'a, 'ctx, 'borrow> {
@@ -293,8 +322,8 @@ fn rewrite_runtime_without_node_resolver(requested: &str, previous: &str) -> Str
 /// A dist tag names no version until it is resolved, so an entry pinning a
 /// version or a range records what the tag resolved to, keeping the operator
 /// it already pins. An entry that already tracks a tag keeps tracking one.
-/// Anything else — a `catalog:` reference, a `workspace:` or `npm:` alias, a
-/// path or git dependency — declares something no version round-trips, so it
+/// Anything else, a `catalog:` reference, a `workspace:` or `npm:` alias, a
+/// path or git dependency, declares something no version round-trips, so it
 /// stands and the selector reaches the install as a preference only.
 pub(super) async fn tag_rewrite(
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,

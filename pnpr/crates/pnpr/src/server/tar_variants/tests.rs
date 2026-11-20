@@ -1,5 +1,14 @@
-use super::{COPY_QUOTA_BYTES, CopyReservation, MAX_VARIANT_TAR_BYTES, Ordering, TarVariantQueue};
-use std::{path::PathBuf, sync::Arc};
+use super::{
+    COPY_QUOTA_BYTES,
+    CopyReservation,
+    MAX_VARIANT_TAR_BYTES,
+    Ordering,
+    TarVariantQueue,
+};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 fn reservation(queue: &TarVariantQueue, variant: &str) -> CopyReservation {
     assert!(queue.claim(variant), "{variant} is free to claim");

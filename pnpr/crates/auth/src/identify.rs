@@ -1,4 +1,7 @@
-use super::{Result, TokenBackend};
+use super::{
+    Result,
+    TokenBackend,
+};
 
 /// Identify the caller behind an HTTP request. Inspects the
 /// `Authorization` header and resolves it to an account ID via the token
@@ -8,7 +11,7 @@ use super::{Result, TokenBackend};
 /// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
 /// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
 /// all parse the same.
-/// `Ok(None)` covers every "no usable credentials" case — a missing or
+/// `Ok(None)` covers every "no usable credentials" case, a missing or
 /// malformed header, a non-`Bearer` scheme (including legacy `Basic`), or a
 /// token that doesn't match. `Err` is reserved for a failure of the
 /// backing store (e.g. the networked auth DB is unreachable) so the caller

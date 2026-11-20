@@ -1,20 +1,36 @@
 use clap::Subcommand;
 use indexmap::IndexMap;
 use miette::IntoDiagnostic;
-use pnpm_config::{Config, ResolutionMode};
+use pnpm_config::{
+    Config,
+    ResolutionMode,
+};
 use pnpm_fs::lexical_normalize;
 use pnpm_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, LEGACY_META_DIRS,
-    LEGACY_PRIVATE_META_ROOT, PNPR_META_DIR, RELEASE_RECORDS_DIR, decode_registry_name,
-    get_registry_name, is_unreadable_registry_key, load_meta,
+    ABBREVIATED_META_DIR,
+    FULL_FILTERED_META_DIR,
+    FULL_META_DIR,
+    LEGACY_META_DIRS,
+    LEGACY_PRIVATE_META_ROOT,
+    PNPR_META_DIR,
+    RELEASE_RECORDS_DIR,
+    decode_registry_name,
+    get_registry_name,
+    is_unreadable_registry_key,
+    load_meta,
 };
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
     borrow::Cow,
     ffi::OsStr,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 use wax::walk::Entry;
 
@@ -72,7 +88,7 @@ impl CacheCommand {
     /// `pnpm cache path` to hand to other tools.
     ///
     /// `dunce::canonicalize` would also resolve symlinks, which the
-    /// TypeScript CLI's `path.resolve` does not — on macOS, where the
+    /// TypeScript CLI's `path.resolve` does not, on macOS, where the
     /// temporary and home directories are symlinked, the two stacks would
     /// then print different paths for the same configuration.
     fn cleaned_cache_dir(config: &Config) -> PathBuf {
@@ -82,14 +98,14 @@ impl CacheCommand {
     /// Filesystem-safe slug of the configured registry, used as the top-level
     /// directory under the metadata cache root. A malformed registry URL is a
     /// configuration error, so we surface it rather than broadening the glob
-    /// scope to every registry — important because `delete` is destructive.
+    /// scope to every registry, important because `delete` is destructive.
     fn registry_prefix(config: &Config) -> miette::Result<String> {
         get_registry_name(&config.registry).into_diagnostic()
     }
 
     /// Reject names whose glob would escape the cache root. pnpm passes filter
     /// arguments straight into a glob; pacquet additionally guards against `..`
-    /// segments so a crafted name can't match files outside the cache tree —
+    /// segments so a crafted name can't match files outside the cache tree,
     /// `delete` removes whatever the glob resolves to.
     pub(super) fn reject_path_traversal(name: &str) -> miette::Result<()> {
         if name.contains("..") {
@@ -114,7 +130,7 @@ impl CacheCommand {
                 .iter()
                 .map(|pkg| {
                     Self::reject_path_traversal(pkg)?;
-                    // Filters are matched literally, as in pnpm — they are glob
+                    // Filters are matched literally, as in pnpm; they are glob
                     // segments, not package names, so they are not re-encoded.
                     Ok(format!("{registry_prefix}/{pkg}.jsonl"))
                 })
@@ -189,7 +205,8 @@ impl CacheCommand {
         let store_index = StoreIndex::shared_readonly_in(&config.store_dir);
         let store_index = store_index
             .as_ref()
-            .map(|index| index.lock().expect("store index mutex"));
+            .map(|index| index.lock())
+            .map(|value| value.expect("store index mutex"));
 
         // IndexMap preserves insertion order so the JSON key order is
         // deterministic (driven by the sorted file paths), matching pnpm's
@@ -424,13 +441,13 @@ impl PruneOutcome {
 /// `cacheDir` is a `pnpm-workspace.yaml` setting, so a checked-out project
 /// chooses where this command deletes from. `read_dir` follows a symlinked root,
 /// which would put every directory behind the link in reach of
-/// `remove_dir_all` — and the names prune accepts are broad, being every name
+/// `remove_dir_all`, and the names prune accepts are broad, being every name
 /// that is not in the current key shape.
 ///
 /// A prefix test against the cache directory would not be enough, because a
 /// path is its own prefix: a root linked back to the cache directory would pass
 /// one, and prune would then read that directory's own children and take every
-/// one of them — `v11` included — for a stale registry key.
+/// one of them (`v11` included) for a stale registry key.
 ///
 /// The sweep runs against the resolved path, so replacing the configured root
 /// with a link afterwards redirects nothing. This is the containment
@@ -551,7 +568,9 @@ fn split_cached_versions(
             integrity,
             &format!("{}@{}", meta_object.name, version),
         );
-        let is_cached = store_index.is_some_and(|index| index.contains_key(&key).unwrap_or(false));
+        let is_cached = store_index
+            .map(|index| index.contains_key(&key))
+            .is_some_and(|key| key.unwrap_or(false));
         if is_cached {
             cached.push(version.clone());
         } else {

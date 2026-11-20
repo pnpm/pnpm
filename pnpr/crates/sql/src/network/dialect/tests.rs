@@ -1,5 +1,11 @@
-use super::{NetworkDialect, Param};
-use crate::{Dialect, schema};
+use super::{
+    NetworkDialect,
+    Param,
+};
+use crate::{
+    Dialect,
+    schema,
+};
 
 #[test]
 fn placeholders_bind_in_occurrence_order_and_leave_literals_alone() {

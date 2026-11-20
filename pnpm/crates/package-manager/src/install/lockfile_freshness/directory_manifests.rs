@@ -2,17 +2,33 @@
 //! resolver read them.
 
 use super::{
-    FreshnessCheckError, LockfileFreshnessInputs,
+    FreshnessCheckError,
+    LockfileFreshnessInputs,
     directory_deps::{
-        GraphEdges, NestedByImporter, NestedDirectoryPackage, is_deploy_file_url_key,
+        GraphEdges,
+        NestedByImporter,
+        NestedDirectoryPackage,
+        is_deploy_file_url_key,
         nested_directory_packages as nested_directory_packages_along,
     },
     project_manifests_by_dir,
 };
-use crate::install::{Arc, Lockfile, PackageManifest, PathBuf};
+use crate::install::{
+    Arc,
+    Lockfile,
+    PackageManifest,
+    PathBuf,
+};
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_deps_resolver::{ChildCatalogs, ManifestTransformHooks, directory_package_dir};
-use std::collections::{HashMap, HashSet};
+use pnpm_resolving_deps_resolver::{
+    ChildCatalogs,
+    ManifestTransformHooks,
+    directory_package_dir,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 mod read;
 
@@ -206,7 +222,8 @@ impl DirectoryWalk<'_, '_> {
         let mut queued: HashSet<&DirectoryDep> = HashSet::new();
         let unread: Vec<&Visit> = level
             .iter()
-            .filter(|visit| !read.contains_key(&visit.dep) && queued.insert(&visit.dep))
+            .filter(|visit| !read.contains_key(&visit.dep))
+            .filter(|visit| queued.insert(&visit.dep))
             .collect();
         let manifests = futures_util::future::try_join_all(
             unread

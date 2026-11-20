@@ -1,9 +1,19 @@
 //! Sending a request to an upstream and checking its response status.
 
 use super::{
-    CanonicalPackageName, HeadError, HeaderMap, Instant, RedirectGuard, RegistryError, Result,
-    ThrottledClient, ThrottledClientGuard, Upstream, http::read_upstream_error_body,
-    redact_url_for_display, version_route_tarball_version,
+    CanonicalPackageName,
+    HeadError,
+    HeaderMap,
+    Instant,
+    RedirectGuard,
+    RegistryError,
+    Result,
+    ThrottledClient,
+    ThrottledClientGuard,
+    Upstream,
+    http::read_upstream_error_body,
+    redact_url_for_display,
+    version_route_tarball_version,
 };
 
 /// Where an upstream packument's `dist.tarball` points for a version.
@@ -192,7 +202,7 @@ impl Upstream {
 
     /// Pass a successful response through; map any non-success status to
     /// [`RegistryError::UpstreamStatus`]. Only a `5xx` counts against the
-    /// breaker — a non-404 `4xx` is an authoritative client error (auth,
+    /// breaker, a non-404 `4xx` is an authoritative client error (auth,
     /// rate-limit, bad request), not an availability signal, so it leaves
     /// the breaker untouched rather than opening the circuit and masking
     /// the real status behind a `503`. The `404`/`304` paths are handled

@@ -9,24 +9,46 @@
 //! styles of everything it does not touch.
 
 pub use build_settings::{
-    LEGACY_BUILD_SETTINGS, PermissionValue, UNDECIDED_ALLOW_BUILD, scaffold_allow_builds,
-    set_allow_builds, set_allow_builds_clearing_legacy, set_global_packages_build_permissions,
-    set_permissions, set_skills_dirs,
+    LEGACY_BUILD_SETTINGS,
+    PermissionValue,
+    UNDECIDED_ALLOW_BUILD,
+    scaffold_allow_builds,
+    set_allow_builds,
+    set_allow_builds_clearing_legacy,
+    set_global_packages_build_permissions,
+    set_permissions,
+    set_skills_dirs,
 };
 pub use catalog_references::CatalogReferenceSources;
 pub use field_updates::{
-    EditManifestFieldError, ManifestEdit, edit_manifest_field, is_owned_by_config_dependency,
-    update_manifest_field, update_private_manifest_field, update_workspace_setting,
+    EditManifestFieldError,
+    ManifestEdit,
+    edit_manifest_field,
+    is_owned_by_config_dependency,
+    update_manifest_field,
+    update_private_manifest_field,
+    update_workspace_setting,
 };
 pub use pnpm_config::version_policy::ResolvedPackageVersions;
 pub use version_policies::{
-    remove_overrides, set_audit_ignore_ghsas, set_config_dependencies,
-    set_minimum_release_age_excludes, set_overrides, set_patched_dependencies,
+    remove_overrides,
+    set_audit_ignore_ghsas,
+    set_config_dependencies,
+    set_minimum_release_age_excludes,
+    set_overrides,
+    set_patched_dependencies,
 };
 
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
@@ -40,7 +62,11 @@ mod render;
 mod tests;
 
 use model::Manifest;
-use routing::{ManifestTarget, WorkspaceManifests, read_owning_manifest};
+use routing::{
+    ManifestTarget,
+    WorkspaceManifests,
+    read_owning_manifest,
+};
 
 /// Base name of pnpm's workspace manifest.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
@@ -132,7 +158,7 @@ pub enum UpdateWorkspaceManifestError {
 ///
 /// The block-style writers splice `value` into a single `key: value` /
 /// `- item` line. A control character forces a multi-line scalar and
-/// corrupts the document outright; a separator is subtler — the emitter
+/// corrupts the document outright; a separator is subtler, the emitter
 /// folds the scalar and the parser reads back the folding indentation as
 /// part of the value, so the write silently succeeds with a mangled
 /// value. The values these writers handle (GHSA ids, version-policy
@@ -190,7 +216,9 @@ pub fn update_workspace_manifest(
     if !manifests.has_includes() {
         let target = manifests.root_target();
         let edited = edit_manifest_file(&target, opts, None)?;
-        return edited.map_or(Ok(()), |manifest| write_or_remove_manifest(&target, manifest));
+        return edited
+            .map(|manifest| write_or_remove_manifest(&target, manifest))
+            .unwrap_or(Ok(()));
     }
     routing::update_included_manifests(&manifests, opts)
 }

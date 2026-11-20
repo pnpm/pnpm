@@ -6,9 +6,15 @@ use indexmap::IndexMap;
 use pnpr_config::StorageAccess;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
-use pnpr_shared_artifacts::{OwnerAccess, OwnerGrant};
+use pnpr_shared_artifacts::{
+    OwnerAccess,
+    OwnerGrant,
+};
 
-use super::{AppState, require_caller};
+use super::{
+    AppState,
+    require_caller,
+};
 
 /// An authenticated caller, and what it may do with each declared
 /// artifact owner.

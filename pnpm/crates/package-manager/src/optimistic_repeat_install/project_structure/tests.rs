@@ -1,9 +1,19 @@
 use super::project_structure_matches;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, LinkWorkspacePackages, PackageExtension};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+    PackageExtension,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState};
-use serde_json::{Value, json};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::path::PathBuf;
 
 /// Whether the structure check accepts `app`, which declares `app_fields`,

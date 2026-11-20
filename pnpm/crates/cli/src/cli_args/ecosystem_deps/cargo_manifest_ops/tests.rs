@@ -1,11 +1,23 @@
 use super::{
-    apply_manifest_edits, declared_cargo_deps, format_cargo_saved_spec, has_matching_cargo_deps,
+    apply_manifest_edits,
+    declared_cargo_deps,
+    format_cargo_saved_spec,
+    has_matching_cargo_deps,
 };
 use crate::cli_args::{
-    ecosystem_deps::{cargo::validate_explicit_cargo_requests, selectors::CargoUpdateSelector},
-    outdated::{OutdatedQuery, TargetVersion},
+    ecosystem_deps::{
+        cargo::validate_explicit_cargo_requests,
+        selectors::CargoUpdateSelector,
+    },
+    outdated::{
+        OutdatedQuery,
+        TargetVersion,
+    },
 };
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_package_manifest::DependencyGroup;
 use semver::Version;
 use std::fs;

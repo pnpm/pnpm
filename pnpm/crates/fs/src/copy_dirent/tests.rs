@@ -1,11 +1,19 @@
-use crate::copy_dirent::{copy_dir_contents, copy_dirent};
+use crate::copy_dirent::{
+    copy_dir_contents,
+    copy_dirent,
+};
+#[cfg(unix)]
+use command_extra::CommandExtra;
 use std::fs;
 use tempfile::tempdir;
 
 #[cfg(unix)]
 use std::{
     io,
-    os::unix::fs::{PermissionsExt, symlink},
+    os::unix::fs::{
+        PermissionsExt,
+        symlink,
+    },
 };
 
 #[test]
@@ -132,7 +140,7 @@ fn a_fifo_is_refused_rather_than_opened() {
     let src = tmp.path().join("src");
     fs::create_dir(&src).unwrap();
     let made = std::process::Command::new("mkfifo")
-        .arg(src.join("pipe"))
+        .with_arg(src.join("pipe"))
         .status()
         .unwrap();
     assert!(made.success(), "mkfifo failed");

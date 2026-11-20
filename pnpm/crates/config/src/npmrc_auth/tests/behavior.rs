@@ -1,6 +1,18 @@
 use super::{
-    Config, EnvVar, LoadWorkspaceYamlError, NoEnv, NoProxySetting, NpmrcAuth, Path, RawCreds,
-    TEST_CA_PEM, assert_eq, base64_decode, base64_encode, base64_encode_bytes, default_auth_token,
+    Config,
+    EnvVar,
+    LoadWorkspaceYamlError,
+    NoEnv,
+    NoProxySetting,
+    NpmrcAuth,
+    Path,
+    RawCreds,
+    TEST_CA_PEM,
+    assert_eq,
+    base64_decode,
+    base64_encode,
+    base64_encode_bytes,
+    default_auth_token,
 };
 
 #[test]
@@ -409,7 +421,7 @@ fn strict_ssl_invalid_value_silently_drops() {
 #[test]
 fn strict_ssl_invalid_value_resets_prior_value() {
     // If the parser silently kept the earlier `false`, a typo on a later
-    // line would leave TLS verification disabled — silently — until
+    // line would leave TLS verification disabled (silently) until
     // the user noticed.
     let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\nstrict-ssl=oops\n", Path::new(""));
     assert_eq!(auth.tls.strict_ssl, None);

@@ -1,5 +1,11 @@
-use super::{Db, storage};
-use crate::database::{NewRegistryGraph, RegistryGraphWrite};
+use super::{
+    Db,
+    storage,
+};
+use crate::database::{
+    NewRegistryGraph,
+    RegistryGraphWrite,
+};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires PNPR_TEST_MYSQL_URL"]

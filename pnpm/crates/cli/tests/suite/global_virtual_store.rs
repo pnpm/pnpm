@@ -1,12 +1,12 @@
-//! Ports of the upstream global-virtual-store suites — the primary
+//! Ports of the upstream global-virtual-store suites, the primary
 //! `installing/deps-installer/test/install/globalVirtualStore.ts` and the
 //! CLI-level `pnpm/test/install/globalVirtualStore.ts`.
 //!
 //! Upstream drives these through the programmatic `install()` API and can
 //! monkey-patch `storeController.fetchPackage` to count fetches. Pacquet's
 //! equivalent surface is the CLI, so the ports assert the same on-disk
-//! contract — slot layout, hash-directory identity across `allowBuilds`
-//! changes, build artifacts, and `.modules.yaml` state — instead of the
+//! contract (slot layout, hash-directory identity across `allowBuilds`
+//! changes, build artifacts, and `.modules.yaml` state) instead of the
 //! call counts. Where that loses a signal it is called out on the test.
 
 pub use _utils::*;
@@ -15,19 +15,32 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_store_dir::{STORE_VERSION, StoreDir, StoreIndex};
+use pnpm_store_dir::{
+    STORE_VERSION,
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
 use std::{
     fmt::Write as _,
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Stdio,
+    },
 };
 
-/// `<store_dir>/v11/links` — the root every GVS slot hangs off.
+/// `<store_dir>/v11/links`: the root every GVS slot hangs off.
 fn gvs_root(store_dir: &Path) -> PathBuf {
     store_dir.join(STORE_VERSION).join("links")
 }
@@ -60,7 +73,7 @@ fn hash_dirs(pkg_version_dir: &Path) -> Vec<String> {
 }
 
 /// The single hash directory under `<name>/<version>`, asserting there is
-/// exactly one — upstream's `expect(files).toHaveLength(1)`.
+/// exactly one, upstream's `expect(files).toHaveLength(1)`.
 fn sole_hash_dir(pkg_version_dir: &Path) -> PathBuf {
     let hashes = hash_dirs(pkg_version_dir);
     assert_eq!(
@@ -71,7 +84,7 @@ fn sole_hash_dir(pkg_version_dir: &Path) -> PathBuf {
     pkg_version_dir.join(&hashes[0])
 }
 
-/// `<hash>/node_modules/<name>` — where the package's files actually live.
+/// `<hash>/node_modules/<name>`: where the package's files actually live.
 fn pkg_in_slot(hash_dir: &Path, name: &str) -> PathBuf {
     pnpm_fs::join_slash_separated_path(&hash_dir.join("node_modules"), name)
 }
@@ -106,7 +119,7 @@ fn harness_store_and_cache_yaml(workspace: &Path) -> String {
     assert!(
         !yaml.is_empty(),
         "expected the `storeDir` / `cacheDir` keys written by \
-         `CommandTempCwd::add_mocked_registry` — has the helper changed?",
+         `CommandTempCwd::add_mocked_registry`: has the helper changed?",
     );
     yaml
 }
@@ -116,7 +129,7 @@ fn write_manifest(workspace: &Path, deps: &serde_json::Value) {
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
 }
 
-/// A fresh `Command` for the pacquet binary — `assert_cmd`'s `Command` is
+/// A fresh `Command` for the pacquet binary, `assert_cmd`'s `Command` is
 /// single-use, so every sequential install needs its own.
 fn pacquet(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -131,7 +144,7 @@ fn read_modules_manifest(workspace: &Path) -> pnpm_modules_yaml::Modules {
 }
 
 /// Render an `allowBuilds:` block for [`set_gvs_workspace_yaml`]'s
-/// `extra_yaml`. An empty slice yields `allowBuilds: {}` — upstream's
+/// `extra_yaml`. An empty slice yields `allowBuilds: {}`, upstream's
 /// `allowBuilds: {}`, which is materially different from omitting the key
 /// because it pins "nothing may build" rather than "no opinion".
 fn allow_builds_yaml(entries: &[(&str, bool)]) -> String {
@@ -246,7 +259,7 @@ fn shared_global_virtual_store_bin_shims_do_not_capture_the_installing_project()
 /// is never called. Pacquet's CLI exposes no such seam, so the port
 /// asserts the observable consequence instead: the warm slot is reused
 /// rather than rebuilt beside a second hash directory, and the project
-/// tree — including `.bin` — is fully restored from it.
+/// tree (including `.bin`) is fully restored from it.
 #[test]
 fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -262,7 +275,7 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
         }),
     );
 
-    eprintln!("First install — warms the GVS...");
+    eprintln!("First install, warms the GVS...");
     pacquet(&workspace)
         .with_arg("install")
         .assert()
@@ -271,11 +284,11 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hashes_before = hash_dirs(&version_dir);
 
-    eprintln!("Deleting node_modules only — the GVS stays warm...");
+    eprintln!("Deleting node_modules only, the GVS stays warm...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     assert!(gvs_root(&store_dir).is_dir(), "the GVS must survive the node_modules wipe");
 
-    eprintln!("Frozen reinstall — must reattach from the warm GVS...");
+    eprintln!("Frozen reinstall, must reattach from the warm GVS...");
     let output = pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile", "--reporter=ndjson"])
         .output()
@@ -447,7 +460,7 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
         });
     // Siblings of `workspace`, not children of it: the harness writes
     // `storeDir` / `cacheDir` as `../pacquet-store` / `../pacquet-cache`, so
-    // only at this depth do all the workers resolve to the one store — and
+    // only at this depth do all the workers resolve to the one store, and
     // with it the one GVS whose slots they race over. Nested any deeper they
     // would each get a private store and the test would pass vacuously.
     let worker_dirs = (0..WORKERS)
@@ -471,11 +484,10 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
             .iter()
             .enumerate()
             .map(|(worker, dir)| {
-                let mut command = pacquet(dir);
-                command
-                    .args(["install", "--frozen-lockfile"])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::piped());
+                let mut command = pacquet(dir)
+                    .with_args(["install", "--frozen-lockfile"])
+                    .with_stdout(Stdio::null())
+                    .with_stderr(Stdio::piped());
                 let child = command.spawn().expect("spawn concurrent GVS install");
                 (worker, child)
             })
@@ -565,7 +577,7 @@ fn modules_are_correctly_updated_when_using_a_global_virtual_store() {
 /// The lockfile records no version for a directory snapshot while the
 /// resolver reads one off the manifest, so both install paths have to
 /// agree on the anchored `directory` segment or the reinstall would
-/// relocate the package. Upstream additionally crashed here — see
+/// relocate the package. Upstream additionally crashed here; see
 /// <https://github.com/pnpm/pnpm/issues/13335>.
 #[test]
 fn local_directory_dependency_works_with_global_virtual_store() {
@@ -614,8 +626,8 @@ fn local_directory_dependency_works_with_global_virtual_store() {
 ///
 /// The materialization half is already pinned by
 /// `injected_workspace_dep_with_dedupe_off_materialises_under_gvs` in
-/// `dedupe_injected_deps.rs`; this port covers the half that one does not
-/// — `.modules.yaml.injectedDeps` pointing into the GVS.
+/// `dedupe_injected_deps.rs`; this port covers the half that one does not,
+/// `.modules.yaml.injectedDeps` pointing into the GVS.
 #[test]
 fn injected_local_packages_work_with_global_virtual_store() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -674,7 +686,7 @@ fn injected_local_packages_work_with_global_virtual_store() {
     let gvs_root = gvs_root(&store_dir);
     let location = Path::new(&locations[0]);
     // `.modules.yaml` stores injected-dep locations relative to the
-    // project root, matching pnpm — upstream's assertion joins the
+    // project root, matching pnpm, upstream's assertion joins the
     // recorded value straight onto the test's cwd.
     let resolved =
         if location.is_absolute() { location.to_path_buf() } else { workspace.join(location) };
@@ -912,7 +924,8 @@ fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
         snapshot.optional_dependencies
             .as_ref()
             .and_then(|dependencies| dependencies.get(&peer_name))
-            .is_some_and(|dep_ref| dep_ref.as_link_target().is_some()),
+            .map(pnpm_lockfile::SnapshotDepRef::as_link_target)
+            .is_some_and(|link_target| link_target.is_some()),
         "the fixture must exercise an optional link edge: {snapshot:?}",
     );
 
@@ -980,7 +993,8 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
         fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
             .expect("read pnpm-workspace.yaml")
             .lines()
-            .find_map(|line| line.strip_prefix("cacheDir: ").map(ToOwned::to_owned))
+            .map(|line| line.strip_prefix("cacheDir: "))
+            .find_map(|rest| rest.map(ToOwned::to_owned))
             .expect("the harness writes a cacheDir"),
     );
     assert!(

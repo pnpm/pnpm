@@ -1,5 +1,7 @@
 use super::{
-    UnexpandedWindowsEnvVar, ensure_windows_dir_envs_on, ensure_windows_home_dir_env_on,
+    UnexpandedWindowsEnvVar,
+    ensure_windows_dir_envs_on,
+    ensure_windows_home_dir_env_on,
     expand_dir_env,
 };
 use crate::api::EnvVar;

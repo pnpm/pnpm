@@ -1,5 +1,8 @@
 use crate::Digest;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::cmp::Ordering;
 
 /// One manifest the repository holds, keyed by the digest of its bytes.
@@ -43,8 +46,8 @@ pub struct TagEntry {
     /// When this tag last moved, in milliseconds since the Unix epoch.
     ///
     /// A tag is the one mutable thing in a repository, so "what is already
-    /// here wins" — the rule that makes an immutable version safe to
-    /// re-apply — would let a write that lands late drag a tag back to an
+    /// here wins" (the rule that makes an immutable version safe to
+    /// re-apply) would let a write that lands late drag a tag back to an
     /// older manifest. Comparing when instead makes the merge monotonic, so
     /// re-applying an old write is a no-op.
     ///

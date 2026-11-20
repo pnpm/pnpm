@@ -1,4 +1,9 @@
-use super::super::{HashSet, Lockfile, Modules, VersionPart};
+use super::super::{
+    HashSet,
+    Lockfile,
+    Modules,
+    VersionPart,
+};
 
 /// The `pendingBuilds` list for this install: the builds still owed,
 /// carried-over entries first, then the ones this install deferred.
@@ -17,21 +22,23 @@ where
     Deferred: IntoIterator<Item = String>,
 {
     // An importer id and a dep path are both plain strings on disk, so
-    // the current lockfile's `importers` — not the shape of the string —
+    // the current lockfile's `importers` (not the shape of the string)
     // decides which one an entry is.
     //
     // Only dependencies are settled here: the build phase has already
     // run by the time this file is written, while a project's scripts
     // run after it. `drain_settled_projects` discharges those once they
     // have actually succeeded. A dependency is settled only when the
-    // rebuild both selected it and was allowed to build it — a selected
+    // rebuild both selected it and was allowed to build it, a selected
     // package the policy still blocks stays owed, matching pnpm's "drop
     // only what was actually rebuilt".
     let settled = |entry: &str| {
         let (Some(rebuild), Some(policy)) = (rebuild, rebuild_build_policy) else { return false };
         !current.is_some_and(|current| current.importers.contains_key(entry))
             && rebuild.settles_dependency(entry)
-            && policy.check(pnpm_deps_path::remove_suffix(entry)) == Some(true)
+            && policy
+                .check(pnpm_deps_path::remove_suffix(entry))
+                .unwrap_or(false)
     };
     let retained = previous
         .iter()
@@ -150,7 +157,7 @@ pub(super) fn merge_skipped(
     }
 }
 /// A source the selected install re-materialized has its targets recomputed
-/// in `next`, so the previous file's targets for it are stale — a bumped
+/// in `next`, so the previous file's targets for it are stale, a bumped
 /// injected dep moves to a new virtual-store slot and the old one is gone.
 /// Only sources no selected importer touched carry their previous targets
 /// forward.

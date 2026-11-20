@@ -1,7 +1,19 @@
 use super::{
-    BTreeMap, DepPath, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, ResolvePeersOptions,
-    ResolvedTree, WorkspacePeerSettings, linked_package, package, resolve_peers,
-    resolve_peers_workspace, tree_node,
+    BTreeMap,
+    DepPath,
+    DirectDep,
+    HashMap,
+    HashSet,
+    ImporterPeerInput,
+    NodeId,
+    ResolvePeersOptions,
+    ResolvedTree,
+    WorkspacePeerSettings,
+    linked_package,
+    package,
+    resolve_peers,
+    resolve_peers_workspace,
+    tree_node,
 };
 
 /// Same as [`pruned_hoisted_provider_falls_back_to_root_resolution`] but

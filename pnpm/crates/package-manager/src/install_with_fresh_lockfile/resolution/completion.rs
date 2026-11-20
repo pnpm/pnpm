@@ -1,6 +1,15 @@
 use super::{
-    FreshInputs, HashSet, InstallWithFreshLockfileError, PatchUsageScope, Reporter, ResolutionPrep,
-    ResolvePass, Resolved, check_patch_usage, interactive_policy, report_peer_issues,
+    FreshInputs,
+    HashSet,
+    InstallWithFreshLockfileError,
+    PatchUsageScope,
+    Reporter,
+    ResolutionPrep,
+    ResolvePass,
+    Resolved,
+    check_patch_usage,
+    interactive_policy,
+    report_peer_issues,
 };
 
 pub(super) async fn enforce_resolution_policies<Reporter: self::Reporter + 'static>(

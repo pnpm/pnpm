@@ -1,4 +1,9 @@
-use super::{ManifestDeps, WorkspaceFixture, fs, is_symlink_or_junction};
+use super::{
+    ManifestDeps,
+    WorkspaceFixture,
+    fs,
+    is_symlink_or_junction,
+};
 
 #[test]
 fn auto_installed_peer_does_not_displace_workspace_hoist() {

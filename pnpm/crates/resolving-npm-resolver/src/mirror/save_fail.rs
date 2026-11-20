@@ -2,8 +2,15 @@
 
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
-    sync::{LazyLock, Mutex, PoisonError},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        LazyLock,
+        Mutex,
+        PoisonError,
+    },
 };
 
 use super::SaveMetaError;

@@ -3,10 +3,22 @@ pub use wire::*;
 use std::collections::HashMap;
 
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, ThrottledClient, normalize_registry_url};
-use serde::{Deserialize, Serialize};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    normalize_registry_url,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
+use crate::{
+    NetworkError,
+    PackageTag,
+    RegistryError,
+    package_distribution::PackageDistribution,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,6 +1,13 @@
-use super::seed_policy::{UpdatePlan, UpdateScope};
+use super::seed_policy::{
+    UpdatePlan,
+    UpdateScope,
+};
 use crate::fast_update_lockfile::reachable_from;
-use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    PkgNameVerPeer,
+};
 use pnpm_package_manifest::DependencyGroup;
 use std::collections::HashSet;
 

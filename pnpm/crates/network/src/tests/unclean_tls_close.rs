@@ -1,15 +1,39 @@
-use super::{NetworkSettings, PerRegistryTls, ProxyConfig, ThrottledClient, TlsConfig};
-use crate::{
-    BodyChunks, LimitedBody, read_limited_self_delimiting_body, read_self_delimiting_body,
+use super::{
+    NetworkSettings,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
 };
-use flate2::{Compression, write::GzEncoder};
+use crate::{
+    BodyChunks,
+    LimitedBody,
+    read_limited_self_delimiting_body,
+    read_self_delimiting_body,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use rustls::{
-    ServerConfig, ServerConnection, StreamOwned,
-    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+    ServerConfig,
+    ServerConnection,
+    StreamOwned,
+    pki_types::{
+        CertificateDer,
+        PrivateKeyDer,
+        pem::PemObject,
+    },
 };
 use std::{
-    io::{Read, Write},
-    net::{SocketAddr, TcpListener},
+    io::{
+        Read,
+        Write,
+    },
+    net::{
+        SocketAddr,
+        TcpListener,
+    },
     sync::Arc,
     thread::JoinHandle,
 };

@@ -1,4 +1,7 @@
-use super::{ProjectSnapshot, ResolvedDependencySpec};
+use super::{
+    ProjectSnapshot,
+    ResolvedDependencySpec,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 use text_block_macros::text_block;
@@ -30,7 +33,12 @@ fn fixture_project_snapshot() -> ProjectSnapshot {
 
 #[test]
 fn dependencies_by_groups() {
-    use DependencyGroup::{Dev, Optional, Peer, Prod};
+    use DependencyGroup::{
+        Dev,
+        Optional,
+        Peer,
+        Prod,
+    };
 
     macro_rules! case {
         ($input:expr => $output:expr) => {{

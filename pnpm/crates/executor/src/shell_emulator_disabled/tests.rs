@@ -1,6 +1,13 @@
-use super::{EmulatedOutput, ShellEmulatorError, execute_emulated};
+use super::{
+    EmulatedOutput,
+    ShellEmulatorError,
+    execute_emulated,
+};
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 #[test]
 fn reports_when_shell_emulation_is_not_compiled_in() {

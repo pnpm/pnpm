@@ -1,14 +1,34 @@
 use super::{
-    Command, Config, GetChangedProjectsOptions, GraphPkg, HashMap, HashSet, LogEvent, LogLevel,
-    Path, PathBuf, PnpmLog, Project, ProjectGraph, get_changed_projects,
+    Command,
+    Config,
+    GetChangedProjectsOptions,
+    GraphPkg,
+    HashMap,
+    HashSet,
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    PnpmLog,
+    Project,
+    ProjectGraph,
+    get_changed_projects,
 };
 use crate::cli_args::{
-    catalogs::{configured_catalogs, workspace_catalogs},
+    catalogs::{
+        configured_catalogs,
+        workspace_catalogs,
+    },
     recursive::overridden_project_dependencies,
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, create_projects_graph,
+    BaseProject,
+    CreateProjectsGraphOptions,
+    create_projects_graph,
 };
 
 /// The identity runs are recorded under on the server: the workspace
@@ -17,7 +37,8 @@ use pnpm_workspace_projects_graph::{
 pub(super) fn workspace_identity(workspace_root: &Path) -> String {
     let basename: String = workspace_root
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .unwrap_or_default()
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'))
@@ -64,7 +85,7 @@ pub struct Selection {
     /// projects and their dependents, without the workspace root unless
     /// `SelectAffectedOptions::keeps_workspace_root` is set.
     pub requested: Vec<PathBuf>,
-    /// The dependency closure of `requested` — the projects the task
+    /// The dependency closure of `requested`, the projects the task
     /// graph spans. The extra projects participate only through
     /// `dependsOn` edges (an upstream build pulled in without its lint or
     /// tests), which is what keeps a task's cache key independent of how
@@ -183,7 +204,7 @@ fn with_transitive_dependencies(
 
 /// `merge-base(HEAD, base)`, deepening a shallow clone until the merge
 /// base is reachable. `None` when it cannot be resolved (an unknown ref,
-/// unrelated histories, not a git repository) — the caller falls back to
+/// unrelated histories, not a git repository), the caller falls back to
 /// the full graph.
 fn resolve_merge_base(workspace_root: &Path, base: &str) -> Option<String> {
     for _ in 0..5 {

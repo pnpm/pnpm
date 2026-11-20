@@ -1,5 +1,12 @@
-use super::{DistributionKind, metadata_from_sdist, metadata_from_zip};
-use std::io::{Cursor, Write};
+use super::{
+    DistributionKind,
+    metadata_from_sdist,
+    metadata_from_zip,
+};
+use std::io::{
+    Cursor,
+    Write,
+};
 
 fn zip_metadata(entries: &[(&str, &str)]) -> Vec<u8> {
     let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));

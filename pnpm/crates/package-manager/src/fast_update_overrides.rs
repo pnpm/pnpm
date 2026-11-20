@@ -1,22 +1,50 @@
-pub(crate) use planning::{FastOverride, build_replacement_plan, get_peer_names};
+pub(crate) use planning::{
+    FastOverride,
+    build_replacement_plan,
+    get_peer_names,
+};
 
 mod planning;
 
-use planning::{ResolvedOverride, build_rewrite_plan, package_metadata, resolve_override};
+use planning::{
+    ResolvedOverride,
+    build_rewrite_plan,
+    package_metadata,
+    resolve_override,
+};
 
 use futures_util::future::join_all;
 use indexmap::IndexMap;
 use node_semver::Range;
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, LockfileFormOptions, LockfileResolution, PackageKey,
-    PackageMetadata, PkgName, Prefix, RegistryOptions, ResolvedDependencyMap, SnapshotDepRef,
-    SnapshotEntry, pick_registry_for_package, registry_server_type,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileFormOptions,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    Prefix,
+    RegistryOptions,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+    pick_registry_for_package,
+    registry_server_type,
 };
 use pnpm_resolving_deps_resolver::ManifestHook;
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, parse_strict_semver_range};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    Resolver,
+    parse_strict_semver_range,
+};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
 pub(crate) struct RewritePlan {
     pub overrides: Vec<FastOverride>,
@@ -56,7 +84,7 @@ pub(crate) async fn try_fast_update_overrides(opts: FastOverrideOptions<'_>) -> 
 /// manifest and redirecting everything that referenced the old key.
 ///
 /// `None` whenever the move cannot be proven safe from the lockfile plus
-/// the resolved manifests — a locked child that the new version's
+/// the resolved manifests, a locked child that the new version's
 /// manifest no longer admits, a registry result that does not match what
 /// was asked for, or an entry the rewrite would have to overwrite with
 /// something different.
@@ -213,7 +241,7 @@ fn rewrite_importer_dependencies(
         let Some(old_key) = spec.version.resolved_key(alias) else { continue };
         let Some(new_key) = plan.replacements.get(&old_key) else { continue };
         // An importer is not a package, so a `parent>child` selector never
-        // names it — the same exit removals take here.
+        // names it, the same exit removals take here.
         if !should_replace_dependency(alias, None, &plan.overrides) {
             continue;
         }
@@ -335,7 +363,7 @@ fn validate_dependencies(
 }
 
 /// One dependency's ref after the rewrite: the locked one moved onto its
-/// replacement key, or — for a dependency the old snapshot did not record — a
+/// replacement key, or (for a dependency the old snapshot did not record) a
 /// version already in the lockfile that the range accepts.
 fn rewritten_dep_ref(
     name: &PkgName,
@@ -391,7 +419,7 @@ fn find_reusable_dependency(
                     || matches!(
                         metadata.resolution,
                         LockfileResolution::Tarball(ref tarball)
-                            if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+                            if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false),
                     ))
         })
         });
@@ -404,7 +432,7 @@ fn find_reusable_dependency(
 
 fn snapshot_is_reusable(snapshot: &SnapshotEntry) -> bool {
     !snapshot.optional
-        && snapshot.patched != Some(true)
+        && !snapshot.patched.unwrap_or(false)
         && snapshot.id.is_none()
         && snapshot.transitive_peer_dependencies.is_none()
 }

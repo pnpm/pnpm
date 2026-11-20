@@ -19,9 +19,21 @@
 //! ends the children when pnpm does.
 
 use std::{
-    io::{self, Write},
-    process::{Child, ChildStdin, Stdio},
-    sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard},
+    io::{
+        self,
+        Write,
+    },
+    process::{
+        Child,
+        ChildStdin,
+        Stdio,
+    },
+    sync::{
+        Mutex,
+        MutexGuard,
+        RwLock,
+        RwLockReadGuard,
+    },
 };
 
 #[cfg(target_os = "linux")]
@@ -294,7 +306,7 @@ impl WatchdogProcess {
     fn is_running(&mut self) -> bool {
         match &self.address {
             #[cfg(target_os = "linux")]
-            WatchdogAddress::Pidfd(pidfd) => linux::exited(pidfd, libc::WNOHANG) == Some(false),
+            WatchdogAddress::Pidfd(pidfd) => !linux::exited(pidfd, libc::WNOHANG).unwrap_or(true),
             WatchdogAddress::Pid => matches!(self.child.try_wait(), Ok(None)),
             #[cfg(target_os = "linux")]
             WatchdogAddress::Gone => false,

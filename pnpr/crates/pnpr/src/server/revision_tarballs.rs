@@ -8,18 +8,53 @@
 //! [`super::tar_responses`]).
 
 use super::{
-    Action, AppState, CanonicalPackageName, Ecosystem, FetchOutcome, HeaderMap, Identity,
-    Integrity, RegistryError, RegistrySource, Response, Storage, TarSource, TgzTrust, Upstream,
-    Value, authorize, authorized_upstream, ensure_osv_allowed, extract_upstream_revision_integrity,
-    header, hosted_read_namespace, not_found, private_no_cache, read_source_packument,
-    resolve_registry_source, revision_source_registry, streaming, tar_decode_limit,
-    tar_resource_integrity, tar_response, tarball_integrity_error, tarball_response,
-    tarball_stream_error_for_package, tgz_integrity_key, upstream_cache_namespace,
+    Action,
+    AppState,
+    CanonicalPackageName,
+    Ecosystem,
+    FetchOutcome,
+    HeaderMap,
+    Identity,
+    Integrity,
+    RegistryError,
+    RegistrySource,
+    Response,
+    Storage,
+    TarSource,
+    TgzTrust,
+    Upstream,
+    Value,
+    authorize,
+    authorized_upstream,
+    ensure_osv_allowed,
+    extract_upstream_revision_integrity,
+    header,
+    hosted_read_namespace,
+    not_found,
+    private_no_cache,
+    read_source_packument,
+    resolve_registry_source,
+    revision_source_registry,
+    streaming,
+    tar_decode_limit,
+    tar_resource_integrity,
+    tar_response,
+    tarball_integrity_error,
+    tarball_response,
+    tarball_stream_error_for_package,
+    tgz_integrity_key,
+    upstream_cache_namespace,
 };
-use axum::{body::Body, response::IntoResponse};
+use axum::{
+    body::Body,
+    response::IntoResponse,
+};
 use pnpm_crypto_hash::has_complete_sha512_digest;
 use pnpm_lockfile::TarballRevision;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::{
+    AsyncReadExt,
+    AsyncSeekExt,
+};
 
 const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
 
@@ -40,7 +75,8 @@ pub(super) fn parse_revision_version(version: &str) -> Option<Result<(&str, Tarb
     let parsed = digits
         .parse::<u64>()
         .ok()
-        .and_then(|num| TarballRevision::try_from(num).ok());
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok);
     Some(
         parsed
             .map(|revision| (base_version, revision))
@@ -217,7 +253,8 @@ impl UpstreamRevision<'_> {
         let expected = integrity.clone();
         let checked = write.check(move |file| {
             tar_resource_integrity(std::io::BufReader::new(file), gzip)
-                .is_some_and(|tar| tar.matches(&expected).is_some())
+                .map(|tar| tar.matches(&expected))
+                .is_some_and(|expected| expected.is_some())
         })
         .await;
         match checked {

@@ -1,14 +1,32 @@
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
+};
 use pnpm_network_web_auth::{
-    AuthUrlMessage, Clock, EnterKeyListener, OpenUrl, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
-    WebAuthFetchOptions, WebAuthTimeoutError, WebAuthTokenPollParams, format_auth_url_message,
-    poll_for_web_auth_token, prompt_browser_open,
+    AuthUrlMessage,
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthTimeoutError,
+    WebAuthTokenPollParams,
+    format_auth_url_message,
+    poll_for_web_auth_token,
+    prompt_browser_open,
 };
 use pnpm_reporter::Reporter;
 use pnpm_text_sanitize::sanitize_inline;
 use serde_json::Value;
 
-use super::{error::LoginError, global_info, registry_join};
+use super::{
+    error::LoginError,
+    global_info,
+    registry_join,
+};
 
 /// Drive the registry's web-based login: probe `-/v1/login`, print any
 /// `npm-notice` headers it returned, then poll the returned `doneUrl` for the
@@ -95,7 +113,9 @@ async fn web_login_post(
         .headers()
         .get_all("npm-notice")
         .iter()
-        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
+        .map(reqwest::header::HeaderValue::as_bytes)
+        .map(String::from_utf8_lossy)
+        .map(std::borrow::Cow::into_owned)
         .collect();
     let body = response.text().await.unwrap_or_default();
     Ok(HttpResponse { ok, status, body, notices })
@@ -114,7 +134,7 @@ fn report_notices<Reporter: self::Reporter>(notices: &[String]) {
     }
 }
 
-/// A materialized registry response — the fields [`web_login`] and
+/// A materialized registry response, the fields [`web_login`] and
 /// `add_user` read after the request completes.
 struct HttpResponse {
     ok: bool,
@@ -132,8 +152,8 @@ pub(super) enum WebLoginFlowError {
     Http { status: u16, text: String },
     /// The probe succeeded but the body lacked a usable `loginUrl` / `doneUrl`.
     InvalidResponse,
-    /// A `loginUrl` / `doneUrl` carried control characters — a terminal-spoofing
-    /// attempt — so the login is rejected rather than used.
+    /// A `loginUrl` / `doneUrl` carried control characters (a terminal-spoofing
+    /// attempt) so the login is rejected rather than used.
     UnsafeUrl,
     /// The token poll exceeded its budget.
     Timeout(WebAuthTimeoutError),

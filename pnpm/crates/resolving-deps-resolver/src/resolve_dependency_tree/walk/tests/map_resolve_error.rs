@@ -1,11 +1,18 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_resolving_npm_resolver::PickPackageError;
 use pnpm_resolving_resolver_base::UnsupportedProtocolError;
-use std::{error::Error as _, iter};
+use std::{
+    error::Error as _,
+    iter,
+};
 
 use super::super::{
-    failed_edge::is_droppable_resolve_error, workspace_resolution::map_resolve_error,
+    failed_edge::is_droppable_resolve_error,
+    workspace_resolution::map_resolve_error,
 };
 
 #[derive(Debug, Display, Error)]

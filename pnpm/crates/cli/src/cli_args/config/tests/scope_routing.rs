@@ -1,6 +1,16 @@
 use super::{
-    Config, ConfigLocation, TempDir, Value, config_get, config_list, config_set, config_with_dir,
-    flags, json, load_isolated_project_config, read_yaml,
+    Config,
+    ConfigLocation,
+    TempDir,
+    Value,
+    config_get,
+    config_list,
+    config_set,
+    config_with_dir,
+    flags,
+    json,
+    load_isolated_project_config,
+    read_yaml,
 };
 use pnpm_config::TrustedSettings;
 use std::path::Path;

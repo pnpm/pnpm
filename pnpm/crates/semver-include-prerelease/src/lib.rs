@@ -1,13 +1,22 @@
 //! npm `semver` range semantics, built on `node_semver`.
 
 pub use semver_range::{
-    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range, parse_strict_semver_range,
+    ANY_VERSION_RANGE,
+    is_any_version_range,
+    is_valid_semver_range,
+    parse_strict_semver_range,
 };
-pub use subset::{ParsedSemverRange, is_semver_subset};
+pub use subset::{
+    ParsedSemverRange,
+    is_semver_subset,
+};
 
 use std::borrow::Cow;
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 
 mod semver_range;
 mod subset;
@@ -52,13 +61,13 @@ impl IncludePrereleaseRange {
     ///
     /// A prerelease is eligible wherever its own release would be, and
     /// clears a lower bound npm synthesized for an omitted component
-    /// exactly when that release clears it — the two halves of
+    /// exactly when that release clears it, the two halves of
     /// `includePrerelease` [`IncludePrereleaseRange`] describes.
     #[must_use]
     pub fn satisfies(&self, version: &Version) -> bool {
         // The eligibility rule `includePrerelease` drops only ever
         // excludes prereleases, so for a release `node_semver` already
-        // answers with the endpoint test — and answers it without the
+        // answers with the endpoint test, and answers it without the
         // single-version ranges the prerelease path has to build.
         if !version.is_prerelease() {
             return self.alternatives
@@ -126,7 +135,9 @@ fn comparators(alternative: &str) -> Option<Vec<Comparator>> {
             (text.into(), !names_a_prerelease(tokens[index]), 3)
         } else {
             let token = tokens[index];
-            let text = npm_upper_bound(token).map_or(Cow::Borrowed(token), Cow::Owned);
+            let text = npm_upper_bound(token)
+                .map(Cow::Owned)
+                .unwrap_or(Cow::Borrowed(token));
             (text, omits_a_component(token), 1)
         };
         if let Ok(bounds) = text.parse::<Range>() {
@@ -153,8 +164,8 @@ pub(crate) fn glue_operators_to_versions(alternative: &str) -> String {
     glued
 }
 
-/// Whether `token` names a version that leaves a component out — `18`,
-/// `18.x`, `^18.0` — the case in which npm lowers the comparator's lower
+/// Whether `token` names a version that leaves a component out (`18`,
+/// `18.x`, `^18.0`) the case in which npm lowers the comparator's lower
 /// bound. A hyphen range's lower endpoint is lowered whether or not it
 /// omits anything, so it is asked [`names_a_prerelease`] instead.
 fn omits_a_component(token: &str) -> bool {

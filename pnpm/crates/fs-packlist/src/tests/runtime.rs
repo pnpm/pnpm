@@ -1,4 +1,10 @@
-use super::{json, packlist, tempdir, touch, write};
+use super::{
+    json,
+    packlist,
+    tempdir,
+    touch,
+    write,
+};
 
 #[test]
 fn excludes_git_and_node_modules_subtrees() {
@@ -210,7 +216,7 @@ fn bin_field_pointing_at_vcs_segment_is_refused() {
 #[test]
 fn escaping_main_and_bin_fields_are_not_force_included() {
     // A `main` / `bin` value that climbs out of the package with `..`
-    // must not be force-included, even though the target file exists —
+    // must not be force-included, even though the target file exists;
     // otherwise an attacker-controlled manifest could splice a host file
     // outside the package into the tarball / CAS.
     let base = tempdir().unwrap();

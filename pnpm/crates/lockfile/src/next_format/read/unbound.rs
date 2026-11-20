@@ -1,12 +1,22 @@
 //! The peers declared below a snapshot that nothing binds, which today's
 //! `transitivePeerDependencies` lists beside the bound ones.
 
-use super::{Graph, Sid};
-use crate::{
-    PackageMetadata, PkgName,
-    next_format::{RestoreContext, tarjan},
+use super::{
+    Graph,
+    Sid,
 };
-use std::collections::{HashMap, HashSet};
+use crate::{
+    PackageMetadata,
+    PkgName,
+    next_format::{
+        RestoreContext,
+        tarjan,
+    },
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Peer names interned to one integer each, so sets of them union cheaply.
 type Name = u32;

@@ -1,14 +1,21 @@
 //! Add and update the config dependencies `pnpm-workspace.yaml` declares.
 
 use super::resolve_and_install;
-use miette::{Context, IntoDiagnostic, Result};
+use miette::{
+    Context,
+    IntoDiagnostic,
+    Result,
+};
 use pnpm_config::Config;
 use pnpm_env_installer::ConfigDepUpdates;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::UpdateBehavior;
 use pnpm_workspace_state::ConfigDependency;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 /// Add config dependencies: resolve + install them (merged with any
 /// already-declared config deps), then write the specifiers they are saved

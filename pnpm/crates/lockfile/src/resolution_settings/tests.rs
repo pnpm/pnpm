@@ -1,5 +1,9 @@
 use crate::{
-    Lockfile, LockfileSettings, ResolutionSetting, ResolutionSettingDifference, ResolutionSettings,
+    Lockfile,
+    LockfileSettings,
+    ResolutionSetting,
+    ResolutionSettingDifference,
+    ResolutionSettings,
     SymlinkedLockfile,
 };
 use pretty_assertions::assert_eq;

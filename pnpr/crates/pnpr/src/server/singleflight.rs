@@ -1,4 +1,8 @@
-use std::{collections::HashMap, hash::Hash, sync::Mutex};
+use std::{
+    collections::HashMap,
+    hash::Hash,
+    sync::Mutex,
+};
 use tokio::sync::watch;
 
 #[cfg(test)]

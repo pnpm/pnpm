@@ -1,9 +1,21 @@
+use command_extra::CommandExtra;
 use serde_json::Value;
-use std::{net::TcpListener as StdTcpListener, path::Path, process::Output, time::Duration};
+use std::{
+    net::TcpListener as StdTcpListener,
+    path::Path,
+    process::Output,
+    time::Duration,
+};
 use tempfile::TempDir;
-use tokio::{net::TcpListener, process::Command};
+use tokio::{
+    net::TcpListener,
+    process::Command,
+};
 
-use super::{app, config};
+use super::{
+    app,
+    config,
+};
 
 struct CompilerSession {
     directory: TempDir,
@@ -99,7 +111,7 @@ impl Drop for CompilerSession {
         if let Err(error) = self
             .command("sccache")
             .into_std()
-            .arg("--stop-server")
+            .with_arg("--stop-server")
             .output()
         {
             eprintln!("could not stop test sccache server: {error}");

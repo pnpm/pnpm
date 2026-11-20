@@ -5,11 +5,20 @@
 //! every injected copy pointing at the old inodes. The setting names
 //! the scripts after which those copies are refreshed.
 
-use crate::_utils::{pacquet_in, wait_for_child_output};
+use crate::_utils::{
+    pacquet_in,
+    wait_for_child_output,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// The injected copies of `project-1` inside the virtual store: every
 /// `project-1` directory under `node_modules/.pnpm`.

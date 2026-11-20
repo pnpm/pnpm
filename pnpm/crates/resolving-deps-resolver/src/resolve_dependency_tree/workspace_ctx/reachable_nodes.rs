@@ -1,6 +1,14 @@
 use super::{
-    Arc, DependenciesTreeNode, DirectDep, HashMap, HashSet, NodeId, RecordedChildren,
-    ResolvedPackage, ResolvedTree, RunVersionsCache,
+    Arc,
+    DependenciesTreeNode,
+    DirectDep,
+    HashMap,
+    HashSet,
+    NodeId,
+    RecordedChildren,
+    ResolvedPackage,
+    ResolvedTree,
+    RunVersionsCache,
 };
 
 /// Fold one `name → version` pair into `versions` as a plain

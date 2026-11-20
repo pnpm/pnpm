@@ -1,6 +1,9 @@
 //! Which symlinks a packed package keeps: those whose target stays inside it.
 
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 use pnpm_fs::AdmittedSymlink;
 

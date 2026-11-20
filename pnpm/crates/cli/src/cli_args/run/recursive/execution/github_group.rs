@@ -1,4 +1,8 @@
-use super::{ProjectScripts, env, script_concurrency};
+use super::{
+    ProjectScripts,
+    env,
+    script_concurrency,
+};
 
 pub(super) struct GithubGroup;
 

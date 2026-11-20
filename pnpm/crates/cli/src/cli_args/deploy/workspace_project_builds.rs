@@ -12,8 +12,19 @@
 //! deployed key or a key the source workspace gives it.
 
 use super::{
-    ConvertCtx, HashMap, IntoDiagnostic, Lockfile, LockfileResolution, PackageKey, PackageMetadata,
-    Path, PathBuf, ProjectInfo, ProjectPathKey, create_file_url_key, lexical_normalize,
+    ConvertCtx,
+    HashMap,
+    IntoDiagnostic,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    Path,
+    PathBuf,
+    ProjectInfo,
+    ProjectPathKey,
+    create_file_url_key,
+    lexical_normalize,
     relative_path,
 };
 use pnpm_package_manager::AllowBuildPolicy;
@@ -92,7 +103,7 @@ fn approve(
     keys: Vec<ProjectBuildKey>,
 ) -> miette::Result<()> {
     let source_policy = AllowBuildPolicy::from_approvals(allow_builds, false).into_diagnostic()?;
-    let is_denied = |key: &str| source_policy.check(key) == Some(false);
+    let is_denied = |key: &str| !source_policy.check(key).unwrap_or(true);
     allow_builds.extend(
         keys.into_iter()
             .filter(|keys| {

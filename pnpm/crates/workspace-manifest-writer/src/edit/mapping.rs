@@ -1,9 +1,24 @@
 use crate::model::CatalogEntries;
 
 use super::{
-    Component, DEFAULT_CATALOG_NAME, Document, IndexMap, Inline, Manifest, Op, Patch, Route,
-    comment_start, flow, insert_top_level_block, locate, locate_mapping, nested::write_chain_at,
-    render, splice, structural_colon_index,
+    Component,
+    DEFAULT_CATALOG_NAME,
+    Document,
+    IndexMap,
+    Inline,
+    Manifest,
+    Op,
+    Patch,
+    Route,
+    comment_start,
+    flow,
+    insert_top_level_block,
+    locate,
+    locate_mapping,
+    nested::write_chain_at,
+    render,
+    splice,
+    structural_colon_index,
 };
 
 /// Where a catalog's entries live (or should be created) in the manifest.
@@ -108,7 +123,7 @@ fn create_target(
         manifest.catalogs.default =
             Some(IndexMap::from([(dep.to_string(), specifier.to_string())]));
     } else if manifest.catalogs.named.is_some() {
-        // `catalogs:` exists but lacks this name — add a named sub-block.
+        // `catalogs:` exists but lacks this name, add a named sub-block.
         let new_text =
             write_named_subblock(manifest.document.text(), "catalogs", catalog_name, dep, &value);
         manifest.document.set_text(new_text);
@@ -206,7 +221,8 @@ fn replace_scalar_at(
         .iter()
         .copied()
         .chain(std::iter::once(dep))
-        .map(|key| Component::Key(key.into()))
+        .map(std::convert::Into::into)
+        .map(Component::Key)
         .collect();
     let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;
@@ -283,7 +299,7 @@ fn write_named_subblock(text: &str, block: &str, name: &str, dep: &str, value: &
 }
 
 /// Rewrite an entry's value in place under `path`, replacing the whole
-/// value — a scalar line or a sub-block — with `value_text`, preserving the
+/// value (a scalar line or a sub-block) with `value_text`, preserving the
 /// key's text/quoting and any trailing comment. Used for `permissions` and
 /// `allowBuilds` instead of the `yamlpatch` route, which rejects a key
 /// containing `:` (an artifact pkgId such as `foo@https://example.com/foo.tgz`).
@@ -324,7 +340,7 @@ fn format_replaced_line(content: &str, colon: usize, value_text: &str) -> String
     let key_text = content[..colon].trim_end();
     // Preserve any trailing comment, and replace the whole value.
     // Ending the value at its first whitespace would truncate a
-    // multi-word plain scalar and leave the tail behind as garbage —
+    // multi-word plain scalar and leave the tail behind as garbage,
     // `allowBuilds` entries carry exactly such a value while they still
     // hold pnpm's `set this to true or false` placeholder.
     let after = content[colon + 1..].trim_start();

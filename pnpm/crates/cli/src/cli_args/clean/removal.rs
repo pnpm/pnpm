@@ -1,20 +1,39 @@
 use super::{
-    CleanScope, LockfileRemoval,
+    CleanScope,
+    LockfileRemoval,
     fs_ops::{
-        inspect_existing_path, print_removing, remove_path, resolve_configured_lockfile_dir,
-        resolve_inside, resolve_project_modules_dir,
+        inspect_existing_path,
+        print_removing,
+        remove_path,
+        resolve_configured_lockfile_dir,
+        resolve_inside,
+        resolve_project_modules_dir,
     },
-    planned::{ModulesCleanMode, PlannedClean},
+    planned::{
+        ModulesCleanMode,
+        PlannedClean,
+    },
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_fs::{is_subdir, is_symlink_metadata, resolve_path_with_symlinks, to_native_separators};
+use pnpm_fs::{
+    is_subdir,
+    is_symlink_metadata,
+    resolve_path_with_symlinks,
+    to_native_separators,
+};
 use serde_json::Value;
 use std::{
     borrow::Cow,
     collections::HashSet,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The pnpm hidden entries inside `node_modules` that `clean` removes

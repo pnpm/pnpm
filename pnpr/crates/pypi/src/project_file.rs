@@ -1,7 +1,21 @@
-use crate::{CoreMetadata, Yanked, escape_html, file_url};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use std::{collections::BTreeMap, fmt::Write as _};
+use crate::{
+    CoreMetadata,
+    Yanked,
+    escape_html,
+    file_url,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+};
 
 /// One distribution file of a project, in the PEP 691 key spelling.
 ///

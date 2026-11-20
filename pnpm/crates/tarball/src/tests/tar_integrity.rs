@@ -1,10 +1,28 @@
 use super::{
-    AuthHeaders, Integrity, SilentReporter, StoreDir, TarballError, ThrottledClient, assert_eq,
-    fast_retry_opts, fetch_and_extract_with_retry, gzip_bytes,
-    tar_resources::{large_tar, many_file_tar, serve, sha512, small_tar},
+    AuthHeaders,
+    Integrity,
+    SilentReporter,
+    StoreDir,
+    TarballError,
+    ThrottledClient,
+    assert_eq,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    gzip_bytes,
+    tar_resources::{
+        large_tar,
+        many_file_tar,
+        serve,
+        sha512,
+        small_tar,
+    },
     tempdir_with_leaked_path,
 };
-use crate::{ArchiveIntegrity, IntegrityKind, archive_integrity::ArchiveVerification};
+use crate::{
+    ArchiveIntegrity,
+    IntegrityKind,
+    archive_integrity::ArchiveVerification,
+};
 
 async fn fetch(
     url: &str,

@@ -3,8 +3,14 @@
 
 use super::reader::UpgradeNotes;
 use pnpm_release_notes::render_note;
-use pnpm_text_sanitize::{sanitize, sanitize_inline};
-use serde_json::{Value, json};
+use pnpm_text_sanitize::{
+    sanitize,
+    sanitize_inline,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// The notes, newest version first, each publication note once above the
 /// version notes that came out of it.
@@ -19,10 +25,8 @@ pub(crate) fn render_upgrade_notes(notes: &UpgradeNotes) -> String {
             let publication = &notes.publications[index];
             let title = publication.name
                 .as_deref()
-                .map_or_else(
-                    || "Release notes of the publication".to_owned(),
-                    |name| format!("Release {}", sanitize_inline(name)),
-                );
+                .map(|name| format!("Release {}", sanitize_inline(name)))
+                .unwrap_or_else(|| "Release notes of the publication".to_owned());
             blocks.push(block(&title, &publication.text));
         }
         if let Some(text) = &version.text {

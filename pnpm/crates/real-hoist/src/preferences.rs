@@ -1,4 +1,12 @@
-use super::{HashMap, HashSet, HoisterResult, IndexMap, Rc, VecDeque, node_ident};
+use super::{
+    HashMap,
+    HashSet,
+    HoisterResult,
+    IndexMap,
+    Rc,
+    VecDeque,
+    node_ident,
+};
 
 /// One entry of the preference map: the set of dependent idents
 /// (and peer-dependent idents) that pull in a given `(name,
@@ -85,7 +93,7 @@ fn append_preferred_idents(
     let mut keys: Vec<(String, String)> = preference.keys().cloned().collect();
     // `hoist_priority` is always 0 in pacquet, so the sort reduces to
     // usage (descending). `sort_by` is stable, so equal-usage keys
-    // keep preference-map insertion order (depth-first discovery) —
+    // keep preference-map insertion order (depth-first discovery),
     // matching yarn's `keyList.sort`, which is likewise stable on
     // equal usage.
     keys.sort_by(|left, right| {

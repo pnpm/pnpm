@@ -1,7 +1,16 @@
 use super::{
-    BTreeMap, Config, HashSet, LockedPackageRegistry, RawBulkAdvisory, all_dependencies,
-    bulk_response_to_audit_report, locked_package_registries, lockfile_to_audit_request,
-    package_version, parse_lockfile, prod_without_optional,
+    BTreeMap,
+    Config,
+    HashSet,
+    LockedPackageRegistry,
+    RawBulkAdvisory,
+    all_dependencies,
+    bulk_response_to_audit_report,
+    locked_package_registries,
+    lockfile_to_audit_request,
+    package_version,
+    parse_lockfile,
+    prod_without_optional,
 };
 
 #[test]

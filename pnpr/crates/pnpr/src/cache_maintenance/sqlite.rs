@@ -1,17 +1,40 @@
 mod conn;
 
 use self::conn::{
-    AnchoredVerdictDb, SQLITE_PAGE_BYTES, compact_sqlite, freelist_bytes, open_sqlite,
-    open_verdict_dir, open_verdict_readonly, page_size_bytes, pragma_u64, should_vacuum,
-    should_vacuum_counts, verdict_db_and_wal_bytes, verdict_family_bytes,
-    verdict_family_bytes_in_cache, verdict_wal_bytes,
+    AnchoredVerdictDb,
+    SQLITE_PAGE_BYTES,
+    compact_sqlite,
+    freelist_bytes,
+    open_sqlite,
+    open_verdict_dir,
+    open_verdict_readonly,
+    page_size_bytes,
+    pragma_u64,
+    should_vacuum,
+    should_vacuum_counts,
+    verdict_db_and_wal_bytes,
+    verdict_family_bytes,
+    verdict_family_bytes_in_cache,
+    verdict_wal_bytes,
 };
 use super::{
-    CacheGcEffect, Duration, Path, PathBuf, SystemTime, store_index::store_index_family_bytes,
+    CacheGcEffect,
+    Duration,
+    Path,
+    PathBuf,
+    SystemTime,
+    store_index::store_index_family_bytes,
 };
 use pnpm_fs::OpenDir;
-use rusqlite::{Connection, OpenFlags};
-use std::{io, sync::Arc, time::UNIX_EPOCH};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
+use std::{
+    io,
+    sync::Arc,
+    time::UNIX_EPOCH,
+};
 
 const EMPTY_VERDICT_DB_BYTES: u64 = 12 * 1024;
 
@@ -29,7 +52,8 @@ pub(super) async fn resolver_sqlite_bytes(cache_root: &Arc<OpenDir>) -> io::Resu
         Ok(verdict.saturating_add(store_index))
     })
     .await
-    .map_err(|err| io::Error::other(err.to_string()))?
+    .map_err(|err| err.to_string())
+    .map_err(io::Error::other)?
 }
 
 pub(super) async fn expire_verdict_rows(
@@ -294,7 +318,8 @@ fn load_row_weights(conn: &Connection, floor_ms: i64) -> Option<Vec<u64>> {
         .query_map([floor_ms], |row| row.get::<_, i64>(0))
         .ok()?
         .flatten()
-        .map(|val| u64::try_from(val).unwrap_or(0))
+        .map(u64::try_from)
+        .map(|converted| converted.unwrap_or(0))
         .collect();
     Some(weights)
 }
@@ -328,6 +353,8 @@ fn proportional_bytes(total_bytes: u64, part_weight: u64, total_weight: u64) -> 
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|elapsed| i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+        .map(|elapsed| elapsed.as_millis())
+        .map(i64::try_from)
+        .map(|converted| converted.unwrap_or(i64::MAX))
         .unwrap_or(0)
 }

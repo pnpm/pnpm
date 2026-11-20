@@ -1,17 +1,43 @@
-use crate::{CafsFileInfo, FileHash, StoreDir};
-use derive_more::{Display, Error};
+use crate::{
+    CafsFileInfo,
+    FileHash,
+    StoreDir,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_fs::{
-    EnsureFileError, StoreFile, TempFile, cas_write_lock, create_exclusive_temp_file,
-    ensure_cas_file, ensure_parent_dir,
-    file_mode::{EXEC_MODE, is_executable},
-    overwrite_file_in_place, rename_with_retry,
+    EnsureFileError,
+    StoreFile,
+    TempFile,
+    cas_write_lock,
+    create_exclusive_temp_file,
+    ensure_cas_file,
+    ensure_parent_dir,
+    file_mode::{
+        EXEC_MODE,
+        is_executable,
+    },
+    overwrite_file_in_place,
+    rename_with_retry,
 };
-use sha2::{Digest, Sha512};
+use sha2::{
+    Digest,
+    Sha512,
+};
 use std::{
     fs,
-    io::{self, Read, Write},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        Read,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl StoreDir {
@@ -28,7 +54,7 @@ impl StoreDir {
         let mut writer = &mut hex_buf[..];
         for byte in &hash {
             // `write!` on `&mut [u8]` never errors when the buffer is
-            // large enough — 128 bytes is exactly the digest length.
+            // large enough, 128 bytes is exactly the digest length.
             write!(writer, "{byte:02x}").expect("hex buffer sized for full sha-512 digest");
         }
         let hex = std::str::from_utf8(&hex_buf).expect("LowerHex of byte digest is ASCII");
@@ -43,7 +69,7 @@ impl StoreDir {
     ///
     /// Returns `None` when `hex` is too short or not ASCII-hex.
     ///
-    /// We require *more* than two hex chars — the first two become the
+    /// We require *more* than two hex chars, the first two become the
     /// shard directory `files/XX/`, and the rest is the file component.
     /// A two-char input produces an empty tail, which on disk is the
     /// shard directory itself (usually present), so without this tighter
@@ -91,7 +117,7 @@ pub enum WriteCasFileError {
 
 /// Error type of [`StoreDir::write_cas_file_from_reader`]. Splits the
 /// reader side from the store side so the caller can attribute a
-/// mid-stream failure to its actual origin — a tar/gzip decode error is
+/// mid-stream failure to its actual origin, a tar/gzip decode error is
 /// not a store-write error.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum WriteCasFileFromReaderError {
@@ -126,7 +152,7 @@ impl StoreDir {
     /// Stream a file from an npm package into the store directory
     /// without buffering it in memory.
     ///
-    /// The content hash — and therefore the CAS path — is only known
+    /// The content hash (and therefore the CAS path) is only known
     /// once the reader is exhausted, so the bytes stream into an
     /// exclusively-created temp file in the `files/` directory (same
     /// filesystem as the shards, so the final rename never crosses a
@@ -139,12 +165,12 @@ impl StoreDir {
     /// guarantees: an existing regular file at the target is kept
     /// as the live entry only after a byte-compare against the streamed
     /// content, a corrupt regular file is repaired in place so its
-    /// inode — and every hard link to it — survives (pnpm/pnpm#3445),
+    /// inode (and every hard link to it) survives (pnpm/pnpm#3445),
     /// and anything else is atomically replaced.
     ///
     /// When `expected_size` is given, a reader that yields any other
     /// number of bytes fails with the `Read` variant *before* anything
-    /// reaches a content-addressed path — a truncated source (e.g. a
+    /// reaches a content-addressed path, a truncated source (e.g. a
     /// cut-short archive) must not commit its partial content to the
     /// store, even though such a blob would be correctly addressed.
     pub fn write_cas_file_from_reader(
@@ -199,8 +225,8 @@ fn write_cas_error(error: EnsureFileError) -> WriteCasFileFromReaderError {
 /// Commit a fully streamed temp file to its content-addressed path,
 /// consuming the temp in every outcome.
 ///
-/// A regular file already at the hash-derived target is kept —
-/// preserving its inode — only after its bytes are verified against the
+/// A regular file already at the hash-derived target is kept
+/// (preserving its inode) only after its bytes are verified against the
 /// freshly streamed temp, the same guarantee [`ensure_cas_file`]'s
 /// byte-compare gives the buffered writer. A corrupt regular file is
 /// repaired in place. Anything else (missing or torn blob, symlink or
@@ -223,10 +249,12 @@ fn commit_streamed_temp_file(
     let existing_meta = fs::symlink_metadata(file_path).ok();
     let existing_is_regular = existing_meta
         .as_ref()
-        .is_some_and(|meta| meta.file_type().is_file());
+        .map(fs::Metadata::file_type)
+        .is_some_and(|file_type| file_type.is_file());
     let existing_is_live = existing_meta
         .as_ref()
-        .is_some_and(|meta| meta.file_type().is_file() && meta.len() == size)
+        .filter(|meta| meta.file_type().is_file())
+        .is_some_and(|meta| meta.len() == size)
         && files_have_equal_contents(tmp_path, file_path);
     if existing_is_live || (existing_is_regular && repair_in_place(tmp_path, file_path)) {
         let _ = fs::remove_file(tmp_path);
@@ -246,8 +274,8 @@ fn commit_streamed_temp_file(
 /// Overwrite the corrupt regular file at `file_path` in place with the
 /// bytes just streamed into `tmp_path`, keeping the inode so hard links
 /// to it from other projects' `node_modules` are healed by the same
-/// write (pnpm/pnpm#3445). Returns false — the caller falls back to the
-/// atomic rename — when the in-place write is refused or the result
+/// write (pnpm/pnpm#3445). Returns false (the caller falls back to the
+/// atomic rename) when the in-place write is refused or the result
 /// fails a byte-compare against the temp, which covers a concurrent
 /// process still mid-write on the same path.
 fn repair_in_place(tmp_path: &Path, file_path: &Path) -> bool {
@@ -291,7 +319,10 @@ fn stream_into_temp_file(
             Err(error) => return Err(WriteCasFileFromReaderError::Read(error)),
         }
     }
-    writer.into_inner().map_err(|error| io_write_error(error.into_error()))?;
+    writer
+        .into_inner()
+        .map_err(io::IntoInnerError::into_error)
+        .map_err(io_write_error)?;
 
     if let Some(expected) = expected_size
         && size != expected
@@ -306,12 +337,12 @@ fn stream_into_temp_file(
 
 /// Chunk size for [`StoreDir::write_cas_file_from_reader`]'s read loop
 /// and its `BufWriter`. 128 KB keeps syscall count low without a
-/// per-file allocation worth worrying about — the streaming path only
+/// per-file allocation worth worrying about, the streaming path only
 /// runs for large entries.
 const COPY_BUFFER_SIZE: usize = 128 * 1024;
 
 /// Stream-compare two files' contents without loading either into
-/// memory. Any open or read failure counts as "not equal" — every
+/// memory. Any open or read failure counts as "not equal"; every
 /// caller's recovery for inequality (an atomic rename over the target)
 /// is safe in each such state, so distinguishing them buys nothing.
 fn files_have_equal_contents(left: &Path, right: &Path) -> bool {

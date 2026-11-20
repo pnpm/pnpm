@@ -1,10 +1,28 @@
 use super::{
-    AuthType, DEPRECATION_ERROR_BODY_LIMIT, DeprecateContext, DeprecateError, Diagnostic, Display,
-    Error, Method, OtpChallenge, OtpError, OtpSession, Reporter, StatusCode, WithOtpError,
-    otp_challenge_from_unauthorized_body, read_limited_body, registry_operation_failed,
-    send_with_retry, write_error_for_status,
+    AuthType,
+    DEPRECATION_ERROR_BODY_LIMIT,
+    DeprecateContext,
+    DeprecateError,
+    Diagnostic,
+    Display,
+    Error,
+    Method,
+    OtpChallenge,
+    OtpError,
+    OtpSession,
+    Reporter,
+    StatusCode,
+    WithOtpError,
+    otp_challenge_from_unauthorized_body,
+    read_limited_body,
+    registry_operation_failed,
+    send_with_retry,
+    write_error_for_status,
 };
-use crate::cli_args::registry_client::{OtpHost, apply_auth_and_otp};
+use crate::cli_args::registry_client::{
+    OtpHost,
+    apply_auth_and_otp,
+};
 
 /// Everything a registry mutation of one package needs. The OTP session is
 /// shared by every mutation of the run, so a partial unpublish (one `PUT`
@@ -67,7 +85,7 @@ pub(super) async fn send_mutation<Sys: OtpHost, Reporter: self::Reporter>(
         .run::<Sys, Reporter, reqwest::Response, UnpublishHttpError, _, _>(
             // A plain `FnMut` returning an `async move` block (not an
             // `AsyncFnMut`) so the produced future carries an ordinary `Send`
-            // obligation — see `with_otp_handling`'s `Operation` bound.
+            // obligation; see `with_otp_handling`'s `Operation` bound.
             move |challenge_otp: Option<String>| {
                 // The web-auth-provided OTP (a fresh challenge) takes precedence
                 // over any statically configured one.

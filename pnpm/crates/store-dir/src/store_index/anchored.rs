@@ -1,15 +1,27 @@
 #[cfg(target_os = "wasi")]
 use super::wasi_lease;
 use super::{
-    Backend, INDEX_DIR, StoreIndex, StoreIndexError,
-    files::{ALIAS_DIR, FilesIndex},
+    Backend,
+    INDEX_DIR,
+    StoreIndex,
+    StoreIndexError,
+    files::{
+        ALIAS_DIR,
+        FilesIndex,
+    },
     root_mtime,
 };
 use pnpm_fs::OpenDir;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     path::PathBuf,
     sync::Arc,
     time::Duration,

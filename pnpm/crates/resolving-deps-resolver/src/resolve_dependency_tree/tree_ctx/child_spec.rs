@@ -1,6 +1,12 @@
 use super::resolves_from_declaring_manifest;
-use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
-use std::{borrow::Cow, path::Path};
+use pnpm_resolving_resolver_base::{
+    ResolveOptions,
+    WantedDependency,
+};
+use std::{
+    borrow::Cow,
+    path::Path,
+};
 
 /// Point a child's local specifier at the directory it is written from.
 ///

@@ -1,13 +1,24 @@
 use super::{
     ProjectManifestsByDir,
     injected_manifest::{
-        publishing_project_manifest, target_manifest, workspace_path_matches_target,
+        publishing_project_manifest,
+        target_manifest,
+        workspace_path_matches_target,
     },
 };
-use pnpm_local_spec::{bare_path_is_unambiguous, is_tarball_filename};
+use pnpm_local_spec::{
+    bare_path_is_unambiguous,
+    is_tarball_filename,
+};
 use pnpm_resolving_deps_resolver::locked_child_admits;
-use pnpm_resolving_local_resolver::{local_spec_path, recorded_local_path};
-use pnpm_resolving_resolver_base::{is_valid_semver_range, parse_strict_semver_range};
+use pnpm_resolving_local_resolver::{
+    local_spec_path,
+    recorded_local_path,
+};
+use pnpm_resolving_resolver_base::{
+    is_valid_semver_range,
+    parse_strict_semver_range,
+};
 use pnpm_workspace_spec::is_workspace_path_specifier;
 use std::path::Path;
 

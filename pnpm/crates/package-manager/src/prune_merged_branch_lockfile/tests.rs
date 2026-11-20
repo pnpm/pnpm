@@ -1,8 +1,14 @@
 use crate::prune_merged_branch_lockfile::prune_merged_branch_lockfile;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+};
 use pnpm_package_manifest::PackageManifest;
 use serde_json::json;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 fn manifest(value: serde_json::Value) -> PackageManifest {
     PackageManifest::from_value(PathBuf::from("/project/package.json"), value)

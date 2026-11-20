@@ -3,9 +3,15 @@
 
 use std::{
     collections::HashMap,
-    ffi::{CString, OsStr},
+    ffi::{
+        CString,
+        OsStr,
+    },
     os::unix::ffi::OsStrExt as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Every open of a path in `watched` while `run` runs, in order, one entry

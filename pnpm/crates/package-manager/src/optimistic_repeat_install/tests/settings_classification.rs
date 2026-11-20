@@ -6,12 +6,25 @@
 //! [`Reach::Recorded`] or [`Reach::BlocksFastPath`] is proven by changing it.
 //! The other buckets carry the reason, which the test cannot check.
 
-use super::{super::config_blocks_fast_path, current_settings, isolated_included};
+use super::{
+    super::config_blocks_fast_path,
+    current_settings,
+    isolated_included,
+};
 use crate::install_state::first_setting_drift;
 use indexmap::IndexMap;
-use pnpm_config::{Config, LinkWorkspacePackages, NodeLinker, RuntimeOnFail, TrustPolicy};
+use pnpm_config::{
+    Config,
+    LinkWorkspacePackages,
+    NodeLinker,
+    RuntimeOnFail,
+    TrustPolicy,
+};
 use pnpm_workspace_state::WorkspaceState;
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::BTreeSet,
+    path::Path,
+};
 
 /// How a [`Config`] field reaches the fast path.
 enum Reach {
@@ -41,7 +54,13 @@ impl Reach {
     }
 }
 
-use Reach::{BlocksFastPath, NotAnInput, Recorded, Through, Unseen};
+use Reach::{
+    BlocksFastPath,
+    NotAnInput,
+    Recorded,
+    Through,
+    Unseen,
+};
 
 const CLI_ONLY: &str = "a command-line or output setting";
 const NETWORK: &str = "how packages are fetched, not which";

@@ -1,9 +1,22 @@
 use super::{
-    Arc, DependencyGroup, HashMap, HashSet, Mutex, StubResolver, default_opts, fake_manifest,
-    fake_result, peer_context_lockfile, peer_declaring_metadata, plain_dependency,
+    Arc,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    Mutex,
+    StubResolver,
+    default_opts,
+    fake_manifest,
+    fake_result,
+    peer_context_lockfile,
+    peer_declaring_metadata,
+    plain_dependency,
     snapshot_with_dependencies,
 };
-use crate::{WorkspaceTreeCtx, resolve_importer::ImporterHoistState};
+use crate::{
+    WorkspaceTreeCtx,
+    resolve_importer::ImporterHoistState,
+};
 use serde_json::json;
 
 #[tokio::test]

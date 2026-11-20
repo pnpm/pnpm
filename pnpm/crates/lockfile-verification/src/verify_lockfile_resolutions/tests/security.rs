@@ -1,14 +1,25 @@
 use super::{
-    Arc, CapturingVerifier, FetchFails, Mutex, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-    ResolutionVerifier, SilentReporter, TempDir, VerifyError, VerifyLockfileResolutionsOptions,
-    collect_resolution_policy_violations, lockfile_verification_is_cached,
-    lockfile_verification_is_cached_by_content, parse, verify_lockfile_resolutions,
+    Arc,
+    CapturingVerifier,
+    FetchFails,
+    Mutex,
+    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+    ResolutionVerifier,
+    SilentReporter,
+    TempDir,
+    VerifyError,
+    VerifyLockfileResolutionsOptions,
+    collect_resolution_policy_violations,
+    lockfile_verification_is_cached,
+    lockfile_verification_is_cached_by_content,
+    parse,
+    verify_lockfile_resolutions,
 };
 
 #[tokio::test]
 async fn rejects_a_traversal_snapshot_package_name() {
     // The snapshot's own package name (the `snapshots:` key) becomes
-    // `<slot>/node_modules/<name>` at extract time — a sink the alias
+    // `<slot>/node_modules/<name>` at extract time, a sink the alias
     // scan of the dependency maps alone doesn't cover.
     let lockfile = parse(
         "lockfileVersion: '9.0'

@@ -2,12 +2,19 @@
 //! refuse an unset variable.
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::{
+        Cell,
+        RefCell,
+    },
     fmt,
     ops::Deref,
 };
 
-use pnpm_env_replace::{EnvVar, env_replace_lossy, placeholder_ranges};
+use pnpm_env_replace::{
+    EnvVar,
+    env_replace_lossy,
+    placeholder_ranges,
+};
 use pnpr_error::RegistryError;
 use serde::Deserialize;
 

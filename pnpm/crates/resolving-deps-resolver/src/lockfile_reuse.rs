@@ -4,22 +4,50 @@
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
 pub use registry_range::locked_child_admits;
-pub(crate) use registry_range::{any_locked_key_admits, locked_key_is_current};
+pub(crate) use registry_range::{
+    any_locked_key_admits,
+    locked_key_is_current,
+};
 
 mod locked_version;
 mod registry_range;
 
-use locked_version::{admits_locked_version, runtime_child_admits};
+use locked_version::{
+    admits_locked_version,
+    runtime_child_admits,
+};
 use pnpm_lockfile::{
-    BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
-    PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions, VersionPart,
-    npm_tarball_url, pick_registry_for_package, registry_server_type,
+    BundledDependencies,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    RegistryContext,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    StringOrList,
+    TarballResolution,
+    TarballUrlOptions,
+    VersionPart,
+    npm_tarball_url,
+    pick_registry_for_package,
+    registry_server_type,
     revision_registry_tarball_url,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
-use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
-use serde_json::{Map, Value};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg,
+    PkgResolutionId,
+    ResolveResult,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::sync::Arc;
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
@@ -179,7 +207,7 @@ fn importer_dep<'a>(
 ///   `peerDependencies` / `peerDependenciesMeta` / `engines` / `cpu` /
 ///   `os` / `libc` / `hasBin` so `extract_peer_dependencies`
 ///   and the leaf classifier behave identically to a fresh resolve.
-///   `dependencies` are deliberately omitted — the children come from
+///   `dependencies` are deliberately omitted, the children come from
 ///   the snapshot graph, not this manifest.
 pub(crate) fn synthesize_reused_result(
     lockfile: &Lockfile,
@@ -236,7 +264,7 @@ fn synthesize_manifest(
     // bundled-manifest bin linker sees a non-empty bin set; the exact
     // bin paths live in the store-index bundled manifest the install
     // pass reads, not here.
-    if metadata.has_bin == Some(true) {
+    if metadata.has_bin.unwrap_or(false) {
         manifest.insert("bin".to_string(), Value::String(name.to_string()));
     }
 
@@ -348,7 +376,8 @@ fn string_array(items: &[String]) -> Value {
     Value::Array(
         items
             .iter()
-            .map(|item| Value::String(item.clone()))
+            .cloned()
+            .map(Value::String)
             .collect(),
     )
 }
@@ -430,11 +459,11 @@ fn reusable_resolution(resolution: &LockfileResolution) -> Option<ReusableResolu
     let reusable = match resolution {
         LockfileResolution::Registry(_) => ReusableResolution::Registry,
         LockfileResolution::Tarball(tarball)
-            if tarball.integrity.is_some() && tarball.git_hosted != Some(true) =>
+            if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false) =>
         {
             ReusableResolution::Registry
         }
-        LockfileResolution::Tarball(tarball) if tarball.git_hosted == Some(true) => {
+        LockfileResolution::Tarball(tarball) if tarball.git_hosted.unwrap_or(false) => {
             ReusableResolution::Git
         }
         LockfileResolution::Git(_) => ReusableResolution::Git,

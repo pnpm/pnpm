@@ -1,37 +1,74 @@
 #[cfg(windows)]
 use super::workspace_directory::ensure_workspace_directory_windows;
 use super::{
-    ArchiveStoreProjection, Config, LockedCrate, PathBuf, add_cargo_checksum,
-    discover_workspace_roots, parse_lockfile,
-    sources::{managed_config, sources_config, update_managed_config},
+    ArchiveStoreProjection,
+    Config,
+    LockedCrate,
+    PathBuf,
+    add_cargo_checksum,
+    discover_workspace_roots,
+    parse_lockfile,
+    sources::{
+        managed_config,
+        sources_config,
+        update_managed_config,
+    },
     workspace_root,
 };
 #[cfg(unix)]
 use super::{
-    CRATES_SOURCE_DIRECTORY, ensure_workspace_directory, link_workspace,
-    sources::{link_workspace_in, write_cargo_config_in},
+    CRATES_SOURCE_DIRECTORY,
+    ensure_workspace_directory,
+    link_workspace,
+    sources::{
+        link_workspace_in,
+        write_cargo_config_in,
+    },
     write_cargo_config,
 };
 use crate::cargo_deps::{
-    materialize::{DownloadOptions, MaterializeOptions, materialize, slot_is_complete},
-    sparse_registry::{download_auth_headers, fetch_sparse_index_file, sparse_index_path},
+    materialize::{
+        DownloadOptions,
+        MaterializeOptions,
+        materialize,
+        slot_is_complete,
+    },
+    sparse_registry::{
+        download_auth_headers,
+        fetch_sparse_index_file,
+        sparse_index_path,
+    },
 };
 
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
     StoreIndexWriter,
 };
-use ssri::{Algorithm, Integrity};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 #[cfg(unix)]
 use std::os::unix::fs::symlink;
 use std::{
     collections::HashMap,
     fs,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
     time::Duration,
 };
 

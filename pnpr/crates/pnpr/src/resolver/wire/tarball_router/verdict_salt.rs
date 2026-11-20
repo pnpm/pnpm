@@ -1,11 +1,21 @@
 use std::fmt::Write as _;
 
 use pnpm_lockfile::PkgName;
-use sha2::{Digest as _, Sha256};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
 use super::{
-    BUILTIN_REGISTRIES_BY_PREFIX, HashMap, Lockfile, LockfileResolution, PackageKey, PacquetConfig,
-    RouteClass, TarballRouter, VerificationRegistryRoutes,
+    BUILTIN_REGISTRIES_BY_PREFIX,
+    HashMap,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PacquetConfig,
+    RouteClass,
+    TarballRouter,
+    VerificationRegistryRoutes,
 };
 
 const VERDICT_HASH_VERSION: &[u8] = b"pnpr-verdict-v3";

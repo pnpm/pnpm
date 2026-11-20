@@ -1,5 +1,10 @@
 use super::{
-    Catalogs, Lockfile, LockfileSettingsCheck, assert_eq, check_lockfile_settings, settings_check,
+    Catalogs,
+    Lockfile,
+    LockfileSettingsCheck,
+    assert_eq,
+    check_lockfile_settings,
+    settings_check,
     text_block,
 };
 

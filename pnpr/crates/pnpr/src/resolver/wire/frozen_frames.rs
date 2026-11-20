@@ -1,16 +1,31 @@
 use std::collections::HashSet;
 
 use pnpm_config::Config as PacquetConfig;
-use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey, PackageMetadata, TarballRevision};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    TarballRevision,
+};
 use pnpm_package_manager::{
-    ResolvedPackageHint, ResolvedPackageIdentity, tarball_url_and_integrity,
+    ResolvedPackageHint,
+    ResolvedPackageIdentity,
+    tarball_url_and_integrity,
 };
 use pnpm_resolving_npm_resolver::{
-    DistStats, ObservedDistStats, VerificationRegistryRoutes, observed_dist_stats_key,
+    DistStats,
+    ObservedDistStats,
+    VerificationRegistryRoutes,
+    observed_dist_stats_key,
 };
 
 use super::{
-    LockfileOrigin, MAX_NDJSON_FRAME_BYTES, TarballRouter, ndjson_line, routed_package_frame,
+    LockfileOrigin,
+    MAX_NDJSON_FRAME_BYTES,
+    TarballRouter,
+    ndjson_line,
+    routed_package_frame,
     tarball_router::LockfileRoutingContext,
 };
 
@@ -25,7 +40,7 @@ use super::{
 /// [`tarball_url_and_integrity`] the client's frozen materialization
 /// uses, so the announced URLs match the client's mem-cache keys
 /// byte-for-byte. Non-tarball resolutions (git, directory, binary,
-/// variations) are skipped — the client fetches those through their
+/// variations) are skipped, the client fetches those through their
 /// own protocol paths.
 pub(in super::super) fn frozen_package_frames_until(
     config: &PacquetConfig,

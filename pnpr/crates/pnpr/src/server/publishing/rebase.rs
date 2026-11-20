@@ -10,13 +10,24 @@
 //! changed and applies it to the packument the store now holds, as if the two
 //! publishes had run one after the other.
 
-use super::{RegistryError, StagedPublish};
+use super::{
+    RegistryError,
+    StagedPublish,
+};
 use crate::server::AppState;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::database::{
-    ArtifactMember, BatchDocument, BlobFence, PublicationCommit, PublicationRequest, PublishNotes,
+    ArtifactMember,
+    BatchDocument,
+    BlobFence,
+    PublicationCommit,
+    PublicationRequest,
+    PublishNotes,
 };
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// How many times a publish that lost the race for its packages to another
 /// replica is rebased onto what that replica committed and tried again.

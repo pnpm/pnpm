@@ -1,11 +1,27 @@
-use super::{FetchOutcome, Upstream};
-use pnpm_network::{
-    ThrottledResponse, UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
+use super::{
+    FetchOutcome,
+    Upstream,
 };
-use pnpr_error::{RegistryError, Result};
-use reqwest::{StatusCode, Url, header};
+use pnpm_network::{
+    ThrottledResponse,
+    UNPRIORITIZED,
+    is_url_secure_for_credentials,
+    read_limited_body,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use reqwest::{
+    StatusCode,
+    Url,
+    header,
+};
 use serde::Deserialize;
-use std::time::{Duration, Instant};
+use std::time::{
+    Duration,
+    Instant,
+};
 
 pub(super) struct CachedToken {
     token: String,
@@ -112,7 +128,8 @@ impl Upstream {
         response
             .headers()
             .get(header::WWW_AUTHENTICATE)
-            .and_then(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .and_then(parse_challenge)
             .ok_or_else(|| self.oci_error("unsupported OCI authentication challenge"))
     }
@@ -156,7 +173,8 @@ impl Upstream {
         let target = response
             .headers()
             .get(header::LOCATION)
-            .and_then(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .and_then(|value| url.join(value).ok())
             .ok_or_else(|| self.oci_error("invalid OCI redirect"))?;
         if !oci_download_allowed(base, &target) {

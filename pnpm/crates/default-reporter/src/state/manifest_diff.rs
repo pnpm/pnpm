@@ -1,4 +1,11 @@
-use super::{AddedRoot, DepKind, HashMap, PackageDiff, RemovedRoot, Value};
+use super::{
+    AddedRoot,
+    DepKind,
+    HashMap,
+    PackageDiff,
+    RemovedRoot,
+    Value,
+};
 
 pub(super) fn diff_key(kind: DepKind) -> &'static str {
     match kind {

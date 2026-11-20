@@ -3,15 +3,27 @@ mod capabilities;
 mod temporary_builds;
 
 use super::{
-    ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    SnapshotCacheKey, cas_paths_key, settle_check,
+    ConcurrentCheck,
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    CreateVirtualStoreOutput,
+    SnapshotCacheKey,
+    cas_paths_key,
+    settle_check,
 };
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{PackageKey, Prefix, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    Prefix,
+    SnapshotEntry,
+};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 
@@ -284,7 +296,8 @@ fn immutable_download<'a>(
 ) -> Option<&'a crate::HoistedPackageFiles> {
     downloaded
         .get(&cas_paths_key(snapshot_key))
-        .filter(|files| !files.source_is_mutable && files.source_exists)
+        .filter(|files| !files.source_is_mutable)
+        .filter(|files| files.source_exists)
 }
 
 pub(crate) fn materialized_snapshots(

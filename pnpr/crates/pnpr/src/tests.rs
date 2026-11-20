@@ -1,9 +1,21 @@
 use super::{
-    Args, RegistryError, StorageArgs, apply_storage_overrides, redacted_report, without_env_values,
+    Args,
+    RegistryError,
+    StorageArgs,
+    apply_storage_overrides,
+    redacted_report,
+    without_env_values,
 };
-use clap::{CommandFactory as _, Parser as _};
+use clap::{
+    CommandFactory as _,
+    Parser as _,
+};
 use pnpm_testing_utils::env_guard::EnvGuard;
-use std::{ffi::OsStr, net::SocketAddr, time::Duration};
+use std::{
+    ffi::OsStr,
+    net::SocketAddr,
+    time::Duration,
+};
 
 const ENV_VARS: [&str; 12] = [
     "PNPR_CONFIG",

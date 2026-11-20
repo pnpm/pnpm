@@ -1,17 +1,36 @@
 use axum::{
     body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite, wait_after_document_write_conflict};
-use serde_json::{Value, json};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentWrite,
+    wait_after_document_write_conflict,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
-    super::{Action, AppState, WriteTarget, hosted_storage},
-    no_published_packument, read_authorized_packument,
+    super::{
+        Action,
+        AppState,
+        WriteTarget,
+        hosted_storage,
+    },
+    no_published_packument,
+    read_authorized_packument,
 };
 
 pub(super) async fn update_package_maintainers(
@@ -54,8 +73,9 @@ async fn try_update_package_maintainers(
         .map_err(IntoResponse::into_response)?;
     hosted["maintainers"] = Value::Array(maintainers);
     update_modified_time(&mut hosted);
-    let bytes =
-        serde_json::to_vec_pretty(&hosted).map_err(|err| RegistryError::Json(err).into_response())?;
+    let bytes = serde_json::to_vec_pretty(&hosted)
+        .map_err(RegistryError::Json)
+        .map_err(axum::response::IntoResponse::into_response)?;
     let storage = hosted_storage(state, Some(&target.namespace));
     match storage
         .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())

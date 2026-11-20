@@ -1,4 +1,9 @@
-use super::{Config, Path, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    WorkspaceSettings,
+    assert_eq,
+};
 
 /// `verifyStoreIntegrity` is a camelCase key that serde's rename
 /// has to pick up, and the `apply_to` wiring has to thread it onto

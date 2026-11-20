@@ -1,22 +1,44 @@
 mod security;
 
 use super::{
-    CheckResult, CheckStatus, DoctorArgs, DoctorReport, check_versions,
+    CheckResult,
+    CheckStatus,
+    DoctorArgs,
+    DoctorReport,
+    check_versions,
     filesystem::{
-        ProbeWorkspaces, check_filesystem_capabilities,
-        check_filesystem_capabilities_in_workspaces, probe_link_capabilities,
+        ProbeWorkspaces,
+        check_filesystem_capabilities,
+        check_filesystem_capabilities_in_workspaces,
+        probe_link_capabilities,
     },
     last_line,
-    probe_path::{ProbeDir, can_write_to_dir},
-    render_report, status_mark,
+    probe_path::{
+        ProbeDir,
+        can_write_to_dir,
+    },
+    render_report,
+    status_mark,
 };
-use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
-use pnpm_fs::{FsHardLink, FsReflink, Host};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PNPM_VERSION,
+};
+use pnpm_fs::{
+    FsHardLink,
+    FsReflink,
+    Host,
+};
 use pnpm_store_dir::StoreDir;
 use pretty_assertions::assert_eq;
 use std::{
-    fs, io,
-    path::{Component, Path},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+    },
 };
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {
@@ -91,7 +113,7 @@ fn render_report_summarizes_a_clean_run() {
     assert_eq!(output, "✓ Versions: pnpm 12.0.0\n\nAll checks passed");
 }
 
-/// A warning must not read as a failure, and its fix has to reach the user —
+/// A warning must not read as a failure, and its fix has to reach the user,
 /// a check nobody can act on is noise.
 #[test]
 fn render_report_shows_the_fix_for_a_warning() {

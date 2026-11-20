@@ -1,7 +1,15 @@
 use super::{
-    CopyFiles, DirPatcher, InodeMap, PublishSource, Value, extend_files_map, inode_map::file_id,
+    CopyFiles,
+    DirPatcher,
+    InodeMap,
+    PublishSource,
+    Value,
+    extend_files_map,
+    inode_map::file_id,
     publish_edits,
 };
+#[cfg(not(windows))]
+use command_extra::CommandExtra;
 use pnpm_fs::LinkFailure;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
@@ -9,9 +17,13 @@ use std::os::unix::fs::FileTypeExt as _;
 use std::{
     cell::Cell,
     collections::HashMap,
-    fs, io,
+    fs,
+    io,
     path::PathBuf,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::TempDir;
 
@@ -24,7 +36,7 @@ fn create_file(path: &std::path::Path, content: &str) {
 fn create_fifo(path: &std::path::Path) {
     fs::create_dir_all(path.parent().expect("fifo has a parent")).expect("create parent");
     let status = std::process::Command::new("mkfifo")
-        .arg(path)
+        .with_arg(path)
         .status()
         .expect("run mkfifo");
     assert!(status.success(), "mkfifo failed for {path:?}");

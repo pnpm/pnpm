@@ -1,4 +1,8 @@
-use super::{opted_in, selects_actions_only, without_action_selectors};
+use super::{
+    opted_in,
+    selects_actions_only,
+    without_action_selectors,
+};
 use pnpm_config::Config;
 
 fn strings(items: &[&str]) -> Vec<String> {

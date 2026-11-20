@@ -1,6 +1,18 @@
-use super::{Inputs, Registry, environment::PythonPrepare, manifest};
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{Diagnostic, IntoDiagnostic, Result};
+use super::{
+    Inputs,
+    Registry,
+    environment::PythonPrepare,
+    manifest,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    Diagnostic,
+    IntoDiagnostic,
+    Result,
+};
 
 pub(crate) struct Index {
     pub(crate) url: url::Url,
@@ -50,7 +62,8 @@ impl Index {
     pub(super) fn cache_key(&self, url: &url::Url) -> String {
         let key = self.auth
             .for_secure_url(url.as_str())
-            .map_or_else(|| url.to_string(), |header| format!("{url}\0{header}"));
+            .map(|header| format!("{url}\0{header}"))
+            .unwrap_or_else(|| url.to_string());
         pnpm_crypto_hash::create_hex_hash(&key)
     }
 }

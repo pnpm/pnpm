@@ -1,14 +1,28 @@
 use super::{
-    CacheGcEffect, CachedFile, HashSet, Path,
-    inventory::{CachedFileRemoval, check_unmodified_cached_files_sync, remove_cached_files_sync},
+    CacheGcEffect,
+    CachedFile,
+    HashSet,
+    Path,
+    inventory::{
+        CachedFileRemoval,
+        check_unmodified_cached_files_sync,
+        remove_cached_files_sync,
+    },
 };
 use pnpm_fs::OpenDir;
 use pnpm_store_dir::{
-    PackageFilesIndex, STORE_VERSION, StoreIndex, StoreIndexError, decode_package_files_index,
+    PackageFilesIndex,
+    STORE_VERSION,
+    StoreIndex,
+    StoreIndexError,
+    decode_package_files_index,
 };
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     sync::Arc,
 };
 
@@ -63,7 +77,9 @@ pub(super) async fn process_cas_entries(
         CacheGcEffect::DryRun => preview_cas_entries_sync(&root, &root_path, pending, &seen_keys),
     })
     .await
-    .map_err(|err| io::Error::other(err.to_string()).into())
+    .map_err(|err| err.to_string())
+    .map_err(io::Error::other)
+    .map_err(std::convert::Into::into)
 }
 
 fn evict_cas_entries_sync(

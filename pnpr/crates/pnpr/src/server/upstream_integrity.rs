@@ -1,23 +1,45 @@
 pub(super) mod cached;
 
-pub(super) use background::{BackgroundIntegrity, schedule, wait_for_pin};
-pub(super) use refresh::{RefreshOutcome, refresh_cached_packument};
+pub(super) use background::{
+    BackgroundIntegrity,
+    schedule,
+    wait_for_pin,
+};
+pub(super) use refresh::{
+    RefreshOutcome,
+    refresh_cached_packument,
+};
 
 mod background;
 mod candidates;
 mod refresh;
 
 use self::candidates::{
-    MissingIntegrityTarball, missing_integrity_tarballs, packument_tarball,
+    MissingIntegrityTarball,
+    missing_integrity_tarballs,
+    packument_tarball,
     packument_tarball_filename,
 };
 use super::{
-    AppState, CanonicalPackageName, FetchOutcome, Integrity, RegistryError, Upstream,
-    UpstreamTarballRoute, is_osv_vulnerable_packument_version, streaming, tarball_integrity_error,
-    tarball_stream_error_for_package, timed, upstream_packuments::lock_upstream_package,
+    AppState,
+    CanonicalPackageName,
+    FetchOutcome,
+    Integrity,
+    RegistryError,
+    Upstream,
+    UpstreamTarballRoute,
+    is_osv_vulnerable_packument_version,
+    streaming,
+    tarball_integrity_error,
+    tarball_stream_error_for_package,
+    timed,
+    upstream_packuments::lock_upstream_package,
     upstream_tarballs::tarball_cache_name,
 };
-use futures_util::{StreamExt, stream};
+use futures_util::{
+    StreamExt,
+    stream,
+};
 use serde_json::Value;
 
 /// A computed integrity and an optional downloaded blob awaiting publication.

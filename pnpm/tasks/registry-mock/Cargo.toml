@@ -22,6 +22,7 @@ doc = false
 
 [dependencies]
 clap = { workspace = true }
+command-extra = { workspace = true }
 home = { workspace = true }
 pipe-trait = { workspace = true }
 pnpr-fixtures = { workspace = true }

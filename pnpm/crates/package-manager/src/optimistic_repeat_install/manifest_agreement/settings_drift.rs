@@ -1,6 +1,9 @@
 //! Whether the lockfile's recorded settings still match the configuration.
 
-use super::{Lockfile, OptimisticRepeatInstallCheck};
+use super::{
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+};
 use pnpm_lockfile::StalenessReason;
 
 /// The lockfile's recorded settings must still match the configuration.

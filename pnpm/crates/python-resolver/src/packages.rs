@@ -1,11 +1,22 @@
 use crate::{
     Source,
-    lockfile::{LockedDirectory, LockedSdist, LockedVcs, LockedWheel},
+    lockfile::{
+        LockedDirectory,
+        LockedSdist,
+        LockedVcs,
+        LockedWheel,
+    },
     metadata::WheelMetadata,
 };
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
-use std::collections::{BTreeMap, BTreeSet};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 /// Where one version of a distribution comes from: a file an index
 /// serves, a directory in this workspace, or a repository.
@@ -211,7 +222,7 @@ impl Excluded {
 /// Only the names a failure prints are kept. A page lists every release a
 /// distribution ever published, and reading one is not a reason to hold
 /// that many versions for a message that names [`NAMED_RELEASES`] of
-/// them — least of all on a server answering requests.
+/// them, least of all on a server answering requests.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Releases {
     count: usize,

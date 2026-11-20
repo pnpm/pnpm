@@ -1,8 +1,27 @@
 use super::{
-    Arc, BTreeMap, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
-    DeferredChildren, DepPathRecording, HashMap, NodeId, NodeOutput, NodeWalkContext, ParentRef,
-    ParentRefs, PeerWalkMode, PeersCacheItem, ResolvedPackage, SharedChain, SubtreePaths,
-    TreeChildren, WalkResult, Walker, insert_parent_ref,
+    Arc,
+    BTreeMap,
+    ChildEdge,
+    ChildOutputs,
+    ChildParentRefs,
+    DeferredChildContext,
+    DeferredChildren,
+    DepPathRecording,
+    HashMap,
+    NodeId,
+    NodeOutput,
+    NodeWalkContext,
+    ParentRef,
+    ParentRefs,
+    PeerWalkMode,
+    PeersCacheItem,
+    ResolvedPackage,
+    SharedChain,
+    SubtreePaths,
+    TreeChildren,
+    WalkResult,
+    Walker,
+    insert_parent_ref,
 };
 
 impl Walker<'_> {
@@ -205,7 +224,7 @@ impl Walker<'_> {
     /// the parent's view, plus the node's own peer-relevant children,
     /// plus the pins the wanted lockfile locked in. Kept behind `Arc`
     /// copy-on-write: most nodes contribute nothing, so they pass the
-    /// parent's map down by refcount instead of cloning it — the
+    /// parent's map down by refcount instead of cloning it, the
     /// per-node map clones dominated the walker's CPU time on
     /// peer-heavy workspaces.
     pub(super) fn build_child_parent_refs(
@@ -273,7 +292,7 @@ impl Walker<'_> {
         new_parent_refs: &ParentRefs,
         node_id: &NodeId,
     ) {
-        // Built only when a name collision actually consults it — the
+        // Built only when a name collision actually consults it, the
         // common no-collision node never pays for the extra map clone.
         let mut refs_with_new: Option<ParentRefs> = None;
         for (name, new_parent_ref) in new_parent_refs.clone() {

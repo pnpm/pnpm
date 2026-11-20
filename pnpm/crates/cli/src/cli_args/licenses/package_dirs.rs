@@ -1,13 +1,23 @@
 use miette::IntoDiagnostic;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_deps_restorer::VirtualStoreLayout;
 use pnpm_lockfile::PackageKey;
-use pnpm_modules_yaml::{Host, Modules, read_modules_manifest};
+use pnpm_modules_yaml::{
+    Host,
+    Modules,
+    read_modules_manifest,
+};
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use std::{
     borrow::Cow,
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Where each listed package is installed: its virtual store slot, or

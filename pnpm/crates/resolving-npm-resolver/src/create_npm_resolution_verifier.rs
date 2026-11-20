@@ -28,7 +28,10 @@ mod registry_routes;
 mod trust_check;
 
 mod policy_snapshot;
-use policy_snapshot::{build_policy_snapshot, cached_policy_patterns};
+use policy_snapshot::{
+    build_policy_snapshot,
+    cached_policy_patterns,
+};
 
 mod registry_artifact;
 
@@ -38,15 +41,26 @@ mod age_check;
 
 mod artifact_binding;
 use artifact_binding::{
-    current_history_violation, current_revision_number, lockfile_revision,
-    mapped_tarball_url_violation, missing_artifact_violation, select_revision,
+    current_history_violation,
+    current_revision_number,
+    lockfile_revision,
+    mapped_tarball_url_violation,
+    missing_artifact_violation,
+    select_revision,
 };
 
 mod metadata_projection;
-use metadata_projection::{load_local_meta_time, project_abbreviated_meta, project_trust_meta};
+use metadata_projection::{
+    load_local_meta_time,
+    project_abbreviated_meta,
+    project_trust_meta,
+};
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::PathBuf,
     sync::Arc,
 };
@@ -56,43 +70,76 @@ use jiff::Timestamp;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
-    is_git_hosted_tarball_url, is_revision_registry_tarball_url, normalized_registry_key,
+    LockfileResolution,
+    PkgName,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_git_hosted_tarball_url,
+    is_revision_registry_tarball_url,
+    normalized_registry_key,
 };
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, redact_url_for_display,
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    redact_url_credentials,
+    redact_url_for_display,
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, TrustPolicy, VerifyCtx, VerifyFuture,
+    ResolutionVerification,
+    ResolutionVerifier,
+    TrustPolicy,
+    VerifyCtx,
+    VerifyFuture,
     parse_packument_timestamp,
 };
 use pnpm_version_policy::PackageVersionPolicy;
 use serde_json::Value as JsonValue;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use tokio::sync::OnceCell;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustEvidence,
-    TrustHistory, TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
+    FetchAttestationOptions,
+    FetchFullMetadataCachedOptions,
+    TrustCheckOptions,
+    TrustEvidence,
+    TrustHistory,
+    TrustViolation,
+    fetch_attestation_published_at,
+    fetch_full_metadata_cached,
     fetch_full_metadata_cached::fetch_full_metadata_projected,
     lookup_context::{
-        PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
-        TrustHistoryProjection, package_key, version_key,
+        PublishedAtLookupContext,
+        PublishedAtTimeMap,
+        RegistryArtifact,
+        RegistryArtifactHistory,
+        TrustHistoryProjection,
+        package_key,
+        version_key,
     },
-    pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
+    pick_package::{
+        PackageMetaCache,
+        SkippedTimeCheck,
+        warn_missing_time_once,
+    },
     registry_url::to_registry_url,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
-        MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
-        TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+        TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        TARBALL_URL_MISMATCH_VIOLATION_CODE,
         TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 
 /// Per-version `dist` statistics that estimate a tarball's pipeline
 /// work: `unpackedSize` (transfer + decompress + hash bytes) and
-/// `fileCount` (per-file CAS-write overhead). Either may be absent —
+/// `fileCount` (per-file CAS-write overhead). Either may be absent,
 /// registries only publish them for packages uploaded since npm 6.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DistStats {
@@ -134,7 +181,7 @@ pub fn observed_dist_stats_sink() -> ObservedDistStats {
 
 /// Options bundle for [`create_npm_resolution_verifier`].
 ///
-/// The verifier owns the option bag once constructed — these fields
+/// The verifier owns the option bag once constructed; these fields
 /// flow into [`NpmResolutionVerifier`] verbatim.
 pub struct CreateNpmResolutionVerifierOptions {
     /// `default` + per-scope registry map. Keyed by `"default"` or
@@ -165,7 +212,7 @@ pub struct VerificationReleaseAgeOptions {
     /// check. `None` (or empty) means "no exclusions".
     pub exclude: Option<PackageVersionPolicy>,
     /// Raw spec strings backing [`Self::exclude`].
-    /// The verifier keeps the strings — not the compiled policy — for
+    /// The verifier keeps the strings (not the compiled policy) for
     /// the cache snapshot in `policy()` so the persisted record can be
     /// compared byte-for-byte across runs.
     pub exclude_patterns: Vec<String>,
@@ -205,7 +252,7 @@ pub struct VerificationMetadataClient {
     pub cache_dir: Option<PathBuf>,
     /// Per-install [`PackageMetaCache`] shared with the npm resolver.
     /// When provided, the verifier reads a cached packument before
-    /// fetching — a name the resolver already pulled during the same
+    /// fetching, a name the resolver already pulled during the same
     /// install yields the cached document instead of a fresh
     /// disk/network round-trip. Optional: frozen-install paths and
     /// unit tests don't have a resolver running alongside, in which
@@ -254,7 +301,7 @@ pub struct VerificationArtifacts {
     /// warm/cold partition (see
     /// [`pnpm_resolving_resolver_base::PlannedCanonicalFetches`]).
     /// When supplied, an entry listed there passes the age check on a
-    /// package-level `Last-Modified` HEAD probe alone — the planned
+    /// package-level `Last-Modified` HEAD probe alone, the planned
     /// canonical fetch fail-closes the entry's registry existence, so
     /// no metadata body is needed. `None` (paths that materialize
     /// nothing or run a resolver alongside) keeps the metadata-backed
@@ -385,8 +432,8 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         }
 
         // Maturity: a previously cached run under a larger cutoff
-        // (stricter window) is trustworthy under a smaller current one
-        // — the set of accepted versions is a subset of today's.
+        // (stricter window) is trustworthy under a smaller current one,
+        // the set of accepted versions is a subset of today's.
         // Tightening the cutoff invalidates the cached run.
         let past_min_age = cached_policy
             .get("minimumReleaseAge")
@@ -422,7 +469,7 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         // Missing-time tolerance: a cached run that failed closed on an
         // absent `time` field accepted a subset of what today's tolerant
         // policy accepts, so it stays trustworthy. Turning the tolerance
-        // off invalidates it — entries the past run waved through are the
+        // off invalidates it, entries the past run waved through are the
         // ones today's policy exists to reject. Older records (no field)
         // read as intolerant, which is the safe direction.
         let past_ignore_missing_time = cached_policy
@@ -464,7 +511,7 @@ impl NpmResolutionVerifier {
         // Network-free structural check, so it runs before the registry
         // metadata shortcuts below. An entry that pins no hash cannot be
         // verified against anything once fetched, whatever its version
-        // shape — a URL-keyed dep is refused here too.
+        // shape, a URL-keyed dep is refused here too.
         if resolution.checkable_integrity().is_none() {
             return ResolutionVerification::Err {
                 code: MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
@@ -522,7 +569,7 @@ impl NpmResolutionVerifier {
     /// A registry entry that pins an explicit tarball URL must point at the
     /// artifact the registry's own metadata lists. Otherwise a trusted
     /// name@version could front bytes from an attacker-chosen URL (with a
-    /// matching integrity for those bytes). This binding is unconditional —
+    /// matching integrity for those bytes). This binding is unconditional;
     /// it does not depend on the minimum-release-age / trust policies and
     /// isn't narrowed by their exclude lists, since it guards integrity
     /// rather than maturity/trust.

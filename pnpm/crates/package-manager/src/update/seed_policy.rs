@@ -1,27 +1,63 @@
 pub(super) mod matching;
-pub(super) use matching::{ignored_resolved_names, matches_update_pattern};
+pub(super) use matching::{
+    ignored_resolved_names,
+    matches_update_pattern,
+};
 
 use super::{
-    CatalogCtx, LatestResolverChain, LatestRewriteCtx, MatchedRewriteInputs, UpdateError,
-    WorkspaceLinkTarget, emit_range_flag_ignored, latest_specifier,
+    CatalogCtx,
+    LatestResolverChain,
+    LatestRewriteCtx,
+    MatchedRewriteInputs,
+    UpdateError,
+    WorkspaceLinkTarget,
+    emit_range_flag_ignored,
+    latest_specifier,
     latest_subtree::widen_drop_targets_to_subtrees,
-    overrides::{OverriddenDirect, override_holds_declaration},
+    overrides::{
+        OverriddenDirect,
+        override_holds_declaration,
+    },
     record_matched_direct_update,
-    selectors::{ParsedSelector, expand_update_selectors, insert_update_target},
-    tag_rewrite, workspace_specifier,
+    selectors::{
+        ParsedSelector,
+        expand_update_selectors,
+        insert_update_target,
+    },
+    tag_rewrite,
+    workspace_specifier,
 };
-use crate::{ImporterUpdateSeedPolicy, UpdateSeedPolicy};
+use crate::{
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
-use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
-use pnpm_resolving_resolver_base::{PreferredVersions, WorkspacePackages};
-use std::collections::{BTreeMap, HashSet};
+use pnpm_resolving_deps_resolver::{
+    UpdateDepth,
+    UpdateTargets,
+};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    WorkspacePackages,
+};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
-use matching::{name_matched_seed_policy, update_ignore_matcher, update_matcher_patterns};
+use matching::{
+    name_matched_seed_policy,
+    update_ignore_matcher,
+    update_matcher_patterns,
+};
 
 pub(super) fn selected_seed_policy(
     patches: bool,

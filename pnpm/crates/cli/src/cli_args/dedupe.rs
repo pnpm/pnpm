@@ -4,34 +4,84 @@ use crate::{
     State,
     cli_args::{
         deps_tree::render::{
-            TreeNode, blue_bright_underline, gray, green, plain, red, render_archy,
+            TreeNode,
+            blue_bright_underline,
+            gray,
+            green,
+            plain,
+            red,
+            render_archy,
         },
         install::workspace_install_selection,
         pipelines::InstallFamilySelection,
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer, normalize_lockfile_content};
-use pnpm_modules_yaml::{Host, read_modules_manifest};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgNameVerPeer,
+    normalize_lockfile_content,
+};
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_manifest,
+};
 use pnpm_package_manager::{
-    ImporterDiffKey, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
-    ResolvedPackageHint, SnapshotDiff, diff_lockfiles, package_metadata_is_installable,
+    ImporterDiffKey,
+    InstallabilityHost,
+    LockfileDiff,
+    PolicyExcludes,
+    ResolutionObserver,
+    ResolvedPackageHint,
+    SnapshotDiff,
+    diff_lockfiles,
+    package_metadata_is_installable,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    DedupeCheckLog, LogEvent, LogLevel, PnpmErrorLog, ProgressLog, ProgressMessage, Reporter,
+    DedupeCheckLog,
+    LogEvent,
+    LogLevel,
+    PnpmErrorLog,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
-use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
-use serde_json::{Map, Value, json};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    StoreIndex,
+    store_index_key,
+};
+use pnpm_tarball::{
+    SharedReportedProgressKeys,
+    pending_progress_key,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     marker::PhantomData,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 #[derive(Debug, Clone, Args)]
@@ -252,7 +302,8 @@ impl<Reporter: self::Reporter> ResolutionObserver for DedupeResolutionReporter<R
                     store_index
                         .lock()
                         .ok()
-                        .and_then(|index| index.contains_key(&package_key).ok())
+                        .map(|index| index.contains_key(&package_key))
+                        .and_then(Result::ok)
                         .unwrap_or(false)
                 });
         if found_in_store {
@@ -300,8 +351,8 @@ fn emit_dedupe_check_error<Reporter: self::Reporter>(diff: &LockfileDiff) {
     }));
 }
 
-/// Parse one side of the `--check` diff. A snapshot that does not parse —
-/// an older lockfile format the dedupe install has just rewritten, say —
+/// Parse one side of the `--check` diff. A snapshot that does not parse
+/// (an older lockfile format the dedupe install has just rewritten, say)
 /// yields no baseline rather than replacing the check's verdict with a
 /// parse error: the run already knows the lockfile would change, and only
 /// the detail of the report is lost.
@@ -313,8 +364,8 @@ fn parse_snapshot(content: Option<&str>, lockfile_path: &Path) -> Option<Lockfil
 /// `renderDedupeCheckIssues`: one tree per changed importer or package
 /// snapshot, plus the snapshots deduplication would add or drop.
 ///
-/// The lockfile can also be rewritten without any resolution changing —
-/// recorded settings drift, a config dependency the run synced — so an
+/// The lockfile can also be rewritten without any resolution changing
+/// (recorded settings drift, a config dependency the run synced) so an
 /// empty diff still says why the check failed.
 fn render_dedupe_check_issues(diff: &LockfileDiff) -> String {
     if diff.is_empty() {

@@ -1,4 +1,10 @@
-use super::{Config, Path, ResolutionMode, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    ResolutionMode,
+    WorkspaceSettings,
+    assert_eq,
+};
 use pnpm_store_dir::StoreIndexFormat;
 
 /// `resolutionMode` accepts the three upstream string values; an

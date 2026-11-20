@@ -1,11 +1,21 @@
 use super::{
-    super::{ImportIndexedDirOpts, import_indexed_dir},
-    FORCE_KEEP, FORCE_SHARED, cas_map, write_source,
+    super::{
+        ImportIndexedDirOpts,
+        import_indexed_dir,
+    },
+    FORCE_KEEP,
+    FORCE_SHARED,
+    cas_map,
+    write_source,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    path::Path,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[cfg(windows)]
@@ -35,7 +45,10 @@ fn invalid_windows_filename_is_renamed_on_fresh_import_and_repair() {
 #[cfg(windows)]
 #[test]
 fn renamed_filename_warning_strips_control_characters() {
-    use pnpm_reporter::{LogEvent, Reporter};
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
     use std::sync::Mutex;
 
     static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -112,7 +125,7 @@ fn valid_windows_filename_is_not_sanitized_without_an_import_error() {
 }
 
 /// Default opts (isolated linker) short-circuit when the target holds the
-/// completion marker — the load-bearing invariant that a fully-imported
+/// completion marker, the load-bearing invariant that a fully-imported
 /// virtual-store slot is never re-imported. A marker-less directory is
 /// repaired instead (see [`partial_dir_without_marker_is_repaired`]).
 #[test]
@@ -190,7 +203,7 @@ fn fresh_target_creates_nested_directories() {
     assert_eq!(fs::read(target.join("lib/deep/nested/file.js")).unwrap(), b"deeper");
 }
 /// Two staging paths produced back-to-back in the same process must
-/// differ — otherwise concurrent rayon workers would collide on the
+/// differ; otherwise concurrent rayon workers would collide on the
 /// rename target. Uses the function indirectly via two force re-installs
 /// in parallel.
 #[test]

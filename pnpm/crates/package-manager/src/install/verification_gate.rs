@@ -1,15 +1,20 @@
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{
-    ReplacedCandidate, ReplacedEntries, VerifyLockfileResolutionsOptions,
+    ReplacedCandidate,
+    ReplacedEntries,
+    VerifyLockfileResolutionsOptions,
     verify_lockfile_resolutions,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 /// The pre-resolve lockfile-verification fan-out, spawned so its
 /// registry round trips overlap the fresh path's resolve and
-/// materialization instead of serializing in front of them — the same
+/// materialization instead of serializing in front of them, the same
 /// concurrent-gate contract the frozen path's `select!` provides. The
 /// verdict still gates everything sensitive:
 /// [`InstallWithFreshLockfile`](crate::install_with_fresh_lockfile::InstallWithFreshLockfile)

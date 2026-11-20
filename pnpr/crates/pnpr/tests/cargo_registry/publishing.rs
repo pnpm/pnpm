@@ -1,7 +1,22 @@
 use super::{
-    AuthState, Body, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, cargo_config,
-    crate_archive, header, json, metadata, multi_ecosystem, publish_body, publish_request,
-    router_with_auth, sha256_hex,
+    AuthState,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    body_bytes,
+    cargo_config,
+    crate_archive,
+    header,
+    json,
+    metadata,
+    multi_ecosystem,
+    publish_body,
+    publish_request,
+    router_with_auth,
+    sha256_hex,
 };
 use crate::tokens::issue_token;
 
@@ -46,7 +61,8 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     let lines: Vec<Value> = index
         .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
+        .map(serde_json::from_str)
+        .map(Result::unwrap)
         .collect();
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0]["name"], "demo");

@@ -5,9 +5,17 @@
 //! these assert the shape the user sees: which groups appear, in what
 //! order, which packages sit in each, and that every column lines up.
 
-use super::{ChoiceGroup, column_widths, pad_row, update_choices};
+use super::{
+    ChoiceGroup,
+    column_widths,
+    pad_row,
+    update_choices,
+};
 use crate::cli_args::{
-    outdated::{OutdatedPackage, TrustChange},
+    outdated::{
+        OutdatedPackage,
+        TrustChange,
+    },
     update_interactive::UpdateDetails,
 };
 use console::measure_text_width;
@@ -88,7 +96,7 @@ fn groups_by_dependency_type_in_manifest_order() {
 }
 
 /// Every group opens with a header row that names the columns and is not
-/// selectable — pnpm renders it as a disabled entry.
+/// selectable, pnpm renders it as a disabled entry.
 #[test]
 fn each_group_opens_with_an_unselectable_header() {
     let packages = [pkg("foo", "foo", "1.0.0", "2.0.0", DependencyGroup::Prod)];
@@ -157,7 +165,7 @@ fn github_actions_form_their_own_group() {
 }
 
 /// A long version must not wrap the row onto a second line, and both
-/// versions stay readable — the regression pnpm's
+/// versions stay readable, the regression pnpm's
 /// "handles long version strings without wrapping" case covers.
 #[test]
 fn a_long_version_keeps_the_row_on_one_line() {
@@ -201,7 +209,7 @@ fn columns_line_up_within_a_group() {
 
 /// Each group is laid out on its own, so it is the minimum column widths
 /// that keep the `❯` of one group under the `❯` of the next when their
-/// names and versions differ in length — the misalignment the user sees
+/// names and versions differ in length, the misalignment the user sees
 /// otherwise, since the groups sit one above the other in the prompt.
 #[test]
 fn columns_line_up_across_groups() {
@@ -223,7 +231,7 @@ fn columns_line_up_across_groups() {
 }
 
 /// The header row is padded like the rows under it, so each column's
-/// title starts where the column does — `Current` being right-aligned,
+/// title starts where the column does. `Current` being right-aligned,
 /// its title ends where its cells do.
 #[test]
 fn the_header_row_lines_up_with_its_rows() {
@@ -260,7 +268,7 @@ fn column_of(line: &str, text: &str) -> usize {
 }
 
 /// Padding is counted in terminal columns rather than in `char`s, so a
-/// name made of double-width characters — CJK, most emoji — does not push
+/// name made of double-width characters (CJK, most emoji) does not push
 /// the rest of its row out of line with its neighbours'.
 #[test]
 fn a_wide_name_does_not_shift_its_row() {
@@ -367,7 +375,7 @@ fn a_single_project_run_has_no_workspace_column() {
 }
 
 /// Entries that differ only by the project they came from collapse into
-/// one row, because selecting it updates the package in every project —
+/// one row, because selecting it updates the package in every project,
 /// so the row has to name all of them rather than whichever came first.
 #[test]
 fn a_collapsed_row_names_every_project_it_covers() {

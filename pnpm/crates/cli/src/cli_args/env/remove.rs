@@ -1,13 +1,24 @@
 use crate::{
     cli_args::global::remove_global_groups,
-    shim_dispatch::{ShimTarget, native_shim_target, remove_native_shim},
+    shim_dispatch::{
+        ShimTarget,
+        native_shim_target,
+        remove_native_shim,
+    },
 };
 use miette::IntoDiagnostic;
 use pnpm_cmd_shim::remove_bin as remove_cmd_shim;
 use pnpm_config::Config;
-use pnpm_global::{find_global_package, is_global_install_subdir};
+use pnpm_global::{
+    find_global_package,
+    is_global_install_subdir,
+};
 use pnpm_reporter::Reporter;
-use std::{collections::HashSet, fs, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+};
 
 pub async fn run_remove<Reporter: self::Reporter + 'static>(
     versions: Vec<String>,

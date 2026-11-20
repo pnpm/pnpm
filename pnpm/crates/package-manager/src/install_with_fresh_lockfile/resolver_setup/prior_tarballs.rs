@@ -1,4 +1,7 @@
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_resolving_tarball_resolver::PriorTarballEntry;
 use pnpm_store_dir::store_index_key;
 use std::collections::HashMap;
@@ -11,7 +14,7 @@ use std::collections::HashMap;
 /// (they key by `gitHostedStoreIndexKey`, not the integrity) and just
 /// re-fetch. Empty on a first install.
 ///
-/// Keyed by `pkg_id` — the bare specifier — rather than
+/// Keyed by `pkg_id` (the bare specifier) rather than
 /// `resolution.tarball`, because that is what the resolver looks a
 /// dependency up by. The two differ once an immutable response has
 /// redirected: the lockfile then records the post-redirect URL while the
@@ -30,7 +33,9 @@ pub(super) fn prior_tarball_entries(
             packages
                 .iter()
                 .filter_map(|(key, metadata)| match &metadata.resolution {
-                    LockfileResolution::Tarball(tarball) if tarball.git_hosted != Some(true) => {
+                    LockfileResolution::Tarball(tarball)
+                        if !tarball.git_hosted.unwrap_or(false) =>
+                    {
                         let integrity = tarball.integrity.clone()?;
                         let pkg_id = key.pkg_id();
                         let store_index_key = store_index_key(&integrity.to_string(), &pkg_id);

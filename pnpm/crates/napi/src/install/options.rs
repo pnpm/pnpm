@@ -1,4 +1,9 @@
-use super::{HashMap, IndexMap, ReporterOptions, napi};
+use super::{
+    HashMap,
+    IndexMap,
+    ReporterOptions,
+    napi,
+};
 
 /// One importer: an absolute directory plus its in-memory manifest.
 #[napi(object)]
@@ -9,7 +14,7 @@ pub struct NodeApiProject {
     /// another importer (an injected workspace instance) instead of
     /// `manifest`. Lets an embedder pre-transform its importer manifests
     /// (e.g. strip workspace-sibling deps it links itself) while dependency
-    /// instances keep the raw graph — without a `readPackage` hook round
+    /// instances keep the raw graph, without a `readPackage` hook round
     /// trip. Omit it when both views are the same.
     pub dependency_manifest: Option<serde_json::Value>,
 }
@@ -36,7 +41,7 @@ pub struct InstallOptions {
     pub proxy_config: Option<ProxyConfigInput>,
     pub network_config: Option<NetworkConfigInput>,
     pub node_linker: Option<String>,
-    /// `linkWorkspacePackages` — `true` / `false` / `"deep"`. When enabled, a
+    /// `linkWorkspacePackages`: `true` / `false` / `"deep"`. When enabled, a
     /// bare-semver dependency may resolve to a workspace package by name (not
     /// only `workspace:`-prefixed ranges).
     pub link_workspace_packages: Option<serde_json::Value>,
@@ -52,7 +57,7 @@ pub struct InstallOptions {
     pub lockfile_only: Option<bool>,
     pub frozen_lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
-    /// `lockfileFormat` — the format the wanted lockfile is written in:
+    /// `lockfileFormat`: the format the wanted lockfile is written in:
     /// `"v9"` or the experimental `"v13"`. The `lockfile.format` setting.
     pub lockfile_format: Option<String>,
     pub prefer_offline: Option<bool>,
@@ -86,7 +91,7 @@ pub struct InstallOptions {
     /// host can install into the store, for a `node_modules` that something
     /// else mounts from the store; `lockfileOnly` and a dry run fetch nothing.
     pub enable_modules_dir: Option<bool>,
-    /// Install from the lockfile alone, ignoring the project manifests —
+    /// Install from the lockfile alone, ignoring the project manifests,
     /// pnpm's `pnpm fetch` semantics: the frozen path, no post-import
     /// linking, and no project lifecycle scripts.
     pub ignore_package_manifest: Option<bool>,
@@ -120,7 +125,7 @@ pub struct InstallOptions {
     pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
     /// Fail the install with `ERR_PNPM_IGNORED_BUILDS` when a dependency build
-    /// script is blocked. Defaults to `false` — the install instead reports the
+    /// script is blocked. Defaults to `false`, the install instead reports the
     /// blocked packages in `depsRequiringBuild`, matching how embedders (Bit)
     /// gate builds themselves.
     pub strict_dep_builds: Option<bool>,
@@ -137,10 +142,10 @@ pub struct InstallOptions {
     /// Allow every dependency's build scripts to run, except the ones
     /// `allow_builds` sets to `false`.
     pub dangerously_allow_all_builds: Option<bool>,
-    /// `peerDependencyRules` — how peer-dependency mismatches are treated.
+    /// `peerDependencyRules`: how peer-dependency mismatches are treated.
     pub peer_dependency_rules: Option<PeerDependencyRulesInput>,
     /// Pre-computed `Authorization` header values keyed by nerf-darted registry
-    /// URI (`//host/path/`), plus `""` for the default registry — which the
+    /// URI (`//host/path/`), plus `""` for the default registry, which the
     /// engine pins to the `registry` / `registries.default` passed alongside
     /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,

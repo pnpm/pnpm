@@ -1,4 +1,7 @@
-use super::{Path, PathBuf};
+use super::{
+    Path,
+    PathBuf,
+};
 
 struct AncestorEntry {
     path: PathBuf,

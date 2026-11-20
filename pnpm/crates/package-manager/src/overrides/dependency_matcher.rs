@@ -1,9 +1,12 @@
-use super::{ResolvedOverride, VersionsOverrider};
+use super::{
+    ResolvedOverride,
+    VersionsOverrider,
+};
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_package_manifest::DependencyGroup;
 
 /// Answers whether an override governs a dependency declared as a given
-/// specifier — whether or not it rewrites the text. An override that repeats
+/// specifier, whether or not it rewrites the text. An override that repeats
 /// the declaration verbatim still governs it, and a range-scoped override
 /// (`foo@^2`) governs one declaration of `foo` and not another, so the
 /// declared specifier is part of the question.

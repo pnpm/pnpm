@@ -1,15 +1,24 @@
-pub use pnpm_package_manifest::{PackageBin, is_safe_bin_name};
+pub use pnpm_package_manifest::{
+    PackageBin,
+    is_safe_bin_name,
+};
 
 use crate::capabilities::FsWalkFiles;
 use pnpm_fs::is_subdir;
 use pnpm_package_manifest::{
-    ScriptRuntime, declared_bin_entries, normalize_bin_path, normalize_package_relative_path,
+    ScriptRuntime,
+    declared_bin_entries,
+    normalize_bin_path,
+    normalize_package_relative_path,
     unscoped_bin_name,
 };
 use serde_json::Value;
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// One bin entry resolved from a package's `package.json`.

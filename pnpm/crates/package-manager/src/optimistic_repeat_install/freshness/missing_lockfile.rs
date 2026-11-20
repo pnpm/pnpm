@@ -2,7 +2,11 @@
 //! [`MissingWantedLockfile`] policy.
 
 use super::{
-    CurrentLockfile, GatePolicy, MissingWantedLockfile, OptimisticRepeatInstallCheck, Stale,
+    CurrentLockfile,
+    GatePolicy,
+    MissingWantedLockfile,
+    OptimisticRepeatInstallCheck,
+    Stale,
     stand_in_writes,
 };
 use crate::optimistic_repeat_install::settle::regenerate_wanted_lockfile_if_missing;

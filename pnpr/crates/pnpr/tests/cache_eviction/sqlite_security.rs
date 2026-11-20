@@ -1,13 +1,31 @@
 //! Symlink-hardening, store-index error retention, and verdict-expiry dry-run parity tests.
 
-use super::{create_file_with_age, test_config};
+use super::{
+    create_file_with_age,
+    test_config,
+};
 #[cfg(unix)]
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
-use pnpr::cache_maintenance::{CacheGcEffect, CacheGcOptions, CacheGcScope, collect_cache};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+    StoreIndexFormat,
+};
+use pnpr::cache_maintenance::{
+    CacheGcEffect,
+    CacheGcOptions,
+    CacheGcScope,
+    collect_cache,
+};
 use rusqlite::Connection;
 #[cfg(unix)]
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 use tempfile::TempDir;
 
 #[cfg(unix)]
@@ -720,7 +738,13 @@ fn backdate_files_in_dir(dir: &std::path::Path, times: std::fs::FileTimes) {
 
 #[tokio::test]
 async fn files_index_rows_stay_paired_with_cas() {
-    use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
+    use pnpm_store_dir::{
+        CafsFileInfo,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexFormat,
+    };
     use std::collections::HashMap;
 
     let tmp = TempDir::new().unwrap();

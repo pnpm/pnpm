@@ -1,6 +1,12 @@
-use super::{PEERS_CHECK_HINT, write_linked_peer_workspace};
+use super::{
+    PEERS_CHECK_HINT,
+    write_linked_peer_workspace,
+};
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::fs;
 
 /// `pnpm peers check` reads the linked project's `package.json`, so the

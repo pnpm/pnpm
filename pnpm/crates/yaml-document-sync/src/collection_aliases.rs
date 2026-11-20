@@ -1,8 +1,24 @@
-use super::{Error, edits, inline, scalar_aliases::byte_range, source_keys::SourceKeys};
+use super::{
+    Error,
+    edits,
+    inline,
+    scalar_aliases::byte_range,
+    source_keys::SourceKeys,
+};
 use serde_json::Value;
-use serde_saphyr::granit_parser::{Scanner, StrInput, TokenType};
-use std::{collections::HashMap, ops::Range};
-use yamlpath::{Document, Route};
+use serde_saphyr::granit_parser::{
+    Scanner,
+    StrInput,
+    TokenType,
+};
+use std::{
+    collections::HashMap,
+    ops::Range,
+};
+use yamlpath::{
+    Document,
+    Route,
+};
 
 /// Detach collection references when either side changes. YAML path queries
 /// otherwise edit the anchor definition even when addressing an alias.
@@ -108,7 +124,8 @@ impl<'value> Collector<'_, 'value> {
         }
         let range = self.aliases
             .iter()
-            .find(|range| range.start >= span.start && range.end <= span.end)
+            .filter(|range| range.start >= span.start)
+            .find(|range| range.end <= span.end)
             .ok_or_else(|| {
                 Error::InvalidOperation("Cannot locate the collection alias".to_string())
             })?;

@@ -1,13 +1,22 @@
 #[cfg(unix)]
 use super::FORCE_SHARED_KEEP;
 use super::{
-    super::{ImportIndexedDirOpts, import_indexed_dir},
-    FORCE_SHARED, SHARED, cas_map, write_source,
+    super::{
+        ImportIndexedDirOpts,
+        import_indexed_dir,
+    },
+    FORCE_SHARED,
+    SHARED,
+    cas_map,
+    write_source,
 };
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    fs,
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[test]

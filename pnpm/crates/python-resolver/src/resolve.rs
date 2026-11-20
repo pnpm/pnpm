@@ -5,19 +5,42 @@ mod rules;
 mod sources;
 
 use crate::{
-    candidates::{Refusal, read_requirement},
+    candidates::{
+        Refusal,
+        read_requirement,
+    },
     metadata::WheelMetadata,
     packages::Packages,
     requires_python::declared_range,
 };
-use miette::{Result, bail, miette};
-use pep440_rs::Version;
-use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
-use pubgrub::{
-    DefaultStringReporter, Dependencies, DependencyConstraints, DependencyProvider, DerivationTree,
-    PackageResolutionStatistics, PubGrubError, Ranges, Reporter as _,
+use miette::{
+    Result,
+    bail,
+    miette,
 };
-use std::{collections::BTreeMap, fmt};
+use pep440_rs::Version;
+use pep508_rs::{
+    ExtraName,
+    MarkerEnvironment,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use pubgrub::{
+    DefaultStringReporter,
+    Dependencies,
+    DependencyConstraints,
+    DependencyProvider,
+    DerivationTree,
+    PackageResolutionStatistics,
+    PubGrubError,
+    Ranges,
+    Reporter as _,
+};
+use std::{
+    collections::BTreeMap,
+    fmt,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum Package {
@@ -43,11 +66,11 @@ pub enum Step {
     /// The tentative sources cannot satisfy the selected dependency graph.
     Backtrack(String),
     /// The versions this index offers of a distribution nothing has read
-    /// yet — see [`crate::candidates_from_page`].
+    /// yet; see [`crate::candidates_from_page`].
     NeedCandidates(PackageName),
     /// An explicit source that must win over index candidates.
     NeedUrl(PackageName, String),
-    /// The `METADATA` of one wheel — see [`WheelMetadata::parse`].
+    /// The `METADATA` of one wheel; see [`WheelMetadata::parse`].
     NeedMetadata(PackageName, Version),
 }
 
@@ -203,7 +226,9 @@ fn metadata_requirements(
             Err(refusal) => unreadable = unreadable.or(Some(refusal)),
         }
     }
-    unreadable.map_or(Ok(requirements), Err)
+    unreadable
+        .map(Err)
+        .unwrap_or(Ok(requirements))
 }
 
 impl Provider<'_> {
@@ -217,11 +242,13 @@ impl Provider<'_> {
                 requirement.name,
             )));
         }
-        let parsed =
-            crate::Source::parse(source).map_err(|error| Needed::Invalid(error.to_string()))?;
+        let parsed = crate::Source::parse(source)
+            .map_err(|error| error.to_string())
+            .map_err(Needed::Invalid)?;
         if let Some(chosen) = self.packages.direct_urls.get(&requirement.name) {
-            let chosen_source =
-                crate::Source::parse(chosen).map_err(|error| Needed::Invalid(error.to_string()))?;
+            let chosen_source = crate::Source::parse(chosen)
+                .map_err(|error| error.to_string())
+                .map_err(Needed::Invalid)?;
             if !chosen_source.compatible_with(&parsed) {
                 return Err(Needed::RejectedSource(format!(
                     "conflicting Python sources for {}",
@@ -337,7 +364,7 @@ pub fn step(
     }
 }
 
-/// Solve a project against candidates that are already all known — a
+/// Solve a project against candidates that are already all known, a
 /// locked install, where every candidate came from the lockfile. Anything
 /// still missing is the lockfile failing to satisfy the project.
 pub fn locked_solution(

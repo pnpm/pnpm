@@ -1,7 +1,11 @@
 //! The store handles a fresh resolution opens, and the verification of the
 //! wanted lockfile's rows a run that fetches into the store starts with them.
 
-use super::{FreshInputs, OwnedInputs, resolver_setup};
+use super::{
+    FreshInputs,
+    OwnedInputs,
+    resolver_setup,
+};
 
 /// Open the store handles, and start verifying the wanted lockfile's rows
 /// for a run that fetches into the store.

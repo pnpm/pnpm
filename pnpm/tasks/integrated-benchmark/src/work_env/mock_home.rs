@@ -1,7 +1,10 @@
 //! The homes of the revision mocks: the hosted store and database
 //! each one serves from.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The home of a revision's mock, in its bench dir. The fixture build's
 /// hosted store and database carry this checkout's layout and metadata

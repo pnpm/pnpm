@@ -1,10 +1,21 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 
-use crate::{LockfileEntries, PkgNameVerPeer};
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
+use crate::{
+    LockfileEntries,
+    PkgNameVerPeer,
+};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    create_peer_dep_graph_hash,
+    index_of_dep_path_suffix,
+};
 
 /// Providers recorded before a snapshot's peer suffix was hashed.
 #[derive(Debug, Clone)]
@@ -39,7 +50,7 @@ impl RecordedPeerBindings {
         }
         let mut segments: Vec<_> = peers
             .iter()
-            .map(PeerId::as_segment)
+            .map(PeerId::to_segment)
             .collect();
         segments.sort();
         let peer_keys: Vec<_> = PeerBindings::Explicit(segments).providers().collect();
@@ -209,7 +220,8 @@ impl PeerBindings {
         };
         segments
             .iter()
-            .filter_map(|segment| segment.parse().ok())
+            .map(|segment| segment.parse())
+            .filter_map(Result::ok)
     }
 
     /// The peer suffix that records these bindings; see
@@ -230,7 +242,9 @@ impl PeerBindings {
         if !providers.is_empty() {
             let peer_ids: Vec<PeerId> = providers
                 .into_iter()
-                .map(|segment| PeerId::DepPath(DepPath::from(segment.clone())))
+                .cloned()
+                .map(DepPath::from)
+                .map(PeerId::DepPath)
                 .collect();
             suffix.push_str(&Self::suffix_of(&peer_ids, max_length));
         }

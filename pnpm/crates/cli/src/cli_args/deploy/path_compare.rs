@@ -1,4 +1,7 @@
-use super::{Path, lexical_normalize};
+use super::{
+    Path,
+    lexical_normalize,
+};
 
 pub(super) fn is_ancestor_path(parent: &Path, child: &Path) -> bool {
     is_child_path(child, parent)

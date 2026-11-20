@@ -1,10 +1,23 @@
 //! Reading the global `config.yaml`.
 
 use super::{
-    DroppedKeys, ErrorKind, GLOBAL_CONFIG_YAML_FILENAME, IgnoredAny, IndexMap,
-    LoadWorkspaceYamlError, MachineSettings, Path, SCHEMA_DIRECTIVE_KEY, SystemEnv,
-    TrustedSettings, fs, parse_settings, parse_settings_file, read_readable_settings,
-    redact_and_sanitize, select_settings,
+    DroppedKeys,
+    ErrorKind,
+    GLOBAL_CONFIG_YAML_FILENAME,
+    IgnoredAny,
+    IndexMap,
+    LoadWorkspaceYamlError,
+    MachineSettings,
+    Path,
+    SCHEMA_DIRECTIVE_KEY,
+    SystemEnv,
+    TrustedSettings,
+    fs,
+    parse_settings,
+    parse_settings_file,
+    read_readable_settings,
+    redact_and_sanitize,
+    select_settings,
 };
 use crate::SettingsRead;
 use serde::de::DeserializeOwned;

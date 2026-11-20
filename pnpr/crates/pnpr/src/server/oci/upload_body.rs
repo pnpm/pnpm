@@ -1,6 +1,17 @@
 use super::{
-    BlobUpload, Body, Bytes, CanonicalPackageName, Digest, ErrorCode, HASH_CHUNK, Refusal,
-    RegistryError, Sha256, Storage, SystemTime, UNIX_EPOCH,
+    BlobUpload,
+    Body,
+    Bytes,
+    CanonicalPackageName,
+    Digest,
+    ErrorCode,
+    HASH_CHUNK,
+    Refusal,
+    RegistryError,
+    Sha256,
+    Storage,
+    SystemTime,
+    UNIX_EPOCH,
 };
 use futures_util::StreamExt as _;
 use sha2::Digest as _;
@@ -84,7 +95,9 @@ pub(super) fn advance_within_ceiling(written: u64, chunk: usize, limit: u64) -> 
 pub(super) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |since_epoch| u64::try_from(since_epoch.as_millis()).unwrap_or(u64::MAX))
+        .map(|since_epoch| since_epoch.as_millis())
+        .map(u64::try_from)
+        .map_or(0, |converted| converted.unwrap_or(u64::MAX))
 }
 
 /// An upload's key in the shared lock table, kept out of the package keyspace

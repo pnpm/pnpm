@@ -5,7 +5,10 @@
 use pnpm_fs::lexical_normalize;
 use pnpm_local_spec::LocalSpec;
 use std::path::Path;
-use yaml_serde::{Mapping, Value};
+use yaml_serde::{
+    Mapping,
+    Value,
+};
 
 /// Settings whose value is one path.
 const PATH_SETTINGS: &[&str] = &[

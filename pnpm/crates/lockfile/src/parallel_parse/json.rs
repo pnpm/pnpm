@@ -5,9 +5,17 @@
 //! document laid out otherwise does not split, and is parsed whole.
 
 use super::{
-    CHUNKED_SECTION_BYTES, Importers, Packages, char_boundary_at_or_after, chunk_count, pool,
+    CHUNKED_SECTION_BYTES,
+    Importers,
+    Packages,
+    char_boundary_at_or_after,
+    chunk_count,
+    pool,
 };
-use crate::{LockfileDocument, json_document::from_json_str};
+use crate::{
+    LockfileDocument,
+    json_document::from_json_str,
+};
 use rayon::prelude::*;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -114,7 +122,8 @@ pub(super) fn next_entry_start(body: &str, from: usize) -> usize {
     }
     body[from..]
         .find("\n\t\t\"")
-        .map_or(body.len(), |offset| from + offset + 1)
+        .map(|offset| from + offset + 1)
+        .unwrap_or(body.len())
 }
 
 /// The document with each section's entries removed, and the entries of

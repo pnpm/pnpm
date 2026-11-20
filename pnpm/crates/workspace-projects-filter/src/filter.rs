@@ -1,24 +1,46 @@
 pub mod from_projects;
 
-pub use from_projects::{filter_projects, filter_projects_by_selector_objects};
+pub use from_projects::{
+    filter_projects,
+    filter_projects_by_selector_objects,
+};
 pub use with_prod_graph::{
-    FilteredGraphProjects, filter_workspace_projects, filter_workspace_projects_with_prod_graph,
+    FilteredGraphProjects,
+    filter_workspace_projects,
+    filter_workspace_projects_with_prod_graph,
 };
 
 use crate::{
-    get_changed_projects::{GetChangedProjectsOptions, ProjectDependencies, get_changed_projects},
+    get_changed_projects::{
+        GetChangedProjectsOptions,
+        ProjectDependencies,
+        get_changed_projects,
+    },
     glob,
-    parse_project_selector::{DependencyTraversal, ProjectSelector},
+    parse_project_selector::{
+        DependencyTraversal,
+        ProjectSelector,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_matcher::create_matcher;
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+};
 use std::{
     borrow::Cow,
     collections::HashMap,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// One raw `--filter` / `--filter-prod` entry, before parsing.
@@ -46,7 +68,7 @@ pub struct FilterWorkspaceProjectsOptions {
     /// rather than the default subdirectory check.
     pub use_glob_dir_filtering: bool,
     /// Directory a `[<since>]` selector's git diff runs in when the
-    /// selector has no `{dir}` part — normally the workspace root.
+    /// selector has no `{dir}` part, normally the workspace root.
     pub workspace_dir: PathBuf,
     /// `testPattern`: glob patterns naming test files. A `[<since>]`
     /// selector selects a project whose changed files all match these
@@ -86,7 +108,7 @@ pub struct FilterProjectsOptions {
 #[non_exhaustive]
 pub enum FilterError {
     /// The `git diff` behind a `[<since>]` changed-packages selector
-    /// failed — unknown revision, not a git repository, or git could
+    /// failed, unknown revision, not a git repository, or git could
     /// not be spawned. Carries git's stderr under pnpm's
     /// `ERR_PNPM_FILTER_CHANGED` code.
     #[display("Filtering by changed packages failed. {stderr}")]
@@ -148,7 +170,8 @@ where
     let reverse = |id: &Path| {
         reversed_graph
             .as_ref()
-            .and_then(|graph| graph.get(id).cloned())
+            .and_then(|graph| graph.get(id))
+            .cloned()
     };
 
     for selector in selectors {
@@ -353,4 +376,7 @@ mod tests;
 
 mod subgraph;
 mod with_prod_graph;
-use subgraph::{WalkState, reverse_graph};
+use subgraph::{
+    WalkState,
+    reverse_graph,
+};

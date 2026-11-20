@@ -1,8 +1,17 @@
 use super::{
-    GitFetcherError, GitManifestQuery, PreparePackageError, fs, make_bare_repo, prepare_git_cmd,
-    read_git_manifest, tempdir,
+    GitFetcherError,
+    GitManifestQuery,
+    PreparePackageError,
+    fs,
+    make_bare_repo,
+    prepare_git_cmd,
+    read_git_manifest,
+    tempdir,
 };
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// A `path` that climbs out of the checkout must not reach
 /// `safe_read_package_json_from_dir`, which would read an arbitrary
@@ -68,7 +77,8 @@ fn prepare_git_cmd_applies_settings_before_the_subcommand() {
     .unwrap();
     let args: Vec<_> = cmd
         .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .collect();
     let settings_at = args
         .iter()

@@ -5,21 +5,42 @@ mod version_pick;
 mod workspace_resolution;
 mod workspace_sort;
 
-use std::{fs, hint::black_box, path::Path, time::Duration};
+use std::{
+    fs,
+    hint::black_box,
+    path::Path,
+    time::Duration,
+};
 
 use clap::Parser;
-use criterion::{Criterion, Throughput};
-use flate2::{Compression, write::GzEncoder};
+use criterion::{
+    Criterion,
+    Throughput,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use futures_util::future;
 use mockito::ServerGuard;
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_registry::Package;
 use pnpm_store_dir::StoreDir;
-use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore, RetryOpts};
+use pnpm_tarball::{
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    RetryOpts,
+};
 use project_root::get_project_root;
 use ssri::Integrity;
-use tar::{Builder, Header};
+use tar::{
+    Builder,
+    Header,
+};
 use tempfile::tempdir;
 
 const BATCH_TARBALL_COUNT: usize = 256;
@@ -240,7 +261,7 @@ fn benchmark_file(package_index: usize, file_index: usize) -> Vec<u8> {
 }
 
 /// Isolate pacquet's resolve-time metadata parse: deserialize a registry
-/// packument into [`Package`], then pick and hydrate a version — the CPU
+/// packument into [`Package`], then pick and hydrate a version, the CPU
 /// `Package::fetch_from_registry` pays on the resolve hot path, minus the
 /// network. `PackageVersions` captures each version as a raw fragment and
 /// hydrates lazily, so this also guards that optimization: a regression that

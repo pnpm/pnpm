@@ -1,9 +1,21 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::BTreeSet,
+    sync::Arc,
+};
 
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    is_git_hosted_tarball_url,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 
 use super::VerifyLockfileResolutionsOptions;
@@ -36,7 +48,7 @@ pub const RESOLUTION_SHAPE_CACHE_VERSION: u64 = 2;
 /// Cache-key participant for an always-on offline structural check
 /// (resolution-shape, dependency-alias): a record lacking `flag: expected`
 /// fails `can_trust_past_check` and forces re-verification. `verify` is never
-/// invoked — the identity is appended only to the verifier lists handed to the
+/// invoked, the identity is appended only to the verifier lists handed to the
 /// cache lookup and recorder.
 struct OfflineCheckCacheIdentity {
     policy: serde_json::Map<String, serde_json::Value>,
@@ -107,7 +119,7 @@ impl ResolutionVerifier for OfflineCheckCacheIdentity {
 /// Whether a resolution is registry-shaped. A plain tarball
 /// resolution is registry-shaped because the npm verifier unconditionally
 /// binds explicit tarball URLs of semver-keyed entries to the registry's
-/// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
+/// own `dist.tarball`. A git-hosted tarball is not, and trust is gated on
 /// the tarball URL rather than the `gitHosted` flag alone.
 pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
@@ -118,7 +130,7 @@ pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> 
             // schemes other than HTTP and HTTPS (file:, etc.), so a `file:` tarball under a
             // name@semver key would otherwise be trusted with no safety net.
             is_http_tarball_url(&tarball.tarball)
-                && tarball.git_hosted != Some(true)
+                && !tarball.git_hosted.unwrap_or(false)
                 && !is_git_hosted_tarball_url(&tarball.tarball)
         }
         LockfileResolution::Variations(variations) => {
@@ -137,7 +149,7 @@ pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> 
     }
 }
 
-/// Whether a tarball URL uses an HTTP or HTTPS scheme — the only schemes a
+/// Whether a tarball URL uses an HTTP or HTTPS scheme, the only schemes a
 /// registry artifact is served over. Case-insensitive to reject a
 /// tampered uppercase scheme.
 fn is_http_tarball_url(url: &str) -> bool {
@@ -218,7 +230,7 @@ pub fn verify_lockfile_resolution_shapes(lockfile: &Lockfile) -> Result<(), Veri
 /// Add every alias in `aliases` that fails
 /// `is_valid_old_npm_package_name` (the `validForOldPackages` rule the
 /// dependency-alias check applies) to `invalid`. Only pass maps
-/// whose keys become `node_modules/<alias>` directories — not
+/// whose keys become `node_modules/<alias>` directories, not
 /// `overrides`, `patched_dependencies`, or peer dependencies.
 fn push_invalid_aliases<'alias>(
     aliases: impl Iterator<Item = &'alias PkgName>,
@@ -278,7 +290,7 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> BTreeSet<String> {
 /// Reject a lockfile whose dependency names or aliases are not valid npm
 /// package names.
 ///
-/// This is an offline, network-free structural check — it does **not**
+/// This is an offline, network-free structural check; it does **not**
 /// depend on the resolution-policy verifiers, so it must run on every
 /// install, **including under `trustLockfile`**, which disables the
 /// policy fan-out. A crafted lockfile alias becomes a filesystem path

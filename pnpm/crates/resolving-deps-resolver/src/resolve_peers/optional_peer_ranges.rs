@@ -1,9 +1,18 @@
 //! Index of the optional peer ranges a tree view declares.
 
-use super::{context::ComparablePeerRange, discovery::ViewGeneration};
+use super::{
+    context::ComparablePeerRange,
+    discovery::ViewGeneration,
+};
 use crate::resolved_tree::ResolvedTree;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{cell::RefCell, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    cell::RefCell,
+    sync::Arc,
+};
 
 type RangesByPeerName = HashMap<String, Vec<ComparablePeerRange>>;
 

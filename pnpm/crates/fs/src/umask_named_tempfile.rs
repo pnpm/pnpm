@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Creates a named temporary file with the mode a new file from `fs::write` gets:
 /// 0666 narrowed by the umask on Unix and WASI.

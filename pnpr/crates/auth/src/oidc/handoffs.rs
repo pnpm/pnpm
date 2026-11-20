@@ -1,7 +1,15 @@
 use jiff::Timestamp;
 use std::time::Duration;
 
-use super::{LoginSession, MAX_ENTRIES, OidcState, Result, random_secret, rejected, unavailable};
+use super::{
+    LoginSession,
+    MAX_ENTRIES,
+    OidcState,
+    Result,
+    random_secret,
+    rejected,
+    unavailable,
+};
 
 /// How long a handoff code can be redeemed. The UI redeems it on the page the
 /// sign-in redirects to.

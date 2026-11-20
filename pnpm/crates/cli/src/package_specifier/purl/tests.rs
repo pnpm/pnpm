@@ -1,4 +1,9 @@
-use super::{Purl, PurlType, Shown, strip_scheme};
+use super::{
+    Purl,
+    PurlType,
+    Shown,
+    strip_scheme,
+};
 use pretty_assertions::assert_eq;
 
 fn purl(specifier: &str) -> Purl {

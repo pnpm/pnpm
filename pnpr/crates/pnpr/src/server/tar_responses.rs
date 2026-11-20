@@ -16,17 +16,42 @@
 //! fetched `.tgz` files are already verified, so they are not hashed again.
 
 pub(super) use decode::{
-    MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of, tar_integrity_within,
+    MAX_CONCURRENT_TAR_DECODES,
+    tar_decode_limit,
+    tar_integrity_of,
+    tar_integrity_within,
     tar_resource_integrity,
 };
 
-use super::{AppState, CanonicalPackageName, HeaderMap, Response, TarCopy, header, open_variant};
+use super::{
+    AppState,
+    CanonicalPackageName,
+    HeaderMap,
+    Response,
+    TarCopy,
+    header,
+    open_variant,
+};
 use axum::body::Body;
-use decode::{DerivedFrom, gunzip_body, unzstd_body};
-use negotiation::{TarCoding, preferred_coding};
-use pnpr_storage::{Storage, streaming};
+use decode::{
+    DerivedFrom,
+    gunzip_body,
+    unzstd_body,
+};
+use negotiation::{
+    TarCoding,
+    preferred_coding,
+};
+use pnpr_storage::{
+    Storage,
+    streaming,
+};
 use ssri::Integrity;
-use verify::{CheckedReader, StaleTgz, verified_body};
+use verify::{
+    CheckedReader,
+    StaleTgz,
+    verified_body,
+};
 
 mod decode;
 mod negotiation;

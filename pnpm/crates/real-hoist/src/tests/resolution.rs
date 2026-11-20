@@ -6,8 +6,15 @@
 //! resolve to different locators has no single right answer, so it is
 //! not checked.
 
-use super::{HoisterResult, HoisterTree, Rc};
-use std::collections::{HashMap, HashSet};
+use super::{
+    HoisterResult,
+    HoisterTree,
+    Rc,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// Declared dependency locators by node locator, then by name. `None`
 /// marks a name that inputs sharing the locator resolve differently.

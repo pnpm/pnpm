@@ -3,18 +3,43 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
-    cargo_rows::{
-        bad_request, check_format_version, insert_owners, take_optional_string, take_owners,
+    adapter::{
+        Connection,
+        Query,
+        Row,
     },
-    commit::{Commit, PackageRow, parse_json},
-    removed, to_column,
+    cargo_rows::{
+        bad_request,
+        check_format_version,
+        insert_owners,
+        take_optional_string,
+        take_owners,
+    },
+    commit::{
+        Commit,
+        PackageRow,
+        parse_json,
+    },
+    removed,
+    to_column,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 pub(super) const PYPI_STATE_VERSION: u32 = 2;
 const YANKED: &str = "yanked";
@@ -228,7 +253,8 @@ fn retire_deleted_files(
         .chain(
             declared_deleted
                 .iter()
-                .filter(|name| !already_removed.contains(*name) && !dropped.contains_key(*name)),
+                .filter(|name| !already_removed.contains(*name))
+                .filter(|name| !dropped.contains_key(*name)),
         )
         .map(String::as_str)
         .collect();

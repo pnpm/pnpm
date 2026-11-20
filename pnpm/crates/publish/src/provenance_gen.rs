@@ -5,7 +5,7 @@
 //! It builds the in-toto SLSA *statement* and delegates the signing to the
 //! `sigstore_sign` crate unmodified, so the emitted bundle is whatever that
 //! crate produces: a **sigstore bundle v0.3** (single certificate, `dsse`
-//! Rekor entry) — not the legacy v0.2 form (`x509CertificateChain`, `intoto`
+//! Rekor entry), not the legacy v0.2 form (`x509CertificateChain`, `intoto`
 //! Rekor entry), which pacquet deliberately does not reproduce.
 //! The npm registry accepts the v0.3 bundle, so no legacy-compatibility path
 //! is needed.
@@ -15,17 +15,35 @@ mod sign;
 
 use std::time::Duration;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
-use serde_json::{Value, json};
-use sha2::{Digest, Sha512};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha512,
+};
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch, OidcFetchError},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+        OidcFetchError,
+    },
     global_log::global_info,
     oidc::{
-        GitHubRequestTokenError, OidcHttpOptions, github_request_token, is_github_actions,
-        is_gitlab, truthy_env,
+        GitHubRequestTokenError,
+        OidcHttpOptions,
+        github_request_token,
+        is_github_actions,
+        is_gitlab,
+        truthy_env,
     },
 };
 use gitlab_parameters::gitlab_parameters;
@@ -130,7 +148,8 @@ impl ProvenanceSubject {
 fn npm_purl(name: &str, version: &str) -> String {
     let encoded = name
         .strip_prefix('@')
-        .map_or_else(|| name.to_owned(), |rest| format!("%40{rest}"));
+        .map(|rest| format!("%40{rest}"))
+        .unwrap_or_else(|| name.to_owned());
     format!("pkg:npm/{encoded}@{version}")
 }
 

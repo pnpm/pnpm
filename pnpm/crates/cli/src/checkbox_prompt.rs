@@ -1,8 +1,8 @@
 //! A checkbox prompt shaped like `@inquirer/checkbox`, the prompt behind
 //! pnpm's interactive commands, with its keys and vim bindings.
 //!
-//! The list can hold separators — a group heading, a table's column
-//! header — that are drawn but never selected: the cursor skips them and
+//! The list can hold separators (a group heading, a table's column
+//! header) that are drawn but never selected: the cursor skips them and
 //! they take no part in the answer.
 
 #[cfg(any(target_family = "wasm", test))]
@@ -11,8 +11,14 @@ mod wasm;
 use crate::checkbox_terminal_wasm::Term;
 #[cfg(not(target_family = "wasm"))]
 use console::Term;
-use console::{Key, measure_text_width};
-use owo_colors::{OwoColorize, Stream};
+use console::{
+    Key,
+    measure_text_width,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use std::io;
 
 /// One line of a [`CheckboxPrompt`].
@@ -272,7 +278,7 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     /// Keep the active row on the page, and with it the separators
-    /// directly above it — a group's heading and column header — when
+    /// directly above it (a group's heading and column header) when
     /// they fit.
     fn scroll_into_view(&mut self) {
         if self.viewport.page_size == 0 {

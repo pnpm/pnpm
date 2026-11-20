@@ -1,13 +1,28 @@
-use super::{DirectByImporter, dedupe_injected_deps};
+use super::{
+    DirectByImporter,
+    dedupe_injected_deps,
+};
 use crate::{
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
     peer_dependents_dedupe::UnboundOptionalPeers,
 };
 use pnpm_deps_path::DepPath;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashSet as HashSet;
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+};
 
 fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraphNode {
     DependenciesGraphNode {
@@ -186,7 +201,7 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
 
 // Regression test for pnpm/pnpm#10433: an injected workspace dep must still
 // dedupe to `link:` when an unrelated shared dep (debug) resolves peer-suffixed
-// for the target project but peer-free for the injected occurrence — both are
+// for the target project but peer-free for the injected occurrence; both are
 // valid resolutions of the same package.
 #[test]
 fn rewrites_when_shared_dep_differs_only_by_peer_suffix() {

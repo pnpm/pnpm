@@ -1,13 +1,24 @@
-use std::{fs, io::Write as _};
+use std::{
+    fs,
+    io::Write as _,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::get_all_files,
 };
 
-use super::{configure_pnpr_auth, pacquet_at, pnpr_done_frame, start_pnpr};
+use super::{
+    configure_pnpr_auth,
+    pacquet_at,
+    pnpr_done_frame,
+    start_pnpr,
+};
 
 fn build_tarball_with_postinstall(name: &str, version: &str) -> (Vec<u8>, String) {
     let manifest = serde_json::json!({
@@ -211,12 +222,12 @@ fn client_rejects_shape_mismatched_lockfile_from_permissive_pnpr_server() {
 
     let marker = root.path().join("marker-malicious-server");
     for extra_flag in [None, Some("--trust-lockfile")] {
-        let mut cmd = pacquet_at(&workspace);
-        cmd.env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .env("MARKER_FILE", &marker)
-            .args(["install", "--pnpr-server", &malicious_server.url()]);
+        let mut cmd = pacquet_at(&workspace)
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+            .with_env("MARKER_FILE", &marker)
+            .with_args(["install", "--pnpr-server", &malicious_server.url()]);
         if let Some(flag) = extra_flag {
-            cmd.arg(flag);
+            cmd = cmd.with_arg(flag);
         }
         let assert = cmd.assert().failure();
         let output = format!(

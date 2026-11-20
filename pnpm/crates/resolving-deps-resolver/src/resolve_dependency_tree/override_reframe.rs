@@ -1,7 +1,13 @@
 use miette::Diagnostic;
 use pnpm_network::redact_and_sanitize;
-use pnpm_resolving_resolver_base::{NoMatchingVersionError, WantedDependency};
-use pnpm_semver_include_prerelease::{is_valid_semver_range, parse_strict_semver_range};
+use pnpm_resolving_resolver_base::{
+    NoMatchingVersionError,
+    WantedDependency,
+};
+use pnpm_semver_include_prerelease::{
+    is_valid_semver_range,
+    parse_strict_semver_range,
+};
 
 use super::ResolveDependencyTreeError;
 
@@ -91,7 +97,8 @@ fn overriding_error(
     let bare_specifier = wanted.bare_specifier.as_deref()?;
     let matched = overrides
         .iter()
-        .find(|entry| entry.name == alias && entry.new_bare_specifier == bare_specifier)?;
+        .filter(|entry| entry.name == alias)
+        .find(|entry| entry.new_bare_specifier == bare_specifier)?;
     let selector_range = matched.selector_range.clone();
     // The registry metadata belongs to the package the forced specifier
     // names, so it describes the target only for a plain range, not for an

@@ -1,10 +1,23 @@
 //! The version a `.python-version` file asks for.
 
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The version a `.python-version` file asks for, as a prefix of an
@@ -49,7 +62,8 @@ pub(super) fn parse_version_request(contents: &str, file: PathBuf) -> Option<Ver
     let line = contents
         .lines()
         .map(str::trim)
-        .find(|line| !line.is_empty() && !line.starts_with('#'))?;
+        .filter(|line| !line.is_empty())
+        .find(|line| !line.starts_with('#'))?;
     let release = line
         .split('.')
         .map(str::parse::<u64>)

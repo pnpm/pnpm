@@ -1,13 +1,27 @@
-use crate::{BuildVerifiersError, InstallFrozenLockfileError, InstallWithFreshLockfileError};
-use derive_more::{Display, Error};
+use crate::{
+    BuildVerifiersError,
+    InstallFrozenLockfileError,
+    InstallWithFreshLockfileError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_executor::LifecycleScriptError;
-use pnpm_lockfile::{LoadLockfileError, SaveLockfileError, StalenessReason};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    SaveLockfileError,
+    StalenessReason,
+};
 use pnpm_lockfile_verification::VerifyError;
-use pnpm_modules_yaml::{ReadModulesError, WriteModulesError};
+use pnpm_modules_yaml::{
+    ReadModulesError,
+    WriteModulesError,
+};
 use std::path::PathBuf;
 
 pub(super) fn map_frozen_lockfile_error(error: InstallFrozenLockfileError) -> InstallError {
@@ -171,7 +185,7 @@ pub enum InstallError {
     /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES`: with `strictPeerDependencies`
     /// on, an install whose resolution left unmet peers behind fails
     /// once the artifacts are written, the same way `IgnoredBuilds`
-    /// does — the tree is installed, and the run reports the verdict on
+    /// does, the tree is installed, and the run reports the verdict on
     /// it. `rendered` carries the block deferred to the CLI; `None` means
     /// the selected reporter has already handled it.
     #[display("Unmet peer dependencies")]
@@ -236,8 +250,8 @@ pub enum InstallError {
 
     /// A workspace project's own lifecycle script
     /// (preinstall/install/postinstall/preprepare/prepare/postprepare)
-    /// exited non-zero. Unlike a dependency build failure — which
-    /// `BuildModules` can swallow for optional deps — a project script
+    /// exited non-zero. Unlike a dependency build failure (which
+    /// `BuildModules` can swallow for optional deps) a project script
     /// failure always fails the install, matching pnpm.
     #[diagnostic(transparent)]
     ProjectLifecycleScript(#[error(source)] LifecycleScriptError),
@@ -334,7 +348,7 @@ pub enum InstallError {
     },
 
     /// Surfaces a failure while removing the direct-dep links an
-    /// `included` drift excluded — the non-destructive counterpart of
+    /// `included` drift excluded, the non-destructive counterpart of
     /// the purge. See [`crate::prune_direct_deps_excluded_by_groups`].
     #[diagnostic(transparent)]
     PruneDirectDeps(#[error(source)] crate::PruneDirectDepsError),
@@ -356,7 +370,7 @@ pub enum InstallError {
     OutdatedLockfile { reason: StalenessReason },
 
     /// A setting the lockfile records no longer matches the one the
-    /// current install resolved — `overrides`, `patchedDependencies`,
+    /// current install resolved, `overrides`, `patchedDependencies`,
     /// `catalogs`, and the rest of pnpm's `getOutdatedLockfileSetting`
     /// set. Distinct from [`InstallError::OutdatedLockfile`], which is
     /// drift between the lockfile and `package.json`: naming the one
@@ -405,7 +419,7 @@ pub enum InstallError {
 
     /// `--frozen-lockfile` was requested against a lockfile whose
     /// `importers` map has no entry for the root project. Distinct
-    /// from `NoLockfile` (file missing) — here the file exists but
+    /// from `NoLockfile` (file missing); here the file exists but
     /// doesn't describe the project being installed.
     #[display(
         r#"Cannot install with "frozen-lockfile" because pnpm-lock.yaml has no `importers["{importer_id}"]` entry. Regenerate the lockfile with `pnpm install --lockfile-only`."#
@@ -467,7 +481,7 @@ pub enum InstallError {
     BuildVerifiers(#[error(source)] BuildVerifiersError),
 
     /// The lockfile-verification gate rejected one or more lockfile
-    /// entries — the lockfile contains versions weaker than the
+    /// entries, the lockfile contains versions weaker than the
     /// active `minimumReleaseAge` / `trustPolicy='no-downgrade'`
     /// policies allow. Transparent so the inner miette code
     /// (`MINIMUM_RELEASE_AGE_VIOLATION`, `TRUST_DOWNGRADE`,
@@ -496,7 +510,7 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_WRITE_PACKAGE_MAP))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
 
-    /// A value in `pnpm.overrides` couldn't be parsed — the selector
+    /// A value in `pnpm.overrides` couldn't be parsed, the selector
     /// key isn't a recognizable package name, or the override value
     /// uses the `catalog:` protocol (which pacquet doesn't support
     /// yet). The `ERR_PNPM_INVALID_SELECTOR` and
@@ -505,9 +519,9 @@ pub enum InstallError {
     InvalidOverrides(#[error(source)] pnpm_config_parse_overrides::ParseOverridesError),
 
     /// `--lockfile-only` was requested together with `lockfile: false`
-    /// (pnpm's `useLockfile: false`). There is nothing left to do — the
+    /// (pnpm's `useLockfile: false`). There is nothing left to do (the
     /// only output `--lockfile-only` produces is the lockfile, and that
-    /// write is disabled — so the combination is a user-config conflict
+    /// write is disabled) so the combination is a user-config conflict
     /// rather than a silent no-op. The
     /// `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE` error.
     #[display("Cannot generate a pnpm-lock.yaml because lockfile is set to false")]
@@ -556,7 +570,7 @@ impl From<pnpm_hooks::HookError> for InstallError {
 /// writes are done.
 ///
 /// Every other error propagates straight away and leaves the manifests
-/// untouched, matching pnpm — which throws those from inside the install
+/// untouched, matching pnpm, which throws those from inside the install
 /// itself, before it reaches the writes.
 pub fn defer_ignored_builds(
     outcome: Result<(), InstallError>,

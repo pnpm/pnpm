@@ -1,4 +1,7 @@
-use super::{node_runtime_version_spec, runtime_save_specifier};
+use super::{
+    node_runtime_version_spec,
+    runtime_save_specifier,
+};
 
 #[test]
 fn node_runtime_version_spec_matches_only_node_runtime_specifiers() {

@@ -1,10 +1,22 @@
-use super::{get_bins_from_package_manifest, pkg_owns_bin};
-use crate::{capabilities::Host, path_util::lexical_normalize};
+use super::{
+    get_bins_from_package_manifest,
+    pkg_owns_bin,
+};
+use crate::{
+    capabilities::Host,
+    path_util::lexical_normalize,
+};
 use pipe_trait::Pipe;
 use serde_json::json;
 use std::{
-    fs::{create_dir_all, write as write_file},
-    path::{Path, PathBuf},
+    fs::{
+        create_dir_all,
+        write as write_file,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 

@@ -1,9 +1,17 @@
-use super::{HostedTarget, OwnerRecord, claim_ownership, restore_owners};
+use super::{
+    HostedTarget,
+    OwnerRecord,
+    claim_ownership,
+    restore_owners,
+};
 use crate::server::routing::state_and_router;
 use pnpr_auth::AuthState;
 use pnpr_cargo::CrateDocument;
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::Identity;
 use std::path::Path;
 

@@ -2,12 +2,20 @@
 //! `setup` writes to it.
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigReport, PathExtenderError, PathExtenderReport,
-    update_shell_config, wrap_section,
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigReport,
+    PathExtenderError,
+    PathExtenderReport,
+    update_shell_config,
+    wrap_section,
 };
 use std::{
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Write the block to `config_file`, the path [`profile_path`] resolves.
@@ -55,7 +63,7 @@ pub(in crate::cli_args::setup) fn pwsh_quote(value: &str) -> String {
     let mut quoted = String::from('\'');
     for character in value.chars() {
         quoted.push(character);
-        if matches!(character, '\'' | '\u{2018}'..='\u{201b}') {
+        if matches!(character, '\'' | '‘'..='‛') {
             quoted.push(character);
         }
     }

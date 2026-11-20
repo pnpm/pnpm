@@ -1,6 +1,9 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

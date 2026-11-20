@@ -7,12 +7,24 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
-pub use dependencies::{filtered_projects_dependencies, projects_to_verify, sequence_graph};
+pub use dependencies::{
+    filtered_projects_dependencies,
+    projects_to_verify,
+    sequence_graph,
+};
 pub use execution_args::RecursiveExecutionArgs;
 pub(crate) use filter_graphs::overridden_project_dependencies;
-pub use importer_selection::{selected_workspace_importer_ids, selectors_narrow_the_run};
+pub use importer_selection::{
+    selected_workspace_importer_ids,
+    selectors_narrow_the_run,
+};
 pub use selected_dirs::SelectedProjectDirs;
-pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
+pub use summary::{
+    ExecutionStatus,
+    Status,
+    count_failures,
+    write_recursive_summary,
+};
 pub use unmatched::UnmatchedFilters;
 
 mod dependencies;
@@ -24,30 +36,61 @@ mod selected_dirs;
 mod selection_order;
 mod unmatched;
 
-use crate::state::{ProjectHost, host_requirements};
-use derive_more::{Display, Error};
-use filter_graphs::{FilterGraphs, build_filter_graphs, selector_filter_options};
+use crate::state::{
+    ProjectHost,
+    host_requirements,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use filter_graphs::{
+    FilterGraphs,
+    build_filter_graphs,
+    selector_filter_options,
+};
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, FilterSource};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    FilterSource,
+};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
-    importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
+    FindWorkspaceProjectsOpts,
+    GraphPkg,
+    Project,
+    find_workspace_projects,
+    importer_id_from_root_dir,
+    read_workspace_manifest,
+    workspace_package_patterns,
 };
 use pnpm_workspace_projects_filter::{
-    FilterWorkspaceProjectsOptions, FilteredGraphProjects, ProjectSelector,
-    filter_workspace_projects_with_prod_graph, parse_project_selector,
+    FilterWorkspaceProjectsOptions,
+    FilteredGraphProjects,
+    ProjectSelector,
+    filter_workspace_projects_with_prod_graph,
+    parse_project_selector,
 };
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+};
 use serde::Serialize;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use unmatched::unmatched_filters;
 
-/// `Cannot find package {resume_from}` — raised by both recursive `run`
+/// `Cannot find package {resume_from}`: raised by both recursive `run`
 /// and recursive `exec` when `--resume-from` names a package that is not
 /// in the workspace. Shares pnpm's `RESUME_FROM_NOT_FOUND` code across
 /// both commands.
@@ -60,7 +103,7 @@ pub struct ResumeFromNotFound {
 }
 
 /// Diagnostic code of [`NoMatchingProjects`]. pnpm has no error code for
-/// an empty selection — it prints the sentence and sets the exit code — so
+/// an empty selection (it prints the sentence and sets the exit code) so
 /// this one exists only for `is_reported_error` to recognize the failure as
 /// already printed, and is never rendered.
 pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
@@ -100,7 +143,7 @@ pub fn find_resume_root(
 /// resolved from `--workspace-packages` or the manifest's `packages`.
 /// When the config found no workspace, `workspace_root` is one the caller
 /// picked itself (a global install's packages dir), so its own manifest
-/// decides — unless `--ignore-workspace` disowned every manifest, which
+/// decides, unless `--ignore-workspace` disowned every manifest, which
 /// leaves the enumeration on its `['.', '**']` default.
 pub fn discover_workspace_projects(
     workspace_root: &Path,
@@ -171,8 +214,8 @@ pub struct RecursiveSelection<'a> {
 /// applies the main-dispatch `!{<workspace-root>}` augmentation for
 /// `run` / `exec`.
 ///
-/// An unnarrowed run — no `--filter` / `--filter-prod` selector and no root
-/// auto-exclusion — returns every project and leaves `all` unset; any
+/// An unnarrowed run (no `--filter` / `--filter-prod` selector and no root
+/// auto-exclusion) returns every project and leaves `all` unset; any
 /// narrowing populates `all` (and `prod_all` for `--filter-prod`) for the
 /// sort to resolve order through.
 pub fn select_recursive_projects<'a>(
@@ -375,7 +418,7 @@ impl AutoExcludeRoot<'_> {
     /// a `--filter-prod` selector is present, else the regular pass).
     pub fn root_selector(&self, config: &Config, prefix: &Path) -> Option<String> {
         // pnpm pushes this inclusion onto the `--filter` list rather than
-        // replacing it, and for every recursive command — so unlike the
+        // replacing it, and for every recursive command, so unlike the
         // exclusion below it is ungated, and it is additive.
         if config.workspace_root {
             return Some(format!("{{{}}}", relative_workspace_dir(config, prefix)));
@@ -448,7 +491,7 @@ pub fn recursive_filter_options(config: &Config, prefix: &Path) -> FilterWorkspa
     FilterWorkspaceProjectsOptions {
         // The mode user-written `{<dir>}` selectors match in. The
         // generated `!{<workspace-root>}` selector pins itself to glob
-        // matching instead — see `parse_configured_selectors`.
+        // matching instead; see `parse_configured_selectors`.
         use_glob_dir_filtering: !config.legacy_dir_filtering,
         workspace_dir: config.workspace_dir
             .as_deref()

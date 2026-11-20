@@ -1,8 +1,17 @@
 use crate::shim::is_relocatable_shim;
-use pnpm_fs::{is_subdir, realpath_missing};
+use pnpm_fs::{
+    is_subdir,
+    realpath_missing,
+};
 use std::{
-    fs::{self, DirEntry},
-    io::{self, Read},
+    fs::{
+        self,
+        DirEntry,
+    },
+    io::{
+        self,
+        Read,
+    },
     path::Path,
 };
 

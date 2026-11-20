@@ -1,19 +1,31 @@
 use super::{
-    super::{Install, ProjectMutation},
+    super::{
+        Install,
+        ProjectMutation,
+    },
     InstallDirs,
 };
 use crate::PolicyExcludes;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::SilentReporter;
-use pnpm_testing_utils::{fs::is_symlink_or_junction, registry::TestRegistry};
+use pnpm_testing_utils::{
+    fs::is_symlink_or_junction,
+    registry::TestRegistry,
+};
 use std::fs;
 use text_block_macros::text_block;
 
 /// `Install` with `UpdateSeedPolicy::DropAll` is the update path
 /// programmatic callers reach through napi `install({ update: true })`,
-/// separate from the `update` subcommand's `Update` type — so it needs
+/// separate from the `update` subcommand's `Update` type, so it needs
 /// its own coverage that `DropAll` drops the lockfile pin rather than
 /// reusing it.
 #[tokio::test]
@@ -405,7 +417,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
 
     // peer-a is declared in `peerDependencies` so it stays required and
     // gets auto-installed; peer-b and peer-c are implied optional peers
-    // (declared *only* in `peerDependenciesMeta`) — an optional peer is
+    // (declared *only* in `peerDependenciesMeta`), an optional peer is
     // never fetched, only deduped onto a version already in the graph,
     // and no version of either is in this graph.
     assert!(
@@ -440,7 +452,7 @@ async fn meta_only_optional_peers_absent_from_the_graph_are_not_installed() {
 /// The root project additionally depends on the incompatible
 /// `closure-peer-x@2.0.0`. With `autoInstallPeers` (the default), the
 /// peers resolved inside the subtree are attached to the root project
-/// for reuse — but they must not be peer-resolved again in the root
+/// for reuse, but they must not be peer-resolved again in the root
 /// context, where `closure-peer-x@2.0.0` is the nearest provider, or
 /// the subtree's peer graph gets a mix of both versions.
 #[tokio::test]

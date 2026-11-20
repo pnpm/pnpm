@@ -1,12 +1,26 @@
 //! The commit fence on blob incarnations (see
 //! [`crate::database::BlobRow`]), across instances sharing one database.
 
-use super::{Db, npm, packument, storage};
+use super::{
+    Db,
+    npm,
+    packument,
+    storage,
+};
 use crate::{
-    BlobId, Storage,
+    BlobId,
+    Storage,
     database::{
-        ArtifactBlob, BatchDocument, BlobFence, BlobRef, BlobRow, BlobState, PublicationCommit,
-        PublishNotes, ReleaseRecords, Uncommitted,
+        ArtifactBlob,
+        BatchDocument,
+        BlobFence,
+        BlobRef,
+        BlobRow,
+        BlobState,
+        PublicationCommit,
+        PublishNotes,
+        ReleaseRecords,
+        Uncommitted,
     },
 };
 use pnpr_error::RegistryError;

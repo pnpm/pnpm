@@ -1,7 +1,7 @@
 //! Single-package `pacquet publish` integration tests: drive the real binary
 //! against a `mockito` registry. The pnpr `TestRegistry` runs in proxy mode and
 //! rejects path-less publishes ("routes to an upstream registry"), so a mocked
-//! `PUT` is the portable harness here — it exercises the whole
+//! `PUT` is the portable harness here; it exercises the whole
 //! pack → build-document → `PUT /:pkg` path, mirroring pnpm's
 //! `test/publish/publish.ts` scenarios that don't need OIDC / provenance / OTP.
 //!
@@ -12,8 +12,15 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
@@ -330,7 +337,7 @@ fn publish_a_directory_argument_publishes_that_package() {
 }
 
 /// A registry that rejects the `PUT` with a 5xx makes `pacquet publish` fail
-/// with the failed-to-publish error — the response completed, so this is not a
+/// with the failed-to-publish error, the response completed, so this is not a
 /// transport error.
 #[test]
 fn errors_when_the_registry_rejects_the_publish() {

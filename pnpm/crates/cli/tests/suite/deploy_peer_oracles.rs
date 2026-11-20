@@ -1,10 +1,25 @@
 use crate::_utils::{
-    ManifestDeps, TreeView, WorkspaceFixture, assert_success, pacquet_in, read_manifest,
-    resolve_node_modules_package, write_manifest_value,
+    ManifestDeps,
+    TreeView,
+    WorkspaceFixture,
+    assert_success,
+    pacquet_in,
+    read_manifest,
+    resolve_node_modules_package,
+    write_manifest_value,
 };
-use pnpm_lockfile::{BoundProviders, Lockfile, LockfileFormat};
+use command_extra::CommandExtra;
+use pnpm_lockfile::{
+    BoundProviders,
+    Lockfile,
+    LockfileFormat,
+};
 use serde_json::json;
-use std::{fs, path::Path, process::Output};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 #[derive(Debug, Clone, Copy)]
 struct Scenario {
@@ -308,11 +323,11 @@ fn check_frozen_deploy(fixture: &WorkspaceFixture, deployed: &Path, expected_pee
 
 fn frozen_install_deployed(fixture: &WorkspaceFixture, deployed: &Path) -> Output {
     pacquet_in(deployed)
-        .env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
-        .env("PNPM_CONFIG_STORE_DIR", &fixture.registry.store_dir)
-        .env("PNPM_CONFIG_CACHE_DIR", &fixture.registry.cache_dir)
-        .env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
-        .args(["--reporter=ndjson", "install", "--frozen-lockfile"])
+        .with_env("PNPM_CONFIG_REGISTRY", fixture.registry.mock_instance.url())
+        .with_env("PNPM_CONFIG_STORE_DIR", &fixture.registry.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &fixture.registry.cache_dir)
+        .with_env("XDG_CONFIG_HOME", fixture.workspace.with_file_name("xdg-config"))
+        .with_args(["--reporter=ndjson", "install", "--frozen-lockfile"])
         .output()
         .expect("run frozen install in deployed directory")
 }
@@ -342,7 +357,8 @@ fn describe_missing_shared(project: &Path) -> String {
                 .map(|rel| candidate.parent().unwrap().join(rel));
             let target_entries = resolved
                 .as_deref()
-                .and_then(|dir| fs::read_dir(dir).ok())
+                .map(fs::read_dir)
+                .and_then(Result::ok)
                 .map(|entries| {
                     entries
                         .filter_map(Result::ok)

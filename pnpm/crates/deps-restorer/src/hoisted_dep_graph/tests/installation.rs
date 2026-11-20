@@ -1,16 +1,37 @@
 use super::{
     super::{
-        DepHierarchy, DependenciesGraph, HoistedDepGraphError, InstallabilityError,
-        LockfileToDepGraphResult, LockfileToHoistedDepGraphOptions, lockfile_to_hoisted_dep_graph,
+        DepHierarchy,
+        DependenciesGraph,
+        HoistedDepGraphError,
+        InstallabilityError,
+        LockfileToDepGraphResult,
+        LockfileToHoistedDepGraphOptions,
+        lockfile_to_hoisted_dep_graph,
     },
-    dep_key, directory_resolution, host_aware_opts, lockfile_with, metadata_stub, metadata_with_os,
-    pkg_name, resolved_dep, ver_peer,
+    dep_key,
+    directory_resolution,
+    host_aware_opts,
+    lockfile_with,
+    metadata_stub,
+    metadata_with_os,
+    pkg_name,
+    resolved_dep,
+    ver_peer,
 };
-use pnpm_lockfile::{PackageMetadata, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageMetadata,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
+};
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
     path::PathBuf,
 };
 
@@ -313,7 +334,7 @@ fn walker_defers_published_engines_of_a_patched_snapshot() {
         .expect("a patched snapshot's published engines are checked after patching");
 }
 /// `opts.include_incompatible_packages = true` bypasses the
-/// installability check entirely — even a required dep on an
+/// installability check entirely, even a required dep on an
 /// unsupported platform passes through. Used by the `prev_graph` walk
 /// so the diff against the previous lockfile catches packages that
 /// previously installed but would now be filtered.

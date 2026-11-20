@@ -1,7 +1,22 @@
 use super::{
-    Arc, BTreeSet, ConfigOverlay, HashMap, InstallOptions, IpAddr, NetworkConfigInput,
-    NoProxySetting, NodeApiProject, PackageExtensionInput, PackageManifest, PathBuf, ProxyConfig,
-    ProxyConfigInput, ThrottledClient, TlsConfig, to_napi_error, unsupported_option_error,
+    Arc,
+    BTreeSet,
+    ConfigOverlay,
+    HashMap,
+    InstallOptions,
+    IpAddr,
+    NetworkConfigInput,
+    NoProxySetting,
+    NodeApiProject,
+    PackageExtensionInput,
+    PackageManifest,
+    PathBuf,
+    ProxyConfig,
+    ProxyConfigInput,
+    ThrottledClient,
+    TlsConfig,
+    to_napi_error,
+    unsupported_option_error,
 };
 
 pub(super) fn build_workspace_projects_override(
@@ -60,8 +75,9 @@ fn build_layout_overlay(
         enable_modules_dir: if fetch_shaped { Some(true) } else { options.enable_modules_dir },
         registry: None,
         registries: options.registries
-            .as_ref()
-            .map(|map| map.clone().into_iter().collect()),
+            .clone()
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         proxy: options.proxy_config
             .as_ref()
             .map(build_proxy_config)
@@ -118,12 +134,12 @@ fn build_dependencies_overlay(
         // Both of these installs are defined in terms of the lockfile, so an
         // ambient `lockfile: false` must not disable it underneath them.
         // `enableModulesDir: false` writes the lockfile while skipping
-        // `node_modules`, so it runs through the lockfile-only path — which
+        // `node_modules`, so it runs through the lockfile-only path, which
         // requires the lockfile to be enabled, or the install fails with an
         // opaque `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`. A
         // fetch-shaped install reads the lockfile as its only input, and
         // would fail with `ERR_PNPM_NO_LOCKFILE`.
-        lockfile: (fetch_shaped || options.enable_modules_dir == Some(false)).then_some(true),
+        lockfile: (fetch_shaped || !options.enable_modules_dir.unwrap_or(true)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
         dedupe_peers: options.dedupe_peers,
@@ -187,7 +203,8 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
         allow_builds: options.allow_builds
             .clone()
-            .map(|map| map.into_iter().collect()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
         trust_lockfile: options.trust_lockfile,
@@ -201,12 +218,14 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
                 ignore_missing: rules.ignore_missing.clone(),
                 allow_any: rules.allow_any.clone(),
                 allowed_versions: rules.allowed_versions
-                    .as_ref()
-                    .map(|map| map.clone().into_iter().collect()),
+                    .clone()
+                    .map(std::iter::IntoIterator::into_iter)
+                    .map(std::iter::Iterator::collect),
             }),
         auth_header_by_uri: options.auth_header_by_uri
             .clone()
-            .map(|map| map.into_iter().collect()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         ..overlay
     }
 }
@@ -280,7 +299,8 @@ fn build_tls_config(input: &NetworkConfigInput) -> napi::Result<TlsConfig> {
         strict_ssl: input.strict_ssl,
         local_address: input.local_address
             .as_deref()
-            .and_then(|value| value.parse::<IpAddr>().ok()),
+            .map(str::parse::<IpAddr>)
+            .and_then(Result::ok),
     })
 }
 

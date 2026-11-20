@@ -1,12 +1,35 @@
 use super::{
-    AncestorStack, BTreeSet, DirEntry, FindWorkspaceProjectsError, MergePatterns, Path, PathBuf,
-    WorkspacePattern, collect_candidate_manifests_in, collect_literal_manifests_in,
-    entry_is_directory, entry_is_file, for_each_directory_entry, is_always_ignored_name,
-    is_ignored_directory, is_literal_segment, is_manifest_basename, is_pruned_subtree,
-    manifest_walk_ignores, names_a_dot_component, split_parent_prefix, starts_with_dot,
+    AncestorStack,
+    BTreeSet,
+    DirEntry,
+    FindWorkspaceProjectsError,
+    MergePatterns,
+    Path,
+    PathBuf,
+    WorkspacePattern,
+    collect_candidate_manifests_in,
+    collect_literal_manifests_in,
+    entry_is_directory,
+    entry_is_file,
+    for_each_directory_entry,
+    is_always_ignored_name,
+    is_ignored_directory,
+    is_literal_segment,
+    is_manifest_basename,
+    is_pruned_subtree,
+    manifest_walk_ignores,
+    names_a_dot_component,
+    split_parent_prefix,
+    starts_with_dot,
 };
-use std::ffi::{OsStr, OsString};
-use wax::{Glob, Program as _};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
+use wax::{
+    Glob,
+    Program as _,
+};
 
 pub(super) struct WalkContext<'a> {
     pub(super) walk_root: &'a Path,

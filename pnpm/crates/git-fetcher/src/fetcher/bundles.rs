@@ -1,8 +1,17 @@
-use super::{checkout_existing_revision, exec_git_with, is_valid_commit_hash};
+use super::{
+    checkout_existing_revision,
+    exec_git_with,
+    is_valid_commit_hash,
+};
 use crate::GitFetcherError;
 use std::{
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// Cache commit objects and refs without preserving mutable worktrees or Git configuration.

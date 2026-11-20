@@ -1,8 +1,16 @@
 use super::{
-    moving_providers::{install_lockfile, normalize_registry_origin, registry_from_manifests},
+    moving_providers::{
+        install_lockfile,
+        normalize_registry_origin,
+        registry_from_manifests,
+    },
     new_project_pins::peer_provider_version,
 };
-use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    read_v11_bundle_path,
+};
 use pnpm_lockfile::Lockfile;
 use serde_json::json;
 use std::fs;

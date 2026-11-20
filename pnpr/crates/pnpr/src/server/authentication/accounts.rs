@@ -1,4 +1,8 @@
-use super::{AppState, Identity, RegistryError};
+use super::{
+    AppState,
+    Identity,
+    RegistryError,
+};
 
 pub(in super::super) async fn active_account_name(
     state: &AppState,

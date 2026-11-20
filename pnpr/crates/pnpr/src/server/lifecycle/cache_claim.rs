@@ -1,15 +1,23 @@
 use crate::{
     Config,
     config_validation::{
-        CacheDirCheck, MAX_CACHE_SECRET_MARKER_BYTES, PENDING_CACHE_CLAIM,
+        CacheDirCheck,
+        MAX_CACHE_SECRET_MARKER_BYTES,
+        PENDING_CACHE_CLAIM,
         ensure_only_ignorable_entries,
     },
 };
 use pnpm_fs::OpenDir;
-use pnpr_config::{CACHE_SECRET_MARKER, cache_secret_fingerprint};
+use pnpr_config::{
+    CACHE_SECRET_MARKER,
+    cache_secret_fingerprint,
+};
 use std::{
     ffi::OsStr,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
     path::Path,
     sync::Arc,
     time::Duration,
@@ -153,7 +161,8 @@ async fn read_marker_state(dir: &Arc<OpenDir>) -> pnpr_error::Result<MarkerRead>
             Err(err) => return Err(err.into()),
         };
         let parsed = std::str::from_utf8(&bytes)
-            .map(|raw| raw.trim().to_string())
+            .map(str::trim)
+            .map(std::string::ToString::to_string)
             .unwrap_or_else(|_| "<invalid>".to_string());
         Ok(MarkerRead::Contents(parsed))
     })

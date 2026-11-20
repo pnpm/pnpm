@@ -3,16 +3,27 @@
 
 use super::{
     super::{
-        ManifestStat, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
+        ManifestStat,
+        OptimisticRepeatInstallCheck,
+        Path,
+        PathBuf,
+        WorkspaceState,
         current_lockfile::CurrentLockfile,
         validation::{
-            FileDigest, FileDigests, project_bins_digest, project_bins_match, workspace_bins_digest,
+            FileDigest,
+            FileDigests,
+            project_bins_digest,
+            project_bins_match,
+            workspace_bins_digest,
         },
     },
     Scope,
 };
 use pnpm_workspace::importer_id_from_root_dir;
-use pnpm_workspace_state::{FileSignature, Validation};
+use pnpm_workspace_state::{
+    FileSignature,
+    Validation,
+};
 use std::collections::HashSet;
 
 /// Whether a project is still proven installed.

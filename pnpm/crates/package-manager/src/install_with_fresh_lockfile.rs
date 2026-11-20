@@ -2,37 +2,70 @@ pub use errors::InstallWithFreshLockfileError;
 pub(crate) use lockfile_build::compute_package_extensions_checksum;
 pub(crate) use manifest_transforms::resolver_manifest_hooks;
 pub(crate) use seed_policy::prefer_requested_version;
-pub use seed_policy::{ImporterUpdateSeedPolicy, PreferredVersionsOverride, UpdateSeedPolicy};
+pub use seed_policy::{
+    ImporterUpdateSeedPolicy,
+    PreferredVersionsOverride,
+    UpdateSeedPolicy,
+};
 
 mod persist;
 use persist::{
-    LockfileOnlyOptions, finish_lockfile_only, fix_lockfile_copy, importers_consuming_linked_peers,
-    persist_fresh_lockfile, verify_repair_if_filtered,
+    LockfileOnlyOptions,
+    finish_lockfile_only,
+    fix_lockfile_copy,
+    importers_consuming_linked_peers,
+    persist_fresh_lockfile,
+    verify_repair_if_filtered,
 };
 
 mod lockfile_build;
 
 use lockfile_build::{
-    build_lockfile_phase, compose_manifest_hooks, ignored_optional_dependencies_match,
-    overrides_match, parse_config_overrides, resolved_overrides_map,
+    build_lockfile_phase,
+    compose_manifest_hooks,
+    ignored_optional_dependencies_match,
+    overrides_match,
+    parse_config_overrides,
+    resolved_overrides_map,
 };
 
 mod on_disk;
 use crate::install::state_options::ResolveOnly;
-use on_disk::{OnDiskInputs, OnDiskOutput, finish_early_materialization, run_on_disk_phases};
+use on_disk::{
+    OnDiskInputs,
+    OnDiskOutput,
+    finish_early_materialization,
+    run_on_disk_phases,
+};
 
 mod plan;
 use plan::{
-    FinalScope, FreshPlan, HostProbeInputs, LockfileViews, MaterializationScope, PlanLockfiles,
-    PlanScope, include_transitive_optional_dependencies, is_partial_workspace_selection,
+    FinalScope,
+    FreshPlan,
+    HostProbeInputs,
+    LockfileViews,
+    MaterializationScope,
+    PlanLockfiles,
+    PlanScope,
+    include_transitive_optional_dependencies,
+    is_partial_workspace_selection,
     plan_fresh_materialization,
 };
 
 mod resolution;
-use resolution::{ManifestSlots, Resolved, resolve_graph, start_early_materialization};
+use resolution::{
+    ManifestSlots,
+    Resolved,
+    resolve_graph,
+    start_early_materialization,
+};
 
 mod setup;
-use setup::{InstallShape, ResolverSetup, set_up_resolvers};
+use setup::{
+    InstallShape,
+    ResolverSetup,
+    set_up_resolvers,
+};
 
 mod materialization;
 use materialization::finish_resolved_install;
@@ -55,25 +88,48 @@ fn report_importing_done<Report: Reporter + 'static>(
     }));
 }
 
-use crate::{PolicyExcludes, SkippedSnapshots};
+use crate::{
+    PolicyExcludes,
+    SkippedSnapshots,
+};
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::{
-    DeprecationLog, GlobalLog, HookLog, LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalParent, SkippedOptionalReason,
+    DeprecationLog,
+    GlobalLog,
+    HookLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalParent,
+    SkippedOptionalReason,
 };
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use pnpm_tarball::MemCache;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 use tokio::sync::watch;
 
@@ -89,7 +145,7 @@ mod resolver_setup;
 /// writer's materialization is complete, `save_path` is on disk).
 /// Second visitors subscribe to the sender before issuing their
 /// per-parent symlink so they don't race ahead of the first writer's
-/// `import_indexed_dir` — critical on Windows where `symlink_package`
+/// `import_indexed_dir`, critical on Windows where `symlink_package`
 /// may fall back to a junction, which requires the target directory
 /// to exist at creation time. Mirrors the implicit "wait until the
 /// shared slot is on disk" sequencing pnpm gets from running one
@@ -106,7 +162,7 @@ pub struct InstallWithFreshLockfile<'a> {
     pub(crate) owned: OwnedInputs,
     /// One entry per importer to resolve, keyed by the lockfile
     /// importer id (`"."` for the workspace root, POSIX-relative path
-    /// for sibling projects — see
+    /// for sibling projects; see
     /// [`pnpm_workspace::importer_id_from_root_dir`]). For a
     /// non-workspace install this carries a single `"."` entry
     /// pointing at the only project.
@@ -163,7 +219,7 @@ pub(crate) struct FreshInstallProjects<'a> {
     pub(crate) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
     /// A full workspace install versus a partial one (`pacquet add` and the
-    /// package installs built on it — `dlx`, global add, the engine install).
+    /// package installs built on it, `dlx`, global add, the engine install).
     /// See [`crate::ProjectMutation::is_full_install`]. Gates the `--no-optional`
     /// exclusion: only a full install's `dependency_groups` carries that
     /// intent, so a partial run must not drop transitive optionals.
@@ -206,7 +262,7 @@ pub(crate) struct FreshInstallExecution {
     pub(crate) policy_excludes: PolicyExcludes,
     /// pnpm's `saveLockfile`: whether the freshly built lockfile may be
     /// written to `<lockfile_dir>/pnpm-lock.yaml`. `false` leaves that
-    /// file untouched — the resolved graph is still returned and still
+    /// file untouched, the resolved graph is still returned and still
     /// drives `<install_state_dir>/lock.yaml`. See
     /// [`crate::Install::run_legacy_deploy`].
     pub(crate) save_lockfile: bool,
@@ -262,8 +318,8 @@ pub(crate) struct FreshPriorInstall<'a> {
 pub(crate) struct FreshLockfileSeeds<'a> {
     /// Existing `pnpm-lock.yaml` to seed `getPreferredVersionsFromLockfileAndManifests`
     /// with already-pinned `(name, version)` pairs. `Some` on the
-    /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
-    /// — the resolver biases toward the seeded versions when they
+    /// stale-lockfile / `preferFrozenLockfile: false` rewrite path,
+    /// the resolver biases toward the seeded versions when they
     /// still satisfy the spec so unrelated dependencies keep their
     /// pins. `None` on the no-lockfile path. Corresponds to the
     /// `update: false` resolver mode.
@@ -396,7 +452,7 @@ pub(crate) struct FreshProjectInputs {
     /// sees a `workspace:` spec. `None` when this install isn't inside
     /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
     /// on any `workspace:` spec via
-    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
+    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded`, the
     /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
     /// behavior.
     pub(crate) workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
@@ -412,8 +468,8 @@ pub struct InstallWithFreshLockfileResult {
     pub hoisted: pnpm_deps_restorer::InstalledHoistedState,
     /// Importers the resolution left a peer-dependency issue under.
     /// Install completion renders its report from
-    /// [`Self::wanted_lockfile`] — which carries the resolved versions
-    /// the resolver's parent chains leave out — but walks only these
+    /// [`Self::wanted_lockfile`] (which carries the resolved versions
+    /// the resolver's parent chains leave out) but walks only these
     /// importers.
     pub peer_issue_importer_ids: HashSet<String>,
     /// The resolved [`Lockfile`] for the install. Retained in-memory to
@@ -433,7 +489,7 @@ pub struct InstallWithFreshLockfileResult {
     /// is on (the default). Empty on the `lockfile_only` path, which
     /// never materializes or builds.
     pub ignored_builds: Vec<String>,
-    /// Dep paths whose build `--ignore-scripts` deferred — see
+    /// Dep paths whose build `--ignore-scripts` deferred; see
     /// [`crate::BuildModulesOutput::deferred_builds`]. The caller folds
     /// them into `.modules.yaml.pendingBuilds`. Empty on the
     /// `lockfile_only` path for the same reason as
@@ -442,7 +498,7 @@ pub struct InstallWithFreshLockfileResult {
     /// Installability-skipped optional snapshots. The outer install
     /// writer persists these into `.modules.yaml.skipped`.
     pub skipped: SkippedSnapshots,
-    /// The store-index writer task, already winding down — see
+    /// The store-index writer task, already winding down; see
     /// [`pnpm_deps_restorer::InstallFrozenLockfileOutput::store_index_teardown`]:
     /// every handle was dropped, the task is flushing its final batch
     /// and closing its `SQLite` connection (a WAL checkpoint). Await it
@@ -556,7 +612,7 @@ struct PatchUsageScope<'a> {
     merge_wanted_lockfile: Option<&'a Lockfile>,
 }
 
-/// Only in the fresh-lockfile path — a frozen lockfile trusts recorded
+/// Only in the fresh-lockfile path, a frozen lockfile trusts recorded
 /// patches. pnpm's importer-count gate admits an unfiltered run, or a filtered
 /// run whose root-augmented selection and previous wanted lockfile both cover
 /// the complete workspace. A first filtered install has no complete previous

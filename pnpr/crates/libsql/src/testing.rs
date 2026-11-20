@@ -6,7 +6,11 @@
 //! its own WAL.
 
 pub use hrana::RoundTrips;
-pub use plain_http::{EXECUTE_RESPONSE, PlainHttpServer, serve_plain_http};
+pub use plain_http::{
+    EXECUTE_RESPONSE,
+    PlainHttpServer,
+    serve_plain_http,
+};
 pub use tls_proxy::serve_tls_proxy;
 
 mod hrana;
@@ -14,23 +18,47 @@ mod plain_http;
 mod tls_proxy;
 
 use axum::{
-    Json, Router,
-    extract::{Path, State},
+    Json,
+    Router,
+    extract::{
+        Path,
+        State,
+    },
     http::StatusCode,
-    response::{IntoResponse, Response},
-    routing::{get, post},
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        get,
+        post,
+    },
 };
-use libsql::{Builder, Connection, Database};
-use serde_json::{Value as JsonValue, json};
+use libsql::{
+    Builder,
+    Connection,
+    Database,
+};
+use serde_json::{
+    Value as JsonValue,
+    json,
+};
 use std::{
     collections::HashMap,
     net::SocketAddr,
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The layout of a `SQLite` WAL file, whose frames the sync protocol serves.

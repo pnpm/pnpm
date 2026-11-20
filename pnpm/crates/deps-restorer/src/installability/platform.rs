@@ -1,11 +1,24 @@
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
 use pnpm_package_is_installable::{
-    InstallabilityError, InstallabilityOptions, PackageInstallabilityManifest,
-    SupportedArchitectures, WantedEngine, WantedPlatformRef, check_package, inferred_platform,
+    InstallabilityError,
+    InstallabilityOptions,
+    PackageInstallabilityManifest,
+    SupportedArchitectures,
+    WantedEngine,
+    WantedPlatformRef,
+    check_package,
+    inferred_platform,
 };
 use pnpm_resolving_resolver_base::ResolveResult;
 use serde_json::Value;
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+};
 
 /// Where an [`InstallabilityHost`]'s `node_version` came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,7 +124,8 @@ pub fn check_installability(
         Cow::Borrowed(manifest)
     };
     check_package(package_id, manifest.as_ref(), options)
-        .map_err(|invalid| Box::new(InstallabilityError::InvalidNodeVersion(invalid)))
+        .map_err(InstallabilityError::InvalidNodeVersion)
+        .map_err(Box::new)
 }
 #[must_use]
 pub fn manifest_with_inferred_platform(
@@ -183,7 +197,7 @@ pub(super) fn read_string_list(manifest: Option<&Value>, key: &str) -> Option<Ve
 /// because the verdict is unconditionally an empty skip set.
 ///
 /// `pub` so `install_frozen_lockfile` can gate the host detection
-/// on it — the spawn is otherwise on the critical path of
+/// on it, the spawn is otherwise on the critical path of
 /// `CreateVirtualStore::run` and serializes ~100ms of node-binary
 /// startup with extraction.
 pub fn any_installability_constraint(

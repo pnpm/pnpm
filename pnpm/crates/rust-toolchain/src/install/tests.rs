@@ -1,8 +1,25 @@
-use super::{last_resolution, newest_installed, publish, record_resolution, toolchain_dir, unpack};
-use crate::{Channel, Profile, ToolchainRequest};
-use flate2::{Compression, write::GzEncoder};
+use super::{
+    last_resolution,
+    newest_installed,
+    publish,
+    record_resolution,
+    toolchain_dir,
+    unpack,
+};
+use crate::{
+    Channel,
+    Profile,
+    ToolchainRequest,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 const HOST: &str = "x86_64-unknown-linux-gnu";
 

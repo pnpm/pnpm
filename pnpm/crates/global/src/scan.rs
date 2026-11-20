@@ -3,20 +3,37 @@
 
 use crate::read_package_json;
 use pnpm_cmd_shim::{
-    Command, FsReadDir, FsReadFile, FsWalkFiles, Host, PackageBinSource,
+    Command,
+    FsReadDir,
+    FsReadFile,
+    FsWalkFiles,
+    Host,
+    PackageBinSource,
     get_bins_from_package_manifest,
 };
 use pnpm_fs::is_symlink_or_junction;
-use pnpm_package_manifest::{PackageManifestError, parse_manifest_bytes};
+use pnpm_package_manifest::{
+    PackageManifestError,
+    parse_manifest_bytes,
+};
 use pnpm_package_name::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     fs::DirEntry,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// A single global install group: a hash symlink pointing at an install
@@ -304,7 +321,7 @@ fn is_orphaned_install_dir(
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {
     let Ok(metadata) = std::fs::metadata(dir_path) else { return true };
-    // Use max(created, modified) as the dir's age — the closest portable
+    // Use max(created, modified) as the dir's age, the closest portable
     // proxies std exposes for birthtime / ctime.
     let created = metadata.created().ok();
     let modified = metadata.modified().ok();
@@ -326,8 +343,8 @@ fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool 
 /// The aliases become directory names under `node_modules` at every
 /// downstream join site (list, conflict-check, remove, update), so a
 /// tampered group `package.json` could otherwise use an alias like `../x`
-/// or an absolute path to escape the install directory. Validating here —
-/// the single point where aliases enter the scan — closes that for every
+/// or an absolute path to escape the install directory. Validating here
+/// (the single point where aliases enter the scan) closes that for every
 /// consumer, using the same [`is_valid_dependency_alias`] check the
 /// resolver applies to direct dependencies.
 fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {

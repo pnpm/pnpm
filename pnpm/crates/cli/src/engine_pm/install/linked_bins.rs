@@ -8,14 +8,25 @@
 //! that linked them, so a pnpm that links differently relinks under the lock.
 
 use super::{
-    EnginePackages, InstalledEngine, compute_engine_slot, package_dir, pnpm_executable_path,
+    EnginePackages,
+    InstalledEngine,
+    compute_engine_slot,
+    package_dir,
+    pnpm_executable_path,
 };
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+};
 use pnpm_fs::write_atomic;
 use pnpm_lockfile::EnvLockfile;
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const MARKER: &str = ".pnpm-engine-linked";

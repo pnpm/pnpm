@@ -3,16 +3,30 @@
 //! child this process waits for.
 
 use super::{
-    ShimInvocation, ShimTarget,
-    rust_toolchain::{RUST_SHIM_PACKAGE, run_next_on_path},
+    ShimInvocation,
+    ShimTarget,
+    rust_toolchain::{
+        RUST_SHIM_PACKAGE,
+        run_next_on_path,
+    },
     unmark_preparation,
 };
 use crate::process::Command;
-use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    ScriptRuntime,
+    search_script_runtime,
+};
 use pnpm_store_dir::PrivateInstall;
 use std::{
-    ffi::{OsStr, OsString},
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Run the global target the way a direct cmd-shim would: a script runs
@@ -194,7 +208,7 @@ fn exec_command(program: &Path, mut command: Command) -> i32 {
     // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
     // library spawns them through `cmd.exe` itself with the
     // CVE-2024-24576 argument escaping, and rejects arguments it cannot
-    // pass safely — a hand-rolled `cmd /c` would reintroduce that bug.
+    // pass safely, a hand-rolled `cmd /c` would reintroduce that bug.
     match command.status() {
         Ok(status) => status.code().unwrap_or(1),
         Err(error) => {

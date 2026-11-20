@@ -1,4 +1,10 @@
-use super::{CommandTempCwd, Path, advisory_response, fs, pacquet_cmd};
+use super::{
+    CommandTempCwd,
+    Path,
+    advisory_response,
+    fs,
+    pacquet_cmd,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 const VULNERABLE_PKG: &str = "@pnpm.e2e/multi-version-a";

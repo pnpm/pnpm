@@ -1,9 +1,29 @@
 use super::{
-    AdvisoryId, BTreeMap, Config, ConfigAuditLevel, HashMap, HashSet, InstalledPackages,
-    PackumentPublishInfo, PublishInfoLookup, Range, RangeSpecStyle, advisory_choices, age_cutoff,
-    classify_for_update, create_overrides, deprecate, filter_advisories_for_fix, fix_advisory,
-    format_fix_with_update_output, is_range_subset, minimum_release_age_excludes,
-    patched_range_for_style, prune_subsumed_advisories, publish_times, report_fixed_remaining,
+    AdvisoryId,
+    BTreeMap,
+    Config,
+    ConfigAuditLevel,
+    HashMap,
+    HashSet,
+    InstalledPackages,
+    PackumentPublishInfo,
+    PublishInfoLookup,
+    Range,
+    RangeSpecStyle,
+    advisory_choices,
+    age_cutoff,
+    classify_for_update,
+    create_overrides,
+    deprecate,
+    filter_advisories_for_fix,
+    fix_advisory,
+    format_fix_with_update_output,
+    is_range_subset,
+    minimum_release_age_excludes,
+    patched_range_for_style,
+    prune_subsumed_advisories,
+    publish_times,
+    report_fixed_remaining,
     report_of,
 };
 
@@ -500,8 +520,8 @@ fn minimum_release_age_excludes_skips_deprecated_versions_spelled_differently() 
         "GHSA-a",
     )])
     .advisories;
-    // The `time` map spells 4.18.0 with a leading `v` while `versions` — the
-    // source of the deprecation set — does not.
+    // The `time` map spells 4.18.0 with a leading `v` while `versions` (the
+    // source of the deprecation set) does not.
     let mut info = publish_times(
         "lodash-es",
         &[("v4.18.0", "2026-06-01T00:00:00Z"), ("4.18.1", "2026-06-01T01:00:00Z")],

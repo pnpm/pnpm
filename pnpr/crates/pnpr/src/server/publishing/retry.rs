@@ -3,11 +3,24 @@ use pnpr_error::RegistryError;
 use std::{
     fs::File,
     future::Future,
-    io::{Read as _, Seek as _, Write as _},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    io::{
+        Read as _,
+        Seek as _,
+        Write as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{
+    OwnedSemaphorePermit,
+    Semaphore,
+};
 
 /// The request size in bytes above which replay uses the cache.
 const MEMORY_REPLAY_THRESHOLD: usize = 1024 * 1024;

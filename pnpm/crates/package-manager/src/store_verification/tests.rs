@@ -1,14 +1,28 @@
 use super::StoreVerification;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
     store_index_key,
 };
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// `present` rows whose one file each is in the store, and a row whose file
 /// is not. The directory lives as long as the returned handle.

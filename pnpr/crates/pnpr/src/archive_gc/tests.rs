@@ -1,11 +1,30 @@
-use super::{Collection, GcOptions, liveness};
+use super::{
+    Collection,
+    GcOptions,
+    liveness,
+};
 use crate::RegistryError;
 use pnpr_config::HostedStoreConfig;
-use pnpr_oci::{Digest, ImageDocument, ManifestEntry, media_type};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::{HostedDocumentVersion, Storage, layout::local_archive_path};
+use pnpr_oci::{
+    Digest,
+    ImageDocument,
+    ManifestEntry,
+    media_type,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use pnpr_storage::{
+    HostedDocumentVersion,
+    Storage,
+    layout::local_archive_path,
+};
 use serde_json::json;
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::HashSet,
+    time::Duration,
+};
 use tempfile::TempDir;
 
 mod logging;

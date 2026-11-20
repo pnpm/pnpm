@@ -1,7 +1,20 @@
 use super::{
-    API_VERSION_HEADER, Body, CHALLENGE, DOCKER_CONTENT_DIGEST, DOCKER_UPLOAD_UUID, Digest,
-    ErrorBody, ErrorCode, HeaderValue, ManifestEntry, Method, RegistryError, Response, Serialize,
-    StatusCode, header,
+    API_VERSION_HEADER,
+    Body,
+    CHALLENGE,
+    DOCKER_CONTENT_DIGEST,
+    DOCKER_UPLOAD_UUID,
+    Digest,
+    ErrorBody,
+    ErrorCode,
+    HeaderValue,
+    ManifestEntry,
+    Method,
+    RegistryError,
+    Response,
+    Serialize,
+    StatusCode,
+    header,
 };
 use axum::response::IntoResponse;
 

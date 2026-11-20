@@ -9,7 +9,12 @@
 
 use std::cmp::Ordering;
 
-use serde_saphyr::granit_parser::{ScalarStyle, Scanner, StrInput, TokenType};
+use serde_saphyr::granit_parser::{
+    ScalarStyle,
+    Scanner,
+    StrInput,
+    TokenType,
+};
 
 /// The quoting style for string scalars that require quotes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,11 +26,11 @@ pub(crate) enum QuoteStyle {
 /// How a map's existing keys were laid out, used to place new keys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Layout {
-    /// Not sorted — new keys append at the end.
+    /// Not sorted, new keys append at the end.
     Unordered,
-    /// Alphabetical (lexicographic) — new keys sort in.
+    /// Alphabetical (lexicographic), new keys sort in.
     Alphabetical,
-    /// A leading `packages` key, then alphabetical — `packages` stays first.
+    /// A leading `packages` key, then alphabetical, `packages` stays first.
     PackagesFirst,
 }
 
@@ -108,7 +113,7 @@ pub(crate) fn detect_quote_style(text: &str) -> QuoteStyle {
     if double_count > single_count { QuoteStyle::Double } else { QuoteStyle::Single }
 }
 
-/// Render a scalar string value — plain when safe, single-quoted otherwise —
+/// Render a scalar string value (plain when safe, single-quoted otherwise)
 /// by delegating to [`yaml_serde`].
 pub(crate) fn render_value(value: &str) -> String {
     yaml_serde::to_string(&yaml_serde::Value::from(value))

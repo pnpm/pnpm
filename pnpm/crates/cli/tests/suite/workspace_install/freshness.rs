@@ -1,6 +1,13 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, assert_frozen_outdated, bump_mtime, fs,
-    is_symlink_or_junction, pacquet_at, two_project_workspace,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    assert_frozen_outdated,
+    bump_mtime,
+    fs,
+    is_symlink_or_junction,
+    pacquet_at,
+    two_project_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 

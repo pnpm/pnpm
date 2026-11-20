@@ -1,4 +1,7 @@
-use super::{ByteSize, parse_byte_size};
+use super::{
+    ByteSize,
+    parse_byte_size,
+};
 
 #[test]
 fn parse_byte_size_handles_integers_and_units() {

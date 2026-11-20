@@ -1,5 +1,8 @@
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, extract_env_document, extract_main_document,
+    Lockfile,
+    LockfileResolution,
+    extract_env_document,
+    extract_main_document,
     normalize_lockfile_content,
 };
 use ssri::Integrity;

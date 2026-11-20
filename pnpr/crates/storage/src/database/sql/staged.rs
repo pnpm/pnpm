@@ -6,17 +6,28 @@
 
 use super::{
     SqlDatabase,
-    adapter::{Connection, Query, Row},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
     batch::WriteTransaction,
     blobs::id_from,
-    to_column, to_generation,
+    to_column,
+    to_generation,
     transactions::Freshness,
 };
 use crate::{
     BlobId,
-    database::{StagedRecord, StagedState},
+    database::{
+        StagedRecord,
+        StagedState,
+    },
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_sql::DialectSql;
 use std::sync::Arc;
 
@@ -98,7 +109,8 @@ fn read_one(connection: &dyn Connection, id: &StagedId) -> Result<Option<StagedR
         .into_iter()
         .flatten()
         .next()
-        .map(|row| entry_from(row).map(|(_, record)| record))
+        .map(entry_from)
+        .map(|entry_from| entry_from.map(|(_, record)| record))
         .transpose()
 }
 

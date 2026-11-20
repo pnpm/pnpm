@@ -1,5 +1,13 @@
-use super::{Purl, names, sha512_hex, statement_subjects};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use super::{
+    Purl,
+    names,
+    sha512_hex,
+    statement_subjects,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use serde_json::json;
 
 fn bundle(subjects: &serde_json::Value) -> String {

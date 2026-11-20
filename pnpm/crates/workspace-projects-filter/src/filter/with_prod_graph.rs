@@ -1,10 +1,20 @@
 use super::{
-    FilterError, FilterGraphResult, FilterWorkspaceProjectsOptions, FilteredProjects, filter_graph,
+    FilterError,
+    FilterGraphResult,
+    FilterWorkspaceProjectsOptions,
+    FilteredProjects,
+    filter_graph,
 };
 use crate::parse_project_selector::ProjectSelector;
 use indexmap::IndexMap;
-use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph};
-use std::{collections::HashSet, path::PathBuf};
+use pnpm_workspace_projects_graph::{
+    BaseProject,
+    ProjectGraph,
+};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 
 /// Outcome of filtering across the full workspace graph and an optional
 /// production-only graph.

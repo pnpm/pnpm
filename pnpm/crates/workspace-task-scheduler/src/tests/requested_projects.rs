@@ -1,5 +1,14 @@
-use super::{TestTask, dir, key, sequence, tasks};
-use crate::{BuildTaskGraphOptions, build_task_graph};
+use super::{
+    TestTask,
+    dir,
+    key,
+    sequence,
+    tasks,
+};
+use crate::{
+    BuildTaskGraphOptions,
+    build_task_graph,
+};
 use indexmap::IndexMap;
 use std::path::Path;
 

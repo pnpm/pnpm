@@ -3,7 +3,13 @@
 //! `pnpm version <version> -r --no-git-tag-version` followed by
 //! `pnpm publish -r`.
 
-use super::{clear_ci, private_pkg, public_pkg, write_registry_npmrc, write_workspace};
+use super::{
+    clear_ci,
+    private_pkg,
+    public_pkg,
+    write_registry_npmrc,
+    write_workspace,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;

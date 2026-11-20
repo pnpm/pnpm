@@ -1,13 +1,27 @@
-use super::{BAR_INDEX, BAZ_INDEX, METADATA, OPTIONAL_FOO_INDEX};
+use super::{
+    BAR_INDEX,
+    BAZ_INDEX,
+    METADATA,
+    OPTIONAL_FOO_INDEX,
+};
 use crate::{
-    features::{DependencyOptions, dependencies_from_parts},
+    features::{
+        DependencyOptions,
+        dependencies_from_parts,
+    },
     missing_index_names,
     model::FeatureSelection,
-    registry::{CRATES_IO_SOURCE, Registry},
+    registry::{
+        CRATES_IO_SOURCE,
+        Registry,
+    },
     resolve_lockfile,
 };
 use cargo_lock::Lockfile;
-use std::{collections::BTreeMap, str::FromStr};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+};
 
 const WEAK_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":true,"default_features":false,"target":"cfg(windows)","kind":"normal","registry":null},{"name":"unused","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"default":["bar?/extra"],"unused":["dep:unused"]},"yanked":false}"#;
 const WEAK_BAR_INDEX: &str = r#"{"name":"bar","vers":"2.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":false,"target":"cfg(unix)","kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"extra":["baz?/leaf"]},"yanked":false}"#;

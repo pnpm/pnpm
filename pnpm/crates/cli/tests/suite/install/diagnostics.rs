@@ -1,4 +1,7 @@
-use crate::_utils::{flatten_report, ndjson_records};
+use crate::_utils::{
+    flatten_report,
+    ndjson_records,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -9,11 +12,10 @@ fn required_engine_mismatch_warns_on_fresh_and_frozen_install() {
     for reporter in ["--reporter=append-only", "--reporter=ndjson"] {
         let fixture = CommandTempCwd::init().add_mocked_registry();
         super::write_required_incompatible_engine_fixture(&fixture.workspace, false);
-        let mut command = fixture.pacquet;
-        command.args(["install", reporter]);
+        let mut command = fixture.pacquet.with_args(["install", reporter]);
         for frozen in [false, true] {
             if frozen {
-                command.arg("--frozen-lockfile");
+                command = command.with_arg("--frozen-lockfile");
             }
             let output = command.assert().success();
             let combined = format!(
@@ -72,7 +74,8 @@ fn ndjson_reports_fatal_resolution_errors_with_codes_and_prefix() {
         eprintln!("stderr={stderr}");
         let records: Vec<serde_json::Value> = stderr
             .lines()
-            .map(|line| serde_json::from_str(line).expect("every stderr line must be JSON"))
+            .map(serde_json::from_str)
+            .map(|parsed| parsed.expect("every stderr line must be JSON"))
             .collect();
         let errors: Vec<_> = records
             .iter()
@@ -191,7 +194,8 @@ fn ndjson_reports_early_directory_errors() {
     eprintln!("stderr={stderr}");
     let records: Vec<serde_json::Value> = stderr
         .lines()
-        .map(|line| serde_json::from_str(line).expect("every stderr line must be JSON"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("every stderr line must be JSON"))
         .collect();
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["name"], "pnpm");

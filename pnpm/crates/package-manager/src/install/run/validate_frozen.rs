@@ -11,20 +11,43 @@ mod tests;
 
 use super::{
     super::{
-        Arc, DependencyGroup, Install, InstallError, InstallManifestOptions, InstallRunOptions,
-        Lockfile, LogEvent, PackageManifest, PathBuf,
+        Arc,
+        DependencyGroup,
+        Install,
+        InstallError,
+        InstallManifestOptions,
+        InstallRunOptions,
+        Lockfile,
+        LogEvent,
+        PackageManifest,
+        PathBuf,
     },
-    HookedManifests, InstallScope, InstallWorkspace, Loaded, RunExecution, RunMode, Verification,
+    HookedManifests,
+    InstallScope,
+    InstallWorkspace,
+    Loaded,
+    RunExecution,
+    RunMode,
+    Verification,
     lockfile_load::{
-        join_current_lockfile_load, load_hooked_manifests, load_wanted_lockfile,
+        join_current_lockfile_load,
+        load_hooked_manifests,
+        load_wanted_lockfile,
         spawn_current_lockfile_load,
     },
     pre_resolution::run_pre_resolution_hook,
-    reject_frozen_with_update_checksums, settle_wanted_lockfile,
+    reject_frozen_with_update_checksums,
+    settle_wanted_lockfile,
     settled::Settled,
-    workspace::{report_install_scope_cycles, workspace_projects},
+    workspace::{
+        report_install_scope_cycles,
+        workspace_projects,
+    },
 };
-use crate::{LockfileVerificationOverride, WorkspaceInstallSelection};
+use crate::{
+    LockfileVerificationOverride,
+    WorkspaceInstallSelection,
+};
 use checks::verify_settled_frozen_path;
 use std::marker::PhantomData;
 

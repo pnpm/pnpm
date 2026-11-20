@@ -1,27 +1,55 @@
-//! `pnpm why` — show the packages that depend on `<pkg>`.
+//! `pnpm why`: show the packages that depend on `<pkg>`.
 
 use crate::{
     State,
     cli_args::{
         deps_tree::{
-            build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
+            build::{
+                LoadedState,
+                importer_root_ids,
+                read_project_manifest,
+                safe_importer_dir,
+            },
             dependents::{
-                BuildDependentsOptions, DependencySpecifiers, DependentsTree, ImporterInfo,
-                build_dependents_tree, merge_trees,
+                BuildDependentsOptions,
+                DependencySpecifiers,
+                DependentsTree,
+                ImporterInfo,
+                build_dependents_tree,
+                merge_trees,
             },
             dependents_render::{
-                RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
+                RenderDependentsOptions,
+                render_dependents_json,
+                render_dependents_parseable,
                 render_dependents_tree,
             },
-            graph::{BuildGraphOptions, DependencyGraph, build_dependency_graph},
+            graph::{
+                BuildGraphOptions,
+                DependencyGraph,
+                build_dependency_graph,
+            },
             pkg_info::PkgInfoEnv,
             search::Searcher,
         },
-        deps_tree_finders::{FinderHandle, evaluate_finders, finder_candidates, resolve_finders},
+        deps_tree_finders::{
+            FinderHandle,
+            evaluate_finders,
+            finder_candidates,
+            resolve_finders,
+        },
         install::resolve_bool_override,
-        list::{global_install_dir_config, print_output, recursive::dedicated_project_config},
+        list::{
+            global_install_dir_config,
+            print_output,
+            recursive::dedicated_project_config,
+        },
         parse_depth_limit,
-        recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+        recursive::{
+            AutoExcludeRoot,
+            discover_workspace_projects,
+            select_recursive_projects,
+        },
     },
 };
 use clap::Args;
@@ -33,7 +61,10 @@ use pnpm_workspace_projects_graph::BaseProject;
 use ranges::render_dependents_ranges;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Args)]

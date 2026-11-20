@@ -1,8 +1,14 @@
-use crate::_utils::{assert_success, ndjson_records};
+use crate::_utils::{
+    assert_success,
+    ndjson_records,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use serde_json::Value;
@@ -10,7 +16,10 @@ use std::{
     collections::HashSet,
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 const SIMPLE_GRAPH: &[&str] =

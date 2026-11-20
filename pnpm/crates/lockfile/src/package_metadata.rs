@@ -1,14 +1,20 @@
 use crate::LockfileResolution;
 use pnpm_package_manifest::DependencyGroup;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     ops::Deref,
 };
 
 /// Metadata for one resolved package version, as stored in the v9
 /// `packages:` map. This is the per-version data that does not vary by
-/// peer-dependency context — peer-specific information lives in
+/// peer-dependency context, peer-specific information lives in
 /// [`SnapshotEntry`](crate::SnapshotEntry) instead.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,7 +106,7 @@ impl DeclaredSpecifiers {
 /// `dependencies`. Both manifest spellings (`bundledDependencies` and
 /// `bundleDependencies`) land here under the `bundledDependencies` key.
 ///
-/// The presence of the field — whatever its shape — is what tells the
+/// The presence of the field (whatever its shape) is what tells the
 /// installer to link the bins the tarball ships in its own `node_modules`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]

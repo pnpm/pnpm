@@ -8,7 +8,12 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use std::{
     fs,
-    path::{Component, Path, PathBuf, Prefix},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+        Prefix,
+    },
 };
 
 /// `C:\dir` as `\\localhost\C$\dir`, when the admin share serves it.

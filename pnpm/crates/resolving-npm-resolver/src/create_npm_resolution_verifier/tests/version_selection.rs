@@ -1,6 +1,14 @@
 use super::{
-    FAKE_INTEGRITY, LockfileResolution, PkgName, ResolutionVerification, TarballResolution,
-    assert_eq, create_npm_resolution_verifier, ctx, default_opts, fake_integrity,
+    FAKE_INTEGRITY,
+    LockfileResolution,
+    PkgName,
+    ResolutionVerification,
+    TarballResolution,
+    assert_eq,
+    create_npm_resolution_verifier,
+    ctx,
+    default_opts,
+    fake_integrity,
     registry_resolution,
 };
 use jiff::Timestamp;
@@ -21,7 +29,7 @@ async fn verify_short_circuits_non_semver_version() {
 /// already fetched. The `modified` shortcut cannot answer here (the
 /// package was modified inside the cutoff window), and no other source
 /// is mocked, so a passing verification proves the timestamp came from
-/// the abbreviated document — the attestation round-trip and the
+/// the abbreviated document, the attestation round-trip and the
 /// full-packument download never happen.
 #[tokio::test]
 async fn reads_version_time_from_abbreviated_meta_that_carries_it() {

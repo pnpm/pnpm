@@ -8,16 +8,33 @@
 //!   package's notes; no tarball is named `notes`.
 
 use super::{
-    npm_handlers::{NamePath, ScopedVersionPath},
+    npm_handlers::{
+        NamePath,
+        ScopedVersionPath,
+    },
     serve_version_manifest,
 };
 use crate::server::{
-    AppState, AuthedCaller, Path, Response, State, TargetRegistry, not_found,
-    notes::{NoteRequest, read_note_body, serve_package_notes, serve_version_note},
+    AppState,
+    AuthedCaller,
+    Path,
+    Response,
+    State,
+    TargetRegistry,
+    not_found,
+    notes::{
+        NoteRequest,
+        read_note_body,
+        serve_package_notes,
+        serve_version_note,
+    },
 };
 use axum::{
     body::Bytes,
-    http::{Method, StatusCode},
+    http::{
+        Method,
+        StatusCode,
+    },
 };
 use serde::Deserialize;
 
@@ -33,7 +50,7 @@ pub(super) struct ScopedNamePath {
     name: String,
 }
 
-/// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
+/// `GET {base}/@{scope}/{pkg}/{version-or-tag}`: a scoped package's version
 /// manifest. A first segment that is not a scope names no package.
 async fn get_scoped_version_manifest(
     State(state): State<AppState>,

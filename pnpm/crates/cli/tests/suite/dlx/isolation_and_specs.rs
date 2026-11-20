@@ -3,11 +3,17 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 #[cfg(unix)]
 use pnpm_testing_utils::command_env::CommandTestExt;
-use pnpm_testing_utils::{bin::CommandTempCwd, fixtures::tarball_entries};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::tarball_entries,
+};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::process::Command;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn write_executable(path: &Path, contents: &str) {
     fs::write(path, contents).expect("write executable script");

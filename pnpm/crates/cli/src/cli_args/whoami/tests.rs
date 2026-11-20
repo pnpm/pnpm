@@ -1,4 +1,7 @@
-use super::{WhoamiArgs, WhoamiError};
+use super::{
+    WhoamiArgs,
+    WhoamiError,
+};
 use clap::Parser;
 use pnpm_config::Config;
 

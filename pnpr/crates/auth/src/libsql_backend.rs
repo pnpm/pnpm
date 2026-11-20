@@ -2,7 +2,7 @@
 //!
 //! Backs both [`UserBackend`] and [`TokenBackend`] with one shared
 //! database reached over the network, so several stateless pnpr
-//! replicas observe a consistent set of users and tokens — the
+//! replicas observe a consistent set of users and tokens, the
 //! prerequisite for running the registry as more than a single
 //! instance.
 //!
@@ -22,24 +22,63 @@ mod registration;
 mod schema;
 mod tokens;
 mod user_admin;
-use pnpr_libsql::{ConnectionPool, LibsqlConnector, first_row, is_unique_violation};
+use pnpr_libsql::{
+    ConnectionPool,
+    LibsqlConnector,
+    first_row,
+    is_unique_violation,
+};
 use schema::{
-    claim_user_counter_slot, init_schema, missing_count_row, reconcile_user_counter_overcount,
+    claim_user_counter_slot,
+    init_schema,
+    missing_count_row,
+    reconcile_user_counter_overcount,
     retry_database_conflicts,
 };
 
 use super::{
-    AccountCredential, AccountStatus, CredentialKind, DEFAULT_BCRYPT_COST, PasswordChange,
-    TokenBackend, TokenRecord, UpsertOutcome, UserBackend, UserCreation, UserRemoval,
-    account::{decode_sql_account_state, deprovisioned_login_error},
-    dummy_verify, hash_bcrypt, is_sha_hash, unix_millis,
-    validation::{token_timestamp_to_sql, validate_username},
-    verify_returning_user, with_auth_timeout,
+    AccountCredential,
+    AccountStatus,
+    CredentialKind,
+    DEFAULT_BCRYPT_COST,
+    PasswordChange,
+    TokenBackend,
+    TokenRecord,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    account::{
+        decode_sql_account_state,
+        deprovisioned_login_error,
+    },
+    dummy_verify,
+    hash_bcrypt,
+    is_sha_hash,
+    unix_millis,
+    validation::{
+        token_timestamp_to_sql,
+        validate_username,
+    },
+    verify_returning_user,
+    with_auth_timeout,
 };
 use async_trait::async_trait;
-use libsql::{Connection, Database, Row, TransactionBehavior, params};
-use pnpr_config::{LibsqlSettings, MaxUsers};
-use pnpr_error::{RegistryError, Result};
+use libsql::{
+    Connection,
+    Database,
+    Row,
+    TransactionBehavior,
+    params,
+};
+use pnpr_config::{
+    LibsqlSettings,
+    MaxUsers,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::time::Duration;
 
 /// Deadline for each auth database operation, beyond which a stalled endpoint
@@ -81,7 +120,7 @@ impl LibsqlAuth {
     ///
     /// With `replicaPath` set, the database is an embedded replica (see
     /// [`pnpr_libsql::open`]), so reads hit the local file. Without it, every
-    /// read is a remote query against the primary — always fresh, but a
+    /// read is a remote query against the primary, always fresh, but a
     /// network round-trip on the auth hot path.
     ///
     /// The whole startup, the initial sync included, runs under one
@@ -173,7 +212,7 @@ impl LibsqlAuth {
         .await
     }
 
-    /// Current number of registered users — read under the
+    /// Current number of registered users, read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         self.pool.read(|conn| async move {

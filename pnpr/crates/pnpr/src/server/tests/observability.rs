@@ -1,19 +1,41 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{HeaderValue, Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        HeaderValue,
+        Request,
+        StatusCode,
+        header,
+    },
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-use super::{app_with_config_and_token, record};
+use super::{
+    app_with_config_and_token,
+    record,
+};
 use crate::server::{
-    RequestId, ServerMetrics, generate_request_id, is_valid_request_id, metrics::DURATION_BUCKETS,
-    metrics_listener_router, state_and_router,
+    RequestId,
+    ServerMetrics,
+    generate_request_id,
+    is_valid_request_id,
+    metrics::DURATION_BUCKETS,
+    metrics_listener_router,
+    state_and_router,
 };
 use pnpr_auth::AuthState;
-use pnpr_config::{Config, MetricsConfig};
+use pnpr_config::{
+    Config,
+    MetricsConfig,
+};
 use pnpr_fixtures::MockConfigPresets;
 
 const METRICS_TOKEN: &str = "metrics-token-0123456789abcdef0123";

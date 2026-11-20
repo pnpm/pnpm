@@ -1,9 +1,17 @@
 use super::{
-    super::{ProjectManifestPaths, find_workspace_project_manifests},
-    FindWorkspaceProjectsOpts, find_workspace_projects, make_project,
+    super::{
+        ProjectManifestPaths,
+        find_workspace_project_manifests,
+    },
+    FindWorkspaceProjectsOpts,
+    find_workspace_projects,
+    make_project,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::PathBuf,
+};
 use tempfile::TempDir;
 
 fn opts(patterns: &[&str]) -> FindWorkspaceProjectsOpts {

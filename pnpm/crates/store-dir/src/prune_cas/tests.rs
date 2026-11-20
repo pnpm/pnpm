@@ -1,6 +1,19 @@
-use super::{PruneCasError, PruneCasStats, prune_cas_with_references};
-use crate::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
-use std::{collections::HashMap, fs};
+use super::{
+    PruneCasError,
+    PruneCasStats,
+    prune_cas_with_references,
+};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+    StoreIndexFormat,
+};
+use std::{
+    collections::HashMap,
+    fs,
+};
 
 fn package_index(digest: &str) -> PackageFilesIndex {
     PackageFilesIndex {

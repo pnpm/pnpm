@@ -1,7 +1,15 @@
 use super::FileImport;
 use pnpm_config::PackageImportMethod;
-use pnpm_fs::{FsCopyContents, FsReflink, Host};
-use std::{fs, io, path::Path};
+use pnpm_fs::{
+    FsCopyContents,
+    FsReflink,
+    Host,
+};
+use std::{
+    fs,
+    io,
+    path::Path,
+};
 
 #[cfg(unix)]
 mod unix;

@@ -1,11 +1,36 @@
 use super::{
-    Arc, ArchiveStoreProjection, AuthHeaders, CafsFileInfo, FASTIFY_ERROR_INTEGRITY,
-    FASTIFY_ERROR_TARBALL, FetchTarballForResolution, HashMap, IngestTarballToStore, Integrity,
-    PackageFilesIndex, PrefetchIntegrityCheck, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
-    SharedVerifiedFilesCache, SilentReporter, StoreDir, StoreIndex, StoreIndexWriter, TarballError,
-    ThrottledClient, UNREACHABLE_URL, assert_eq, fast_fail_client, fast_retry_opts,
-    fetch_and_extract_with_retry, incompressible_tarball, integrity, prefetch_cas_paths,
-    read_local_tarball_metadata, store_index_key, tempdir, tempdir_with_leaked_path,
+    Arc,
+    ArchiveStoreProjection,
+    AuthHeaders,
+    CafsFileInfo,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    FetchTarballForResolution,
+    HashMap,
+    IngestTarballToStore,
+    Integrity,
+    PackageFilesIndex,
+    PrefetchIntegrityCheck,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    SharedVerifiedFilesCache,
+    SilentReporter,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+    TarballError,
+    ThrottledClient,
+    UNREACHABLE_URL,
+    assert_eq,
+    fast_fail_client,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    incompressible_tarball,
+    integrity,
+    prefetch_cas_paths,
+    read_local_tarball_metadata,
+    store_index_key,
+    tempdir,
+    tempdir_with_leaked_path,
     test_retry_opts,
 };
 
@@ -45,7 +70,7 @@ store: crate::ArchiveStoreContext {dir: std::borrow::Cow::Borrowed(store_path),i
 }
 
 /// `prefetch_cas_paths` must omit entries whose integrity check
-/// fails — same policy as the per-snapshot `load_cached_cas_paths`
+/// fails, same policy as the per-snapshot `load_cached_cas_paths`
 /// path. We seed an index row that points at a digest no file on
 /// disk matches; the prefetch should drop the row from its result
 /// rather than return a half-populated map (which would mislead

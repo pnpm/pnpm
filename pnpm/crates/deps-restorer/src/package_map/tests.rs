@@ -1,19 +1,47 @@
 use super::{
-    HoistedPackageMapOptions, PackageMapOptions, absolute_package_url,
-    dependencies_graph_to_package_map, link_target_id, lockfile_to_package_map,
-    make_node_package_map_option, make_node_require_option, to_relative_url,
+    HoistedPackageMapOptions,
+    PackageMapOptions,
+    absolute_package_url,
+    dependencies_graph_to_package_map,
+    link_target_id,
+    lockfile_to_package_map,
+    make_node_package_map_option,
+    make_node_require_option,
+    to_relative_url,
 };
-use crate::{DependenciesGraphNode, LockfileToDepGraphResult, VirtualStoreLayout};
+use crate::{
+    DependenciesGraphNode,
+    LockfileToDepGraphResult,
+    VirtualStoreLayout,
+};
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileResolution, LockfileVersion, PackageKey, PackageMetadata,
-    PkgIdWithPatchHash, PkgName, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
-    SnapshotDepRef, SnapshotEntry, TarballResolution,
+    ComVer,
+    Lockfile,
+    LockfileResolution,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    PkgIdWithPatchHash,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballResolution,
 };
 use pnpm_modules_yaml::DepPath;
 use pnpm_package_manifest::PackageManifest;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[test]
@@ -483,7 +511,7 @@ fn manifest(name: &str) -> PackageManifest {
     manifest
 }
 
-/// A metadata record whose value the package-map builder never inspects —
+/// A metadata record whose value the package-map builder never inspects,
 /// only the `packages:` key it is filed under matters.
 fn package_metadata() -> PackageMetadata {
     PackageMetadata {

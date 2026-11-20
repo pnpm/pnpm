@@ -1,8 +1,15 @@
-use super::{output_of, pending_skills, pnpm};
+use super::{
+    output_of,
+    pending_skills,
+    pnpm,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn write_skill_package(dir: &Path, name: Option<&str>, skills: &[&str]) {
     fs::create_dir_all(dir).expect("create skill package dir");

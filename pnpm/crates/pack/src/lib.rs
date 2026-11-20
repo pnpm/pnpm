@@ -7,18 +7,32 @@
 //! then runs `postpack`. [`to_pack_result_json`] and
 //! [`format_pack_output`] render the result the way the CLI prints it.
 //!
-//! The recursive (`-r`) orchestration — selecting and topologically
-//! sorting the workspace projects — lives in the CLI command alongside
+//! The recursive (`-r`) orchestration (selecting and topologically
+//! sorting the workspace projects) lives in the CLI command alongside
 //! pacquet's other recursive commands, and calls [`api`] per project.
 
 pub use capabilities::{
-    FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, Host,
+    FsAtomicWrite,
+    FsCreateDirAll,
+    FsFileLen,
+    FsIsExecutable,
+    FsReadFile,
+    Host,
 };
 pub use contents::sort_paths_en_locale;
 pub use options::{
-    PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
+    PackManifestOptions,
+    PackOptions,
+    PackOutputLocks,
+    PackOutputOptions,
+    PackScripts,
 };
-pub use output::{format_pack_output, pack_output_parts, pack_output_path, to_pack_result_json};
+pub use output::{
+    format_pack_output,
+    pack_output_parts,
+    pack_output_path,
+    to_pack_result_json,
+};
 pub use pnpm_exportable_manifest::WorkspacePackageManifest;
 
 mod capabilities;
@@ -31,27 +45,66 @@ mod tarball;
 #[cfg(test)]
 mod tests;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use manifest_entry::is_manifest_entry;
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::get_bins_from_package_manifest;
 use pnpm_config::NodeLinker;
-use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
-use pnpm_exportable_manifest::{
-    CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
+use pnpm_executor::{
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    run_lifecycle_hook,
 };
-use pnpm_fs::{lexical_normalize, resolve_path_with_symlinks};
-use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_sources};
-use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pnpm_package_manifest::{PackageManifestError, project_manifest_path};
-use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
+use pnpm_exportable_manifest::{
+    CreateExportableManifestError,
+    CreateExportableManifestOptions,
+    create_exportable_manifest,
+};
+use pnpm_fs::{
+    lexical_normalize,
+    resolve_path_with_symlinks,
+};
+use pnpm_fs_packlist::{
+    PacklistError,
+    PacklistOptions,
+    packlist_with_sources,
+};
+use pnpm_hooks::{
+    HookContext,
+    LogFn,
+    PnpmfileHooks,
+};
+use pnpm_package_manifest::{
+    PackageManifestError,
+    project_manifest_path,
+};
+use pnpm_reporter::{
+    HookLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use serde_json::Value;
-use source::{PackSource, check_packed_bins_for_crlf, prepare_source, with_registry_readme};
+use source::{
+    PackSource,
+    check_packed_bins_for_crlf,
+    prepare_source,
+    with_registry_readme,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -386,11 +439,19 @@ impl std::io::Write for DigestingWriter<'_> {
 
 mod output;
 
-use output::{packed_tarball_path, realpath_missing, resolve_dest_dir, resolve_output};
+use output::{
+    packed_tarball_path,
+    realpath_missing,
+    resolve_dest_dir,
+    resolve_output,
+};
 
 mod contents;
 use contents::{
-    build_files_map, inject_workspace_license, packed_contents_with_injected, unpacked_size,
+    build_files_map,
+    inject_workspace_license,
+    packed_contents_with_injected,
+    unpacked_size,
 };
 
 mod dotenv;

@@ -6,20 +6,40 @@
 //! instead, which `interrupt_windows` tests rather than porting these.
 #![cfg(unix)]
 
-use crate::_utils::terminal::{Terminal, spawn_without_terminal};
+use crate::_utils::terminal::{
+    Terminal,
+    spawn_without_terminal,
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     ffi::OsString,
     fs,
-    io::{self, Read},
-    os::unix::process::{CommandExt, ExitStatusExt},
+    io::{
+        self,
+        Read,
+    },
+    os::unix::process::{
+        CommandExt,
+        ExitStatusExt,
+    },
     path::Path,
-    process::{Child, Command, ExitStatus, Stdio},
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Stdio,
+    },
     sync::mpsc,
-    thread::{self, sleep},
-    time::{Duration, Instant},
+    thread::{
+        self,
+        sleep,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// How long a script is given to shut down before the test gives up. Well
@@ -912,7 +932,7 @@ fn is_running(pid: libc::pid_t) -> bool {
 /// from a running process.
 fn is_zombie(pid: libc::pid_t) -> bool {
     let state = Command::new("ps")
-        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .with_args(["-o", "stat=", "-p", &pid.to_string()])
         .output()
         .expect("run ps");
     state.stdout.trim_ascii_start().first() == Some(&b'Z')

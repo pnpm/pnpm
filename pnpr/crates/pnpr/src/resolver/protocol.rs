@@ -5,10 +5,17 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{PackageExtension, RegistryDeclaration};
+use pnpm_config::{
+    PackageExtension,
+    RegistryDeclaration,
+};
 use pnpm_network::AuthHeadersByScope;
 use pnpr_registry::Ecosystem;
-use serde::{Deserialize, Serialize, de::IgnoredAny};
+use serde::{
+    Deserialize,
+    Serialize,
+    de::IgnoredAny,
+};
 
 pub type DepMap = BTreeMap<String, String>;
 
@@ -151,7 +158,7 @@ pub struct ResolveRequest {
     /// The registries the client declares, keyed by URL, in the shape of
     /// its `registries` setting: the scopes routed to each, the
     /// bare-specifier prefix each answers to, and each one's tarball
-    /// layout. The default registry is not among them — it arrives as
+    /// layout. The default registry is not among them; it arrives as
     /// [`Self::registry`].
     ///
     /// Declarations only, never the setting's older `<scope>: <url>` shape:
@@ -211,7 +218,7 @@ pub struct ResolveRequest {
     /// seed. Absent on a true first install (nothing to verify).
     #[serde(default)]
     pub lockfile: Option<pnpm_lockfile::Lockfile>,
-    /// Governs *resolution behavior* only — frozen (use the lockfile
+    /// Governs *resolution behavior* only, frozen (use the lockfile
     /// as-is) vs reuse-and-update. Does not affect whether the input
     /// lockfile is verified.
     #[serde(default)]

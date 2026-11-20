@@ -1,8 +1,18 @@
 use super::{
-    Catalogs, Config, IncludedDependencies, MaybeLazyLockfile, OptimisticRepeatInstallCheck,
-    PackageManifest, Path, PathBuf, build_project_manifests_list,
-    configured_or_discovered_workspace_dir, get_catalogs_from_workspace_manifest,
-    lazy_wanted_lockfile, lockfile_root_for, nothing_to_install::projects_have_nothing_to_install,
+    Catalogs,
+    Config,
+    IncludedDependencies,
+    MaybeLazyLockfile,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+    PathBuf,
+    build_project_manifests_list,
+    configured_or_discovered_workspace_dir,
+    get_catalogs_from_workspace_manifest,
+    lazy_wanted_lockfile,
+    lockfile_root_for,
+    nothing_to_install::projects_have_nothing_to_install,
     stand_ins,
 };
 use std::borrow::Cow;
@@ -148,7 +158,7 @@ pub(super) struct GateInputs<'a> {
 }
 
 /// pnpm reports "cannot check" straight from the missing workspace state,
-/// before any project discovery — a fresh project (the common out-of-sync
+/// before any project discovery, a fresh project (the common out-of-sync
 /// case) must not pay for the workspace-projects walk only to reach the
 /// same verdict inside the check. Projects are walked only when the
 /// manifest itself gives an install nothing to do.
@@ -359,7 +369,7 @@ fn run_gate(
                 supported_architectures: gate.config.supported_architectures.as_ref(),
                 // The gate ignores dependency-group drift, so the groups only
                 // shape the settings snapshot written back after a passing
-                // content check — where the recorded values win anyway.
+                // content check, where the recorded values win anyway.
                 included: IncludedDependencies {
                     dependencies: true,
                     dev_dependencies: true,

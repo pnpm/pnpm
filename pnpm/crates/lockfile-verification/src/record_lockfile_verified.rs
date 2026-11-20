@@ -13,7 +13,10 @@
 //! section, or when the lockfile fails the offline dependency-name
 //! check.
 
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
@@ -22,7 +25,8 @@ use crate::{
     cache::record_verification,
     hash_lockfile,
     verify_lockfile_resolutions::{
-        verify_lockfile_dependency_names, with_offline_check_cache_identities,
+        verify_lockfile_dependency_names,
+        with_offline_check_cache_identities,
     },
 };
 

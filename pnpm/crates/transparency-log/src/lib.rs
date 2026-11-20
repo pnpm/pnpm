@@ -36,4 +36,11 @@ pub use integrate::*;
 pub use keys::*;
 pub use proof::*;
 pub use tiles::*;
-pub use tlog_tiles::{Checkpoint, EMPTY_HASH, HASH_SIZE, Hash, HashReader, record_hash};
+pub use tlog_tiles::{
+    Checkpoint,
+    EMPTY_HASH,
+    HASH_SIZE,
+    Hash,
+    HashReader,
+    record_hash,
+};

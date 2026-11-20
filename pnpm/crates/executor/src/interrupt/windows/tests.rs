@@ -7,16 +7,38 @@
 //! no real console is needed and the children other tests register are
 //! never touched: a `cmd` reading an answer from a pipe pnpm never writes
 //! to stands in for the one at that prompt.
-use super::{STATUS_CONTROL_C_EXIT, WINDOWS_INTERRUPT_GRACE, interrupt_child};
-use crate::interrupt::{SignalRelay, relay_to_child};
+use super::{
+    STATUS_CONTROL_C_EXIT,
+    WINDOWS_INTERRUPT_GRACE,
+    interrupt_child,
+};
+use crate::interrupt::{
+    SignalRelay,
+    relay_to_child,
+};
+use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
 use std::{
     os::windows::process::CommandExt,
-    path::{Path, PathBuf},
-    process::{Child, Command, ExitStatus, Stdio},
-    sync::{OnceLock, atomic::Ordering},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Stdio,
+    },
+    sync::{
+        OnceLock,
+        atomic::Ordering,
+    },
     thread::sleep,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// The node binary itself. The `node` on `PATH` can be a shim that runs
@@ -26,8 +48,8 @@ fn node_binary() -> &'static Path {
     static NODE: OnceLock<PathBuf> = OnceLock::new();
     NODE.get_or_init(|| {
         let output = Command::new("node")
-            .args(["-p", "process.execPath"])
-            .stderr(Stdio::inherit())
+            .with_args(["-p", "process.execPath"])
+            .with_stderr(Stdio::inherit())
             .output()
             .expect("run node");
         assert!(output.status.success(), "node reports its path");
@@ -37,10 +59,10 @@ fn node_binary() -> &'static Path {
 
 fn spawn_node(script: &str) -> Child {
     Command::new(node_binary())
-        .args(["-e", script])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_args(["-e", script])
+        .with_stdin(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn node")
 }
@@ -62,10 +84,10 @@ fn spawn_cmd_running_node(script: &str) -> Child {
 /// unanswered, for as long as the returned child is held.
 fn spawn_stuck_cmd() -> Child {
     Command::new("cmd")
-        .args(["/d", "/c", "set /p answer="])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_args(["/d", "/c", "set /p answer="])
+        .with_stdin(Stdio::piped())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn cmd")
 }

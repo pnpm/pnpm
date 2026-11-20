@@ -1,14 +1,33 @@
 //! Read a directory tree into an [`InodeMap`].
 
-use super::{FileId, InodeMap, PatchError, Value};
+use super::{
+    FileId,
+    InodeMap,
+    PatchError,
+    Value,
+};
 use pnpm_directory_fetcher::CopyFiles;
-use pnpm_fs::{SymlinkPlacement, SymlinkPlacementContext, SymlinkTargets};
+use pnpm_fs::{
+    SymlinkPlacement,
+    SymlinkPlacementContext,
+    SymlinkTargets,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    hash::{DefaultHasher, Hash, Hasher},
+    hash::{
+        DefaultHasher,
+        Hash,
+        Hasher,
+    },
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     time::SystemTime,
 };
 
@@ -71,8 +90,8 @@ fn link_value(
 /// Expand a relative-path → real-path map into an [`InodeMap`] that
 /// also names every ancestor directory.
 ///
-/// An inode that is neither a file nor a directory — a FIFO, a socket,
-/// a device — cannot be hardlinked into the injected copy, so it is
+/// An inode that is neither a file nor a directory (a FIFO, a socket,
+/// a device) cannot be hardlinked into the injected copy, so it is
 /// left out of the map.
 pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap, PatchError> {
     let mut result = InodeMap::from([(".".to_string(), Value::Dir)]);
@@ -99,7 +118,7 @@ fn value_of(path: &Path, metadata: &fs::Metadata) -> Result<Option<Value>, Patch
     }
 }
 
-/// A path the walker listed can be gone by the time it is stat'd — a
+/// A path the walker listed can be gone by the time it is stat'd, a
 /// build script that deletes as it goes, or a symlink that broke.
 fn stat_skipping_missing(
     path: &Path,
@@ -126,7 +145,7 @@ fn add_inode_and_ancestors(result: &mut InodeMap, relative_path: &str, value: Va
 /// Read a file's [`FileId`].
 ///
 /// Windows has no stable way to read the file index from
-/// [`fs::Metadata`] — `MetadataExt::file_index` is still unstable — so
+/// [`fs::Metadata`]. `MetadataExt::file_index` is still unstable, so
 /// it comes from a handle instead, the same call libuv makes to fill
 /// Node's `Stats.ino`.
 pub(super) fn file_id(path: &Path, metadata: &fs::Metadata) -> Result<FileId, PatchError> {
@@ -153,9 +172,13 @@ pub(super) fn file_id(path: &Path, metadata: &fs::Metadata) -> Result<FileId, Pa
 
 #[cfg(windows)]
 fn windows_file_index(path: &Path) -> io::Result<(u64, u64)> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use std::{
+        mem::MaybeUninit,
+        os::windows::io::AsRawHandle as _,
+    };
     use windows_sys::Win32::Storage::FileSystem::{
-        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+        BY_HANDLE_FILE_INFORMATION,
+        GetFileInformationByHandle,
     };
 
     let file = fs::File::open(path)?;

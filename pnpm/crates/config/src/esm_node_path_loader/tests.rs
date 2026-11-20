@@ -1,9 +1,14 @@
 use super::{
-    add_esm_node_path_loader_option, esm_node_path_loader_import_flag,
+    add_esm_node_path_loader_option,
+    esm_node_path_loader_import_flag,
     keep_esm_node_path_loader_option,
 };
+use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// The TypeScript CLI asserts its derived flag against the same file
 /// (`pnpm11/exec/esm-node-path-loader/test/index.ts`), so the two stacks
@@ -91,9 +96,9 @@ console.log(compiled.exports)
         fs::write(root.join(file), contents).expect("write the required file");
 
         let output = Command::new("node")
-            .arg("runner.js")
-            .current_dir(root)
-            .env("NODE_OPTIONS", esm_node_path_loader_import_flag())
+            .with_arg("runner.js")
+            .with_current_dir(root)
+            .with_env("NODE_OPTIONS", esm_node_path_loader_import_flag())
             .output()
             .expect("run node");
         assert_eq!(String::from_utf8_lossy(&output.stderr), "", "requiring {file}");
@@ -164,10 +169,10 @@ export async function resolve (specifier, context, nextResolve) {
     .expect("write alias-resolve.mjs");
 
     let output = Command::new("node")
-        .args(["--import", "./alias-hook.mjs", "main.mjs"])
-        .current_dir(root)
-        .env("NODE_PATH", &node_path)
-        .env("NODE_OPTIONS", esm_node_path_loader_import_flag())
+        .with_args(["--import", "./alias-hook.mjs", "main.mjs"])
+        .with_current_dir(root)
+        .with_env("NODE_PATH", &node_path)
+        .with_env("NODE_OPTIONS", esm_node_path_loader_import_flag())
         .output()
         .expect("run node");
     assert_eq!(String::from_utf8_lossy(&output.stderr), "");

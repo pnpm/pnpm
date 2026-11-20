@@ -1,9 +1,15 @@
 use super::{
-    create_workspace_yaml_from_yarn_workspaces, declares_yarn_workspaces,
-    publish_new_workspace_manifest, same_patterns, workspaces_field_differs,
+    create_workspace_yaml_from_yarn_workspaces,
+    declares_yarn_workspaces,
+    publish_new_workspace_manifest,
+    same_patterns,
+    workspaces_field_differs,
 };
 use crate::cli_args::package_manager::read_root_manifest_json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn write_manifest(dir: &Path, contents: &str) {
     fs::write(dir.join("package.json"), contents).expect("write package.json");

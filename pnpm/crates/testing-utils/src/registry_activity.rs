@@ -2,19 +2,39 @@
 //! so the report of a stalled command shows whether it waits on one of them.
 
 use axum::{
-    body::{Body, HttpBody},
-    extract::{Request, State},
-    http::{HeaderValue, Method, header},
+    body::{
+        Body,
+        HttpBody,
+    },
+    extract::{
+        Request,
+        State,
+    },
+    http::{
+        HeaderValue,
+        Method,
+        header,
+    },
     middleware::Next,
     response::Response,
 };
 use bytes::Bytes;
-use futures_util::{Stream, StreamExt};
+use futures_util::{
+    Stream,
+    StreamExt,
+};
 use std::{
     fmt::Write as _,
     pin::Pin,
-    sync::{LazyLock, Mutex, PoisonError},
-    task::{Context, Poll},
+    sync::{
+        LazyLock,
+        Mutex,
+        PoisonError,
+    },
+    task::{
+        Context,
+        Poll,
+    },
     time::Instant,
 };
 

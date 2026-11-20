@@ -1,7 +1,27 @@
 use super::{
-    Action, AppState, Body, Ecosystem, FetchOutcome, HashSet, HostedGate, Identity, Registry,
-    RegistryError, RegistrySource, Response, StatusCode, Storage, Upstream, Value, authorize,
-    default_registry_target, header, hosted_gate, json, now_iso, resolve_ecosystem_source,
+    Action,
+    AppState,
+    Body,
+    Ecosystem,
+    FetchOutcome,
+    HashSet,
+    HostedGate,
+    Identity,
+    Registry,
+    RegistryError,
+    RegistrySource,
+    Response,
+    StatusCode,
+    Storage,
+    Upstream,
+    Value,
+    authorize,
+    default_registry_target,
+    header,
+    hosted_gate,
+    json,
+    now_iso,
+    resolve_ecosystem_source,
     resolve_registry_source,
 };
 use axum::response::IntoResponse;
@@ -110,7 +130,7 @@ impl UpstreamSearchBudget {
     }
 }
 
-/// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
+/// `GET /-/v1/search?text=...&from=...&size=...`: npm search v1 endpoint.
 /// Hosted results are counted after routing and access filters, then optional
 /// upstream results are appended in registry-source order. An upstream only
 /// participates when its `search` setting is enabled, and only within the

@@ -1,21 +1,45 @@
-use super::{PythonUpdateOptions, map_python_group};
+use super::{
+    PythonUpdateOptions,
+    map_python_group,
+};
 use crate::{
     cli_args::ecosystem_deps::selectors::PythonUpdateSelector,
-    ecosystem_install::{EcosystemWorkspaceInventory, InstallContext, python as eco_python},
+    ecosystem_install::{
+        EcosystemWorkspaceInventory,
+        InstallContext,
+        python as eco_python,
+    },
 };
-use miette::{Result, bail};
+use miette::{
+    Result,
+    bail,
+};
 use pnpm_config::Config;
 use pnpm_install_coordinator::InstallPlan;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_python_installer::{
-    DeclaredPythonDep, Discovery, PackageName, PythonDependencyGroup, TargetPyproject,
-    UpdateOptions, declared_dependencies, in_declared_workspace, inspect_target_pyproject,
-    plan_update, writable_project,
+    DeclaredPythonDep,
+    Discovery,
+    PackageName,
+    PythonDependencyGroup,
+    TargetPyproject,
+    UpdateOptions,
+    declared_dependencies,
+    in_declared_workspace,
+    inspect_target_pyproject,
+    plan_update,
+    writable_project,
 };
 use pnpm_reporter::Reporter;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     str::FromStr,
 };
 

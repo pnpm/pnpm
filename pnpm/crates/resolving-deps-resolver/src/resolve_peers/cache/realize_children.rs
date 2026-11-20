@@ -1,7 +1,22 @@
 use super::{
-    Arc, BTreeMap, ChildEdge, DeferredChildContext, DeferredChildResolution, DependenciesTreeNode,
-    EdgeRealization, HashSet, LazyProviders, NodeId, NodeOutput, ParentRefs, PeerWalkMode,
-    PeersCacheItem, SharedChain, TreeChildren, UndoRealize, Walker,
+    Arc,
+    BTreeMap,
+    ChildEdge,
+    DeferredChildContext,
+    DeferredChildResolution,
+    DependenciesTreeNode,
+    EdgeRealization,
+    HashSet,
+    LazyProviders,
+    NodeId,
+    NodeOutput,
+    ParentRefs,
+    PeerWalkMode,
+    PeersCacheItem,
+    SharedChain,
+    TreeChildren,
+    UndoRealize,
+    Walker,
     should_retain_materialized_node,
 };
 
@@ -134,7 +149,8 @@ impl Walker<'_> {
             .get(pkg_id)
             .into_iter()
             .flat_map(|children| children.iter())
-            .filter(|edge| edge.optional && edges.contains_key(&edge.alias))
+            .filter(|edge| edge.optional)
+            .filter(|edge| edges.contains_key(&edge.alias))
             .map(|edge| edge.alias.clone())
             .collect()
     }
@@ -194,7 +210,8 @@ impl Walker<'_> {
         let provider_edge_indices = self.caches.peer_providers
             .children_by_pkg_id
             .get(&*lazy.pkg_id)
-            .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
+            .map(|providers| providers.relevant_edge_indices.as_slice())
+            .unwrap_or(&[][..]);
         let canonical_scc = self.canonical_scc();
         let mut providers = BTreeMap::new();
         let mut newly_inserted = Vec::new();
@@ -263,10 +280,11 @@ impl Walker<'_> {
             }
         };
         // No spec means the first walk never recorded children for this
-        // package id — defensive empty case.
+        // package id, defensive empty case.
         let children_spec = self.tree.children_by_id
             .get(&pkg_id)
-            .map_or_else(|| Arc::new(Vec::new()), Arc::clone);
+            .map(Arc::clone)
+            .unwrap_or_else(|| Arc::new(Vec::new()));
         let canonical_scc = self.canonical_scc();
         let context = EdgeRealization {
             canonical_scc: &canonical_scc,
@@ -318,7 +336,7 @@ impl Walker<'_> {
 
     /// Reuse the first walk's classification (persisted on
     /// [`crate::resolved_tree::ResolvedPackage::is_leaf`] by `pkg_is_leaf`).
-    /// Defaults to non-leaf when the package isn't in `packages` — same shape
+    /// Defaults to non-leaf when the package isn't in `packages`, same shape
     /// as the eager walker's `manifest == None` arm, and `NodeId::next()`
     /// keeps occurrences distinct so a later visit can still observe
     /// per-call-site state.

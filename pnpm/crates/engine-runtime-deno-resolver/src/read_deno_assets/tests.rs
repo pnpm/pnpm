@@ -1,6 +1,9 @@
 use pretty_assertions::assert_eq;
 
-use super::{extract_sha256, parse_asset_name};
+use super::{
+    extract_sha256,
+    parse_asset_name,
+};
 
 #[test]
 fn parses_apple_silicon_asset_name() {

@@ -1,15 +1,32 @@
 use super::{
-    Body, Duration, Registries, Registry, Request, ServiceExt, StatusCode, TempDir, body_bytes,
-    config_for, json, router, sha512_integrity,
+    Body,
+    Duration,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    config_for,
+    json,
+    router,
+    sha512_integrity,
 };
 use std::{
     io::Write,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{
+    AsyncReadExt,
+    AsyncWriteExt,
+};
 
 async fn get(app: &axum::Router, uri: &str) -> axum::response::Response {
     app.clone()

@@ -1,5 +1,9 @@
 use super::{
-    Lockfile, StalenessReason, assert_eq, manifest_from_json, satisfies_package_manifest,
+    Lockfile,
+    StalenessReason,
+    assert_eq,
+    manifest_from_json,
+    satisfies_package_manifest,
     text_block,
 };
 

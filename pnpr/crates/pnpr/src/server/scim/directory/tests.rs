@@ -1,12 +1,18 @@
 use super::ScimState;
 use pnpr_auth::AuthState;
-use pnpr_config::{Config, ScimConfig};
+use pnpr_config::{
+    Config,
+    ScimConfig,
+};
 use pnpr_fixtures::MockConfigPresets;
 use pnpr_storage::database::ScimStatus;
 use std::{
     sync::Arc,
     thread,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[tokio::test]
@@ -34,11 +40,12 @@ async fn deactivation_holds_the_binding_lock_until_revocation_finishes() {
     let worker = thread::spawn(move || updating.apply_statuses(&state, &[status]));
     let deadline = Instant::now() + Duration::from_secs(5);
     let inactive = loop {
-        if directory.active_by_id
+        if !directory.active_by_id
             .read()
             .unwrap()
             .get("example-account")
-            == Some(&false)
+            .copied()
+            .unwrap_or(true)
         {
             break true;
         }

@@ -1,15 +1,33 @@
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    NetworkSettings, RedirectGuard, ThrottledClient, escaped_package_name, normalize_registry_url,
+    NetworkSettings,
+    RedirectGuard,
+    ThrottledClient,
+    escaped_package_name,
+    normalize_registry_url,
     origins_redirect_guard,
 };
 use pnpm_network_web_auth::{
-    Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
-    WebAuthFetchOptions, WebAuthRetryOptions,
+    Clock,
+    EnterKeyListener,
+    OpenUrl,
+    PromptOtp,
+    Sleep,
+    StdinIsTty,
+    StdoutIsTty,
+    WebAuthFetch,
+    WebAuthFetchOptions,
+    WebAuthRetryOptions,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    time::Duration,
+};
 
 /// The npm CLI's default `fetch-timeout`. The registry can take longer than
 /// pnpm's default `fetchTimeout` to answer a publish request, and a publish

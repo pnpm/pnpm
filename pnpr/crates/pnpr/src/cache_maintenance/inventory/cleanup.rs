@@ -1,9 +1,19 @@
 use super::{
-    DirPolicy, OpenDir, Path, PathBuf, Result, STORE_VERSION, SystemTime, root_dir_policy,
+    DirPolicy,
+    OpenDir,
+    Path,
+    PathBuf,
+    Result,
+    STORE_VERSION,
+    SystemTime,
+    root_dir_policy,
 };
 use std::{
     cmp::Reverse,
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     io,
     sync::Arc,
     vec::IntoIter,
@@ -150,7 +160,8 @@ pub(in crate::cache_maintenance) async fn prune_empty_cache_dirs(
     let root_path = cache_dir.to_path_buf();
     tokio::task::spawn_blocking(move || prune_empty_cache_dirs_sync(&root_handle, &root_path))
         .await
-        .map_err(|err| io::Error::other(err.to_string()))?
+        .map_err(|err| err.to_string())
+        .map_err(io::Error::other)?
 }
 
 fn prune_empty_cache_dirs_sync(root: &OpenDir, cache_dir: &Path) -> Result<()> {

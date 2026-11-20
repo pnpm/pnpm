@@ -1,9 +1,24 @@
 use super::{
-    Arc, Config, DependencyGroup, HashSet, InteractiveUpdateOptions, InteractiveUpdateProject,
-    Lockfile, OutdatedPackage, OutdatedQuery, Path, Reporter, TargetVersion, ThrottledClient,
-    UpdateDetails, ignored_dependencies_matcher,
+    Arc,
+    Config,
+    DependencyGroup,
+    HashSet,
+    InteractiveUpdateOptions,
+    InteractiveUpdateProject,
+    Lockfile,
+    OutdatedPackage,
+    OutdatedQuery,
+    Path,
+    Reporter,
+    TargetVersion,
+    ThrottledClient,
+    UpdateDetails,
+    ignored_dependencies_matcher,
 };
-use crate::cli_args::outdated::{OutdatedRun, collect_outdated_for_importer_in_run};
+use crate::cli_args::outdated::{
+    OutdatedRun,
+    collect_outdated_for_importer_in_run,
+};
 use pnpm_github_actions as github_actions;
 
 pub(super) struct ChoiceFilter<'a> {
@@ -132,7 +147,7 @@ fn unique_choices(
     choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
     // Keyed by workspace as well, so an entry each project contributed
-    // survives to [`super::choices::update_choices`] — that is what lets a
+    // survives to [`super::choices::update_choices`], that is what lets a
     // collapsed row name every project it covers instead of the first.
     let mut unique = HashSet::new();
     let mut collected = Vec::new();

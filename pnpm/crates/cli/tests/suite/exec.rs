@@ -3,9 +3,15 @@ use crate::_utils::write_executable;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 #[cfg(target_os = "windows")]
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::Duration,
+};
 
 #[test]
 fn exec_sets_package_manager_environment() {
@@ -17,15 +23,15 @@ fn exec_sets_package_manager_environment() {
         for name in ["npm_execpath", "npm_node_execpath", "NODE", "INIT_CWD"] {
             match inherited {
                 Some(value) => {
-                    pacquet.env(name, value);
+                    pacquet = pacquet.with_env(name, value);
                 }
                 None => {
-                    pacquet.env_remove(name);
+                    pacquet = pacquet.without_env(name);
                 }
             }
         }
         let output = pacquet
-            .args(["exec", "node", "-e", "console.log(JSON.stringify(Object.fromEntries(['npm_execpath', 'npm_node_execpath', 'NODE', 'INIT_CWD'].map(key => [key, process.env[key]]))))"])
+            .with_args(["exec", "node", "-e", "console.log(JSON.stringify(Object.fromEntries(['npm_execpath', 'npm_node_execpath', 'NODE', 'INIT_CWD'].map(key => [key, process.env[key]]))))"])
             .assert()
             .success()
             .get_output()
@@ -47,14 +53,17 @@ fn exec_sets_package_manager_environment() {
 #[cfg(unix)]
 #[test]
 fn exec_sets_node_environment_with_non_utf8_path() {
-    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+    use std::{
+        ffi::OsString,
+        os::unix::ffi::OsStringExt,
+    };
 
-    let CommandTempCwd { mut pacquet, root, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
     let mut path = OsString::from_vec(b"/non-utf8-\xff:".to_vec());
     path.push(std::env::var_os("PATH").expect("PATH"));
     let output = pacquet
-        .env("PATH", path)
-        .args(["exec", "node", "-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .with_env("PATH", path)
+        .with_args(["exec", "node", "-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
         .assert().success().get_output().stdout.clone();
     let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
     let node_path = env["NODE"].as_str().expect("node executable path");
@@ -69,10 +78,13 @@ fn exec_sets_node_environment_with_non_utf8_path() {
 fn exec_preserves_non_utf8_node_paths() {
     use std::{
         ffi::OsString,
-        os::unix::{ffi::OsStringExt, fs::symlink},
+        os::unix::{
+            ffi::OsStringExt,
+            fs::symlink,
+        },
     };
 
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let bin_dir = workspace.join(OsString::from_vec(b"node-\xff".to_vec()));
     fs::create_dir(&bin_dir).expect("create Node directory");
     symlink(which::which("node").expect("find node"), bin_dir.join("node"))
@@ -81,8 +93,8 @@ fn exec_preserves_non_utf8_node_paths() {
     path.push(":");
     path.push(std::env::var_os("PATH").expect("PATH"));
     pacquet
-        .env("PATH", path)
-        .args(["exec", "/bin/sh", "-c", r#""$NODE" -p 42; "$npm_node_execpath" -p 42"#])
+        .with_env("PATH", path)
+        .with_args(["exec", "/bin/sh", "-c", r#""$NODE" -p 42; "$npm_node_execpath" -p 42"#])
         .assert()
         .success()
         .stdout("42\n42\n");
@@ -91,16 +103,16 @@ fn exec_preserves_non_utf8_node_paths() {
 
 #[test]
 fn exec_clears_inherited_node_environment_without_node_on_path() {
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let node = which::which("node").expect("find node");
     let empty_path = workspace.join("empty-path");
     fs::create_dir(&empty_path).expect("create empty PATH directory");
     let output = pacquet
-        .env("PATH", &empty_path)
-        .env("NODE", "/stale/node")
-        .env("npm_node_execpath", "/stale/node")
-        .arg("exec").arg(node)
-        .args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+        .with_env("PATH", &empty_path)
+        .with_env("NODE", "/stale/node")
+        .with_env("npm_node_execpath", "/stale/node")
+        .with_arg("exec").with_arg(node)
+        .with_args(["-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
         .assert().success().get_output().stdout.clone();
     let env: serde_json::Value = serde_json::from_slice(&output).expect("parse child environment");
     assert_eq!(env, serde_json::json!({}));
@@ -110,14 +122,14 @@ fn exec_clears_inherited_node_environment_without_node_on_path() {
 #[test]
 fn exec_preserves_configured_node_environment() {
     for node_override in ["/configured/node", ""] {
-        let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         fs::write(workspace.join("package.json"), "{}").expect("write manifest");
         let hook = format!(
             "module.exports = {{ hooks: {{ updateConfig(config) {{ config.extraEnv = {{ ...config.extraEnv, NODE: '{node_override}' }}; return config }} }} }}",
         );
         fs::write(workspace.join(".pnpmfile.cjs"), hook).expect("write pnpmfile");
         let output = pacquet
-            .args(["exec", "node", "-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
+            .with_args(["exec", "node", "-e", "console.log(JSON.stringify({ NODE: process.env.NODE, npm_node_execpath: process.env.npm_node_execpath }))"])
             .assert()
             .success()
             .get_output()
@@ -138,7 +150,7 @@ fn exec_preserves_configured_node_environment() {
 
 #[test]
 fn exec_does_not_resolve_node_from_project_bin() {
-    let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").expect("write manifest");
     let bin_dir = workspace.join("node_modules").join(".bin");
     fs::create_dir_all(&bin_dir).expect("create .bin directory");
@@ -156,7 +168,7 @@ fn exec_does_not_resolve_node_from_project_bin() {
     }
     let expected_node = which::which("node").expect("find real node");
     let output = pacquet
-        .args([
+        .with_args([
             "exec",
             expected_node.to_str().unwrap(),
             "-e",
@@ -201,7 +213,7 @@ fn exec_runs_binary_from_node_modules_bin() {
 }
 
 /// From a plain subdirectory of a project the command runs where the user
-/// stands, while the executable comes from the project — pnpm's `exec`
+/// stands, while the executable comes from the project, pnpm's `exec`
 /// takes its working directory from `cliOptions.dir ?? process.cwd()` and
 /// its `PATH` from the project.
 #[cfg(unix)]
@@ -358,8 +370,7 @@ fn exec_keeps_inherited_pwd_when_running_in_the_invocation_dir() {
     let linked = root.path().join("linked");
     std::os::unix::fs::symlink(&workspace, &linked).expect("symlink the workspace");
 
-    pacquet.current_dir(&linked);
-    pacquet.env("PWD", &linked);
+    pacquet = pacquet.with_current_dir(&linked).with_env("PWD", &linked);
     pacquet
         .with_arg("exec")
         .with_arg("node")
@@ -390,7 +401,11 @@ const WAITER_PID_ENV: &str = "PNPM_TEST_DETACHED_WAITER_PID";
 #[cfg(target_os = "windows")]
 #[test]
 fn exec_output_ends_while_a_detached_grandchild_runs() {
-    use std::{io::Read, process::Stdio, sync::mpsc};
+    use std::{
+        io::Read,
+        process::Stdio,
+        sync::mpsc,
+    };
 
     if let Some(waiter_pid_path) = std::env::var_os(WAITER_PID_ENV) {
         start_detached_waiter(Path::new(&waiter_pid_path));
@@ -423,7 +438,7 @@ fn exec_output_ends_while_a_detached_grandchild_runs() {
 
     if let Ok(pid) = fs::read_to_string(&waiter_pid_path) {
         let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/PID", pid.trim()])
+            .with_args(["/F", "/PID", pid.trim()])
             .output();
     }
     assert_eq!(status.code(), Some(0), "the detached spawn should succeed: {output:?}");
@@ -440,12 +455,26 @@ fn exec_output_ends_while_a_detached_grandchild_runs() {
 /// runs under `pnpm exec`.
 #[cfg(target_os = "windows")]
 fn start_detached_waiter(waiter_pid_path: &Path) {
-    use std::{os::windows::process::CommandExt, process::Stdio};
+    use std::{
+        os::windows::process::CommandExt,
+        process::Stdio,
+    };
     use windows_sys::Win32::{
-        Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation},
+        Foundation::{
+            HANDLE_FLAG_INHERIT,
+            SetHandleInformation,
+        },
         System::{
-            Console::{GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE},
-            Threading::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS},
+            Console::{
+                GetStdHandle,
+                STD_ERROR_HANDLE,
+                STD_INPUT_HANDLE,
+                STD_OUTPUT_HANDLE,
+            },
+            Threading::{
+                CREATE_NEW_PROCESS_GROUP,
+                DETACHED_PROCESS,
+            },
         },
     };
 
@@ -457,10 +486,10 @@ fn start_detached_waiter(waiter_pid_path: &Path) {
         }
     }
     let waiter_pid = std::process::Command::new("node")
-        .args(["-e", "setTimeout(() => {}, 60000)"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_args(["-e", "setTimeout(() => {}, 60000)"])
+        .with_stdin(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
         .spawn()
         .expect("spawn the detached waiter")

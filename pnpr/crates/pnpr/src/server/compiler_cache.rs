@@ -1,16 +1,35 @@
 use axum::{
     body::Bytes,
-    extract::{Path, Request, State},
-    http::{Method, StatusCode, header},
+    extract::{
+        Path,
+        Request,
+        State,
+    },
+    http::{
+        Method,
+        StatusCode,
+        header,
+    },
     middleware::Next,
-    response::{IntoResponse as _, Response},
+    response::{
+        IntoResponse as _,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
-use pnpr_shared_artifacts::{CompilerCacheKey, OwnerGrant};
+use pnpr_shared_artifacts::{
+    CompilerCacheKey,
+    OwnerGrant,
+};
 use serde::Deserialize;
 
-use super::{AppState, AuthedCaller, CallerOwners, private_no_cache};
+use super::{
+    AppState,
+    AuthedCaller,
+    CallerOwners,
+    private_no_cache,
+};
 
 pub(super) async fn read(
     State(state): State<AppState>,

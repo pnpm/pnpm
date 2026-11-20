@@ -1,9 +1,28 @@
 use super::{
-    AssembleReleasePlanOptions, AutoExcludeRoot, Config, HashMap, HashSet, Host, Path, VersionArgs,
-    VersionChange, VersionError, apply_release_plan, assemble_release_plan, changelog,
-    confirmed_published_versions, discover_workspace_projects, is_git_repo, is_working_tree_clean,
-    read_change_intents, read_ledger, render_release_plan, run_version_lifecycle_hook,
-    select_recursive_projects, to_engine_projects, unpublished_release_dirs,
+    AssembleReleasePlanOptions,
+    AutoExcludeRoot,
+    Config,
+    HashMap,
+    HashSet,
+    Host,
+    Path,
+    VersionArgs,
+    VersionChange,
+    VersionError,
+    apply_release_plan,
+    assemble_release_plan,
+    changelog,
+    confirmed_published_versions,
+    discover_workspace_projects,
+    is_git_repo,
+    is_working_tree_clean,
+    read_change_intents,
+    read_ledger,
+    render_release_plan,
+    run_version_lifecycle_hook,
+    select_recursive_projects,
+    to_engine_projects,
+    unpublished_release_dirs,
 };
 use miette::Context as _;
 
@@ -189,7 +208,7 @@ impl PlannedWorkspaceRelease {
     /// A full (unfiltered) run garbage-collects the intent files an empty plan
     /// leaves behind: declined ("none"-only) intents and files a merge
     /// resurrected after every named package had already consumed them. A
-    /// filtered run must not — "nothing pending in this scope" is no reason to
+    /// filtered run must not; "nothing pending in this scope" is no reason to
     /// delete prose belonging to packages outside the filter.
     async fn apply_empty_release(
         &self,

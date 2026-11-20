@@ -1,4 +1,9 @@
-use super::{FormPart, MultipartError, boundary, parse_form};
+use super::{
+    FormPart,
+    MultipartError,
+    boundary,
+    parse_form,
+};
 
 /// Encode `parts` the way `twine` (via `requests`) does: CRLF line endings,
 /// a `Content-Disposition` per part, and a closing `--boundary--`.

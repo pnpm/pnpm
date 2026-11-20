@@ -1,4 +1,11 @@
-use super::{CommandExtra, CommandTempCwd, Path, assert_eq, fs, pacquet_at};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    assert_eq,
+    fs,
+    pacquet_at,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 fn workspace(workspace: &Path) {

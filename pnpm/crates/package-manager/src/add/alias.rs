@@ -1,8 +1,12 @@
 use super::{
-    AddError, AddResolveInputs,
+    AddError,
+    AddResolveInputs,
     range_fallback::workspace_range_fallback,
     specifier::{
-        ProtocolSelector, SaveSpecifier, explicit_registry_save_specifier, resolve_fallback_range,
+        ProtocolSelector,
+        SaveSpecifier,
+        explicit_registry_save_specifier,
+        resolve_fallback_range,
     },
 };
 use pnpm_package_manifest::PackageManifest;

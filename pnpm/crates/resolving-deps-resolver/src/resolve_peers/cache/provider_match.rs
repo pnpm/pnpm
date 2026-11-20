@@ -1,4 +1,10 @@
-use super::{CacheMatch, HashSet, NodeId, ParentRef, Walker};
+use super::{
+    CacheMatch,
+    HashSet,
+    NodeId,
+    ParentRef,
+    Walker,
+};
 use pnpm_deps_path::index_of_dep_path_suffix;
 use std::collections::VecDeque;
 

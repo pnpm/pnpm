@@ -1,13 +1,26 @@
 //! Whether the manifests on disk still agree with the lockfile.
 
 use super::{
-    Config, DependencyGroup, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
-    PackageManifest, Path, ProjectSnapshot, WorkspaceState,
+    Config,
+    DependencyGroup,
+    ImporterDepVersion,
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+    ProjectSnapshot,
+    WorkspaceState,
     current_lockfile::{
-        CurrentLockfile, OUTDATED_DEPS, current_records_importer, selection_has_dependencies,
+        CurrentLockfile,
+        OUTDATED_DEPS,
+        current_records_importer,
+        selection_has_dependencies,
         selection_matches_wanted_lockfile,
     },
-    freshness::{ProjectStatus, Stale},
+    freshness::{
+        ProjectStatus,
+        Stale,
+    },
     validation::manifest_digest,
 };
 use rayon::prelude::*;
@@ -38,7 +51,8 @@ pub(crate) fn manifest_stats(
         .map(|(root_dir, manifest)| {
             let digest = project_manifests
                 .recorded_digest(root_dir)
-                .map_or_else(|| manifest_digest(manifest), str::to_string);
+                .map(str::to_string)
+                .unwrap_or_else(|| manifest_digest(manifest));
             ManifestStat { root_dir, manifest, status: status(root_dir, manifest, digest) }
         })
         .collect()
@@ -367,7 +381,7 @@ fn linked_dep_is_up_to_date(
     if crate::install::is_declared_local_directory(&dep.specifier) {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
-        // `packages:` entry — up to date by construction.
+        // `packages:` entry, up to date by construction.
         return matches!(dep.version, ImporterDepVersion::Link(_));
     }
     let link_target = dep.version.as_link_target();

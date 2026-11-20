@@ -1,15 +1,25 @@
 //! Provisioned SCIM user resources and deprovision tombstones.
 
 use super::{
-    adapter::{Connection, Row},
+    adapter::{
+        Connection,
+        Row,
+    },
     batch::WriteTransaction,
     records::advance_record_generation,
-    to_column, to_generation,
+    to_column,
+    to_generation,
     transactions::Freshness,
 };
 use crate::Storage;
-use pnpr_error::{RegistryError, Result};
-use serde_json::{Map, Value};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoredScimUser {

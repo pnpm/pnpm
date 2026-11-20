@@ -1,20 +1,29 @@
 //! What the resolver reads off an *importer's* manifest to seed a walk:
 //! which of its direct dependencies are optional or injected, and the
-//! wanted specs the walk starts from. The package side of the same job —
-//! what the walk reads off each resolved package — lives in
+//! wanted specs the walk starts from. The package side of the same job
+//! (what the walk reads off each resolved package) lives in
 //! [`super::manifest`].
 
 use std::path::Path;
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::is_acceptable_peer_spec;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use serde_json::Value;
 
 use super::{
-    DependencySpec, ResolveDependencyTreeError, catalogs::catalog_anchor,
-    dependency_meta_is_injected, resolve_catalog_specifiers,
+    DependencySpec,
+    ResolveDependencyTreeError,
+    catalogs::catalog_anchor,
+    dependency_meta_is_injected,
+    resolve_catalog_specifiers,
 };
 
 /// Names the importer in a diagnostic by the directory of its manifest.
@@ -68,7 +77,7 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
 /// spreading the groups in order: `peerDependencies` first (when
 /// `auto_install_peers`), then `devDependencies` < `dependencies` <
 /// `optionalDependencies`, a later group's range replacing an earlier
-/// one — matching `filterDependenciesByType` in
+/// one, matching `filterDependenciesByType` in
 /// `@pnpm/pkg-manifest.utils` (`{...dev, ...prod, ...optional}`), so a
 /// regular dep wins over a devDependency of the same alias, and either
 /// wins over its peer range.
@@ -76,7 +85,7 @@ fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
 /// Shared by [`fn@crate::resolve_importer`] (which walks them) and the
 /// `time-based` cutoff pre-pass in [`fn@crate::resolve_workspace`]
 /// (which only needs the resolved direct-dep publish dates), so both
-/// see the identical direct-dep set — the importer-dep computation runs
+/// see the identical direct-dep set, the importer-dep computation runs
 /// once before resolving an importer's deps.
 ///
 /// Fails with

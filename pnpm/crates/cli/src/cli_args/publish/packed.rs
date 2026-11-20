@@ -1,14 +1,29 @@
 //! A project directory packed for publishing.
 
-use super::{PublishArgs, PublishScope, run_publish_scripts};
-use miette::{Context, IntoDiagnostic};
+use super::{
+    PublishArgs,
+    PublishScope,
+    run_publish_scripts,
+};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
+use pnpm_pack::{
+    Host as PackHost,
+    PackOptions,
+    PackResult,
+    api as pack_api,
+};
 use pnpm_publish::PackedPkg;
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 pub(super) struct PackedDirectory {
     pub(super) project_dir: std::path::PathBuf,

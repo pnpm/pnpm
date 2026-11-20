@@ -15,12 +15,22 @@
 //! registry that serves tars describes the version with it.
 
 use super::attachments::PublishedTar;
-use pnpm_release_record::{Purl, RECORD_SCHEMA};
+use pnpm_release_record::{
+    Purl,
+    RECORD_SCHEMA,
+};
 use pnpm_tarball::PublicationArchive;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{DerivedTar, database::ReleaseRecords};
-use serde_json::{Map, Value, json};
+use pnpr_storage::{
+    DerivedTar,
+    database::ReleaseRecords,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::collections::BTreeMap;
 
 /// The digests a record's manifest was derived from: the `.tgz` as

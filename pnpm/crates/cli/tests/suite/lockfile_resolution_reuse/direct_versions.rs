@@ -1,4 +1,10 @@
-use super::{AddMockedRegistry, CommandExtra, CommandTempCwd, fs, pacquet_at};
+use super::{
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    fs,
+    pacquet_at,
+};
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_lockfile::Lockfile;
 use std::path::Path;

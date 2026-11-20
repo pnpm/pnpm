@@ -1,8 +1,20 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, ParsePkgVerPeerError, PkgName, PkgNameVerPeer,
-    PkgVerPeer, RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballRevision,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    ParsePkgVerPeerError,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballRevision,
 };
 use pnpm_registry::PackageVersion;
 use pnpm_resolving_npm_resolver::InvalidTarballRevisionMetadataError;

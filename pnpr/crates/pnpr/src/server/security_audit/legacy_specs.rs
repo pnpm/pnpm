@@ -1,7 +1,13 @@
 use std::collections::HashSet;
 
-use node_semver::{Range, Version};
-use serde_json::{Map, Value};
+use node_semver::{
+    Range,
+    Version,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 pub(super) const REDACTED_SCOPE_PREFIX: &str = "pnpr-redacted-scope-";
 
@@ -135,7 +141,10 @@ pub(super) fn is_safe_semver_range(raw: &str) -> bool {
     if trimmed == "*" || trimmed.eq_ignore_ascii_case("latest") {
         return true;
     }
-    let all_clauses_valid = trimmed.split("||").all(|clause| is_strict_range_clause(clause.trim()));
+    let all_clauses_valid = trimmed
+        .split("||")
+        .map(str::trim)
+        .all(is_strict_range_clause);
     all_clauses_valid && Range::parse(trimmed).is_ok()
 }
 
@@ -184,7 +193,9 @@ fn is_strict_version_token(token: &str) -> bool {
     let valid_core = (0..3).all(|_| {
         parts
             .next()
-            .is_some_and(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+            .filter(|part| !part.is_empty())
+            .map(str::bytes)
+            .is_some_and(|mut bytes| bytes.all(|b| b.is_ascii_digit()))
     });
     valid_core && parts.next().is_none()
 }

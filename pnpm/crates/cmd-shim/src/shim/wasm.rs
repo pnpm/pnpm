@@ -1,4 +1,8 @@
-use super::{ScriptRuntime, relative_target, relocatable::is_within_root};
+use super::{
+    ScriptRuntime,
+    relative_target,
+    relocatable::is_within_root,
+};
 use serde_json::json;
 use std::path::Path;
 

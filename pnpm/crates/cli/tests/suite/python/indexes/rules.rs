@@ -1,7 +1,14 @@
 use super::{
-    add_python_settings, assert_failure_contains, pacquet_in, project, python, serve, wheel,
+    add_python_settings,
+    assert_failure_contains,
+    pacquet_in,
+    project,
+    python,
+    serve,
+    wheel,
 };
 use assert_cmd::assert::OutputAssertExt;
+use command_extra::CommandExtra;
 use std::fs;
 
 #[tokio::test]
@@ -37,15 +44,15 @@ async fn dependency_overrides_and_constraints_apply_during_install_and_frozen_re
             );
         }
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
         python(root.path())
-            .args(["-c", "import beta; assert beta.VERSION == '2.0'"])
+            .with_args(["-c", "import beta; assert beta.VERSION == '2.0'"])
             .assert()
             .success();
         pacquet_in(root.path())
-            .args(["install", "--frozen-lockfile", "--offline"])
+            .with_args(["install", "--frozen-lockfile", "--offline"])
             .assert()
             .success();
     }
@@ -73,20 +80,20 @@ async fn uv_workspace_root_rules_apply_to_members_without_a_root_project() {
     fs::create_dir_all(&member).unwrap();
     fs::write(member.join("pyproject.toml"), "[project]\nname = 'app'\nversion = '1.0'\ndependencies = ['alpha']\n[tool.uv]\noverride-dependencies = ['beta>=3']\n").unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(&member)
-        .args(["-c", "import beta; assert beta.VERSION == '2.0'"])
+        .with_args(["-c", "import beta; assert beta.VERSION == '2.0'"])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--frozen-lockfile", "--offline"])
+        .with_args(["install", "--frozen-lockfile", "--offline"])
         .assert()
         .success();
     fs::write(root.path().join("pyproject.toml"), "[tool.uv]\noverride-dependencies = ['beta>=2']\nconstraint-dependencies = ['beta<2']\n[tool.uv.workspace]\nmembers = ['packages/*']\n").unwrap();
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--frozen-lockfile"]),
+        &mut pacquet_in(root.path()).with_args(["install", "--frozen-lockfile"]),
         "overrides or constraints changed",
     );
 }
@@ -104,11 +111,11 @@ async fn version_constraints_apply_to_direct_wheels_without_changing_their_sourc
     project(root.path(), &server.url(), &[&format!("alpha @ {url}")]);
     add_python_settings(root.path(), "  constraints: ['alpha<2']\n");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     artifact.assert_async().await;
@@ -116,7 +123,7 @@ async fn version_constraints_apply_to_direct_wheels_without_changing_their_sourc
     let contents = fs::read_to_string(&settings).unwrap();
     fs::write(settings, contents.replace("alpha<2", "alpha>=2")).unwrap();
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "Python dependency resolution failed",
     );
 }
@@ -130,7 +137,7 @@ async fn dependency_rules_reject_url_requirements() {
         "  overrides: ['alpha @ https://example.test/alpha-1.0-py3-none-any.whl']\n",
     );
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "ERR_PNPM_UNSUPPORTED_PYTHON_RULE",
     );
 }
@@ -175,15 +182,15 @@ async fn overrides_replace_extras_and_keep_new_transitive_direct_sources_active(
     project(root.path(), &server.url(), &["alpha"]);
     add_python_settings(root.path(), "  overrides: ['beta[helpers]>=2']\n");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha, beta, helper"])
+        .with_args(["-c", "import alpha, beta, helper"])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     artifact.assert_async().await;

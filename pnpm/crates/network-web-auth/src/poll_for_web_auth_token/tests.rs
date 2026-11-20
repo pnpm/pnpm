@@ -1,6 +1,12 @@
 use std::{
-    cell::{Cell, RefCell},
-    future::{self, Future},
+    cell::{
+        Cell,
+        RefCell,
+    },
+    future::{
+        self,
+        Future,
+    },
     rc::Rc,
 };
 
@@ -8,10 +14,19 @@ use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 
 use super::{
-    WebAuthFetchOptions, WebAuthFetchResponse, WebAuthRetryOptions, WebAuthTokenPollParams,
-    body_may_carry_token, poll_for_web_auth_token,
+    WebAuthFetchOptions,
+    WebAuthFetchResponse,
+    WebAuthRetryOptions,
+    WebAuthTokenPollParams,
+    body_may_carry_token,
+    poll_for_web_auth_token,
 };
-use crate::capabilities::{Clock, Sleep, WebAuthFetch, WebAuthFetchError};
+use crate::capabilities::{
+    Clock,
+    Sleep,
+    WebAuthFetch,
+    WebAuthFetchError,
+};
 
 #[test]
 fn body_may_carry_token_only_for_a_successful_non_202() {
@@ -44,10 +59,7 @@ fn token_decodes_an_invalid_utf8_body_lossily() {
     body.extend_from_slice(br#"b"}"#);
     let response =
         WebAuthFetchResponse { ok: true, status: 200, retry_after: None, body, truncated: false };
-    assert_eq!(
-        response.token().expect("parse the lossily-decoded body"),
-        Some("a\u{FFFD}b".to_owned()),
-    );
+    assert_eq!(response.token().expect("parse the lossily-decoded body"), Some("a�b".to_owned()));
 }
 
 /// A leading UTF-8 BOM is stripped before parsing, matching the TypeScript
@@ -68,7 +80,7 @@ type FetchScript =
     Box<dyn FnMut(&str, &WebAuthFetchOptions) -> Result<WebAuthFetchResponse, WebAuthFetchError>>;
 
 /// How the [`Sleep`] fake moves the [`Clock`] fake forward. The two share
-/// the `TIME` cell so a test can drive the timeout deterministically —
+/// the `TIME` cell so a test can drive the timeout deterministically,
 /// mirroring the TS tests where `setTimeout` mutates the same `time`
 /// variable `Date.now` reads.
 #[derive(Clone, Copy)]
@@ -202,7 +214,7 @@ fn ok_json(body: &serde_json::Value) -> WebAuthFetchResponse {
 
 /// A `200` response whose body the provider capped at the size limit. Its
 /// body carries a real token, so a poll that still ignores it proves the
-/// truncation — not a missing token — is what makes it keep waiting.
+/// truncation (not a missing token) is what makes it keep waiting.
 fn ok_truncated() -> WebAuthFetchResponse {
     WebAuthFetchResponse {
         ok: true,

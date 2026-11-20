@@ -8,27 +8,66 @@
 //! `taskScheduler.ts` in pnpm's `@pnpm/workspace.task-scheduler`.
 
 pub use asynchronous::schedule_graph_async;
-pub use build::{build_pipeline_task_graph, build_task_graph};
+pub use build::{
+    build_pipeline_task_graph,
+    build_task_graph,
+};
 pub use graph::{
-    DryRunDocument, DryRunTask, DryRunTaskDependency, SequenceTasksOptions, format_task,
-    is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
-    sequence_tasks, task_graph_to_json, task_summary_key,
+    DryRunDocument,
+    DryRunTask,
+    DryRunTaskDependency,
+    SequenceTasksOptions,
+    format_task,
+    is_serial_task_graph,
+    render_task_graph_dry_run,
+    resume_task_graph_from,
+    reverse_task_graph,
+    sequence_tasks,
+    task_graph_to_json,
+    task_summary_key,
 };
 pub use graph_sequencer::{
-    GraphSequencerResult, PathNode, StronglyConnectedComponents, graph_sequencer,
+    GraphSequencerResult,
+    PathNode,
+    StronglyConnectedComponents,
+    graph_sequencer,
 };
-pub use synchronous::{schedule_graph, schedule_tasks};
+pub use synchronous::{
+    schedule_graph,
+    schedule_tasks,
+};
 
-use derive_more::{Display, Error};
-use futures_util::{StreamExt, stream::FuturesUnordered};
+use derive_more::{
+    Display,
+    Error,
+};
+use futures_util::{
+    StreamExt,
+    stream::FuturesUnordered,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
 use serde::Serialize;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    path::{Path, PathBuf},
-    sync::{Condvar, Mutex, MutexGuard},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Condvar,
+        Mutex,
+        MutexGuard,
+    },
 };
 
 mod graph_sequencer;
@@ -47,7 +86,7 @@ pub struct TaskNode {
     pub project: PathBuf,
     pub task_name: String,
     pub concurrency: Option<usize>,
-    /// The scripts of the project that the task name selected — several
+    /// The scripts of the project that the task name selected, several
     /// when the task name is a `RegExp` selector. Empty when the project has
     /// no such script: the task is then a pass-through that runs nothing,
     /// completes as soon as its dependencies have, and is reported as
@@ -64,7 +103,7 @@ pub struct TaskNode {
 /// selection order the project graph established.
 pub type TaskGraph = IndexMap<TaskKey, TaskNode>;
 
-/// `The tasks form a dependency cycle` — a cyclic task graph cannot be
+/// `The tasks form a dependency cycle`: a cyclic task graph cannot be
 /// scheduled, and running it in an arbitrary order would succeed or fail by
 /// luck.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -120,9 +159,9 @@ where
     pub select_scripts: SelectScripts,
     /// The tasks the pipeline requests; every requested project gets a
     /// task per name. A pipeline is a set, so the names carry no
-    /// ordering — any ordering among them is `dependsOn`'s job.
+    /// ordering, any ordering among them is `dependsOn`'s job.
     pub task_names: &'a [&'a str],
-    /// The projects whose tasks the invocation requests — the affected
+    /// The projects whose tasks the invocation requests, the affected
     /// set. `None` requests every project of `project_dependencies`. The
     /// rest of the map participates only through `dependsOn` edges, the
     /// way an upstream build is pulled in without its lint or tests.
@@ -148,7 +187,7 @@ pub enum TaskCompletion {
     Failed,
     /// The task was interrupted because another task caused the run to bail.
     Cancelled,
-    /// The task's work errored before it could run — an infrastructure
+    /// The task's work errored before it could run, an infrastructure
     /// failure, not a script failure. Stops dispatch like a bail.
     Aborted,
 }
@@ -166,8 +205,8 @@ where
     /// Runs one task's work. Not called for pass-through tasks (no scripts
     /// to run).
     pub run_task: &'a Run,
-    /// A task that runs nothing: a pass-through with no such script, or —
-    /// without `--bail` — a task some dependency of which did not pass.
+    /// A task that runs nothing: a pass-through with no such script, or
+    /// (without `--bail`) a task some dependency of which did not pass.
     /// Both are reported as skipped.
     pub on_task_skipped: &'a Skip,
 }
@@ -366,7 +405,10 @@ mod build;
 mod graph;
 
 mod synchronous;
-use synchronous::{node_edges, task_concurrency};
+use synchronous::{
+    node_edges,
+    task_concurrency,
+};
 
 mod asynchronous;
 use asynchronous::AbortOnUnwind;

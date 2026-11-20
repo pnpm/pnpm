@@ -1,8 +1,8 @@
 //! Reconcile an existing `node_modules` with the wanted lockfile before
 //! linking: the port of the removal half of pnpm's `modules-cleaner`
 //! `prune`. Removes direct-dependency links (and their bin shims) the
-//! wanted lockfile no longer records — or, under `dedupeDirectDeps`, that
-//! the workspace root now provides — unlinks hoisted aliases whose
+//! wanted lockfile no longer records (or, under `dedupeDirectDeps`, that
+//! the workspace root now provides) unlinks hoisted aliases whose
 //! owner snapshot disappeared, and emits the `pnpm:root` `removed` and
 //! `pnpm:stats` `removed` events pnpm emits from the same spot. Runs
 //! before the link passes so a follow-up hoist can claim the vacated
@@ -18,23 +18,46 @@ use crate::{
     SkippedSnapshots,
     hoist::HoistedDependencies,
     prune_direct_deps::{
-        PruneDirectDepsError, UnlinkedDependency, is_real_dir, remove_direct_dep_link,
+        PruneDirectDepsError,
+        UnlinkedDependency,
+        is_real_dir,
+        remove_direct_dep_link,
     },
-    symlink_direct_dependencies::{importer_root_dir, link_target_dir, validate_importer_id},
+    symlink_direct_dependencies::{
+        importer_root_dir,
+        link_target_dir,
+        validate_importer_id,
+    },
 };
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PkgName, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
 };
 use pnpm_modules_yaml::HoistKind;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    DependencyType, LogEvent, LogLevel, RemovedRoot, Reporter, RootLog, RootMessage,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    RemovedRoot,
+    Reporter,
+    RootLog,
+    RootMessage,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Remove what a previous install materialized that the wanted lockfile
@@ -199,7 +222,7 @@ impl<'a> StaleDirectDepLinks<'a> {
     /// `dedupeDirectDeps`'s removal half. The link pass only decides
     /// which links to *create*, so a sibling's link that an earlier
     /// install legitimately created has to be retired once the root
-    /// starts providing the same resolution — otherwise the layout would
+    /// starts providing the same resolution; otherwise the layout would
     /// depend on install history rather than on the manifests. Pnpm
     /// folds the same condition into this diff.
     fn wanted_root_deps(&self) -> Option<RootDeps<'a>> {
@@ -427,7 +450,7 @@ fn prune_orphan_snapshots(
 }
 
 /// Unlink one orphan's hoisted aliases from whichever of the two hoist
-/// dirs owns them. No `pnpm:root` event for hoist unlinks — pnpm
+/// dirs owns them. No `pnpm:root` event for hoist unlinks, pnpm
 /// removes these with `muteLogs: true`.
 fn unlink_hoisted_aliases(
     aliases: &indexmap::IndexMap<String, HoistKind>,
@@ -474,7 +497,7 @@ pub(crate) fn direct_deps_of<'a>(
     deps
 }
 
-/// Peer-free version string for the `pnpm:root` `removed` payload —
+/// Peer-free version string for the `pnpm:root` `removed` payload,
 /// the same wire formatting the `added` emit uses. A `link:` dependency
 /// has no lockfile version, so it reports its unlinked package's.
 fn removed_version(

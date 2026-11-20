@@ -2,9 +2,17 @@
 //! a package manager for itself.
 
 use super::{
-    Config, EnvInstallerContext, PNPM_VERSION, ResolveOptions, Result, resolve_engine_with,
+    Config,
+    EnvInstallerContext,
+    PNPM_VERSION,
+    ResolveOptions,
+    Result,
+    resolve_engine_with,
 };
-use miette::{IntoDiagnostic, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    WrapErr,
+};
 
 /// The pnpm version to record for a range pin that `running_version`
 /// satisfies.
@@ -85,7 +93,7 @@ pub(super) fn engine_resolve_options(
 ) -> Result<ResolveOptions> {
     let published_by = if ignore_maturity { None } else { engine_release_cutoff(config)? };
     // The running version is already on this machine, so hiding it behind the
-    // maturity cutoff protects nothing — it only makes a dist-tag that points
+    // maturity cutoff protects nothing; it only makes a dist-tag that points
     // at it fall back to an older release, downgrading the user
     // (pnpm/pnpm#13883).
     let published_by_exclude =

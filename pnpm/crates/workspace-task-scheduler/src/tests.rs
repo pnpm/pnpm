@@ -1,18 +1,46 @@
 use super::{
-    BuildPipelineTaskGraphOptions, BuildTaskGraphOptions, ScheduleGraphAsyncOptions,
-    ScheduleGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskCycle,
-    TaskDeclaration, TaskGraph, TaskKey, TaskNode, build_pipeline_task_graph, build_task_graph,
-    is_serial_task_graph, render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph,
-    schedule_graph, schedule_graph_async, schedule_tasks, sequence_tasks, task_graph_to_json,
+    BuildPipelineTaskGraphOptions,
+    BuildTaskGraphOptions,
+    ScheduleGraphAsyncOptions,
+    ScheduleGraphOptions,
+    ScheduleTasksOptions,
+    SequenceTasksOptions,
+    TaskCompletion,
+    TaskCycle,
+    TaskDeclaration,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    build_pipeline_task_graph,
+    build_task_graph,
+    is_serial_task_graph,
+    render_task_graph_dry_run,
+    resume_task_graph_from,
+    reverse_task_graph,
+    schedule_graph,
+    schedule_graph_async,
+    schedule_tasks,
+    sequence_tasks,
+    task_graph_to_json,
 };
 use indexmap::IndexMap;
 use pnpm_reporter::LogEvent;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Condvar, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Condvar,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
@@ -288,7 +316,7 @@ fn an_exact_tasks_entry_under_the_selector_name_keeps_it_one_task() {
 #[test]
 fn pipeline_graph_requests_every_task_name_only_in_the_requested_projects() {
     // `app` depends on `lib`; only `app` is requested, so `lib` gets no
-    // requested tasks of its own — but `app#build`'s `^build` edge still
+    // requested tasks of its own, but `app#build`'s `^build` edge still
     // pulls `lib#build` in, keeping the graph (and so a cache key built
     // over it) identical to what an unnarrowed run resolves.
     let projects =

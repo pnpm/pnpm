@@ -1,4 +1,10 @@
-use super::{_utils, CommandExtra, fs, pacquet_at, two_project_workspace};
+use super::{
+    _utils,
+    CommandExtra,
+    fs,
+    pacquet_at,
+    two_project_workspace,
+};
 use assert_cmd::assert::OutputAssertExt;
 use std::fmt::Write as _;
 

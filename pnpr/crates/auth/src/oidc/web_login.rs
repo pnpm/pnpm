@@ -1,7 +1,17 @@
 use jiff::Timestamp;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    time::Duration,
+};
 
-use super::{MAX_ENTRIES, OidcState, Result, random_secret, rejected, unavailable};
+use super::{
+    MAX_ENTRIES,
+    OidcState,
+    Result,
+    random_secret,
+    rejected,
+    unavailable,
+};
 
 #[cfg(test)]
 mod tests;
@@ -201,7 +211,8 @@ impl OidcState {
 fn normalize_user_code(user_code: &str) -> Option<String> {
     let letters: String = user_code
         .chars()
-        .filter(|char| !char.is_whitespace() && *char != '-')
+        .filter(|char| !char.is_whitespace())
+        .filter(|char| *char != '-')
         .map(|char| char.to_ascii_uppercase())
         .collect();
     (letters.len() == USER_CODE_LETTERS

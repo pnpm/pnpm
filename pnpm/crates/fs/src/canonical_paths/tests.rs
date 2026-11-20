@@ -1,5 +1,8 @@
 use super::CanonicalPaths;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn matches_std_canonicalize_for_non_existent() {

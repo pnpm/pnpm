@@ -1,12 +1,29 @@
 use super::SqliteAuth;
 use crate::{
-    NewToken, TokenBackend, TokenKind, TokenRecord,
-    token_store::{mint_token, sha256_hex, unix_millis},
-    validation::{token_timestamp_from_sql, token_timestamp_to_sql},
+    NewToken,
+    TokenBackend,
+    TokenKind,
+    TokenRecord,
+    token_store::{
+        mint_token,
+        sha256_hex,
+        unix_millis,
+    },
+    validation::{
+        token_timestamp_from_sql,
+        token_timestamp_to_sql,
+    },
 };
 use async_trait::async_trait;
-use pnpr_error::{RegistryError, Result};
-use pnpr_sql::adapter::{Connection, Param, Row};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_sql::adapter::{
+    Connection,
+    Param,
+    Row,
+};
 
 /// The `tokens` columns every token read selects, in the order
 /// [`decode_token`] reads them.
@@ -149,7 +166,8 @@ fn find_token(connection: &dyn Connection, key: &str) -> Result<Option<TokenReco
             &format!("SELECT {TOKEN_COLUMNS} FROM tokens t WHERE t.token_hash = ?1"),
             &[Param::Text(key)],
         )?
-        .map(|row| decode_token(row).map(|(_, record)| record))
+        .map(decode_token)
+        .map(|decode_token| decode_token.map(|(_, record)| record))
         .transpose()
 }
 

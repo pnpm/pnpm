@@ -1,9 +1,22 @@
 use std::path::Path;
 
 use super::{
-    ABBREVIATED_META_DIR, AuthHeaders, InMemoryPackageMetaCache, PACKAGE_BODY, PickPackageContext,
-    PickPackageError, RetryOpts, TempDir, ThrottledClient, assert_eq, default_opts,
-    get_pkg_mirror_path, load_meta, persist_meta_to_mirror, pick_package, range_spec,
+    ABBREVIATED_META_DIR,
+    AuthHeaders,
+    InMemoryPackageMetaCache,
+    PACKAGE_BODY,
+    PickPackageContext,
+    PickPackageError,
+    RetryOpts,
+    TempDir,
+    ThrottledClient,
+    assert_eq,
+    default_opts,
+    get_pkg_mirror_path,
+    load_meta,
+    persist_meta_to_mirror,
+    pick_package,
+    range_spec,
     shared_packument_fetch_locker,
 };
 
@@ -27,7 +40,7 @@ fn damage_mirror_fragment(cache_dir: &Path, registry: &str) -> Vec<u8> {
 }
 
 /// Offline, a damaged fragment leaves the mirror as unusable as a missing
-/// one — and there is no network to replace it from.
+/// one, and there is no network to replace it from.
 #[tokio::test]
 async fn offline_over_a_damaged_mirror_fragment_errors() {
     let mut server = mockito::Server::new_async().await;

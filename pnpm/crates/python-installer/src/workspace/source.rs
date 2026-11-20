@@ -2,12 +2,28 @@
 //! where that leaves the project it points at.
 
 use super::{
-    super::manifest::{Manifest, Source, SourceDeclaration},
-    LocalProject, parse_requirement,
+    super::manifest::{
+        Manifest,
+        Source,
+        SourceDeclaration,
+    },
+    LocalProject,
+    parse_requirement,
 };
-use miette::{IntoDiagnostic, Result, bail};
-use pep508_rs::{PackageName, Requirement, VerbatimUrl};
-use std::path::{Path, PathBuf};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+    VerbatimUrl,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// A source declaration, and the project directory that declared it. A
 /// relative path means the same thing to every project that inherits the

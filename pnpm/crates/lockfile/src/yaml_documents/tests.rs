@@ -1,8 +1,14 @@
 use super::{
-    READ_BUFFER_SIZE, extract_env_document, extract_main_document, read_first_yaml_document,
+    READ_BUFFER_SIZE,
+    extract_env_document,
+    extract_main_document,
+    read_first_yaml_document,
     read_first_yaml_document_in_chunks,
 };
-use std::io::{self, Read};
+use std::io::{
+    self,
+    Read,
+};
 
 #[test]
 fn returns_entire_content_when_it_does_not_start_with_separator() {
@@ -56,8 +62,8 @@ fn normalizes_a_single_document_file() {
     assert_eq!(extract_env_document(content), None);
 }
 
-/// Every marker the streaming reader looks for — the byte-order mark,
-/// the document start, a CRLF pair, the separator — is longer than one
+/// Every marker the streaming reader looks for (the byte-order mark,
+/// the document start, a CRLF pair, the separator) is longer than one
 /// byte, so each chunk size puts a different one across a boundary.
 #[track_caller]
 fn assert_streams(content: &str, expected: Option<&str>) {

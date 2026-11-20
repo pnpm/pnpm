@@ -1,10 +1,23 @@
 //! Random peer-dependency graphs shaped like pnpm lockfiles, hoisted
 //! under [`assert_resolves_as_declared`](super::resolution::assert_resolves_as_declared).
 
-use super::{HoistOpts, HoisterTree, Rc, nm_hoist, tree_node, tree_root};
+use super::{
+    HoistOpts,
+    HoisterTree,
+    Rc,
+    nm_hoist,
+    tree_node,
+    tree_root,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    panic::{AssertUnwindSafe, catch_unwind},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    panic::{
+        AssertUnwindSafe,
+        catch_unwind,
+    },
 };
 
 const NAMES: [&str; 6] = ["a", "b", "c", "d", "e", "f"];

@@ -1,4 +1,9 @@
-use super::{FsReadDir, HashSet, LinkBinsError, Path};
+use super::{
+    FsReadDir,
+    HashSet,
+    LinkBinsError,
+    Path,
+};
 use crate::link_bins::shim_writer::remove_if_exists;
 
 pub(super) fn remove_unclaimed(
@@ -62,7 +67,9 @@ pub fn prune_stale_bins_with<Sys: FsReadDir>(
 }
 
 fn is_symlink_or_junction(path: &Path) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+    std::fs::symlink_metadata(path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_symlink())
         || pnpm_fs::read_symlink_dir(path).is_ok()
 }
 

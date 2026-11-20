@@ -1,6 +1,12 @@
 use super::{
-    PackageSignature, RegistryKey, SignaturePackage, SignatureVerificationResult, parse_timestamp,
-    render_signature_verification_result, verify_one, verify_package_signatures,
+    PackageSignature,
+    RegistryKey,
+    SignaturePackage,
+    SignatureVerificationResult,
+    parse_timestamp,
+    render_signature_verification_result,
+    verify_one,
+    verify_package_signatures,
 };
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
@@ -20,7 +26,10 @@ fn public_key_b64(key: &SigningKey) -> String {
 }
 
 fn sign_b64(key: &SigningKey, message: &str) -> String {
-    use p256::ecdsa::{Signature, signature::Signer};
+    use p256::ecdsa::{
+        Signature,
+        signature::Signer,
+    };
     let signature: Signature = key.sign(message.as_bytes());
     base64::engine::general_purpose::STANDARD.encode(signature.to_der().as_bytes())
 }

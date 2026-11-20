@@ -1,9 +1,14 @@
 //! Config values in the form the workspace state records them.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{LinkWorkspacePackages, NodeLinker, TrustPolicy};
+use pnpm_config::{
+    LinkWorkspacePackages,
+    NodeLinker,
+    TrustPolicy,
+};
 use pnpm_workspace_state::{
-    NodeLinker as WorkspaceStateNodeLinker, TrustPolicy as WorkspaceStateTrustPolicy,
+    NodeLinker as WorkspaceStateNodeLinker,
+    TrustPolicy as WorkspaceStateTrustPolicy,
 };
 
 pub(crate) fn catalogs_to_json(catalogs: &Catalogs) -> serde_json::Value {

@@ -1,9 +1,18 @@
-use crate::cli_args::{install::resolve_bool_override, publish::PublishManifestArgs};
+use crate::cli_args::{
+    install::resolve_bool_override,
+    publish::PublishManifestArgs,
+};
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_pack::{PackManifestOptions, WorkspacePackageManifest};
+use pnpm_pack::{
+    PackManifestOptions,
+    WorkspacePackageManifest,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
     sync::Arc,
 };

@@ -1,6 +1,20 @@
 use super::{
-    BASE64, Body, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token,
-    body_json, common, json, npm_tgz, publish_doc, put_json, router, static_config,
+    BASE64,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    add_user_and_get_token,
+    body_json,
+    common,
+    json,
+    npm_tgz,
+    publish_doc,
+    put_json,
+    router,
+    static_config,
     static_config_with_packages,
 };
 use base64::Engine;

@@ -1,4 +1,7 @@
-use super::{filter_selector_args, install_config_args};
+use super::{
+    filter_selector_args,
+    install_config_args,
+};
 use pnpm_config::Config;
 use std::path::PathBuf;
 
@@ -29,7 +32,10 @@ fn filter_selector_args_keep_exclusions_and_dependency_selectors() {
 
 #[test]
 fn filter_selector_args_preserve_interleaved_and_positive_first_order() {
-    use pnpm_config::FilterSource::{Filter, FilterProd};
+    use pnpm_config::FilterSource::{
+        Filter,
+        FilterProd,
+    };
     assert_eq!(
         filter_selector_args(&selectors(&["!lib-a"]), &selectors(&["app..."]), &[]),
         ["--filter-prod=app...", "--filter=!lib-a"],

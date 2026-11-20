@@ -1,11 +1,23 @@
 //! Placing and removing the links of agent skills in the agent skill
 //! directories.
 
-use super::{AgentSkillsError, discovery::MAX_SKILL_DIR_DEPTH, targets::STANDARD_AGENT_DIRS};
+use super::{
+    AgentSkillsError,
+    discovery::MAX_SKILL_DIR_DEPTH,
+    targets::STANDARD_AGENT_DIRS,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    fs, io,
-    path::{Component, Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn prune(

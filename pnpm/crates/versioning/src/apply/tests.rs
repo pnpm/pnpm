@@ -1,19 +1,37 @@
-use std::{collections::HashSet, fs, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+};
 
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
-use super::{ReleaseNotesOptions, apply_release_plan};
+use super::{
+    ReleaseNotesOptions,
+    apply_release_plan,
+};
 use crate::{
     changelog::prepend_changelog_section,
-    intents::{IntentBumpType, read_change_intents, write_change_intent},
+    intents::{
+        IntentBumpType,
+        read_change_intents,
+        write_change_intent,
+    },
     ledger::read_ledger,
     pending::read_pending_changelog,
     plan::{
-        AssembleReleasePlanOptions, DependencyField, ManifestDependency, WorkspaceProject,
+        AssembleReleasePlanOptions,
+        DependencyField,
+        ManifestDependency,
+        WorkspaceProject,
         assemble_release_plan,
     },
-    settings::{ChangelogSettings, ChangelogStorage, VersioningSettings},
+    settings::{
+        ChangelogSettings,
+        ChangelogStorage,
+        VersioningSettings,
+    },
 };
 
 /// The changelog assertions opt into committed CHANGELOG.md files.

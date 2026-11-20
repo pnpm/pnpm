@@ -1,9 +1,15 @@
 //! `PostgreSQL` locks end with their transaction, so they hold behind a
 //! pooler that gives each transaction another server connection.
 
-use super::{Adapter as Backend, Db};
+use super::{
+    Adapter as Backend,
+    Db,
+};
 use crate::database::sql::{
-    adapter::{Adapter, WriteTransaction},
+    adapter::{
+        Adapter,
+        WriteTransaction,
+    },
     schema,
 };
 use pnpr_error::Result;
@@ -11,8 +17,13 @@ use std::time::Duration;
 
 mod on_postgres {
     use super::{
-        Duration, adapters, initialize, lock_schema_in_a_transaction,
-        migrate_after_an_ended_migration, migrate_during_an_open_write, write_after_an_ended_write,
+        Duration,
+        adapters,
+        initialize,
+        lock_schema_in_a_transaction,
+        migrate_after_an_ended_migration,
+        migrate_during_an_open_write,
+        write_after_an_ended_write,
     };
     use crate::database::sql::schema;
 

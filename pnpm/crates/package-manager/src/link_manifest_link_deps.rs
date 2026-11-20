@@ -1,25 +1,50 @@
 use crate::{
     SymlinkPackageError,
-    safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
+    safe_join_modules_dir::{
+        InvalidDependencyAliasError,
+        safe_join_modules_dir,
+    },
     symlink_package,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_lockfile::ProjectSnapshot;
 use pnpm_modules_yaml::IncludedDependencies;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{AddedRoot, DependencyType, LogEvent, LogLevel, RootLog, RootMessage};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    AddedRoot,
+    DependencyType,
+    LogEvent,
+    LogLevel,
+    RootLog,
+    RootMessage,
+};
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Symlink direct dependencies omitted from the lockfile importer because
@@ -164,7 +189,7 @@ fn link_project_manifest_deps<Reporter: pnpm_reporter::Reporter>(
         }
         for (alias, spec) in manifest.dependencies([group]) {
             if link_manifest_dep::<Reporter>(project, group, alias, spec)? {
-                // Bins are (re-)linked for reused symlinks too — the
+                // Bins are (re-)linked for reused symlinks too, the
                 // `.bin` entry may be missing even when the package
                 // link itself is already correct.
                 linked_aliases.push(alias.to_string());
@@ -204,7 +229,7 @@ fn link_manifest_dep<Reporter: pnpm_reporter::Reporter>(
     else {
         return Ok(false);
     };
-    // The alias is a raw `package.json` object key — an
+    // The alias is a raw `package.json` object key, an
     // unvalidated string. Route the join through the same
     // package-name validity check the lockfile-driven
     // passes apply, so a crafted alias (`../.git`, an
@@ -322,7 +347,7 @@ fn dependency_type_of(group: DependencyGroup) -> DependencyType {
 }
 
 /// `true` when the importer snapshot resolves `alias` in any of the
-/// non-peer dependency groups — i.e. the lockfile knows the dep and
+/// non-peer dependency groups, i.e. the lockfile knows the dep and
 /// the lockfile-driven passes own its materialization.
 pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> bool {
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
@@ -336,7 +361,7 @@ pub(crate) fn snapshot_has_alias(snapshot: &ProjectSnapshot, alias: &str) -> boo
 
 /// Resolve a `link:` payload against the project directory. An
 /// absolute payload is used as-is; a relative one (including the
-/// self-reference `link:.`) is anchored at the project dir — the same
+/// self-reference `link:.`) is anchored at the project dir, the same
 /// semantics pnpm applies to `link:` specifiers in a manifest.
 fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
     let path = Path::new(target);
@@ -346,7 +371,7 @@ fn resolve_link_target(project_dir: &Path, target: &str) -> PathBuf {
 /// Error type of the pass that links dependencies `excludeLinksFromLockfile` keeps out of the lockfile.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum LinkManifestLinkDepsError {
-    /// A dependency key that is not a valid npm package name — it
+    /// A dependency key that is not a valid npm package name; it
     /// would escape `node_modules/` (or collide with pnpm's layout)
     /// when joined as a directory name.
     #[diagnostic(transparent)]

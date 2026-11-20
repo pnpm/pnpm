@@ -4,7 +4,10 @@
 mod tests;
 
 use crate::DistributionKind;
-use std::io::{Cursor, Read};
+use std::io::{
+    Cursor,
+    Read,
+};
 
 /// Maximum size of a distribution metadata document.
 pub const MAX_METADATA_BYTES: usize = 8 * 1024 * 1024;

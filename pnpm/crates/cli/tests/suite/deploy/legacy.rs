@@ -1,9 +1,24 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Lockfile, PNPMFILE_SENTINEL, PackageKey,
-    PkgName, append_workspace_yaml_key, assert_ignored_broken_source_lockfile,
-    assert_workspace_lockfile_untouched, deployed_package_version, fs, pack_pnpmfile_with_project,
-    pacquet_cmd, set_app_foo_dependency, virtual_store_entries, write_project,
-    write_reachability_workspace, write_recording_pnpmfile, write_root_project_depending_on_lib,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Lockfile,
+    PNPMFILE_SENTINEL,
+    PackageKey,
+    PkgName,
+    append_workspace_yaml_key,
+    assert_ignored_broken_source_lockfile,
+    assert_workspace_lockfile_untouched,
+    deployed_package_version,
+    fs,
+    pack_pnpmfile_with_project,
+    pacquet_cmd,
+    set_app_foo_dependency,
+    virtual_store_entries,
+    write_project,
+    write_reachability_workspace,
+    write_recording_pnpmfile,
+    write_root_project_depending_on_lib,
     write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -52,8 +67,8 @@ fn legacy_deploy_includes_nested_linked_dependencies() {
 
     fs::rename(workspace.join("packages/lib"), workspace.join("source-lib")).unwrap();
     Command::new("node")
-        .current_dir(workspace.join("deployed"))
-        .arg("index.js")
+        .with_current_dir(workspace.join("deployed"))
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout("nested leaf\n");
@@ -114,8 +129,8 @@ fn legacy_deploy_resolves_local_dependencies_from_the_selected_project() {
 
     fs::rename(workspace.join("packages/app"), workspace.join("source-app")).unwrap();
     Command::new("node")
-        .current_dir(workspace.join("deployed"))
-        .arg("index.js")
+        .with_current_dir(workspace.join("deployed"))
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout(format!("{}\n", names.join(",")));
@@ -150,8 +165,8 @@ fn legacy_deploy_resolves_a_workspace_path_from_the_selected_project() {
 
     fs::rename(workspace.join("packages/lib"), workspace.join("source-lib")).unwrap();
     Command::new("node")
-        .current_dir(workspace.join("deployed"))
-        .arg("index.js")
+        .with_current_dir(workspace.join("deployed"))
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout("lib\n");
@@ -394,8 +409,8 @@ fn legacy_deploy_injects_workspace_peers_of_workspace_dependencies() {
     );
     fs::rename(workspace.join("packages"), workspace.join("source-packages")).unwrap();
     Command::new("node")
-        .current_dir(&deploy_dir)
-        .arg("index.js")
+        .with_current_dir(&deploy_dir)
+        .with_arg("index.js")
         .assert()
         .success()
         .stdout("workspace peer workspace foo\n");
@@ -988,7 +1003,7 @@ fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
 }
 
 /// A deploy install resolves the deployed project, not the workspace, and
-/// never saves the workspace lockfile — so it has not merged the branch
+/// never saves the workspace lockfile, so it has not merged the branch
 /// lockfiles and must not delete them.
 #[test]
 fn legacy_deploy_keeps_the_workspace_branch_lockfiles() {

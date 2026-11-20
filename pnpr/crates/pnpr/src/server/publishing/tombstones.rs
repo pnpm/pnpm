@@ -3,7 +3,10 @@ use serde_json::Value;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{PackageTombstone, Storage};
+use pnpr_storage::{
+    PackageTombstone,
+    Storage,
+};
 
 use super::attachments::ValidatedPublish;
 use crate::server::AppState;

@@ -1,9 +1,16 @@
 use crate::cli_args::add::AllowBuildSelector;
 use indexmap::IndexMap;
-use pnpm_config::{Config, PackageExtension, TrustPolicy};
+use pnpm_config::{
+    Config,
+    PackageExtension,
+    TrustPolicy,
+};
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_package_is_installable::SupportedArchitectures;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::collections::BTreeMap;
 
 /// Inputs that determine which cached `dlx` install directory an invocation

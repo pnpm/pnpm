@@ -1,5 +1,11 @@
-use crate::{Config, NodeLinker};
-use serde::{Deserialize, Serialize};
+use crate::{
+    Config,
+    NodeLinker,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]

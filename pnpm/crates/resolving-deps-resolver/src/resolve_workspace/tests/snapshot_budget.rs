@@ -1,14 +1,23 @@
-use std::{path::PathBuf, sync::Mutex};
+use std::{
+    path::PathBuf,
+    sync::Mutex,
+};
 
 use pnpm_package_manifest::DependencyGroup;
 use rustc_hash::FxHashMap as HashMap;
 
 use super::{
-    RecordingResolver, WorkspaceImporter, fake_manifest, fake_result, importer_opts,
-    resolve_workspace, workspace_opts,
+    RecordingResolver,
+    WorkspaceImporter,
+    fake_manifest,
+    fake_result,
+    importer_opts,
+    resolve_workspace,
+    workspace_opts,
 };
 use crate::{
-    resolve_dependency_tree::ResolveDependencyTreeError, resolve_importer::ResolveImporterError,
+    resolve_dependency_tree::ResolveDependencyTreeError,
+    resolve_importer::ResolveImporterError,
 };
 
 fn peer_variant_resolver(include_unmet_peer: bool) -> RecordingResolver {

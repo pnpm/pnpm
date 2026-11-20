@@ -1,24 +1,55 @@
-use super::{DlxArgs, DlxError, get_bin_name, scopeless};
+use super::{
+    DlxArgs,
+    DlxError,
+    get_bin_name,
+    scopeless,
+};
 use crate::cli_args::{
-    add::{AllowBuildSelector, allow_build::AllowBuildError, parse_allow_build_selectors},
+    add::{
+        AllowBuildSelector,
+        allow_build::AllowBuildError,
+        parse_allow_build_selectors,
+    },
     dlx::{
         cache::{
-            apply_dlx_build_policy, create_cache_key, get_prepare_dir, get_valid_cache_dir,
-            key::{CacheKeyInputs, CachePolicyInputs, MinimumReleaseAgeInput, TrustPolicyInput},
+            apply_dlx_build_policy,
+            create_cache_key,
+            get_prepare_dir,
+            get_valid_cache_dir,
+            key::{
+                CacheKeyInputs,
+                CachePolicyInputs,
+                MinimumReleaseAgeInput,
+                TrustPolicyInput,
+            },
         },
         clean::clean_expired_dlx_cache,
     },
 };
 use clap::Parser;
+#[cfg(windows)]
+use command_extra::CommandExtra;
 use indexmap::IndexMap;
-use pnpm_config::{Config, PackageExtension};
+use pnpm_config::{
+    Config,
+    PackageExtension,
+};
 use pnpm_fs::force_symlink_dir;
-use pnpm_package_is_installable::{ArchitectureAxes, SupportedArchitectures};
+use pnpm_package_is_installable::{
+    ArchitectureAxes,
+    SupportedArchitectures,
+};
 use std::{
     collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::tempdir;
 
@@ -412,7 +443,8 @@ fn create_cache_key_changes_with_the_platforms_it_names() {
         SupportedArchitectures::Platforms(
             platforms
                 .iter()
-                .map(|platform| platform.parse().unwrap())
+                .map(|platform| platform.parse())
+                .map(Result::unwrap)
                 .collect(),
         )
     };
@@ -873,7 +905,7 @@ fn get_bin_name_errors_on_ambiguous_bins() {
 
 /// A dlx-installed runtime (`pnpm dlx node@runtime:<version>`) is recorded
 /// in the cache manifest as `engines.runtime` by the manifest writer's
-/// round-trip, not under `dependencies` — the installed package must still
+/// round-trip, not under `dependencies`, the installed package must still
 /// be found there.
 #[test]
 fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {
@@ -904,7 +936,10 @@ fn get_bin_name_finds_a_runtime_recorded_as_engines_runtime() {
 /// ordinary path.
 #[test]
 fn only_managed_tools_are_provisioned_by_name() {
-    use super::provision::{parse_package_manager_spec, parse_runtime_spec};
+    use super::provision::{
+        parse_package_manager_spec,
+        parse_runtime_spec,
+    };
     use crate::engine_pm::channel::PackageManager;
 
     assert_eq!(parse_package_manager_spec("yarn@4"), Some((PackageManager::Yarn, "4")));
@@ -956,9 +991,9 @@ fn clean_expired_dlx_cache_does_not_follow_a_junction_root() {
 #[cfg(windows)]
 fn create_junction(target: &Path, link: &Path) {
     let output = std::process::Command::new("cmd")
-        .args(["/d", "/c", "mklink", "/J"])
-        .arg(link)
-        .arg(target)
+        .with_args(["/d", "/c", "mklink", "/J"])
+        .with_arg(link)
+        .with_arg(target)
         .output()
         .expect("create a junction");
     assert!(output.status.success(), "mklink failed: {output:?}");

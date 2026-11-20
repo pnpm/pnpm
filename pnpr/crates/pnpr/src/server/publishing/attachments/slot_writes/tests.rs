@@ -1,4 +1,7 @@
-use super::{AttachmentPaths, TarballStorage};
+use super::{
+    AttachmentPaths,
+    TarballStorage,
+};
 use tempfile::TempDir;
 
 #[tokio::test]

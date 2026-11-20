@@ -1,4 +1,7 @@
-use super::{censor_protected_settings, is_setting_protected};
+use super::{
+    censor_protected_settings,
+    is_setting_protected,
+};
 use serde_json::json;
 
 #[test]

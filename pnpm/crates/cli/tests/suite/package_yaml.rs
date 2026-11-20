@@ -1,9 +1,15 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use serde_json::json;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn pkg_set_and_delete_preserve_yaml_comments() {
@@ -11,11 +17,11 @@ fn pkg_set_and_delete_preserve_yaml_comments() {
     let path = workspace.join("package.yaml");
     fs::write(&path, "# project\nname: fixture\nversion: 1.0.0 # version\ncustom:\n  keep: true # keep\n  remove: false\n").unwrap();
     command(&pacquet)
-        .args(["pkg", "set", "version=2.0.0"])
+        .with_args(["pkg", "set", "version=2.0.0"])
         .assert()
         .success();
     command(&pacquet)
-        .args(["pkg", "delete", "custom.remove"])
+        .with_args(["pkg", "delete", "custom.remove"])
         .assert()
         .success();
     assert_eq!(
@@ -55,7 +61,7 @@ fn add_update_and_remove_save_package_yaml() {
     let path = workspace.join("package.yaml");
     fs::write(&path, "# project\nname: fixture\nversion: 1.0.0\n").unwrap();
     command(&pacquet)
-        .args(["add", "@pnpm.e2e/foo@1.0.0", "--lockfile-only"])
+        .with_args(["add", "@pnpm.e2e/foo@1.0.0", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(
@@ -63,7 +69,7 @@ fn add_update_and_remove_save_package_yaml() {
         json!({"@pnpm.e2e/foo":"1.0.0"}),
     );
     command(&pacquet)
-        .args(["update", "@pnpm.e2e/foo@2.0.0", "--lockfile-only"])
+        .with_args(["update", "@pnpm.e2e/foo@2.0.0", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(
@@ -71,7 +77,7 @@ fn add_update_and_remove_save_package_yaml() {
         json!({"@pnpm.e2e/foo":"2.0.0"}),
     );
     command(&pacquet)
-        .args(["remove", "@pnpm.e2e/foo", "--lockfile-only"])
+        .with_args(["remove", "@pnpm.e2e/foo", "--lockfile-only"])
         .assert()
         .success();
     assert_eq!(fs::read_to_string(path).unwrap(), "# project\nname: fixture\nversion: 1.0.0\n");
@@ -154,7 +160,7 @@ fn set_script_updates_package_yaml() {
     fs::write(&path, "# project\nname: fixture\nscripts:\n  test: old # test\n  build: build\n")
         .unwrap();
     command(&pacquet)
-        .args(["set-script", "test", "new"])
+        .with_args(["set-script", "test", "new"])
         .assert()
         .success();
     assert_eq!(
@@ -173,7 +179,7 @@ fn link_reports_a_malformed_yaml_target() {
     fs::create_dir(&target).unwrap();
     fs::write(target.join("package.yaml"), "name: [invalid\n").unwrap();
     let assertion = command(&pacquet)
-        .args(["link", "./target"])
+        .with_args(["link", "./target"])
         .assert()
         .failure();
     let stderr = String::from_utf8_lossy(&assertion.get_output().stderr);

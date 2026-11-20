@@ -1,20 +1,48 @@
 mod sources;
 
 use super::{
-    InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
+    InstallPackageBySnapshot,
+    InstallPackageBySnapshotError,
+    InstalledPackage,
     runtime::binary_variant_for_host,
 };
-use crate::{CreateVirtualDirBySnapshot, create_virtual_store::requires_build_from_cas_paths};
+use crate::{
+    CreateVirtualDirBySnapshot,
+    create_virtual_store::requires_build_from_cas_paths,
+};
 use pnpm_config::NodeLinker;
-use pnpm_directory_fetcher::{CopyFiles, DirectoryFetchOutput, DirectoryFetcherError};
+use pnpm_directory_fetcher::{
+    CopyFiles,
+    DirectoryFetchOutput,
+    DirectoryFetcherError,
+};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
-    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
+    DirectoryResolution,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::PackageBin;
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pnpm_tarball::{CachedCasPaths, IngestTarballToStore, MemCache, TarballError};
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+};
+use pnpm_tarball::{
+    CachedCasPaths,
+    IngestTarballToStore,
+    MemCache,
+    TarballError,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// The per-call inputs of [`InstallPackageBySnapshot::tarball_cas_paths`],
 /// alongside the install-scoped ones it reads off `self`.
@@ -157,10 +185,10 @@ pub(super) fn emit_progress_resolved<Reporter: self::Reporter>(package_id: &str,
 
 impl InstallPackageBySnapshot<'_> {
     /// Execute the subroutine. Returns the fetched package's CAS file
-    /// index — the map relative-archive-path → absolute-store-path
+    /// index, the map relative-archive-path → absolute-store-path
     /// that downstream consumers use to either populate a
     /// virtual-store slot (isolated) or import into a hoisted
-    /// `node_modules/<alias>/` directly (hoisted) — together with
+    /// `node_modules/<alias>/` directly (hoisted), together with
     /// whether that map points at mutable local source, which only
     /// this function can tell because a custom fetcher's `delegate`
     /// can replace the lockfile's resolution.
@@ -171,7 +199,7 @@ impl InstallPackageBySnapshot<'_> {
     /// useful to the caller for assembling the
     /// [`crate::CasPathsByPkgId`] index when a workspace mixes
     /// linkers in the future. Under [`NodeLinker::Hoisted`] no slot
-    /// is created — the returned map is the only output the caller
+    /// is created, the returned map is the only output the caller
     /// gets, and it's threaded into [`crate::link_hoisted_modules()`].
     pub async fn run<Reporter: self::Reporter>(
         &self,
@@ -312,7 +340,7 @@ impl InstallPackageBySnapshot<'_> {
                 )
                 .map(|(cas_paths, exists)| without_metadata(cas_paths, exists))
             }
-            // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
+            // Runtime artifacts (Node.js / Bun / Deno). `Binary`
             // and `Variations` carry a `BinaryResolution` describing
             // the archive to fetch. `Variations` is the multi-
             // platform wrapper: pick the variant whose `targets`
@@ -368,7 +396,7 @@ impl InstallPackageBySnapshot<'_> {
         move |dep_path: &str| policy.check(dep_path)
     }
 
-    /// Under hoisted, the virtual-store slot would be unused —
+    /// Under hoisted, the virtual-store slot would be unused,
     /// [`crate::link_hoisted_modules()`] consumes the CAS paths
     /// directly to materialize project-tree `node_modules/`
     /// directories, so any slot written here would only waste disk.

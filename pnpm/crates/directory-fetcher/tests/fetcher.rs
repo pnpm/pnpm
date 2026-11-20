@@ -3,9 +3,15 @@
 //! exercises the full request/response shape upstream callers depend
 //! on (`manifest`, `requires_build`, `files_map` keys).
 
-use pnpm_directory_fetcher::{CopyFiles, DirectoryFetcher};
+use pnpm_directory_fetcher::{
+    CopyFiles,
+    DirectoryFetcher,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 fn touch(root: &Path, rel: &str, body: &str) {
@@ -97,7 +103,7 @@ fn run_flags_requires_build_when_binding_gyp_present() {
 fn run_returns_none_manifest_for_bit_workspace_directory_without_package_json() {
     // `safe_read_package_json_from_dir` returns `Ok(None)` when no
     // manifest variant exists (the `ENOENT` case). The fetcher must
-    // surface that as `manifest: None` rather than erroring — the
+    // surface that as `manifest: None` rather than erroring, the
     // Bit-workspace shape, where a directory has no `package.json`.
     let dir = tempdir().unwrap();
     let root = dir.path();

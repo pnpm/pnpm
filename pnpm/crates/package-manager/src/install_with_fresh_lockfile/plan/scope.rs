@@ -2,7 +2,10 @@ use super::super::FreshInputs;
 use crate::SkippedSnapshots;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashSet,
+};
 
 /// Which importers a selected install materializes, and the lockfile
 /// closed over them.
@@ -192,5 +195,7 @@ fn project_anchor_importer_ids(
     real_importer_ids: Option<&HashSet<String>>,
     materialized: &HashSet<String>,
 ) -> HashSet<String> {
-    real_importer_ids.map_or_else(|| materialized.clone(), |real| materialized & real)
+    real_importer_ids
+        .map(|real| materialized & real)
+        .unwrap_or_else(|| materialized.clone())
 }

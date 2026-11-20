@@ -1,5 +1,10 @@
 use super::{
-    Arc, TempDir, cjs_hooks, finder, read_package_err, write_custom_fetchers_pnpmfile,
+    Arc,
+    TempDir,
+    cjs_hooks,
+    finder,
+    read_package_err,
+    write_custom_fetchers_pnpmfile,
     write_custom_resolvers_pnpmfile,
 };
 use pnpm_hooks::PnpmfileHooks as _;

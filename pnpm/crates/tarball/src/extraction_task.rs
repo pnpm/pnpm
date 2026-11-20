@@ -1,4 +1,7 @@
-use tokio::{sync::SemaphorePermit, task::JoinHandle};
+use tokio::{
+    sync::SemaphorePermit,
+    task::JoinHandle,
+};
 
 /// Keep extraction capacity occupied until the blocking task exits, even if its
 /// caller stops awaiting it.

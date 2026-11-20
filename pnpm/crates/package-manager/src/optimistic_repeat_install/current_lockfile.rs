@@ -1,6 +1,15 @@
-use super::{DependencyGroup, Lockfile, OptimisticRepeatInstallCheck, Path, WorkspaceState};
+use super::{
+    DependencyGroup,
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+    Path,
+    WorkspaceState,
+};
 use pnpm_modules_yaml::IncludedDependencies;
-use std::{cell::OnceCell, collections::HashSet};
+use std::{
+    cell::OnceCell,
+    collections::HashSet,
+};
 
 /// The current lockfile of one check, loaded the first time a phase needs it.
 pub(crate) struct CurrentLockfile<'a> {

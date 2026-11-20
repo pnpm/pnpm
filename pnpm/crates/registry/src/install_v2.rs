@@ -23,9 +23,17 @@
 //! missing.
 
 use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
-use crate::{InstallV2Entry, Package, PackageVersion};
+use crate::{
+    InstallV2Entry,
+    Package,
+    PackageVersion,
+};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

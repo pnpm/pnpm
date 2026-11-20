@@ -3,9 +3,9 @@
 //! `POST /-/stage/package/:pkg` accepts a regular publish document but holds
 //! it back instead of making it visible; the staged record is then listed
 //! (`GET /-/stage`), inspected (`GET /-/stage/:id`, `GET
-//! /-/stage/:id/tarball`), and finally approved (`POST /-/stage/:id/approve`
-//! — which replays the held document through the regular publish flow) or
-//! rejected (`DELETE /-/stage/:id` — which deletes it). This is the server
+//! /-/stage/:id/tarball`), and finally approved (`POST /-/stage/:id/approve`,
+//! which replays the held document through the regular publish flow) or
+//! rejected (`DELETE /-/stage/:id`, which deletes it). This is the server
 //! half of `pnpm stage`.
 //!
 //! Every operation is gated by the same `publish` rule as a direct publish
@@ -22,29 +22,67 @@ mod record;
 use record::staged_record;
 
 mod list_query;
-use list_query::{MAX_PER_PAGE, StagedListQuery, parse_staged_list_query};
+use list_query::{
+    MAX_PER_PAGE,
+    StagedListQuery,
+    parse_staged_list_query,
+};
 
 mod approval;
 use approval::serve_staged_approve;
 
 use axum::{
     body::Body,
-    extract::{OriginalUri, Path, State},
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    extract::{
+        OriginalUri,
+        Path,
+        State,
+    },
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::{
-    Action, AppState, AuthedCaller, Identity, JsonObject, RegistrySource, TargetRegistry,
-    authorize_package, commit_publishes, json_response, not_found, parse_json_body,
+    Action,
+    AppState,
+    AuthedCaller,
+    Identity,
+    JsonObject,
+    RegistrySource,
+    TargetRegistry,
+    authorize_package,
+    commit_publishes,
+    json_response,
+    not_found,
+    parse_json_body,
     private_no_cache,
     publishing::{
-        ValidatedPublish, check_body_name, cleanup_tmp_slots, validate_staged_publish_name,
+        ValidatedPublish,
+        check_body_name,
+        cleanup_tmp_slots,
+        validate_staged_publish_name,
     },
-    resolve_write_target, stage_publish, validate_publish_doc,
+    resolve_write_target,
+    stage_publish,
+    validate_publish_doc,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
@@ -207,7 +245,7 @@ pub(super) async fn get_staged_tarball(
 // The handlers proper.
 // ---------------------------------------------------------------------
 
-/// `POST /-/stage/package/:pkg` — validate and authorize the publish
+/// `POST /-/stage/package/:pkg`: validate and authorize the publish
 /// document exactly like a direct publish, then hold it back under a fresh
 /// stage id instead of committing it.
 async fn serve_staged_publish(
@@ -276,7 +314,7 @@ async fn store_staged(
     state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await
 }
 
-/// `GET /-/stage?page=&perPage=&package=` — the staged records visible to
+/// `GET /-/stage?page=&perPage=&package=`: the staged records visible to
 /// the caller through this registry address, sorted oldest-first by staging
 /// time (then id) so pagination stays stable as new records arrive.
 async fn serve_staged_list(
@@ -330,7 +368,7 @@ async fn serve_staged_list(
     )
 }
 
-/// `GET /-/stage/:id` — one staged record's metadata.
+/// `GET /-/stage/:id`: one staged record's metadata.
 async fn serve_staged_view(
     state: &AppState,
     identity: &Identity,
@@ -344,7 +382,7 @@ async fn serve_staged_view(
     json_response(StatusCode::OK, &stored.record.metadata())
 }
 
-/// `DELETE /-/stage/:id` — reject a staged publish, deleting its record and
+/// `DELETE /-/stage/:id`: reject a staged publish, deleting its record and
 /// held tarball.
 async fn serve_staged_reject(
     state: &AppState,
@@ -364,7 +402,7 @@ async fn serve_staged_reject(
     }
 }
 
-/// `GET /-/stage/:id/tarball` — the held tarball's bytes, decoded from the
+/// `GET /-/stage/:id/tarball`: the held tarball's bytes, decoded from the
 /// stored publish document's attachment.
 async fn serve_staged_tarball(
     state: &AppState,

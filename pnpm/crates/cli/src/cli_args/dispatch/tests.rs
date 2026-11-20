@@ -1,6 +1,9 @@
 use crate::cli_args::{
     cli_command::CliArgs,
-    dispatch::routing::{json_error_message, prints_json_errors},
+    dispatch::routing::{
+        json_error_message,
+        prints_json_errors,
+    },
     pack::PACK_ERROR_CONTEXT,
 };
 use clap::Parser;

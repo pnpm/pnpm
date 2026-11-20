@@ -1,6 +1,16 @@
-use crate::{Error, Result, error::Kind};
-use futures_util::future::{Either, select};
-use serde_json::{Value, json};
+use crate::{
+    Error,
+    Result,
+    error::Kind,
+};
+use futures_util::future::{
+    Either,
+    select,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 const CHUNK_SIZE: usize = 65_536;
 

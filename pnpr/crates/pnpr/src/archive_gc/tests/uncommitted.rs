@@ -1,16 +1,28 @@
 //! Collecting incarnations no commit made live: what a refused, stopped, or
 //! late publish or upload stored.
 
-use super::{blob, collect, name, setup};
+use super::{
+    blob,
+    collect,
+    name,
+    setup,
+};
 use crate::RegistryError;
 use pnpr_oci::Digest;
 use pnpr_package_name::Ecosystem;
 use pnpr_storage::{
-    BlobId, Storage,
-    database::{ArtifactBlob, BlobRef},
+    BlobId,
+    Storage,
+    database::{
+        ArtifactBlob,
+        BlobRef,
+    },
     layout::local_archive_path,
 };
-use std::{path::Path, time::Duration};
+use std::{
+    path::Path,
+    time::Duration,
+};
 
 const DAY: Duration = Duration::from_hours(24);
 

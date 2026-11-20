@@ -1,11 +1,39 @@
 use super::{
-    Action, BlobUpload, Body, CanonicalPackageName, Digest, ECOSYSTEM, ErrorCode, Method,
-    OciTarget, Refusal, RegistryError, RegistrySource, Request, Response, StatusCode, Storage,
-    accepted, append_body, created, error, hash_upload, header, hosted_read_namespace,
-    method_not_allowed, no_content, parse_content_range, query_param, range_not_satisfiable,
-    registry_error, upload_lock_key,
+    Action,
+    BlobUpload,
+    Body,
+    CanonicalPackageName,
+    Digest,
+    ECOSYSTEM,
+    ErrorCode,
+    Method,
+    OciTarget,
+    Refusal,
+    RegistryError,
+    RegistrySource,
+    Request,
+    Response,
+    StatusCode,
+    Storage,
+    accepted,
+    append_body,
+    created,
+    error,
+    hash_upload,
+    header,
+    hosted_read_namespace,
+    method_not_allowed,
+    no_content,
+    parse_content_range,
+    query_param,
+    range_not_satisfiable,
+    registry_error,
+    upload_lock_key,
 };
-use crate::server::{AuthorizationDecision, authorize_without_owners};
+use crate::server::{
+    AuthorizationDecision,
+    authorize_without_owners,
+};
 
 impl Request {
     pub(super) async fn mount_blob(
@@ -51,7 +79,7 @@ impl Request {
         Ok(Some(self.finish_upload(destination, upload, target, mount).await))
     }
 
-    /// `POST /v2/<name>/blobs/uploads/` — start an upload, or complete one in
+    /// `POST /v2/<name>/blobs/uploads/`: start an upload, or complete one in
     /// a single request when the client sends `?digest=`.
     pub(super) async fn start_upload(&self, name: &str, body: Body) -> Response {
         if self.method != Method::POST {

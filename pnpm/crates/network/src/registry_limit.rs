@@ -3,10 +3,16 @@
 
 use crate::{
     origin_of_url,
-    priority_semaphore::{Permit, PrioritySemaphore},
+    priority_semaphore::{
+        Permit,
+        PrioritySemaphore,
+    },
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     num::NonZeroUsize,
 };
 

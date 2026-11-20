@@ -1,6 +1,13 @@
-pub use pnpm_text_sanitize::{sanitize, sanitize_inline};
+pub use pnpm_text_sanitize::{
+    sanitize,
+    sanitize_inline,
+};
 
-use pnpm_network::{LimitedBody, read_limited_body, redact_and_sanitize};
+use pnpm_network::{
+    LimitedBody,
+    read_limited_body,
+    redact_and_sanitize,
+};
 
 /// Default limit for error response bodies across registry operations (64 KiB).
 pub const DEFAULT_ERROR_BODY_LIMIT: usize = 64 * 1024;

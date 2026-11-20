@@ -11,21 +11,44 @@
 //! A retry is authorized against current permissions
 //! like any publish before its outcome is looked up.
 
-use super::{RegistryError, StagedPublish, Value, promotion::promote_fenced};
-use crate::server::{AppState, Identity};
+use super::{
+    RegistryError,
+    StagedPublish,
+    Value,
+    promotion::promote_fenced,
+};
+use crate::server::{
+    AppState,
+    Identity,
+};
 use axum::{
     body::Body,
-    http::{StatusCode, header},
+    http::{
+        StatusCode,
+        header,
+    },
     response::Response,
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::{
-    database::{BatchDocument, Generation, PublicationCommit, PublicationRequest, PublishNotes},
+    database::{
+        BatchDocument,
+        Generation,
+        PublicationCommit,
+        PublicationRequest,
+        PublishNotes,
+    },
     transparency_log::LogId,
 };
 use serde_json::json;
-use ssri::{Algorithm, IntegrityOpts};
-use std::io::{self, Write as _};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
+use std::io::{
+    self,
+    Write as _,
+};
 
 /// What a publish committed, as its response reports it.
 #[derive(Debug, Default)]
@@ -61,7 +84,9 @@ pub(in super::super) fn publication_request(
 ) -> Option<PublicationRequest> {
     let principal = identity.user_id()?.to_string();
     let request_digest = request_digest(body, target.map(CanonicalPackageName::as_str));
-    let idempotency_key = key.map_or_else(|| format!("request:{request_digest}"), str::to_string);
+    let idempotency_key = key
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("request:{request_digest}"));
     let name = name.map(str::to_string);
     Some(PublicationRequest { principal, idempotency_key, request_digest, name })
 }

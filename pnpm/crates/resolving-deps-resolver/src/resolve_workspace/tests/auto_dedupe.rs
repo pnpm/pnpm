@@ -1,6 +1,16 @@
 use super::{
-    Arc, DependencyGroup, HashMap, Mutex, RecordingResolver, WorkspaceImporter, fake_manifest,
-    fake_result, graph_versions_of, importer_opts, resolve_workspace, reuse_graph_lockfile,
+    Arc,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    RecordingResolver,
+    WorkspaceImporter,
+    fake_manifest,
+    fake_result,
+    graph_versions_of,
+    importer_opts,
+    resolve_workspace,
+    reuse_graph_lockfile,
     workspace_opts,
 };
 use std::path::PathBuf;

@@ -1,21 +1,40 @@
 use super::{
-    super::{Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install},
-    backdate_validated_files, check_with_catalogs, check_workspace, isolated_included,
-    setup_fresh_install, setup_fresh_install_with_config, write_empty_lockfile, write_state,
+    super::{
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install,
+    },
+    backdate_validated_files,
+    check_with_catalogs,
+    check_workspace,
+    isolated_included,
+    setup_fresh_install,
+    setup_fresh_install_with_config,
+    write_empty_lockfile,
+    write_state,
 };
 use crate::install_state::settings::current_settings_with_catalogs;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
-use pnpm_workspace_state::{ProjectEntry, WORKSPACE_STATE_FILENAME};
-use std::{collections::BTreeMap, fs};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WORKSPACE_STATE_FILENAME,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 /// A `catalog:` dependency whose catalog entry holds a bare local path
-/// is a local file dependency after dereferencing — the catalog
+/// is a local file dependency after dereferencing, the catalog
 /// resolver only bans the `workspace:`, `link:`, and `file:` protocols,
 /// so the bare-path spelling reaches the local resolver. Same bail as
 /// a direct local path.
@@ -110,7 +129,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
     assert_eq!(decision, Decision::UpToDate);
 }
 /// A `pnpm.overrides` entry spelled `catalog:` whose catalog entry
-/// holds a local path bails like a direct local file override —
+/// holds a local path bails like a direct local file override,
 /// overrides are dereferenced through `parse_config_overrides` before
 /// the check.
 #[test]

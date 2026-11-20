@@ -1,6 +1,5 @@
 #[cfg(unix)]
 use assert_cmd::prelude::*;
-#[cfg(unix)]
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 
@@ -13,9 +12,9 @@ fn create_errors_when_no_name_given() {
 
         let mut command = pacquet;
         if let Some(reporter) = reporter {
-            command.arg(reporter);
+            command = command.with_arg(reporter);
         }
-        command.arg("create");
+        command = command.with_arg("create");
         let output = command.output().expect("spawn pacquet create");
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("STDERR:\n{stderr}\n");
@@ -119,7 +118,7 @@ fn create_allow_build_before_name_is_parsed() {
 }
 
 /// Options placed after `<name>` are forwarded to the package, not parsed
-/// by create — matching pnpm's `escapeArgs` behavior where everything
+/// by create, matching pnpm's `escapeArgs` behavior where everything
 /// after the first positional is opaque.
 #[cfg(unix)]
 #[test]

@@ -1,10 +1,19 @@
 //! Which snapshot edges only satisfy an optional peer.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use crate::{
-    BoundProviders, Lockfile, LockfileEntries, PackageKey, PackageMetadata, PkgName,
-    SnapshotDepRef, SnapshotEntry,
+    BoundProviders,
+    Lockfile,
+    LockfileEntries,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 
 /// How [`PeerSatisfactionEdges::of_lockfile`] decides which importers

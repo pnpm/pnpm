@@ -21,25 +21,55 @@
 
 use crate::{
     replace::{
-        ReplaceWorkspaceProtocolError, WorkspacePackageLookup, WorkspacePackageManifest,
-        replace_workspace_protocol, replace_workspace_protocol_peer_dependency,
+        ReplaceWorkspaceProtocolError,
+        WorkspacePackageLookup,
+        WorkspacePackageManifest,
+        replace_workspace_protocol,
+        replace_workspace_protocol_peer_dependency,
     },
-    transform::{TransformError, transform},
+    transform::{
+        TransformError,
+        transform,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, WantedDependency,
+    CatalogAnchor,
+    CatalogResolutionError,
+    CatalogResolutionResult,
+    WantedDependency,
     resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{ReadmeKind, decode_readme, is_preferred_readme, readme_kind};
-use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
-use serde_json::{Map, Value};
+use pnpm_package_manifest::{
+    ReadmeKind,
+    decode_readme,
+    is_preferred_readme,
+    readme_kind,
+};
+use pnpm_resolving_jsr_specifier_parser::{
+    ParseJsrSpecifierError,
+    parse_jsr_specifier,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
@@ -51,7 +81,7 @@ const PREPUBLISH_SCRIPTS: &[&str] =
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
 ///
 /// `name` lets a package be published under a name it cannot carry in the
-/// workspace — typically because a sibling project already owns that name.
+/// workspace, typically because a sibling project already owns that name.
 /// Nothing else in the workspace observes the rename: dependents,
 /// `pnpm-lock.yaml`, and the changeset ledger all keep addressing the project
 /// by its manifest name.
@@ -84,7 +114,7 @@ pub struct CreateExportableManifestOptions<'a> {
     /// Directory holding `pnpm-workspace.yaml`, which a `file:` /
     /// `link:` catalog entry's relative path is measured from. `None`
     /// leaves such an entry as the catalog writes it, for a caller with
-    /// no workspace — and so no catalogs — of its own.
+    /// no workspace (and so no catalogs) of its own.
     pub workspace_dir: Option<&'a Path>,
     /// Where workspace dependencies are installed. Defaults to
     /// `<dir>/node_modules` when `None`.
@@ -348,7 +378,7 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
 }
 
 /// Read a root README accepted by npm for embedding. Only a regular
-/// file is embedded — a symlink is skipped so it can't leak the
+/// file is embedded, a symlink is skipped so it can't leak the
 /// contents of a target outside the project.
 pub fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
     let mut selected: Option<(ReadmeKind, String, PathBuf)> = None;

@@ -1,15 +1,27 @@
 use super::{
-    TeamContext, TeamError, encode_uri_component, redact_url_credentials, send_with_retry,
+    TeamContext,
+    TeamError,
+    encode_uri_component,
+    redact_url_credentials,
+    send_with_retry,
 };
 use crate::cli_args::{
     registry_client::{
-        apply_auth_and_otp, auth_header_for_package, join_registry_endpoint,
+        apply_auth_and_otp,
+        auth_header_for_package,
+        join_registry_endpoint,
         resolve_target_registry_for_package,
     },
-    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+    sanitize::{
+        DEFAULT_ERROR_BODY_LIMIT,
+        read_sanitized_error_body,
+    },
 };
 use miette::IntoDiagnostic;
-use pnpm_network::{normalize_registry_url, read_limited_body};
+use pnpm_network::{
+    normalize_registry_url,
+    read_limited_body,
+};
 use reqwest::Response;
 use serde::Deserialize;
 

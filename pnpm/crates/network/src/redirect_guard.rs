@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::Arc,
+};
 
 use crate::origin_of_url;
 
@@ -19,7 +22,7 @@ pub(crate) struct BlockedRedirect(pub(crate) reqwest::Url);
 
 impl std::fmt::Display for BlockedRedirect {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Surface only `scheme://host[:port]` — never the path, query,
+        // Surface only `scheme://host[:port]`, never the path, query,
         // fragment, or userinfo, where a presigned-URL signature/token could
         // live. This error string can reach a client, so it must not leak the
         // very credential the redirect was carrying.
@@ -55,7 +58,9 @@ where
 {
     let origins: HashSet<String> = allowed_urls
         .into_iter()
-        .filter_map(|url| reqwest::Url::parse(url).ok().and_then(|u| origin_of_url(&u)))
+        .map(reqwest::Url::parse)
+        .filter_map(Result::ok)
+        .filter_map(|url| origin_of_url(&url))
         .collect();
     Arc::new(move |target: &reqwest::Url| -> bool {
         origin_of_url(target).is_some_and(|origin| origins.contains(&origin))

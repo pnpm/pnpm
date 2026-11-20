@@ -5,10 +5,22 @@
 
 use indexmap::IndexSet;
 use pipe_trait::Pipe;
-use pnpm_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
+use pnpm_modules_yaml::{
+    DepPath,
+    Host,
+    Modules,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn manifest_from_json(value: Value) -> Modules {
     serde_json::from_value(value).expect("deserialize Modules fixture")
@@ -40,7 +52,7 @@ fn read_preserves_absolute_virtual_store_dir() {
 /// the recovered absolute path is compared byte-for-byte against
 /// `Config::virtual_store_dir()`, and an unnormalized join
 /// (`<modules_dir>/../../...`) never matches the normalized config
-/// side — so the short-circuit silently misses every install whose
+/// side, so the short-circuit silently misses every install whose
 /// store lives outside the project.
 #[cfg(not(windows))]
 #[test]
@@ -154,7 +166,8 @@ fn dep_path_serializes_transparently() {
     assert_eq!(
         manifest.hoisted_aliases
             .as_ref()
-            .and_then(|map| map.keys().next()),
+            .map(std::collections::BTreeMap::keys)
+            .and_then(|mut keys| keys.next()),
         Some(&DepPath::from("/accepts/1.3.7".to_string())),
     );
     let expected_ignored: IndexSet<DepPath> =

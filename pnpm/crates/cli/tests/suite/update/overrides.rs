@@ -1,6 +1,17 @@
 use super::{
-    _utils, DEP, add_workspace_package, assert_eq, fs, importer_specifier, importer_version,
-    lockfile_package_keys, pacquet, read_lockfile, set_overrides, setup, write_manifest,
+    _utils,
+    DEP,
+    add_workspace_package,
+    assert_eq,
+    fs,
+    importer_specifier,
+    importer_version,
+    lockfile_package_keys,
+    pacquet,
+    read_lockfile,
+    set_overrides,
+    setup,
+    write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::collections::HashMap;
@@ -8,7 +19,7 @@ use std::collections::HashMap;
 /// `pnpm update --latest <name>` moves the override that pins the named
 /// dependency, keeping the override's own range style: an exact pin lands on
 /// the new exact version. The declaration in `package.json` stays, because
-/// the override — not the declaration — is what the resolution answers to.
+/// the override (not the declaration) is what the resolution answers to.
 /// Covers <https://github.com/pnpm/pnpm/issues/8701>.
 #[test]
 fn update_latest_moves_the_override_that_pins_a_targeted_dependency() {

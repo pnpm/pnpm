@@ -1,7 +1,18 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, WORKSPACE_HELLO, WORKSPACE_PARENT,
-    configure_pnpr_auth, configure_workspace, fs, pacquet_at, read_workspace_lockfile, start_pnpr,
-    workspace_has_link, workspace_importer_version, write_workspace_project,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    WORKSPACE_HELLO,
+    WORKSPACE_PARENT,
+    configure_pnpr_auth,
+    configure_workspace,
+    fs,
+    pacquet_at,
+    read_workspace_lockfile,
+    start_pnpr,
+    workspace_has_link,
+    workspace_importer_version,
+    write_workspace_project,
 };
 use assert_cmd::assert::OutputAssertExt;
 

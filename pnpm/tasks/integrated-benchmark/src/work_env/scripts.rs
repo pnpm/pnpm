@@ -1,18 +1,36 @@
-use super::{BENCHMARK_OUTPUT_LOG, BenchId, PREWARM_SCRIPT, unlocked_deps::unlock_direct_deps};
+use super::{
+    BENCHMARK_OUTPUT_LOG,
+    BenchId,
+    PREWARM_SCRIPT,
+    unlocked_deps::unlock_direct_deps,
+};
 use crate::{
-    cli_args::{BenchmarkScenario, Cleanup},
+    cli_args::{
+        BenchmarkScenario,
+        Cleanup,
+    },
     fixtures::LOCKFILE,
     verify::executor,
 };
+use command_extra::CommandExtra;
 use itertools::Itertools;
 use os_display::Quotable;
 use pipe_trait::Pipe;
 use pnpm_fs::file_mode::make_file_executable;
 use std::{
     borrow::Cow,
-    fs::{self, File},
-    io::{ErrorKind, Write},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        ErrorKind,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     thread,
     time::Duration,
@@ -65,28 +83,28 @@ pub(super) fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &
         // `pnpm install` and `pnpm run compile-only` from a previous orchestrator
         // run can leave tracked files dirty (e.g. `pnpm-lock.yaml` rewritten,
         // generated `dist/*`). A fresh `git checkout <commit>` against a dirty
-        // worktree fails with "Your local changes would be overwritten" — wipe
+        // worktree fails with "Your local changes would be overwritten", wipe
         // them first.
         eprintln!("Resetting worktree at {revision_repo:?}...");
         Command::new("git")
-            .current_dir(revision_repo)
-            .arg("reset")
-            .arg("--hard")
-            .pipe(executor("git reset --hard"));
+            .with_current_dir(revision_repo)
+            .with_arg("reset")
+            .with_arg("--hard")
+            .pipe_mut(executor("git reset --hard"));
     }
 
     eprintln!("Checking out {commit:?}...");
     Command::new("git")
-        .current_dir(revision_repo)
-        .arg("checkout")
-        .arg(commit)
-        .pipe(executor("git checkout"));
+        .with_current_dir(revision_repo)
+        .with_arg("checkout")
+        .with_arg(commit)
+        .pipe_mut(executor("git checkout"));
 
     eprintln!("List of branches:");
     Command::new("git")
-        .current_dir(revision_repo)
-        .arg("branch")
-        .pipe(executor("git branch"));
+        .with_current_dir(revision_repo)
+        .with_arg("branch")
+        .pipe_mut(executor("git branch"));
 }
 /// Prepare the clone and fetch the commit. Reports whether HEAD already
 /// existed, so the caller can reset tracked build outputs before checkout.
@@ -96,28 +114,28 @@ pub(super) fn prepare_bench_repo(repository: &Path, revision_repo: &Path, commit
         if !had_existing_git {
             eprintln!("Initializing a git repository at {revision_repo:?}...");
             Command::new("git")
-                .current_dir(revision_repo)
-                .arg("init")
-                .arg(revision_repo)
-                .arg("--initial-branch=__blank__")
-                .pipe(executor("git init"));
+                .with_current_dir(revision_repo)
+                .with_arg("init")
+                .with_arg(revision_repo)
+                .with_arg("--initial-branch=__blank__")
+                .pipe_mut(executor("git init"));
         }
 
         eprintln!("Fetching {commit} from {repository:?}...");
         Command::new("git")
-            .current_dir(revision_repo)
-            .arg("fetch")
-            .arg(repository)
-            .arg(commit)
-            .pipe(executor("git fetch"));
+            .with_current_dir(revision_repo)
+            .with_arg("fetch")
+            .with_arg(repository)
+            .with_arg(commit)
+            .pipe_mut(executor("git fetch"));
     } else {
         eprintln!("Cloning {repository:?} to {revision_repo:?}...");
         Command::new("git")
-            .arg("clone")
-            .arg("--no-checkout")
-            .arg(repository)
-            .arg(revision_repo)
-            .pipe(executor("git clone"));
+            .with_arg("clone")
+            .with_arg("--no-checkout")
+            .with_arg(repository)
+            .with_arg(revision_repo)
+            .pipe_mut(executor("git clone"));
     }
 
     had_existing_git
@@ -203,7 +221,7 @@ pub(super) fn may_create_lockfile(
         // Land the seeded lockfile in a strictly later millisecond than
         // the just-written `package.json`. The kernel's file-timestamp
         // clock ticks coarsely (~1 ms), so back-to-back writes can share
-        // one mtime — and the repeat-install fast path reads a manifest
+        // one mtime, and the repeat-install fast path reads a manifest
         // whose mtime equals its baseline (the lockfile mtime, truncated
         // to ms) as possibly-modified, pushing every timed iteration
         // onto the heavier content-check path for one bench dir but not

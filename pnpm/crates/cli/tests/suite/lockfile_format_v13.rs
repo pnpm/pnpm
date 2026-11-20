@@ -2,13 +2,26 @@
 //! frozen install from it, and 3-way `git merge-file` merges across
 //! concurrent branch changes.
 
-use crate::_utils::{pacquet_in, write_manifest_value};
+use crate::_utils::{
+    pacquet_in,
+    write_manifest_value,
+};
 use assert_cmd::assert::OutputAssertExt;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
-use pnpm_testing_utils::{bin::CommandTempCwd, fixtures::tarball_with_manifest};
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::tarball_with_manifest,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn install_writes_the_v13_lockfile_and_a_frozen_install_reads_it() {
@@ -135,10 +148,10 @@ fn git_merge_lockfiles(temp_dir: &Path, base: &str, branch_a: &str, branch_b: &s
     fs::write(&a_path, branch_a).expect("write branch A lockfile");
     fs::write(&b_path, branch_b).expect("write branch B lockfile");
     let output = Command::new("git")
-        .args(["merge-file", "-p"])
-        .arg(&a_path)
-        .arg(&base_path)
-        .arg(&b_path)
+        .with_args(["merge-file", "-p"])
+        .with_arg(&a_path)
+        .with_arg(&base_path)
+        .with_arg(&b_path)
         .output()
         .expect("run git merge-file");
     let merged = String::from_utf8(output.stdout).expect("utf8 merged lockfile");

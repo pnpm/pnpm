@@ -1,8 +1,26 @@
 use super::{
-    Arc, AutoExcludeRoot, Catalogs, Config, HashMap, Mutex, PackArgs, PackError, PackOutputLocks,
-    PackResultJson, Path, PathBuf, PnpmfileHooks, Reporter, WorkspacePackageManifest,
-    canonicalize_pack_dir, configured_catalogs, discover_workspace_projects,
-    filtered_projects_dependencies, format_pack_output, graph_sequencer, pack_output_parts,
+    Arc,
+    AutoExcludeRoot,
+    Catalogs,
+    Config,
+    HashMap,
+    Mutex,
+    PackArgs,
+    PackError,
+    PackOutputLocks,
+    PackResultJson,
+    Path,
+    PathBuf,
+    PnpmfileHooks,
+    Reporter,
+    WorkspacePackageManifest,
+    canonicalize_pack_dir,
+    configured_catalogs,
+    discover_workspace_projects,
+    filtered_projects_dependencies,
+    format_pack_output,
+    graph_sequencer,
+    pack_output_parts,
     select_recursive_projects,
 };
 
@@ -53,7 +71,8 @@ fn dependency_order(
 /// Whether `--out` names one file for every project, with no `%s` / `%v`
 /// placeholders telling them apart.
 fn output_is_literal(out: Option<&str>) -> bool {
-    out.is_some_and(|out| !out.contains("%s") && !out.contains("%v"))
+    out.filter(|out| !out.contains("%s"))
+        .is_some_and(|out| !out.contains("%v"))
 }
 
 pub(super) fn order_index(dependency_order: Vec<PathBuf>) -> HashMap<PathBuf, usize> {

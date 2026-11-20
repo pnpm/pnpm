@@ -2,7 +2,12 @@
 
 use super::Db;
 use crate::database::sql::{
-    adapter::{Param, Query, ReadSource, WriteTransaction},
+    adapter::{
+        Param,
+        Query,
+        ReadSource,
+        WriteTransaction,
+    },
     schema,
 };
 use pnpr_error::RegistryError;

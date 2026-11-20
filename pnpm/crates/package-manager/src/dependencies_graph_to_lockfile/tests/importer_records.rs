@@ -1,20 +1,49 @@
 use super::{
-    super::{DependenciesGraphToLockfileError, GraphToLockfileOptions, ImporterLockfileInput},
-    EMPTY_CATALOGS, EMPTY_NAMED_REGISTRIES, EMPTY_REGISTRY_OPTIONS, GIT_TARBALL_URL,
-    NPM_REGISTRIES, dependencies_graph_to_lockfile, error_from_single_node_graph, git_hosted_node,
-    injected_link_fixture, make_link_node, make_node, make_node_with_optional,
-    single_importer_opts, write_manifest,
+    super::{
+        DependenciesGraphToLockfileError,
+        GraphToLockfileOptions,
+        ImporterLockfileInput,
+    },
+    EMPTY_CATALOGS,
+    EMPTY_NAMED_REGISTRIES,
+    EMPTY_REGISTRY_OPTIONS,
+    GIT_TARBALL_URL,
+    NPM_REGISTRIES,
+    dependencies_graph_to_lockfile,
+    error_from_single_node_graph,
+    git_hosted_node,
+    injected_link_fixture,
+    make_link_node,
+    make_node,
+    make_node_with_optional,
+    single_importer_opts,
+    write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::{
-    GitResolution, ImporterDepVersion, LockfileResolution, PackageKey, PkgName, SnapshotDepRef,
+    GitResolution,
+    ImporterDepVersion,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
     VariationsResolution,
 };
-use pnpm_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, PeerDep};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_resolving_deps_resolver::{
+    DependenciesGraph,
+    DependenciesGraphNode,
+    PeerDep,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 #[test]
 fn fresh_install_records_importer_manifest_metadata() {
@@ -190,7 +219,7 @@ fn git_hosted_dependency_records_bare_tarball_url_in_importer() {
         .expect("git dependency");
     assert_eq!(entry.specifier, "github:kevva/is-negative#1.0.0");
     // The alias matches the package name, so the `is-negative@` prefix
-    // is stripped — same shape upstream's `depPathToRef` writes.
+    // is stripped, same shape upstream's `depPathToRef` writes.
     match &entry.version {
         ImporterDepVersion::Regular(version) => assert_eq!(version.to_string(), GIT_TARBALL_URL),
         other => panic!("expected Regular({GIT_TARBALL_URL}), got {other:?}"),
@@ -258,7 +287,7 @@ fn aliased_git_hosted_dependency_keeps_package_name_in_importer_ref() {
 /// `type: git` snapshot whose id *is* its depPath, and whose name lives
 /// only in the fetched manifest. When the manifest alias matches that
 /// name, the importer entry drops the `<name>@` prefix and records the
-/// bare `git+<repo>#<commit>` ref — the shape pnpm v11 writes, verified
+/// bare `git+<repo>#<commit>` ref, the shape pnpm v11 writes, verified
 /// byte-for-byte against pnpm 11.13.1.
 #[test]
 fn non_host_git_dependency_records_bare_git_url_in_importer() {
@@ -272,7 +301,7 @@ fn non_host_git_dependency_records_bare_git_url_in_importer() {
 
     // The install pipeline keys a git dep's depPath by `<name>@<ref>`
     // once the name is read from the fetched manifest, so the `<name>@`
-    // prefix is present here — the exact shape `real_name` has to strip
+    // prefix is present here, the exact shape `real_name` has to strip
     // back off for the importer entry.
     let dep_path = DepPath::from(format!("is-negative@{GIT_REF}"));
     let resolve_result = ResolveResult {

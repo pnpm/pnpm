@@ -1,16 +1,25 @@
 //! Ports `pnpm11/pnpm/test/withCommand.test.ts`.
 
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    set_minimum_release_age,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use std::{
     fs,
     path::Path,
-    process::{Command, Output},
+    process::{
+        Command,
+        Output,
+    },
 };
 
 const PINNED_PNPM_VERSION: &str = "9.3.0";
@@ -146,7 +155,7 @@ fn with_version_downloads_and_runs_the_specified_pnpm_version() {
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -174,7 +183,7 @@ fn with_version_ignores_the_package_manager_pin_and_uses_the_requested_version()
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -207,7 +216,7 @@ fn with_version_does_not_record_minimum_release_age_excludes_in_the_project() {
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -239,11 +248,13 @@ fn with_current_requires_a_command() {
 }
 
 fn test_command(command: Command, root: &Path) -> Command {
-    let mut command = command.without_ambient_pnpm_config();
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
-    command.env_remove("COREPACK_ROOT");
+    let mut command = command
+        .without_ambient_pnpm_config()
+        .with_env("PNPM_HOME", root.join("pnpm-home"));
+    command = command
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
+        .without_env("COREPACK_ROOT");
     command
 }
 
@@ -269,16 +280,19 @@ fn assert_semver_like(value: &str) {
     assert!(
         parts
             .next()
-            .is_some_and(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+            .filter(|part| !part.is_empty())
+            .map(str::chars)
+            .is_some_and(|mut chars| chars.all(|c| c.is_ascii_digit()))
             && parts
                 .next()
-                .is_some_and(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_digit()))
+                .filter(|part| !part.is_empty())
+                .map(str::chars)
+                .is_some_and(|mut chars| chars.all(|c| c.is_ascii_digit()))
             && parts
                 .next()
-                .is_some_and(|part| part
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.is_ascii_digit())),
+                .map(str::chars)
+                .map(|mut chars| chars.next())
+                .is_some_and(|chars| chars.is_some_and(|c| c.is_ascii_digit())),
         "expected a semver-looking version, got {value:?}",
     );
 }
@@ -312,7 +326,7 @@ fn a_held_engine_lock_installs_the_engine_privately() {
 
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let output = test_command(pacquet, root.path())
-        .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+        .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
         .output()
         .expect("run pacquet with a specified pnpm version");
     dbg!(&output);
@@ -323,7 +337,8 @@ fn a_held_engine_lock_installs_the_engine_privately() {
     let linked_slots: Vec<_> = walkdir::WalkDir::new(engine_store.join("links"))
         .into_iter()
         .flatten()
-        .filter(|entry| entry.depth() == 5 && entry.file_name() == "bin")
+        .filter(|entry| entry.depth() == 5)
+        .filter(|entry| entry.file_name() == "bin")
         .map(|entry| entry.path().to_path_buf())
         .collect();
     assert!(linked_slots.is_empty(), "the held slot must not be entered: {linked_slots:?}");
@@ -355,7 +370,7 @@ fn concurrent_engine_installs_all_succeed_on_a_cold_cache() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
 
-    // Every child is spawned before any of them is waited on — that
+    // Every child is spawned before any of them is waited on, that
     // overlap is the whole point, since a serial run never races.
     let registry_arg = format!("--config.registry={}", mock_instance.url());
     let mut children = Vec::with_capacity(CONCURRENCY);
@@ -363,10 +378,10 @@ fn concurrent_engine_installs_all_succeed_on_a_cold_cache() {
         let pacquet = Command::cargo_bin("pnpm").expect("find the pnpm binary");
         children.push(
             test_command(pacquet, root.path())
-                .current_dir(&workspace)
-                .args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
+                .with_current_dir(&workspace)
+                .with_args([registry_arg.as_str(), "with", PINNED_PNPM_VERSION, "help"])
+                .with_stdout(std::process::Stdio::piped())
+                .with_stderr(std::process::Stdio::piped())
                 .spawn()
                 .expect("spawn a concurrent engine install"),
         );

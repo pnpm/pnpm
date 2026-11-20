@@ -1,5 +1,8 @@
 //! Initialize a shared index even when another installer is switching it to WAL.
-use rusqlite::{Connection, ErrorCode};
+use rusqlite::{
+    Connection,
+    ErrorCode,
+};
 use std::time::Duration;
 
 /// `SQLite` can return `SQLITE_BUSY` from a journal-mode transition without

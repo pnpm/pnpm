@@ -14,7 +14,11 @@
 #![expect(clippy::print_stderr, reason = "test-only helper binary")]
 
 use pnpm_fs::ensure_file;
-use std::{fs, path::PathBuf, process::ExitCode};
+use std::{
+    fs,
+    path::PathBuf,
+    process::ExitCode,
+};
 
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);

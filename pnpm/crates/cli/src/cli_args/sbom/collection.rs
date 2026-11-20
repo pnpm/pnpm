@@ -1,9 +1,31 @@
 use super::{
-    DepType, HashMap, HashSet, ImporterComponents, IncludeFilter, Lockfile, PackageKey, Path,
-    PathBuf, PeerSatisfactionEdges, SbomComponentType, SbomResult, SnapshotEntry, State,
-    TransitiveEdges, WalkStores, build_purl, component_walk_context, confined_importer_dir,
-    extract_author, extract_bugs_url, extract_description, extract_license, extract_repository,
-    required_sbom_lockfile, safe_read_project_manifest_from_dir, walk_importer_components,
+    DepType,
+    HashMap,
+    HashSet,
+    ImporterComponents,
+    IncludeFilter,
+    Lockfile,
+    PackageKey,
+    Path,
+    PathBuf,
+    PeerSatisfactionEdges,
+    SbomComponentType,
+    SbomResult,
+    SnapshotEntry,
+    State,
+    TransitiveEdges,
+    WalkStores,
+    build_purl,
+    component_walk_context,
+    confined_importer_dir,
+    extract_author,
+    extract_bugs_url,
+    extract_description,
+    extract_license,
+    extract_repository,
+    required_sbom_lockfile,
+    safe_read_project_manifest_from_dir,
+    walk_importer_components,
 };
 
 /// Every package's dependency type. A peer-satisfaction edge does not pass
@@ -38,7 +60,9 @@ fn importer_roots<'a>(
 ) -> Vec<PackageKey> {
     lockfile.importers
         .values()
-        .flat_map(|importer| maps(importer).iter().flatten())
+        .map(maps)
+        .map(|maps| maps.iter())
+        .flat_map(std::iter::Iterator::flatten)
         .flatten()
         .filter_map(|(name, spec)| spec.version.resolved_key(name))
         .collect()

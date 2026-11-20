@@ -5,7 +5,10 @@
 //! process-group tests stay Unix-only, and they say so where they sit.
 
 use crate::_utils::{
-    CHILD_DEADLINE, append_line_script, wait_for_child_with_deadline, wait_for_marker_script,
+    CHILD_DEADLINE,
+    append_line_script,
+    wait_for_child_with_deadline,
+    wait_for_marker_script,
     write_marker_script,
 };
 use assert_cmd::prelude::*;
@@ -14,14 +17,23 @@ use pnpm_cmd_shim::ScriptRuntime;
 #[cfg(unix)]
 use pnpm_cmd_shim::generate_sh_shim;
 #[cfg(windows)]
-use pnpm_cmd_shim::{CmdShimBatch, generate_cmd_shim};
+use pnpm_cmd_shim::{
+    CmdShimBatch,
+    generate_cmd_shim,
+};
 use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashMap,
     fs,
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
     time::Duration,
 };
 
@@ -685,9 +697,9 @@ fn assert_recursive_run_bail_cancels_in_flight(shell_emulator: bool) {
             "run",
             "build",
         ])
-        .env("HOLD_MS", hold_ms.to_string())
-        .stdout(Stdio::null())
-        .stderr(fs::File::create(&stderr_path).expect("create the run output"))
+        .with_env("HOLD_MS", hold_ms.to_string())
+        .with_stdout(Stdio::null())
+        .with_stderr(fs::File::create(&stderr_path).expect("create the run output").into())
         .spawn()
         .expect("spawn pacquet");
     let status = wait_for_child_with_deadline(&mut run, cancellation_deadline);
@@ -846,9 +858,9 @@ fn recursive_run_silent_suppresses_no_match_notice() {
     drop(root);
 }
 
-/// The top-level `--if-present` spelling with a shorthand script — the
+/// The top-level `--if-present` spelling with a shorthand script (the
 /// shape the repo's own `test-pkgs-branch` script uses
-/// (`pnpm --workspace-concurrency=1 --no-sort --if-present <script>`) —
+/// (`pnpm --workspace-concurrency=1 --no-sort --if-present <script>`))
 /// is the same clean no-op when no package defines the script.
 #[test]
 fn recursive_top_level_if_present_is_a_noop_when_no_package_has_the_script() {

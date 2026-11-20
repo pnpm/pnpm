@@ -1,14 +1,22 @@
 use std::{
     collections::BTreeMap,
     fmt::Write as _,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 use crate::{
-    CancelError, IndexDiscovery,
+    CancelError,
+    IndexDiscovery,
     registry::CRATES_IO_SOURCE,
     resolve_lockfile_until,
-    tests::{BAR_INDEX, FOO_INDEX, METADATA},
+    tests::{
+        BAR_INDEX,
+        FOO_INDEX,
+        METADATA,
+    },
 };
 
 const EMPTY_METADATA: &str = r#"{

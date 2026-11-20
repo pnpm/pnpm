@@ -1,9 +1,21 @@
-use super::{Db, npm, packument, storage};
+use super::{
+    Db,
+    npm,
+    packument,
+    storage,
+};
 use crate::{
     DocumentWrite,
-    database::{NewScimUser, ScimUserRemoval, ScimUserWrite},
+    database::{
+        NewScimUser,
+        ScimUserRemoval,
+        ScimUserWrite,
+    },
 };
-use serde_json::{Map, json};
+use serde_json::{
+    Map,
+    json,
+};
 
 async fn scim_users_track_incremental_generations_and_deprovisions(db: Db) {
     let first = storage(&db);

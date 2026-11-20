@@ -1,6 +1,11 @@
 use serde::Serialize;
 
-use crate::{LogLevel, NdjsonReporter, SkippedOptionalParent, emit_record};
+use crate::{
+    LogLevel,
+    NdjsonReporter,
+    SkippedOptionalParent,
+    emit_record,
+};
 
 /// Fatal error record consumed by pnpm's log reporters.
 #[derive(Debug, Serialize)]

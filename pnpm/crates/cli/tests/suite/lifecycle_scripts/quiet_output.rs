@@ -1,17 +1,29 @@
 use super::{
-    _utils::{ndjson_records, pacquet_in},
-    workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
+    _utils::{
+        ndjson_records,
+        pacquet_in,
+    },
+    workspace_yaml::{
+        allow_builds,
+        append_workspace_yaml_key,
+        set_strict_dep_builds,
+    },
 };
+use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Output};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 const FAILURE: &str = "@pnpm.e2e/failing-postinstall";
 const SUCCESS: &str = "@pnpm.e2e/install-script-example";
 
 fn install(workspace: &Path, level: &str, frozen: bool) -> Output {
     pacquet_in(workspace)
-        .args(["install", "--loglevel", level])
-        .arg(if frozen { "--frozen-lockfile" } else { "--no-frozen-lockfile" })
+        .with_args(["install", "--loglevel", level])
+        .with_arg(if frozen { "--frozen-lockfile" } else { "--no-frozen-lockfile" })
         .output()
         .expect("run pnpm install")
 }
@@ -78,7 +90,7 @@ fn quiet_dependency_failure_and_optional_status_match_on_both_install_paths() {
         for frozen in [false, true] {
             if frozen && !optional {
                 let output = pacquet_in(&fixture.workspace)
-                    .args(["install", "--lockfile-only", "--ignore-scripts"])
+                    .with_args(["install", "--lockfile-only", "--ignore-scripts"])
                     .output()
                     .unwrap();
                 assert!(output.status.success(), "{}", output_text(&output));
@@ -180,14 +192,14 @@ fn quiet_explicit_reporters_and_direct_run_preserve_their_contracts() {
     fs::write(fixture.workspace.join("diagnostics.cjs"),
         "console.log('root-reporter-output'); console.error('root-reporter-error'); process.exit(1)").unwrap();
     let output = pacquet_in(&fixture.workspace)
-        .args(["install", "--loglevel=warn", "--reporter=silent"])
+        .with_args(["install", "--loglevel=warn", "--reporter=silent"])
         .output()
         .unwrap();
     let text = output_text(&output);
     assert_eq!(output.status.code(), Some(1));
     assert!(!text.contains("postinstall$"));
     let output = pacquet_in(&fixture.workspace)
-        .args(["install", "--loglevel=warn", "--reporter=ndjson"])
+        .with_args(["install", "--loglevel=warn", "--reporter=ndjson"])
         .output()
         .unwrap();
     output_text(&output);
@@ -212,7 +224,7 @@ fn quiet_explicit_reporters_and_direct_run_preserve_their_contracts() {
     ).unwrap();
     for level in ["warn", "error"] {
         let output = pacquet_in(&fixture.workspace)
-            .args(["--loglevel", level, "run", "test"])
+            .with_args(["--loglevel", level, "run", "test"])
             .output()
             .unwrap();
         assert!(output.status.success(), "{}", output_text(&output));
@@ -275,7 +287,7 @@ fn parallel_dependency_builds_isolate_failed_and_successful_output() {
         let fixture = CommandTempCwd::init().add_mocked_registry();
         parallel_build_fixture(&fixture.workspace);
         let output = pacquet_in(&fixture.workspace)
-            .args(["install", "--loglevel", level, "--child-concurrency=2"])
+            .with_args(["install", "--loglevel", level, "--child-concurrency=2"])
             .output()
             .unwrap();
         let text = output_text(&output);

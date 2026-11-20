@@ -1,9 +1,14 @@
 use std::path::Path;
 
-use pnpm_package_manifest::{publishes_from_directory, safe_read_project_manifest_from_dir};
+use pnpm_package_manifest::{
+    publishes_from_directory,
+    safe_read_project_manifest_from_dir,
+};
 
 use crate::{
-    LocalResolverOptions, LocalTarballResolution, ResolveLocalError,
+    LocalResolverOptions,
+    LocalTarballResolution,
+    ResolveLocalError,
     parse_bare_specifier::LocalPackageSpec,
 };
 

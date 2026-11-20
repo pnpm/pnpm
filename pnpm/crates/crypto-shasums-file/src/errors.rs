@@ -3,9 +3,15 @@
 //! The codes are upstream's, which the install reporter classifies by:
 //! see each variant for the stage it stands for.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use std::{string::FromUtf8Error, sync::Arc};
+use std::{
+    string::FromUtf8Error,
+    sync::Arc,
+};
 
 /// Errors raised by [`crate::fetch_shasums_file`] and [`crate::fetch_shasums_file_raw`].
 ///
@@ -104,7 +110,7 @@ pub enum FetchVerifiedNodeShasumsError {
 
 /// Errors raised by [`crate::pick_file_checksum_from_shasums_file`].
 ///
-/// Two upstream codes survive the port verbatim — they are the
+/// Two upstream codes survive the port verbatim; they are the
 /// per-file equivalents of `ERR_PNPM_FAILED_DOWNLOAD_SHASUM_FILE`'s download
 /// failure and signal that the body the verifier already has does not
 /// answer the question being asked.

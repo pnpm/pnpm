@@ -1,8 +1,15 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use serde_json::Value;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn write_loaded_tarball(workspace: &Path, files: &[(&str, &str)]) {
     let mut tarball = tar::Builder::new(Vec::new());
@@ -74,7 +81,7 @@ fn loaded_cache_miss_builds_once_in_a_temporary_directory_and_loads_from_cas() {
                 "-e",
                 "console.log(JSON.stringify(require('temporary-build')))",
             ])
-            .env_remove("NODE_OPTIONS")
+            .without_env("NODE_OPTIONS")
             .output()
             .unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -97,7 +104,7 @@ fn loaded_cache_miss_builds_once_in_a_temporary_directory_and_loads_from_cas() {
         .unwrap()
         .with_current_dir(&workspace)
         .with_args(["exec", "temporary-command"])
-        .env_remove("NODE_OPTIONS")
+        .without_env("NODE_OPTIONS")
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -155,7 +162,7 @@ fn loaded_filesystem_packages_are_materialized_without_an_exclusion() {
         .unwrap()
         .with_current_dir(&workspace)
         .with_args(["exec", "node", "-e", "console.log(require('adjacent-files'))"])
-        .env_remove("NODE_OPTIONS")
+        .without_env("NODE_OPTIONS")
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -238,7 +245,7 @@ fn loaded_incompatible_build_outputs_are_retained_without_rebuilding() {
                 .unwrap()
                 .with_current_dir(&workspace)
                 .with_args(["exec", "node", "-e", "console.log(require('incompatible-build'))"])
-                .env_remove("NODE_OPTIONS")
+                .without_env("NODE_OPTIONS")
                 .output()
                 .unwrap();
             assert!(output.status.success(), "{kind}: {}", String::from_utf8_lossy(&output.stderr));
@@ -491,7 +498,7 @@ fn loaded_temporary_build_reuses_a_dependency_build_without_package_changes() {
         .unwrap()
         .with_current_dir(&second)
         .with_args(["exec", "node", "-e", "console.log(require('writes-file'))"])
-        .env_remove("NODE_OPTIONS")
+        .without_env("NODE_OPTIONS")
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));

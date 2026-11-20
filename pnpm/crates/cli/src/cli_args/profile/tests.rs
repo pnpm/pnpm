@@ -1,4 +1,9 @@
-use super::{ProfileArgs, ProfileCommand, ProfileError, render::format_profile_map};
+use super::{
+    ProfileArgs,
+    ProfileCommand,
+    ProfileError,
+    render::format_profile_map,
+};
 use clap::Parser;
 use miette::Diagnostic;
 use mockito::Matcher;

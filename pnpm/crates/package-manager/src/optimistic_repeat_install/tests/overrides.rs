@@ -1,13 +1,21 @@
 use super::{
-    super::Decision, backdate_validated_files, check, check_with_catalogs, isolated_included,
-    setup_fresh_install_with_config, write_state,
+    super::Decision,
+    backdate_validated_files,
+    check,
+    check_with_catalogs,
+    isolated_included,
+    setup_fresh_install_with_config,
+    write_state,
 };
 use crate::install_state::settings::current_settings_with_catalogs;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::Lockfile;
 use pnpm_testing_utils::fs::set_mtime_ms;
-use pnpm_workspace_state::{ProjectEntry, WORKSPACE_STATE_FILENAME};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WORKSPACE_STATE_FILENAME,
+};
 use std::collections::BTreeMap;
 
 #[test]

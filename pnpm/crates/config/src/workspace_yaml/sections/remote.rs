@@ -1,6 +1,10 @@
 //! The settings for build output shared between machines.
 
-use super::{BTreeMap, Deserialize, overlay_some};
+use super::{
+    BTreeMap,
+    Deserialize,
+    overlay_some,
+};
 
 /// Organization-owned dependency build artifacts eligible for this workspace.
 ///

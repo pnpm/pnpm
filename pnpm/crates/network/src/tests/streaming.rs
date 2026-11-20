@@ -1,4 +1,8 @@
-use super::{Duration, ThrottledClient, origin_of};
+use super::{
+    Duration,
+    ThrottledClient,
+    origin_of,
+};
 
 #[test]
 fn origin_of_extracts_scheme_host_and_port() {

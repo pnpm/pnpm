@@ -1,21 +1,43 @@
 use crate::{
-    EnvLockfile, Lockfile,
+    EnvLockfile,
+    Lockfile,
     git_merge_file::MERGE_CONFLICT_OURS,
     serialize_yaml,
     yaml_documents::{
-        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, extract_env_document,
+        YAML_DOCUMENT_SEPARATOR,
+        YAML_DOCUMENT_START,
+        extract_env_document,
         normalize_lockfile_content,
     },
 };
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use std::{
     borrow::Cow,
     env,
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    ffi::OsStr,
+    fs::{
+        self,
+        OpenOptions,
+    },
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// Error when writing the lockfile to the filesystem.
@@ -155,7 +177,8 @@ pub fn render_hook_lockfile(value: &serde_json::Value) -> Result<String, SaveLoc
     let next_format = value
         .get("lockfileVersion")
         .and_then(serde_json::Value::as_str)
-        .and_then(|version| version.parse::<crate::ComVer>().ok())
+        .map(str::parse::<crate::ComVer>)
+        .and_then(Result::ok)
         .is_some_and(|version| version.major == crate::NEXT_LOCKFILE_MAJOR);
     if !next_format {
         return serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml);
@@ -208,8 +231,8 @@ fn preserved_env_document<'a>(
     path: &Path,
 ) -> Result<Cow<'a, str>, SaveLockfileError> {
     // Skips the parse for the documents that plainly carry no marker,
-    // which is all of them but the conflicted few. A false positive —
-    // a marker inside a comment or a scalar — costs a parse that then
+    // which is all of them but the conflicted few. A false positive
+    // (a marker inside a comment or a scalar) costs a parse that then
     // finds nothing to merge, and the document is written back as it is.
     if !env.contains(MERGE_CONFLICT_OURS) {
         return Ok(Cow::Borrowed(env));
@@ -277,7 +300,8 @@ fn allowed_link_target(path: &Path, allowed_dirs: &[PathBuf]) -> io::Result<Path
     let target = fs::canonicalize(path)?;
     let allowed = allowed_dirs
         .iter()
-        .filter_map(|dir| fs::canonicalize(dir).ok())
+        .map(fs::canonicalize)
+        .filter_map(Result::ok)
         .any(|dir| target.starts_with(dir));
     if allowed {
         Ok(target)
@@ -421,6 +445,14 @@ fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
     Ok(())
 }
 
+fn lockfile_file_name(target: &Path) -> String {
+    target
+        .file_name()
+        .unwrap_or_else(|| OsStr::new("lock.yaml"))
+        .to_string_lossy()
+        .into_owned()
+}
+
 /// Write `content` to `target` via a temp file in the same directory
 /// followed by `rename`. The rename is atomic on Unix and replaces
 /// in-place on Windows, so an observer never sees a torn file, and a
@@ -431,10 +463,10 @@ fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
 /// rather than `create + truncate`, so we never follow a symlink or
 /// truncate a file an attacker (or a crashed prior install) pre-seeded
 /// at our predicted temp path. On `AlreadyExists` we advance the
-/// counter and try again, up to `MAX_TEMP_ATTEMPTS` times — matching
+/// counter and try again, up to `MAX_TEMP_ATTEMPTS` times, matching
 /// the hardening already in `pnpm_fs::ensure_file::write_atomic`.
 fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> {
-    /// Sixteen fresh counter values is plenty — under benign
+    /// Sixteen fresh counter values is plenty, under benign
     /// conditions we never collide; under shared-store-across-
     /// containers the chance of 16 consecutive same-pid same-counter
     /// collisions is negligible.
@@ -443,9 +475,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let pid = pnpm_fs::process_id();
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = target
-        .file_name()
-        .map_or_else(|| String::from("lock.yaml"), |name| name.to_string_lossy().into_owned());
+    let file_name = lockfile_file_name(target);
 
     let mut last_already_exists: Option<io::Error> = None;
     for _ in 0..MAX_TEMP_ATTEMPTS {

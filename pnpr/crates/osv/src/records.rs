@@ -1,13 +1,35 @@
 use std::fmt::Write as _;
 
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 
 use super::{
-    Advisory, BulkAdvisory, Cow, Deserialize, HashMap, HashSet, MAX_ADVISORY_ID_BYTES,
-    MAX_EVENTS_PER_RANGE, MAX_EXPLICIT_RANGE_BYTES, MAX_RANGES_PER_AFFECTED,
-    MAX_VERSIONS_PER_AFFECTED, RegistryError, SemverRange, Version, invalid_config,
-    ranges::{OsvRange, build_vulnerable_versions_str, parse_npm_range},
-    severity::{OsvSeverity, SeverityLevel},
+    Advisory,
+    BulkAdvisory,
+    Cow,
+    Deserialize,
+    HashMap,
+    HashSet,
+    MAX_ADVISORY_ID_BYTES,
+    MAX_EVENTS_PER_RANGE,
+    MAX_EXPLICIT_RANGE_BYTES,
+    MAX_RANGES_PER_AFFECTED,
+    MAX_VERSIONS_PER_AFFECTED,
+    RegistryError,
+    SemverRange,
+    Version,
+    invalid_config,
+    ranges::{
+        OsvRange,
+        build_vulnerable_versions_str,
+        parse_npm_range,
+    },
+    severity::{
+        OsvSeverity,
+        SeverityLevel,
+    },
 };
 
 #[derive(Deserialize)]
@@ -326,7 +348,8 @@ fn advisory_url(record: &OsvRecord) -> String {
     }
     if let Some(reference) = record.references
         .iter()
-        .find(|reference| reference.kind == "ADVISORY" && is_http_url(&reference.url))
+        .filter(|reference| reference.kind == "ADVISORY")
+        .find(|reference| is_http_url(&reference.url))
     {
         return reference.url.clone();
     }

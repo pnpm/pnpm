@@ -3,11 +3,15 @@ mod tests;
 mod unescape;
 
 use self::unescape::{
-    unescape_yaml_double_quoted_lenient, unescape_yaml_double_quoted_strict,
+    unescape_yaml_double_quoted_lenient,
+    unescape_yaml_double_quoted_strict,
     unescape_yaml_single_quoted_strict,
 };
 use crate::placeholder_ranges;
-use std::{fmt::Write as _, ops::Range};
+use std::{
+    fmt::Write as _,
+    ops::Range,
+};
 
 const SENTINEL_STEM: &str = "pnpmplaceholder";
 const MIN_SENTINEL_PREFIX_LEN: usize = SENTINEL_STEM.len() + 2;

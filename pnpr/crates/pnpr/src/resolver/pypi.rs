@@ -2,8 +2,8 @@
 //!
 //! `POST /-/pnpr/v0/resolve` with `"ecosystem": "pypi"` resolves a Python
 //! project the way the Cargo surface next door resolves a Cargo one: the
-//! client sends what only it has — its requirements and the interpreter
-//! they are for — and the server does the part that costs round trips.
+//! client sends what only it has (its requirements and the interpreter
+//! they are for) and the server does the part that costs round trips.
 //!
 //! For Python that part is most of the work. Resolving a requirement reads
 //! a distribution's `METADATA`, which lives inside a wheel, so a client
@@ -18,32 +18,59 @@
 //!
 //! What comes back is a `pylock.toml` document. The client writes it, then
 //! downloads the wheels it names and checks them against the digests the
-//! index published — and re-solves the project against the metadata of
+//! index published, and re-solves the project against the metadata of
 //! what it actually downloaded, so a wrong answer here cannot become an
 //! installed environment.
 
 mod metadata;
 mod response;
 use metadata::{
-    CachedDocument, metadata_from_wheel, parse_metadata, parse_page, project_page_url, text,
+    CachedDocument,
+    metadata_from_wheel,
+    parse_metadata,
+    parse_page,
+    project_page_url,
+    text,
     verify_digest,
 };
 
 use std::{
     collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+    path::{
+        Path,
+        PathBuf,
     },
-    time::{Duration, SystemTime},
+    sync::{
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 use axum::response::Response;
-use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    MetadataCacheScope,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_python_resolver::{
-    IndexCandidate, Offered, Packages, Step, Target, WheelMetadata, candidates_from_page,
-    metadata_url, validate_url,
+    IndexCandidate,
+    Offered,
+    Packages,
+    Step,
+    Target,
+    WheelMetadata,
+    candidates_from_page,
+    metadata_url,
+    validate_url,
 };
 use pnpr_pypi::archive::MAX_METADATA_BYTES;
 use pnpr_route::Footprint;
@@ -52,7 +79,10 @@ use crate::server::StripedLocks;
 
 use super::{
     Resolver,
-    limits::{AdmittedResolve, request_timeout_response},
+    limits::{
+        AdmittedResolve,
+        request_timeout_response,
+    },
     package_route::PackageRoute,
 };
 

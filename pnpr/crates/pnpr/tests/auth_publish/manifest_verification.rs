@@ -3,8 +3,19 @@
 //! the version is served from what the archive says.
 
 use super::{
-    Body, Request, ServiceExt, StatusCode, TempDir, Value, add_user_and_get_token, body_bytes,
-    body_json, json, publish_doc, router, static_config,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    Value,
+    add_user_and_get_token,
+    body_bytes,
+    body_json,
+    json,
+    publish_doc,
+    router,
+    static_config,
 };
 use crate::npm::tgz_of;
 

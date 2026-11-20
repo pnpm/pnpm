@@ -1,9 +1,20 @@
 use super::{
-    Colors, Output, ReporterOptions, ReporterState, cached_verdict, standalone_install_command,
-    update_check::PnpmInstallSource, update_command,
+    Colors,
+    Output,
+    ReporterOptions,
+    ReporterState,
+    cached_verdict,
+    standalone_install_command,
+    update_check::PnpmInstallSource,
+    update_command,
 };
 use jiff::Timestamp;
-use pnpm_reporter::{IgnoredScriptsLog, LogEvent, LogLevel, PendingSkillsLog};
+use pnpm_reporter::{
+    IgnoredScriptsLog,
+    LogEvent,
+    LogLevel,
+    PendingSkillsLog,
+};
 use pretty_assertions::assert_eq;
 
 fn at(rfc3339: &str) -> Timestamp {

@@ -6,12 +6,24 @@
 //! on that incarnation; otherwise the next incarnation is stored, and the
 //! commit creates it (see [`pnpr_storage::database::BlobRow`]).
 
-use super::{RegistryError, StagedPublish};
+use super::{
+    RegistryError,
+    StagedPublish,
+};
 use crate::server::AppState;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    BlobId, BlobSlot, PromotedArchive, Storage,
-    database::{ArtifactMember, BlobFence, BlobRef, BlobRow, Uncommitted},
+    BlobId,
+    BlobSlot,
+    PromotedArchive,
+    Storage,
+    database::{
+        ArtifactMember,
+        BlobFence,
+        BlobRef,
+        BlobRow,
+        Uncommitted,
+    },
 };
 use std::collections::BTreeMap;
 

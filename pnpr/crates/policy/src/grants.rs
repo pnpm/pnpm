@@ -1,7 +1,15 @@
 //! Grants: what a subject may do to the packages of one registry.
 
-use super::{AccessList, AccessToken, Identity, PackageRule};
-use pnpr_registry::{Ecosystem, PackagePattern};
+use super::{
+    AccessList,
+    AccessToken,
+    Identity,
+    PackageRule,
+};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+};
 use std::collections::HashMap;
 
 /// What a grant lets a subject do to a package.
@@ -264,7 +272,8 @@ impl Grants {
     pub(super) fn any_admits(&self, action: Action, identity: &Identity) -> bool {
         self.all
             .iter()
-            .any(|grant| !grant.covers_nothing() && grant.gives(action, identity, false))
+            .filter(|grant| !grant.covers_nothing())
+            .any(|grant| grant.gives(action, identity, false))
     }
 
     /// Whether `identity` may do `action` on every package.

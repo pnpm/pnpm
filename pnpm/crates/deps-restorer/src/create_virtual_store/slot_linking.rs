@@ -1,12 +1,33 @@
 use super::{
-    ColdCapture, CreateVirtualStoreError, cache_keys::dir_clone_cacheable, removed_aliases_for,
-    snapshot_needs_build_marker, warm::SlotBuilds,
+    ColdCapture,
+    CreateVirtualStoreError,
+    cache_keys::dir_clone_cacheable,
+    removed_aliases_for,
+    snapshot_needs_build_marker,
+    warm::SlotBuilds,
 };
 use crate::InstallPackageBySnapshotError;
-use pnpm_lockfile::{PackageKey, PackageMetadata, PkgName, SnapshotEntry};
-use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
-use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
-use std::{collections::HashMap, path::PathBuf};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    SnapshotEntry,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    ProgressLog,
+    ProgressMessage,
+    Reporter,
+};
+use pnpm_tarball::{
+    SharedReportedProgressKeys,
+    pending_progress_key,
+};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 pub(super) struct SlotLink<'a> {
     pub source: crate::SlotImportSource,
@@ -14,7 +35,7 @@ pub(super) struct SlotLink<'a> {
     pub(super) snapshot: &'a SnapshotEntry,
     pub(super) cas_paths: &'a pnpm_fs::CasPaths,
     pub(super) warm_cache_key: Option<&'a str>,
-    /// Whether the directory-clone cache may serve this slot — see
+    /// Whether the directory-clone cache may serve this slot; see
     /// [`dir_clone_cacheable`].
     pub(super) dir_clone_cacheable: bool,
     /// Child aliases dropped since the previous install, threaded into
@@ -26,7 +47,7 @@ pub(super) struct SlotLink<'a> {
 /// it. Under the global virtual store, hash-equal peer variants share
 /// a slot path, and `stage_and_swap` in
 /// [`fn@crate::import_indexed_dir`] assumes an exclusive owner per
-/// directory — so the link pass runs one task per group, with the
+/// directory, so the link pass runs one task per group, with the
 /// `removed_aliases` of every member unioned for cleanup.
 pub(super) struct SlotDirGroup<'a> {
     representative: &'a SlotLink<'a>,

@@ -3,8 +3,15 @@
 
 pub use pnpm_network::DEFAULT_MAX_TARBALL_UNPACKED_SIZE;
 
-use super::{MAX_UNTRUSTED_PREALLOC_BYTES, Read, TarballError};
-use std::{cell::Cell, io};
+use super::{
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    Read,
+    TarballError,
+};
+use std::{
+    cell::Cell,
+    io,
+};
 
 /// Error attached to [`TarballError::ReadTarballEntries`] when a
 /// `package.json` entry claims more than [`MAX_UNTRUSTED_PREALLOC_BYTES`].
@@ -71,14 +78,15 @@ impl TarLimits {
     /// worked before tars existed.
     #[must_use]
     pub fn with_unpacked_size(self, unpacked_size: Option<usize>) -> Self {
-        let unpacked_size = unpacked_size.and_then(|size| u64::try_from(size).ok());
+        let unpacked_size = unpacked_size.map(u64::try_from).and_then(Result::ok);
         Self { unpacked_size, ..self }
     }
 
     /// The limits for an archive that turned out to be a plain tar.
     pub(crate) fn for_tar(self) -> Self {
-        let max_payload =
-            self.unpacked_size.map_or(self.max_payload, |size| size.min(self.max_payload));
+        let max_payload = self.unpacked_size
+            .map(|size| size.min(self.max_payload))
+            .unwrap_or(self.max_payload);
         Self { max_payload, unpacked_size: None, ..self }
     }
 }
@@ -300,8 +308,8 @@ fn rejected_entry_path_error(error: RejectedEntryPathError) -> TarballError {
 /// instead of silently landing outside the store.
 ///
 /// An entry that is only one segment long keeps that segment. Such an
-/// entry sits at the archive root — beside `package/`, or in a flat
-/// archive with no wrapping directory at all — so there is no
+/// entry sits at the archive root (beside `package/`, or in a flat
+/// archive with no wrapping directory at all) so there is no
 /// top-level directory on it to drop, and pnpm keys it by its own name
 /// (`parseString` in `parseTarball.ts` advances past the first
 /// separator, which a single segment has none of). Dropping the segment
@@ -337,8 +345,8 @@ pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError
 ///
 /// `\` is treated as a separator, as pnpm does before it validates
 /// (`parseTarball.ts`). Without that, a Windows-built entry keeps its
-/// backslashes verbatim on Unix — where they are ordinary filename
-/// characters — and the resulting key travels through the `index.db`
+/// backslashes verbatim on Unix (where they are ordinary filename
+/// characters) and the resulting key travels through the `index.db`
 /// both implementations share to a reader that *does* treat them as
 /// separators.
 ///

@@ -26,8 +26,14 @@
 pub use crate::write_local_layout_marker;
 
 use pnpr_package_name::Ecosystem;
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The layout this build reads and writes.
 pub const LAYOUT_VERSION: u32 = 3;

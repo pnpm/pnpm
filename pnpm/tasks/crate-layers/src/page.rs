@@ -1,7 +1,15 @@
 //! A [`Matrix`] as a self-contained HTML page.
 
-use crate::dsm::{Dependency, Group, Mark, Matrix};
-use std::{collections::BTreeSet, fmt::Write as _};
+use crate::dsm::{
+    Dependency,
+    Group,
+    Mark,
+    Matrix,
+};
+use std::{
+    collections::BTreeSet,
+    fmt::Write as _,
+};
 
 /// The number of shades a co-change count maps to.
 const SHADES: usize = 5;

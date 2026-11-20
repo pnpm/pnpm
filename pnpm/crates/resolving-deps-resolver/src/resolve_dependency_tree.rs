@@ -1,16 +1,39 @@
-pub use catalogs::{ChildCatalogs, local_directory_child_specs};
-pub use failure::{DependencyResolutionError, ResolutionCancel, ResolveDependencyTreeError};
-pub use manifest::{declared_specifiers, manifest_child_specs};
-pub use override_reframe::{OverrideEntry, OverrideNoMatchingVersionError};
+pub use catalogs::{
+    ChildCatalogs,
+    local_directory_child_specs,
+};
+pub use failure::{
+    DependencyResolutionError,
+    ResolutionCancel,
+    ResolveDependencyTreeError,
+};
+pub use manifest::{
+    declared_specifiers,
+    manifest_child_specs,
+};
+pub use override_reframe::{
+    OverrideEntry,
+    OverrideNoMatchingVersionError,
+};
 
 pub use update_scope::{
-    LockedRuntimeReuse, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
+    LockedRuntimeReuse,
+    UpdateDepth,
+    UpdateReuseScope,
+    UpdateTargets,
+    VersionLine,
 };
 
 pub use reuse::real_package_name_of;
 
-pub use tree_ctx::{TreeCtx, directory_package_dir};
-pub(crate) use tree_ctx::{declaring_manifest_dir, resolves_from_declaring_manifest};
+pub use tree_ctx::{
+    TreeCtx,
+    directory_package_dir,
+};
+pub(crate) use tree_ctx::{
+    declaring_manifest_dir,
+    resolves_from_declaring_manifest,
+};
 
 pub use workspace_ctx::WorkspaceTreeCtx;
 
@@ -19,7 +42,9 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 pub(crate) use importer::importer_direct_wanted_specs;
 
 pub(crate) use reuse::{
-    direct_dep_specifier_unchanged, preseed_changed_direct_versions, record_changed_direct_deps,
+    direct_dep_specifier_unchanged,
+    preseed_changed_direct_versions,
+    record_changed_direct_deps,
     resolve_direct_dependency_detached,
 };
 
@@ -30,20 +55,40 @@ mod update_scope;
 use futures_util::future;
 use pipe_trait::Pipe;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_patching::PatchGroupRecord;
 use pnpm_resolving_resolver_base::{
-    PreferredVersionsOverlay, ResolveOptions, Resolver, WantedDependency,
+    PreferredVersionsOverlay,
+    ResolveOptions,
+    Resolver,
+    WantedDependency,
 };
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    sync::{
+        Arc,
+        Mutex,
+        MutexGuard,
+        RwLock,
+        RwLockReadGuard,
+        RwLockWriteGuard,
+    },
 };
 
 use crate::{
     parent_pkg_aliases::ParentPkgAliases,
-    resolved_tree::{AncestorPkgIds, DirectDep, ResolvedTree},
+    resolved_tree::{
+        AncestorPkgIds,
+        DirectDep,
+        ResolvedTree,
+    },
 };
 
 mod catalogs;
@@ -62,11 +107,21 @@ mod workspace_ctx;
 mod test_support;
 
 use importer::{
-    describe_importer, importer_injected_dependency_names, importer_optional_dependency_names,
+    describe_importer,
+    importer_injected_dependency_names,
+    importer_optional_dependency_names,
 };
-use reuse::{ReuseSource, record_direct_dep_versions};
+use reuse::{
+    ReuseSource,
+    record_direct_dep_versions,
+};
 use walk::{
-    ChildEdge, NodeSeed, level_aliases, level_versions, resolve_node_seed, walk_from_seeds,
+    ChildEdge,
+    NodeSeed,
+    level_aliases,
+    level_versions,
+    resolve_node_seed,
+    walk_from_seeds,
     warm_children_resolutions,
 };
 
@@ -75,7 +130,7 @@ use walk::{
 /// ...). The mutexes guarded by this helper hold short `HashMap` /
 /// `HashSet` inserts with no invariants that survive a panic, so the
 /// install can keep going after the unrelated panic that poisoned
-/// the lock — better than escalating into a hard install-wide
+/// the lock, better than escalating into a hard install-wide
 /// failure.
 fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -98,7 +153,7 @@ fn write_recoverable<Inner>(lock: &RwLock<Inner>) -> RwLockWriteGuard<'_, Inner>
 /// call sees; the tree walker doesn't mutate it.
 ///
 /// Peer auto-installation lives one layer up in
-/// [`fn@crate::resolve_importer`] — this entry point is a pure tree walker
+/// [`fn@crate::resolve_importer`]; this entry point is a pure tree walker
 /// over the manifest's explicit dependencies plus their transitive
 /// children. The orchestrator extends the same tree with hoisted peers
 /// via [`extend_tree`].
@@ -160,7 +215,7 @@ pub struct SkippedOptionalDependency {
     /// The wanted specifier.
     pub bare_specifier: String,
     /// The resolved packages between the importer and the failing
-    /// edge, importer first. Empty for a direct optional dependency —
+    /// edge, importer first. Empty for a direct optional dependency,
     /// the default reporter renders only those.
     pub parents: Vec<SkippedOptionalDependencyParent>,
     /// The project directory the failing edge was resolved for.
@@ -248,9 +303,9 @@ pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
 /// AND-folds its `optional` flag into the existing
 /// [`ResolvedPackage`] envelope and reuses it. It still allocates a
 /// fresh [`DependenciesTreeNode`] for the current occurrence and
-/// recurses on `X`'s children — only the resolver-side envelope is
+/// recurses on `X`'s children, only the resolver-side envelope is
 /// shared. The critical sections are short `HashMap` inserts with no
-/// `await` inside, so a sync mutex is the right tool — tokio's async
+/// `await` inside, so a sync mutex is the right tool, tokio's async
 /// mutex adds per-acquire overhead that the resolve hot path was
 /// paying once per visit per ctx field.
 ///
@@ -358,7 +413,7 @@ pub struct DependencySpec {
 /// leave it `None`: an absent meta entry yields no flag rather than
 /// `false`. The resolver OR's this with the global
 /// `inject_workspace_packages` flag, so `None` and `Some(false)` would
-/// produce identical behavior — but keeping `None` aligns the
+/// produce identical behavior, but keeping `None` aligns the
 /// [`WantedKey`](workspace_ctx::WantedKey) cache buckets across the two pacquet branches that
 /// surface `injected`.
 pub(crate) fn wanted_from_spec(spec: DependencySpec) -> WantedDependency {

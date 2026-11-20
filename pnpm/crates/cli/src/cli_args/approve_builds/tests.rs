@@ -1,5 +1,9 @@
 use super::{
-    ApproveBuildsArgs, ApproveBuildsError, PromptAvailability, partition_params, sort_unique,
+    ApproveBuildsArgs,
+    ApproveBuildsError,
+    PromptAvailability,
+    partition_params,
+    sort_unique,
 };
 use pnpm_reporter::SilentReporter;
 

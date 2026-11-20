@@ -1,6 +1,9 @@
 //! Unit tests for reading a walk's subtree missing-peer summaries.
 
-use super::{MissingSummary, index_missing_names};
+use super::{
+    MissingSummary,
+    index_missing_names,
+};
 use rustc_hash::FxHashSet as HashSet;
 use std::sync::Arc;
 
@@ -64,8 +67,18 @@ fn occurrences_of_one_package_report_the_union_of_their_missing_peers() {
 
 #[test]
 fn discovery_reuses_nested_providers_with_retained_bindings() {
-    use super::{HashMap, NodeId, ParentRef, ParentRefs, PeerWalkMode, WalkResult};
-    use crate::{ResolvedTree, resolve_peers::test_support::walker_for_tests};
+    use super::{
+        HashMap,
+        NodeId,
+        ParentRef,
+        ParentRefs,
+        PeerWalkMode,
+        WalkResult,
+    };
+    use crate::{
+        ResolvedTree,
+        resolve_peers::test_support::walker_for_tests,
+    };
     use pnpm_deps_path::DepPath;
 
     let mut tree = ResolvedTree::default();

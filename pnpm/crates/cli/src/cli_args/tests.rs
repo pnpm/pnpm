@@ -1,25 +1,46 @@
 use super::{
     CliArgs,
     add::AddArgs,
-    cli_command::{CliCommand, options::WorkspaceRootError},
-    config::{ConfigLocation, ConfigSubcommand},
+    cli_command::{
+        CliCommand,
+        options::WorkspaceRootError,
+    },
+    config::{
+        ConfigLocation,
+        ConfigSubcommand,
+    },
     dedupe::DedupeArgs,
-    install::{InstallArgs, resolve_bool_override},
+    install::{
+        InstallArgs,
+        resolve_bool_override,
+    },
     list::RecursionLimit,
     package_manager::{
-        current_source_pnpm_version, package_manager_to_sync_for_version, parse_package_manager,
+        current_source_pnpm_version,
+        package_manager_to_sync_for_version,
+        parse_package_manager,
         read_manifest_json,
     },
     parse_depth_limit,
     remove::RemoveArgs,
-    reporter::{LogLevelSetting, ReporterType},
+    reporter::{
+        LogLevelSetting,
+        ReporterType,
+    },
     store::StoreCommand,
-    tasks::{TasksArgs, TasksCommand},
+    tasks::{
+        TasksArgs,
+        TasksCommand,
+    },
     unlink::UnlinkArgs,
     version::VersionArgs,
 };
 use clap::Parser;
-use pnpm_config::{ColorMode, PNPM_VERSION, PmOnFail};
+use pnpm_config::{
+    ColorMode,
+    PNPM_VERSION,
+    PmOnFail,
+};
 use pnpm_default_reporter::SummaryScope;
 use std::path::Path;
 use tempfile::TempDir;
@@ -329,7 +350,7 @@ fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
 #[test]
 fn resolve_bool_override_tri_state() {
     // force_on wins, force_off wins over a config `true`, and an unset
-    // pair falls through to config — in both config polarities.
+    // pair falls through to config, in both config polarities.
     assert!(resolve_bool_override(true, false, false), "force_on over config false");
     assert!(resolve_bool_override(true, false, true), "force_on over config true");
     assert!(!resolve_bool_override(false, true, true), "force_off over config true");
@@ -783,7 +804,7 @@ fn force_help_says_platform_mismatched_optionals_stay_skipped() {
 }
 
 /// `--production` is the setting name behind `--prod`, and pnpm accepts
-/// it wherever `--prod` selects dependency groups — in a command line
+/// it wherever `--prod` selects dependency groups, in a command line
 /// typed by hand as much as in the install the verify-deps-before-run
 /// gate reproduces
 /// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).

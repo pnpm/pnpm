@@ -1,4 +1,7 @@
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::io;
 
 /// Confirms through the host terminal, preserving an optional Enter-key default.

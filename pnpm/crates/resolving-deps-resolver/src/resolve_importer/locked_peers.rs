@@ -1,10 +1,22 @@
 #[cfg(test)]
 pub(super) mod test_utils;
 
-use super::{Arc, DependencyGroup, HashMap, HashSet, TreeCtx};
-use crate::resolve_dependency_tree::{DependencySpec, direct_dep_specifier_unchanged};
+use super::{
+    Arc,
+    DependencyGroup,
+    HashMap,
+    HashSet,
+    TreeCtx,
+};
+use crate::resolve_dependency_tree::{
+    DependencySpec,
+    direct_dep_specifier_unchanged,
+};
 use hashed_suffix::hashed_peer_keys;
-use pnpm_lockfile::{PeerBindings, PkgName};
+use pnpm_lockfile::{
+    PeerBindings,
+    PkgName,
+};
 
 mod hashed_suffix;
 
@@ -314,7 +326,7 @@ fn snapshot_peer_provider(
 ///
 /// A peer suffix names each provider by the package it resolved to,
 /// while peer resolution keys providers by the name they occupy in the
-/// dependent's `node_modules` — which for `"peer": "npm:provider@1"` is
+/// dependent's `node_modules`, which for `"peer": "npm:provider@1"` is
 /// `peer`, not `provider`. Reading the segment back verbatim would pin a
 /// peer nobody declares and leave the declared one unpinned, so a
 /// repeated resolution is free to pick the other variant.
@@ -342,7 +354,7 @@ pub(super) fn restore_aliased_peer_names(
 /// package each one installs, so every suffix segment is attributed in
 /// one lookup rather than another scan of the edges.
 ///
-/// Empty — and every segment therefore left alone — unless some edge
+/// Empty (and every segment therefore left alone) unless some edge
 /// installs a package under a name other than its own, since that is the
 /// only shape that makes a segment disagree with its edge.
 pub(super) fn provider_aliases(
@@ -405,8 +417,8 @@ impl ProviderAliases {
     /// Declared peer edges go first, matching the
     /// `peerDependencies`-keyed lookup the TypeScript CLI restores peer
     /// context with; an ordinary edge takes the segment left over, which
-    /// is how a peer propagated up from a child — satisfied by an
-    /// ordinary dependency, under the name the child declared — gets its
+    /// is how a peer propagated up from a child (satisfied by an
+    /// ordinary dependency, under the name the child declared) gets its
     /// name back.
     ///
     /// Competing ordinary edges are unattributable, since a dependency

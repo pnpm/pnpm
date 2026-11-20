@@ -1,11 +1,18 @@
 use super::{
-    CalcDepStateOptions, DepsGraphNode, build_required_dep_paths, calc_dep_graph_hash,
-    calc_dep_state, calc_dep_state_input_key,
+    CalcDepStateOptions,
+    DepsGraphNode,
+    build_required_dep_paths,
+    calc_dep_graph_hash,
+    calc_dep_state,
+    calc_dep_state_input_key,
 };
 use crate::hash_object;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 #[test]
 fn engine_only_key() {
@@ -321,7 +328,7 @@ fn graph_hash(graph: &HashMap<String, DepsGraphNode<String>>, key: &str) -> Stri
     calc_dep_graph_hash(graph, &mut HashMap::new(), &key.to_string())
 }
 
-/// `a` sits in two cycles at once — `a` ↔ `b` and `a` ↔ `m`.
+/// `a` sits in two cycles at once, `a` ↔ `b` and `a` ↔ `m`.
 fn two_cycle_graph() -> HashMap<String, DepsGraphNode<String>> {
     graph_of([
         ("a", node("a", &[("m", "m"), ("z", "z"), ("b", "b")])),

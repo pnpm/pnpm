@@ -1,4 +1,9 @@
-use super::{Config, Path, WorkspaceSettings, assert_eq};
+use super::{
+    Config,
+    Path,
+    WorkspaceSettings,
+    assert_eq,
+};
 
 #[test]
 fn provenance_is_unset_by_default_and_applies_from_yaml() {

@@ -8,7 +8,10 @@ use std::path::PathBuf;
 /// enough for [`pnpm_store_dir::staging_dir_name`]. Only installs building
 /// the same package at once can collide, which takes one in four billion.
 pub(super) fn new_staging_token() -> String {
-    use std::hash::{BuildHasher as _, Hasher as _};
+    use std::hash::{
+        BuildHasher as _,
+        Hasher as _,
+    };
     // Each `RandomState` gets fresh keys, seeded from the operating system's
     // random source.
     let random = std::collections::hash_map::RandomState::new().build_hasher().finish();

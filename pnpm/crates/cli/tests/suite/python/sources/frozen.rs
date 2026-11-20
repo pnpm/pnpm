@@ -1,9 +1,20 @@
 use super::{
-    super::{assert_failure_contains, python, python_project, serve, serve_backends, wheel},
-    approve, git, project, repository,
+    super::{
+        assert_failure_contains,
+        python,
+        python_project,
+        serve,
+        serve_backends,
+        wheel,
+    },
+    approve,
+    git,
+    project,
+    repository,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use std::fs;
 
 #[tokio::test]
@@ -22,7 +33,7 @@ async fn inactive_git_sources_in_frozen_lockfiles_are_rejected_before_building()
     );
     approve(root.path(), "fork");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let path = root.path().join("pylock.toml");
@@ -43,9 +54,9 @@ async fn inactive_git_sources_in_frozen_lockfiles_are_rejected_before_building()
     fs::write(path, toml::to_string(&lock).unwrap()).unwrap();
     let trace = root.path().join("git-trace");
     assert_failure_contains(
-        pacquet_in(root.path())
-            .env("GIT_TRACE", &trace)
-            .args(["install", "--frozen-lockfile"]),
+        &mut pacquet_in(root.path())
+            .with_env("GIT_TRACE", &trace)
+            .with_args(["install", "--frozen-lockfile"]),
         "inactive source",
     );
     let invocations = fs::read_to_string(trace).unwrap_or_default();
@@ -75,11 +86,11 @@ async fn production_subsets_keep_sources_validated_in_the_complete_lock_graph() 
     let contents = fs::read_to_string(&manifest).unwrap();
     fs::write(manifest, format!("{contents}\n[dependency-groups]\ndev = ['devhelper']\n")).unwrap();
     pacquet_in(root.path())
-        .args(["install", "--prod"])
+        .with_args(["install", "--prod"])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--prod", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--prod", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     let contents = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -89,7 +100,7 @@ async fn production_subsets_keep_sources_validated_in_the_complete_lock_graph() 
             .iter()
             .any(|package| package.name.as_ref() == "fork" && package.vcs.is_some()),
     );
-    python(root.path()).args(["-c", "import fork, importlib.util; assert fork.MARKER == 'workspace fork'; assert importlib.util.find_spec('devhelper') is None"]).assert().success();
+    python(root.path()).with_args(["-c", "import fork, importlib.util; assert fork.MARKER == 'workspace fork'; assert importlib.util.find_spec('devhelper') is None"]).assert().success();
 }
 
 #[tokio::test]
@@ -114,18 +125,18 @@ async fn frozen_git_dependencies_activate_transitive_sources_from_verified_metad
     approve(root.path(), "fork");
     approve(root.path(), "aardvark");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     drop(parent);
     drop(child);
     pacquet_in(root.path())
-        .env("GIT_ALLOW_PROTOCOL", "https")
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_env("GIT_ALLOW_PROTOCOL", "https")
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import fork, aardvark"])
+        .with_args(["-c", "import fork, aardvark"])
         .assert()
         .success();
 }
@@ -157,7 +168,7 @@ async fn frozen_git_sources_cannot_replace_an_explicit_commit_pin() {
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@{commit}")]);
     approve(root.path(), "fork");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     fs::write(repo.path().join("src/fork/__init__.py"), "raise RuntimeError('replaced commit')\n")
@@ -177,9 +188,9 @@ async fn frozen_git_sources_cannot_replace_an_explicit_commit_pin() {
     fs::write(path, toml::to_string(&lock).unwrap()).unwrap();
     let trace = root.path().join("git-trace");
     assert_failure_contains(
-        pacquet_in(root.path())
-            .env("GIT_TRACE", &trace)
-            .args(["install", "--frozen-lockfile"]),
+        &mut pacquet_in(root.path())
+            .with_env("GIT_TRACE", &trace)
+            .with_args(["install", "--frozen-lockfile"]),
         "does not satisfy the source",
     );
     let invocations = fs::read_to_string(trace).unwrap_or_default();

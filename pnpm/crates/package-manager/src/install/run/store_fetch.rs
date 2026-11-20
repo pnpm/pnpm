@@ -1,7 +1,13 @@
 //! The store fetch of a run that writes no `node_modules`. See
 //! [`RunMode::fetches_into_store`].
 
-use super::{InstallError, InstallOwned, InstallView, Lockfiles, RunMode};
+use super::{
+    InstallError,
+    InstallOwned,
+    InstallView,
+    Lockfiles,
+    RunMode,
+};
 use crate::store_fetch::StoreFetchScope;
 use pnpm_lockfile::Lockfile;
 use pnpm_reporter::Reporter;

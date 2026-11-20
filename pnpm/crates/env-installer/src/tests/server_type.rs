@@ -1,9 +1,22 @@
 use super::{
-    BTreeMap, EnvLockfile, Harness, LockfileResolution, PackageKey, SilentReporter, TempDir,
-    TestRegistry, build_resolver, clean_spec, harness_for, options,
+    BTreeMap,
+    EnvLockfile,
+    Harness,
+    LockfileResolution,
+    PackageKey,
+    SilentReporter,
+    TempDir,
+    TestRegistry,
+    build_resolver,
+    clean_spec,
+    harness_for,
+    options,
     resolve_and_install_config_deps,
 };
-use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_lockfile::{
+    RegistryOptions,
+    RegistryServerType,
+};
 
 fn pnpr_harness(registry: &TestRegistry) -> Harness {
     let mut harness = harness_for(registry.url().to_string());

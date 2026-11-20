@@ -7,16 +7,39 @@ use std::{
     fmt::Write as _,
     io::Read,
     mem,
-    process::{Child, Command, ExitStatus, Output, Stdio},
-    sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicUsize, Ordering},
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Output,
+        Stdio,
     },
-    thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use sysinfo::{
-    Pid, Process, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind,
+    Pid,
+    Process,
+    ProcessRefreshKind,
+    ProcessStatus,
+    ProcessesToUpdate,
+    System,
+    UpdateKind,
 };
 
 /// Below nextest's `terminate-after`, so the report is printed before

@@ -1,21 +1,45 @@
 pub(super) mod bootstrap_argv;
 
 use super::{
-    ArgTable, CliCommand, CliNetworkArgs, ColorMode, Config, LogEvent, OsStr, OsString, PathBuf,
-    ReporterFlags, pre_command_emit,
+    ArgTable,
+    CliCommand,
+    CliNetworkArgs,
+    ColorMode,
+    Config,
+    LogEvent,
+    OsStr,
+    OsString,
+    PathBuf,
+    ReporterFlags,
+    pre_command_emit,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
         CliArgs,
-        cli_command::{CliPathArgs, PresentationArgs, options::find_workspace_root_dir},
+        cli_command::{
+            CliPathArgs,
+            PresentationArgs,
+            options::find_workspace_root_dir,
+        },
         config_warnings::ConfigWarnings,
     },
-    parse_boundary::{COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE, SCRIPT_SHORTCUTS},
+    parse_boundary::{
+        COMMANDS_TAKING_A_FOREIGN_COMMAND_LINE,
+        SCRIPT_SHORTCUTS,
+    },
 };
 use bootstrap_argv::{
-    BootstrapTokens, canonical_command_name, cluster_options, command_options, consumes_next_token,
-    declared_option_width, every_option, long_value, may_take_undeclared_value, typed_flag,
+    BootstrapTokens,
+    canonical_command_name,
+    cluster_options,
+    command_options,
+    consumes_next_token,
+    declared_option_width,
+    every_option,
+    long_value,
+    may_take_undeclared_value,
+    typed_flag,
 };
 use clap::CommandFactory;
 
@@ -361,7 +385,8 @@ fn should_skip_invocation(
         && !positionals.is_empty()
         && positionals
             .iter()
-            .all(|spec| crate::engine_pm::pin::declared_package_manager(spec).is_some());
+            .map(|spec| crate::engine_pm::pin::declared_package_manager(spec))
+            .all(|declared_package_manager| declared_package_manager.is_some());
     let is_engine_update_or_outdated =
         matches!(command, Some("update" | "up" | "upgrade" | "outdated"))
             && crate::cli_args::engine_deps::has_only_engine_selectors(positionals);
@@ -373,7 +398,7 @@ fn should_skip_invocation(
 }
 
 /// pnpm treats `--global` as an opt-out of the project's package manager
-/// and runtime pins — a global install does not belong to the project.
+/// and runtime pins, a global install does not belong to the project.
 pub(crate) fn is_global(command: &CliCommand) -> bool {
     // `pnpm link` with no arguments links the current project into the
     // global directory.
@@ -381,7 +406,7 @@ pub(crate) fn is_global(command: &CliCommand) -> bool {
         || matches!(command, CliCommand::Link(args) if args.package_paths.is_empty())
 }
 
-/// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup` —
+/// The commands pnpm marks with `skipPackageManagerCheck`, plus `setup`;
 /// they either predate the project's pins (`setup`), inspect pnpm itself
 /// (`store`, `doctor`, and so on), or run something that is not the project
 /// (`dlx`).

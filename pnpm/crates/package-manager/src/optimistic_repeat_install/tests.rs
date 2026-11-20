@@ -33,22 +33,44 @@ mod validation;
 mod settings_classification;
 
 use super::{
-    Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
-    deps_status::{RunDepsStatus, check_deps_status_before_run},
+    Decision,
+    OptimisticRepeatInstallCheck,
+    check_optimistic_repeat_install,
+    deps_status::{
+        RunDepsStatus,
+        check_deps_status_before_run,
+    },
 };
 use crate::install_state::settings::current_settings;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{
+    Lockfile,
+    MaybeLazyLockfile,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_testing_utils::fs::{MTIME_STEP_MS, backdate_existing_files, set_mtime, set_mtime_ms};
+use pnpm_testing_utils::fs::{
+    MTIME_STEP_MS,
+    backdate_existing_files,
+    set_mtime,
+    set_mtime_ms,
+};
 use pnpm_workspace_state::{
-    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
+    ProjectEntry,
+    WorkspaceState,
+    WorkspaceStateSettings,
+    load_workspace_state,
     update_workspace_state,
 };
-use ssri::{Algorithm, IntegrityOpts};
-use std::{collections::BTreeMap, fs};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {
@@ -56,7 +78,7 @@ fn isolated_included() -> IncludedDependencies {
 }
 
 /// Run the fast-path check in single-project mode with no loaded
-/// lockfile and no catalogs — the shape every pre-content-check test
+/// lockfile and no catalogs, the shape every pre-content-check test
 /// exercises.
 fn check(
     workspace_root: &std::path::Path,
@@ -366,7 +388,7 @@ fn setup_fresh_install_with_config(
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
     // Seed `pnpm-lock.yaml` so the single-project branch's lockfile
-    // gate passes — most tests run in single-project mode (no
+    // gate passes, most tests run in single-project mode (no
     // `pnpm-workspace.yaml`) and would otherwise short-circuit on
     // the missing-lockfile reason regardless of what they intend
     // to exercise.
