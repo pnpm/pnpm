@@ -58,6 +58,50 @@ fn keep_reapplies_the_flag_only_when_the_previous_value_carried_it() {
     );
 }
 
+/// Mirrors the TypeScript test `require() from a module compiled from a
+/// string loads ...` in `pnpm11/exec/esm-node-path-loader/test/index.ts`.
+/// A module created with `new Module()` has no filename, so its `require()`
+/// calls reach the resolve hook without a parent URL, like the entry point
+/// does, and resolve relative specifiers from the working directory
+/// (pnpm/pnpm#18261).
+#[test]
+fn require_from_a_module_compiled_from_a_string_keeps_require_extensions() {
+    let ts_hook = r#"require.extensions['.ts'] = (module, filename) => module._compile('module.exports = "ts-hook"', filename)"#;
+    for (file, contents, hook, expected) in [
+        ("lib.ts", "not JavaScript", ts_hook, "ts-hook"),
+        ("data.json", r#""json-loaded""#, "", "json-loaded"),
+    ] {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let root = dir.path();
+        fs::write(
+            root.join("runner.js"),
+            format!(
+                r#"const Module = require('node:module')
+const path = require('node:path')
+{hook}
+const filename = path.join(__dirname, 'compiled.js')
+const compiled = new Module(filename, module)
+compiled.paths = Module._nodeModulePaths(__dirname)
+compiled._compile('module.exports = require("./{file}")', filename)
+console.log(compiled.exports)
+"#,
+            ),
+        )
+        .expect("write runner.js");
+        fs::write(root.join(file), contents).expect("write the required file");
+
+        let output = Command::new("node")
+            .arg("runner.js")
+            .current_dir(root)
+            .env("NODE_OPTIONS", esm_node_path_loader_import_flag())
+            .output()
+            .expect("run node");
+        assert_eq!(String::from_utf8_lossy(&output.stderr), "", "requiring {file}");
+        assert!(output.status.success(), "requiring {file}");
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
+    }
+}
+
 /// Mirrors the TypeScript test of the same name in
 /// `pnpm11/exec/esm-node-path-loader/test/index.ts`. The alias hook stands in
 /// for the tsconfig paths hook in pnpm/pnpm#16979. `NODE_OPTIONS` imports

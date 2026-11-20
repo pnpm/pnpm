@@ -15,7 +15,12 @@
 //! entry point with the `commonjs` format, which hands it back to the CJS
 //! loader, as Node.js does without `--import`. Entry points ending in `.js`
 //! or without an extension are left alone, because Node.js may detect
-//! module syntax in them.
+//! module syntax in them. A `require()` from a module without a filename
+//! also has no parent URL. Unless the user adds `--conditions=import`, only
+//! the entry point resolves with the `import` condition, so the hook leaves
+//! such a `require()` to `require.extensions`. Some Node.js versions pass
+//! the conditions of a `require()` as a `Set`, so the hook spreads them
+//! before searching.
 //!
 //! The hook sources are identical copies of the ones the TypeScript CLI
 //! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`) — the two must
@@ -25,7 +30,7 @@ use std::{fmt::Write, sync::LazyLock};
 
 const RESOLVE_HELPERS: &str = r"const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
 const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')
-const isEntryPointUnknownToEsm = (resolved, context) => context.parentURL === undefined && resolved.format == null && resolved.url.startsWith('file:') && !['', '.js'].includes(extname(new URL(resolved.url).pathname))
+const isEntryPointUnknownToEsm = (resolved, context) => context.parentURL === undefined && [...(context.conditions ?? ['import'])].includes('import') && resolved.format == null && resolved.url.startsWith('file:') && !['', '.js'].includes(extname(new URL(resolved.url).pathname))
 const markUnknownEntryPointAsCommonJs = (resolved, context) => isEntryPointUnknownToEsm(resolved, context) ? { ...resolved, format: 'commonjs' } : resolved";
 
 /// Fallback for Node.js versions that have `module.register()` but not

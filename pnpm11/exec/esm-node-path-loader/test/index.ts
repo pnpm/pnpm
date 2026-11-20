@@ -198,9 +198,11 @@ export async function resolve (specifier, context, nextResolve) {
   })
 
   test.each([
-    ['with NODE_PATH', { NODE_PATH: os.tmpdir() }],
-    ['without NODE_PATH', { NODE_PATH: '' }],
-  ])('runs an entry point through a CommonJS require hook %s', (_name, nodePathEnv) => {
+    ['with NODE_PATH', { NODE_PATH: os.tmpdir() }, []],
+    ['without NODE_PATH', { NODE_PATH: '' }, []],
+    // A user condition also reaches the entry point's resolution.
+    ['with --conditions=require', { NODE_PATH: '' }, ['--conditions=require']],
+  ])('runs an entry point through a CommonJS require hook %s', (_name, nodePathEnv, nodeArgs) => {
     // Mirrors how ts-node runs a .ts entry point: it registers a
     // require.extensions hook, then reruns the main module.
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
@@ -212,7 +214,7 @@ require('node:module').runMain()
 `)
     fs.writeFileSync(path.join(tmp, 'entry.custom'), 'not JavaScript')
 
-    const result = spawnSync(process.execPath, [runner], {
+    const result = spawnSync(process.execPath, [...nodeArgs, runner], {
       env: {
         ...process.env,
         ...nodePathEnv,
@@ -222,6 +224,51 @@ require('node:module').runMain()
     expect(result.stderr.toString()).toBe('')
     expect(result.status).toBe(0)
     expect(result.stdout.toString().trim()).toBe('custom-loaded')
+  })
+
+  test.each([
+    {
+      loads: 'a .ts file through a require.extensions hook',
+      file: 'lib.ts',
+      contents: 'not JavaScript',
+      hook: 'require.extensions[\'.ts\'] = (module, filename) => module._compile(\'module.exports = "ts-hook"\', filename)',
+      expected: 'ts-hook',
+    },
+    {
+      loads: 'a .json file as JSON',
+      file: 'data.json',
+      contents: '"json-loaded"',
+      hook: '',
+      expected: 'json-loaded',
+    },
+  ])('require() from a module compiled from a string loads $loads', ({ file, contents, hook, expected }) => {
+    // Mirrors how Next.js loads next.config.ts: a module created with
+    // `new Module()` has no filename, so its require() calls reach the resolve
+    // hook without a parentURL, like the entry point does, and resolve
+    // relative specifiers from the working directory (pnpm/pnpm#18261).
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    fs.writeFileSync(path.join(tmp, 'runner.js'), `\
+const Module = require('node:module')
+const path = require('node:path')
+${hook}
+const filename = path.join(__dirname, 'compiled.js')
+const compiled = new Module(filename, module)
+compiled.paths = Module._nodeModulePaths(__dirname)
+compiled._compile('module.exports = require("./${file}")', filename)
+console.log(compiled.exports)
+`)
+    fs.writeFileSync(path.join(tmp, file), contents)
+
+    const result = spawnSync(process.execPath, ['runner.js'], {
+      cwd: tmp,
+      env: {
+        ...process.env,
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    expect(result.stdout.toString().trim()).toBe(expected)
   })
 
   test('still detects module syntax in a .js entry point outside a module package', () => {
