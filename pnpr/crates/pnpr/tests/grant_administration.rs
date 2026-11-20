@@ -579,3 +579,5 @@ async fn an_import_refuses_a_grant_that_cannot_apply() {
     }
     assert_eq!(grant_names(&app, &root).await, before);
 }
+
+mod resolver_invalidation;

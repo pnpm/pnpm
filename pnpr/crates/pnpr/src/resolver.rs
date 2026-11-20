@@ -158,13 +158,19 @@ pub(crate) struct ResolverShared {
 }
 
 impl ResolverShared {
-    /// Drop every cached resolution. Called when the registry graph changes:
-    /// a resolution may have read a name the new graph routes elsewhere.
+    /// Drop every cached resolution and lockfile verdict. Called when the
+    /// registry graph or its grants change: a resolution or verdict cached as
+    /// public under the previous policy may depend on a route the new one
+    /// restricts or routes elsewhere.
     pub(crate) fn forget_results(&self) {
+        self.cache.generation.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.cache.entries
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clear();
+        if let Some(verdicts) = self.cache.verdicts.as_ref() {
+            verdicts.clear();
+        }
     }
 
     fn new(config: &RegistryConfig) -> Self {
@@ -197,6 +203,10 @@ struct ResolverCache {
     verdicts: Option<VerdictCache>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     secret: Arc<[u8]>,
+    /// Monotonic counter incremented by [`ResolverShared::forget_results`], so
+    /// an in-flight resolve started before a grant or graph change cannot
+    /// populate the post-change cache namespace when it finishes.
+    generation: std::sync::atomic::AtomicU64,
 }
 
 struct IndexCache {
@@ -225,6 +235,7 @@ impl ResolverCache {
             ttl: config.http.packument_ttl,
             verdicts: verdict_cache,
             secret: Arc::clone(&config.resolution_cache_secret),
+            generation: std::sync::atomic::AtomicU64::new(0),
         }
     }
 
@@ -330,9 +341,21 @@ impl Resolver {
         }
     }
 
-    /// `key`, a resolution cache key, scoped to this engine's graph.
+    pub(super) fn cache_generation(&self) -> u64 {
+        self.cache.generation.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// `key`, a resolution cache key, scoped to this engine's graph and the
+    /// active invalidation `generation`.
+    pub(super) fn scoped_cache_key(&self, generation: u64, key: &str) -> String {
+        format!("{}:{generation}:{key}", self.graph_epoch)
+    }
+
+    /// `key`, a resolution cache key, scoped to this engine's graph and
+    /// current invalidation generation.
+    #[cfg(test)]
     fn graph_cache_key(&self, key: &str) -> String {
-        format!("{}:{key}", self.graph_epoch)
+        self.scoped_cache_key(self.cache_generation(), key)
     }
 
     /// Where `registry`'s Cargo sparse-index files are cached. The origin

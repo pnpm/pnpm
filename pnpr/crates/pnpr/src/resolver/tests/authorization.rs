@@ -222,3 +222,152 @@ fn reject_inline_url_auth_scans_catalogs() {
     // gate still decides whether the host may be fetched at all).
     assert!(reject_inline_url_auth(&ssh_catalog).is_none());
 }
+
+#[tokio::test]
+async fn warm_resolve_retains_private_footprint_from_verdict_cache_hit() {
+    use crate::resolver::{
+        Resolver,
+        dispatch::handle_resolve,
+        resolution_cache_key,
+        verdict_cache::{VerdictLookup, VerdictRecord},
+        verify_lockfile::handle_verify_lockfile,
+    };
+    use axum::body::{Bytes, to_bytes};
+    use pnpm_lockfile_verification::hash_lockfile;
+    use pnpr_config::{IpNetwork, PublicRoute};
+    use serde_json::json;
+    use tokio::{
+        io::{AsyncReadExt as _, AsyncWriteExt as _},
+        net::TcpListener,
+    };
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let server_origin = origin.clone();
+    let server = tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let mut buf = [0_u8; 512];
+            let read = socket.read(&mut buf).await.unwrap_or(0);
+            let head = String::from_utf8_lossy(&buf[..read]);
+            let name = if head.contains("public-dep") { "public-dep" } else { "@private/pkg" };
+            let packument = json!({
+                "name": name,
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": {
+                    "1.0.0": {
+                        "name": name,
+                        "version": "1.0.0",
+                        "dist": {
+                            "tarball": format!("{server_origin}/pkg.tgz"),
+                            "integrity": ssri::Integrity::from(b"pkg-bytes").to_string(),
+                        },
+                    },
+                },
+            })
+            .to_string();
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{packument}",
+                packument.len(),
+            );
+            let _ = socket.write_all(reply.as_bytes()).await;
+        }
+    });
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = registry_config();
+    config.storage.cache_dir = dir.path().to_path_buf();
+    config.http.public_url = "http://example.test".into();
+    config.routing.route_policy.public.push(PublicRoute {
+        registry: Some(format!("{origin}/")),
+        package: None,
+    });
+    config.routing.route_policy.allowed_private_networks =
+        vec![IpNetwork::parse("127.0.0.0/8").unwrap()];
+    set_local_hosted_rules(&mut config, "@private/*", "alice");
+    let resolver = Resolver::build(&config, None);
+
+    let input_lockfile = package_lockfile("@private/pkg", "1.0.0");
+    let payload = json!({
+        "registry": format!("{origin}/"),
+        "dependencies": { "@private/pkg": "^1.0.0", "public-dep": "^1.0.0" },
+        "lockfile": input_lockfile,
+        "frozenLockfile": false,
+        "trustPolicy": "off",
+        "minimumReleaseAge": 0,
+    });
+    let request: ResolveRequest = serde_json::from_value(payload.clone()).unwrap();
+    let verified =
+        handle_verify_lockfile(&resolver, user("alice"), Bytes::from(payload.to_string())).await;
+    assert_eq!(verified.status(), StatusCode::OK);
+
+    let hash = hash_lockfile(
+        &tarball_router(&config, user("alice"))
+            .verification_lockfile(request.lockfile.as_ref().unwrap()),
+    );
+    let epoch = resolver.local_registry.verdict_epoch().expect("stable epoch");
+    let verdicts = resolver.cache.verdicts.as_ref().expect("verdict cache");
+    let captured_policy = std::cell::RefCell::new(None);
+    assert!(
+        verdicts
+            .verified_footprint(
+                &VerdictLookup {
+                    hash: &hash,
+                    epoch: &epoch,
+                    secret: &resolver.cache.secret,
+                    route_context: &resolver.route_context,
+                    identity: &user("alice"),
+                },
+                |policy| {
+                    *captured_policy.borrow_mut() = Some(policy.clone());
+                    true
+                },
+            )
+            .is_some(),
+    );
+    let expected_footprint = private_hosted_footprint("local", "@private/pkg");
+    verdicts.clear();
+    verdicts.record(VerdictRecord {
+        hash: &hash,
+        footprint: &expected_footprint,
+        secret: &resolver.cache.secret,
+        epoch: &epoch,
+        policy: captured_policy.into_inner().expect("policy recorded"),
+    });
+
+    let response = handle_resolve(&resolver, user("alice"), Bytes::from(payload.to_string())).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body =
+        String::from_utf8(to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec())
+            .unwrap();
+    assert!(body.contains(r#""type":"done""#), "{body}");
+
+    let raw_key = resolution_cache_key(&request).expect("cacheable request");
+    let key = resolver.scoped_cache_key(resolver.cache_generation(), &raw_key);
+    {
+        let entries = resolver.cache.entries.lock().unwrap();
+        let candidates = entries.get(&key).expect("warm resolution cached");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].footprint, expected_footprint);
+    }
+    assert!(
+        cached_resolution(
+            &resolver.cache.entries,
+            resolver.cache.ttl,
+            &key,
+            &resolver.route_context,
+            &user("alice"),
+        )
+        .is_some(),
+    );
+    assert!(
+        cached_resolution(
+            &resolver.cache.entries,
+            resolver.cache.ttl,
+            &key,
+            &resolver.route_context,
+            &user("bob"),
+        )
+        .is_none(),
+    );
+    server.abort();
+}

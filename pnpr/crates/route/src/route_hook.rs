@@ -104,7 +104,20 @@ impl UpstreamRouteHook for RouteHook {
         // Read-only classification — this must not record into the
         // footprint (`authorize` already does, at the real fetch point).
         match self.context.classify(&self.identity, url, package) {
-            RouteClass::Public => MetadataCacheScope::Public,
+            RouteClass::Public => {
+                if self.context.is_denied_own_package(&self.identity, url, package) {
+                    MetadataCacheScope::Private {
+                        descriptor_id: super::footprint::denied_digest_id(
+                            &self.identity,
+                            url,
+                            package,
+                            &self.secret,
+                        ),
+                    }
+                } else {
+                    MetadataCacheScope::Public
+                }
+            }
             RouteClass::Hosted { policy_id } => MetadataCacheScope::Private {
                 descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }.digest_id(
                     &self.secret,

@@ -32,7 +32,7 @@ use super::{
         protocol::{AppliedPolicies, ResolveRequest},
         request_tarball_router, serve_resolve_request,
         streaming::{
-            StreamCacheTarget, StreamedResolve, StreamedResolveInputs, TerminalSender,
+            CacheScope, StreamCacheTarget, StreamedResolve, StreamedResolveInputs, TerminalSender,
             finish_before_deadline,
         },
         wire::{StreamObserver, try_done_frame_until},
@@ -341,7 +341,7 @@ async fn finish_before_deadline_drops_sender_for_immediate_eof_and_skips_cache_o
             request_auth,
             tarball_router,
             footprint,
-            cache_key: Some("timed-out-key".to_string()),
+            cache_scope: CacheScope::Key(Some("timed-out-key".to_string())),
             permit: Arc::new(permit),
             deadline: expired_deadline,
         },
