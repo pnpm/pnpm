@@ -126,17 +126,16 @@ fn unusable_reason(candidate: &Path) -> Option<&'static str> {
     if !metadata.is_file() {
         return Some("not a file");
     }
-    (!is_executable(&metadata)).then_some("not executable")
+    (!is_executable(candidate)).then_some("not executable")
 }
 
 #[cfg(unix)]
-fn is_executable(metadata: &fs::Metadata) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    metadata.permissions().mode() & 0o111 != 0
+fn is_executable(candidate: &Path) -> bool {
+    pnpm_ffi_fs::can_execute(candidate)
 }
 
 #[cfg(not(unix))]
-fn is_executable(_metadata: &fs::Metadata) -> bool {
+fn is_executable(_candidate: &Path) -> bool {
     true
 }
 
@@ -331,6 +330,7 @@ impl Probe<'_> {
                 "--config.ignore-scripts=false",
                 "--ignore-workspace",
                 "--no-frozen-lockfile",
+                "--config.modules-dir=node_modules",
             ])
             .arg(format!("--store-dir={}", self.base.join("store").display()))
             .arg(format!("--cache-dir={}", self.base.join("cache").display()))

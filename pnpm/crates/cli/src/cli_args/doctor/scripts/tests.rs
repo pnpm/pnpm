@@ -134,6 +134,29 @@ fn a_node_without_execute_permission_is_skipped() {
     );
 }
 
+/// The owner's permission bits decide for the owner, even when others may
+/// execute the file.
+#[cfg(unix)]
+#[test]
+fn a_node_only_others_may_execute_is_skipped() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Root may execute any file that has an execute bit set.
+    // SAFETY: `geteuid` has no preconditions.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let root = tempfile::tempdir().expect("create temp dir");
+    let node = root.path().join("node");
+    fs::write(&node, "#!/bin/sh\n").expect("write node");
+    fs::set_permissions(&node, fs::Permissions::from_mode(0o645)).expect("chmod node");
+
+    let (usable, unusable) = find_node_entries(&[root.path().to_path_buf()]);
+
+    assert_eq!(usable, Vec::<std::path::PathBuf>::new());
+    assert_eq!(unusable, [UnusableNode { path: node, reason: "not executable" }]);
+}
+
 #[cfg(unix)]
 #[test]
 fn shell_behind_follows_a_linked_sh() {

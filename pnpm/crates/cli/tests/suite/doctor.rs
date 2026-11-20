@@ -265,6 +265,21 @@ fn runs_a_package_executable_from_a_script_in_the_current_project() {
     );
 }
 
+/// The probe executable's shim is looked up in the temporary project's
+/// `node_modules`, whatever modules directory the environment configures.
+#[test]
+fn the_probe_install_ignores_a_configured_modules_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"doctor-project","version":"1.0.0"}"#)
+        .expect("write package.json");
+
+    let report = doctor(pacquet.with_env("PNPM_CONFIG_MODULES_DIR", "vendor"), root.path());
+
+    let scripts = find_check(&report, "Lifecycle scripts");
+    dbg!(scripts);
+    assert_eq!(scripts["status"], "pass");
+}
+
 /// `verifyDepsBeforeRun` set in the environment outranks the command line, so
 /// the probe has to override it there to keep from installing the project.
 #[test]

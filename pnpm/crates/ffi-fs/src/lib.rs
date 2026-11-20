@@ -31,6 +31,7 @@ pub use dir_handle::{
     DirectoryAccess,
     EntryKind,
     EntryMetadata,
+    can_execute,
     can_write_and_search,
     create_directory_at,
     create_file_at,
