@@ -79,7 +79,8 @@ fn member_directories(root: &Path, pattern: &str) -> Vec<PathBuf> {
     };
     let mut directories: Vec<PathBuf> = std::fs::read_dir(root.join(parent))
         .unwrap_or_else(|error| panic!("read {parent}: {error}"))
-        .map(|entry| entry.expect("read a workspace member directory").path())
+        .map(|entry| entry.expect("read a workspace member directory"))
+        .map(|entry| entry.path())
         .filter(|path| path.join("Cargo.toml").is_file())
         .collect();
     directories.sort();
@@ -135,7 +136,8 @@ fn discovered(directory: &Path, subdirectory: &str) -> Vec<PathBuf> {
         return Vec::new();
     };
     entries
-        .map(|entry| entry.expect("read a target directory").path())
+        .map(|entry| entry.expect("read a target directory"))
+        .map(|entry| entry.path())
         .filter_map(|path| {
             if path
                 .extension()

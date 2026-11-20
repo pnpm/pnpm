@@ -158,7 +158,9 @@ where
     Some(match env::consts::OS {
         "macos" => home_dir.join("Library/pnpm"),
         "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
-            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
+            .map(PathBuf::from)
+            .map(|joined| joined.join("pnpm"))
+            .unwrap_or_else(|| home_dir.join(".pnpm")),
         // pnpm treats every non-Windows platform as Unix here.
         _ => home_dir.join(".local/share/pnpm"),
     })
@@ -328,7 +330,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 
 /// The CLI's user-facing release version, the same value
 /// `pnpm --version` prints. Single source of truth so the CLI
-/// version string and the default `User-Agent` (`default_user_agent`)
+/// version string and the default `User-Agent`
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.

@@ -102,7 +102,8 @@ pub(super) fn file_identity(path: &Path) -> Option<String> {
     let modified_ns = metadata
         .modified()
         .ok()
-        .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|modified| modified.duration_since(std::time::UNIX_EPOCH))
+        .and_then(Result::ok)
         .map_or(0, |duration| duration.as_nanos());
     #[cfg(unix)]
     let platform_identity = {

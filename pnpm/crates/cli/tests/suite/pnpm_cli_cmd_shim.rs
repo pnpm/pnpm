@@ -193,7 +193,8 @@ fn printed_args(output: &Output) -> Vec<Vec<String>> {
         .expect("stdout is UTF-8")
         .lines()
         .filter(|line| line.starts_with('['))
-        .map(|line| serde_json::from_str(line).expect("parse printed arguments"))
+        .map(serde_json::from_str::<Vec<String>>)
+        .map(|parsed| parsed.expect("parse printed arguments"))
         .collect()
 }
 
@@ -445,7 +446,7 @@ fn assert_interrupt_asks_nothing(interrupt: Interrupt) {
     if status.is_none() {
         // A prompt blocks on console input, so the process tree has to go.
         let _ = Command::new("taskkill")
-            .args(["/T", "/F", "/PID", &child.id().to_string()])
+            .with_args(["/T", "/F", "/PID", &child.id().to_string()])
             .status();
         let _ = child.wait();
     }

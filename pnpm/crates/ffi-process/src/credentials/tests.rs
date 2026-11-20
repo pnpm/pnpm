@@ -2,6 +2,7 @@ use super::{
     effective_user_id,
     real_user_id,
 };
+use command_extra::CommandExtra;
 
 /// Pins that the two identity calls agree with the `id` the shell reports,
 /// which is the only independent source of the answer available in a test.
@@ -9,7 +10,7 @@ use super::{
 fn identities_match_the_shell() {
     let reported = |flag: &str| {
         let output = std::process::Command::new("id")
-            .arg(flag)
+            .with_arg(flag)
             .output()
             .expect("run id");
         assert!(output.status.success(), "id {flag} failed: {output:?}");
