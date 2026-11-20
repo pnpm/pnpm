@@ -247,3 +247,12 @@ fn split_registry_path_expands_env_references() {
         ],
     );
 }
+
+#[test]
+fn split_registry_path_drops_quotes_and_keeps_quoted_separators() {
+    let dirs = split_registry_path(r#""C:\npm";C:\pnpm-home\bin;"C:\a;b""#, |_: &str| None);
+    assert_eq!(
+        dirs,
+        [PathBuf::from(r"C:\npm"), PathBuf::from(r"C:\pnpm-home\bin"), PathBuf::from(r"C:\a;b")],
+    );
+}

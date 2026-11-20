@@ -348,27 +348,44 @@ pub(in crate::cli_args::setup) fn persisted_path_dirs() -> Option<Vec<PathBuf>> 
 }
 
 fn read_persisted_path_dirs() -> Option<Vec<PathBuf>> {
-    let machine = run_capture("reg", &["query", MACHINE_REG_KEY, "/v", "Path"]).ok()?;
+    let machine = run_capture("reg", &["query", MACHINE_REG_KEY]).ok()?;
     let user = get_registry_output().ok()?;
-    let lookup =
-        |name: &str| get_env_value_from_registry(&user, name).or_else(|| std::env::var(name).ok());
-    let mut dirs = split_registry_path(&get_env_value_from_registry(&machine, "Path")?, lookup);
+    let machine_lookup = |name: &str| {
+        get_env_value_from_registry(&machine, name).or_else(|| std::env::var(name).ok())
+    };
+    let user_lookup =
+        |name: &str| get_env_value_from_registry(&user, name).or_else(|| machine_lookup(name));
+    let mut dirs =
+        split_registry_path(&get_env_value_from_registry(&machine, "Path")?, machine_lookup);
     if let Some(user_path) = get_env_value_from_registry(&user, "Path") {
-        dirs.extend(split_registry_path(&user_path, lookup));
+        dirs.extend(split_registry_path(&user_path, user_lookup));
     }
     Some(dirs)
 }
 
-/// Split a registry `Path` value into directories, expanding `%NAME%`
-/// references the way a `REG_EXPAND_SZ` value is expanded.
+/// Split a registry `Path` value into directories the way Windows does:
+/// `%NAME%` references are expanded from `lookup` (the variables of the
+/// value's own scope), then the result is split on `;` outside double
+/// quotes, and the quotes are dropped.
 fn split_registry_path<Lookup>(value: &str, lookup: Lookup) -> Vec<PathBuf>
 where
     Lookup: Fn(&str) -> Option<String>,
 {
-    value
-        .split(';')
-        .filter(|entry| !entry.is_empty())
-        .map(|entry| PathBuf::from(expand_env_references(entry, &lookup)))
+    let expanded = expand_env_references(value, &lookup);
+    let mut dirs = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    for character in expanded.chars() {
+        match character {
+            '"' => in_quotes = !in_quotes,
+            ';' if !in_quotes => dirs.push(std::mem::take(&mut current)),
+            _ => current.push(character),
+        }
+    }
+    dirs.push(current);
+    dirs.into_iter()
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
         .collect()
 }
 
