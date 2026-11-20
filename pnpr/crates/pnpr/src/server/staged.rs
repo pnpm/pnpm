@@ -165,6 +165,7 @@ impl StagedRecord {
         value
     }
 }
+
 // Route handlers. Each is registered both bare and under `/~{registry}`;
 // `TargetRegistry` reports which form the request arrived on.
 
@@ -237,6 +238,7 @@ pub(super) async fn get_staged_tarball(
 ) -> Response {
     private_no_cache(serve_staged_tarball(&state, &identity, registry.as_deref(), &path.id).await)
 }
+
 // The handlers proper.
 
 /// `POST /-/stage/package/:pkg`: validate and authorize the publish
@@ -443,6 +445,7 @@ async fn serve_staged_tarball(
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
 }
+
 // Shared plumbing.
 
 /// Load a staged record and check the caller may act on it: the record must

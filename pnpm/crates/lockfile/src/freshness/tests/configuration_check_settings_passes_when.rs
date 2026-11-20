@@ -783,6 +783,7 @@ fn check_settings_skips_the_pnpmfile_checksum_on_request() {
         .is_ok(),
     );
 }
+
 // `(patch_hash=...)` segments against the lockfile's own `patchedDependencies`
 
 /// The config agrees with the map, so only the segments can disagree, which

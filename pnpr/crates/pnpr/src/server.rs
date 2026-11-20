@@ -702,6 +702,7 @@ fn private_no_cache(mut response: Response) -> Response {
 fn hosted_storage(state: &AppState, namespace: Option<&str>) -> Storage {
     state.inner.storage.for_hosted(namespace.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
 }
+
 // Helpers.
 
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
