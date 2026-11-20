@@ -14,6 +14,8 @@ import { keepImportersOfProjectsMissingFromDisk } from './projectsMissingFromDis
 import { removeDepsFromManifests } from './removeDepsFromManifests.js'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
 import { type GraphResolution, resolveProjects } from './resolveProjects.js'
+import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
+import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
 import { writeWantedLockfileAndRecordVerified } from './writeWantedLockfileAndRecordVerified.js'
 
 /**
@@ -41,7 +43,7 @@ export async function resolveAndLinkProjects (
   const previousPackages = ctx.wantedLockfile.packages
   await prepareProjectsForResolution(projects, ctx, opts)
   const resolution = await resolveProjects(projects, ctx, opts)
-  resolution.newLockfile = keepImportersOfProjectsMissingFromDisk(resolution.newLockfile, { projects, previousPackages })
+  resolution.newLockfile = await finalizeResolvedLockfile(resolution.newLockfile, { ctx, opts, previousPackages, projects })
 
   const depsStateCache: DepsStateCache = {}
   const shouldWritePackageMap = opts.nodeExperimentalPackageMap && opts.enableModulesDir !== false && opts.nodeLinker === 'isolated' && !opts.virtualStoreOnly
@@ -76,6 +78,25 @@ export async function resolveAndLinkProjects (
       ? { originalLockfile: originalLockfileForCheck, wantedLockfile: resolution.newLockfile }
       : undefined,
   }
+}
+
+async function finalizeResolvedLockfile (
+  newLockfile: LockfileObject,
+  { ctx, opts, previousPackages, projects }: {
+    ctx: PnpmContext
+    opts: InstallInContextOptions
+    previousPackages: LockfileObject['packages']
+    projects: ImporterToUpdate[]
+  }
+): Promise<LockfileObject> {
+  const finalized = keepImportersOfProjectsMissingFromDisk(newLockfile, { projects, previousPackages })
+  if (!opts.trustLockfile && opts.blockExoticSubdeps) {
+    await verifyLockfileResolutions(finalized, [], {
+      blockExoticSubdeps: true,
+      exoticSubdepsScope: buildExoticSubdepsScopeFromContext(ctx, opts),
+    })
+  }
+  return finalized
 }
 
 async function prepareProjectsForResolution (
@@ -142,11 +163,14 @@ async function writeLockfileWithoutLinking (
   }
 ): Promise<void> {
   if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
+    const blockExoticSubdeps = !opts.trustLockfile && Boolean(opts.blockExoticSubdeps)
     await writeWantedLockfileAndRecordVerified({
       lockfileDir: ctx.lockfileDir,
       lockfile: newLockfile,
       cacheDir: opts.cacheDir,
       resolutionVerifiers: opts.resolutionVerifiers,
+      blockExoticSubdeps,
+      exoticSubdepsScope: blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, opts) : undefined,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     })

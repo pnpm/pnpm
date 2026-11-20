@@ -1,7 +1,7 @@
 use super::super::{
     Arc,
     BTreeMap,
-    Config,
+    ExoticSubdepsPolicy,
     HashSet,
     InstallError,
     Lockfile,
@@ -15,7 +15,7 @@ use super::super::{
     Reporter,
     ResolutionVerifier,
     map_frozen_lockfile_error,
-    record_lockfile_verified,
+    record_lockfile_verified_by_content,
     verify_lockfile_eagerly,
 };
 
@@ -102,26 +102,23 @@ pub(super) fn lockfile_specifier_manifests_by_id(
         })
         .collect()
 }
-// Record under the same path the verification gates key
-// their cache on, so the next install's stat shortcut hits.
+// Persist the freshly resolved lockfile by content hash; the next install
+// refreshes the per-path stat shortcut from its read-time `LockfileStat`.
 pub(super) fn record_fresh_lockfile_verified(
     result: &crate::InstallWithFreshLockfileResult,
-    derived_lockfile_path: Option<PathBuf>,
-    site: (&Path, &Config),
+    cache_dir: &Path,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
 ) {
-    let (workspace_root, config) = site;
     if !result.can_record_lockfile_verification {
         return;
     }
     let Some(lockfile) = result.wanted_lockfile.as_ref() else { return };
-    let lockfile_path =
-        derived_lockfile_path.unwrap_or_else(|| workspace_root.join(config.wanted_lockfile_name()));
-    record_lockfile_verified(
-        Some(&config.cache_dir),
-        &lockfile_path,
+    record_lockfile_verified_by_content(
+        Some(cache_dir),
         lockfile,
         resolution_verifiers,
+        exotic_subdeps,
     );
 }
 /// Only a lockfile saved as resolved, which no `afterAllResolved` hook
@@ -145,7 +142,8 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
     verification_override: Option<super::super::LockfileVerificationOverride<'install>>,
     lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
-    derived_lockfile_path: Option<&Path>,
+    exotic_subdeps: ExoticSubdepsPolicy,
+    derived_lockfile_source: Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>,
     cache_dir: &Path,
 ) -> Result<Option<super::super::LockfileVerificationOverride<'install>>, InstallError> {
     if requested_importer_ids.is_none() {
@@ -159,7 +157,8 @@ pub(super) async fn settle_frozen_verification<'install, Reporter: self::Reporte
             verify_lockfile_eagerly::<Reporter>(
                 lockfile,
                 resolution_verifiers,
-                derived_lockfile_path,
+                exotic_subdeps,
+                derived_lockfile_source,
                 cache_dir,
             )
             .await?;

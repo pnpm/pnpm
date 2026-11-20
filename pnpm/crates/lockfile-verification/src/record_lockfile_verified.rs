@@ -22,45 +22,77 @@ use pnpm_lockfile::Lockfile;
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
 use crate::{
-    cache::record_verification,
+    ExoticSubdepsPolicy,
+    cache::{
+        LockfileStat,
+        record_verification,
+        record_verification_by_hash,
+    },
     hash_lockfile,
     verify_lockfile_resolutions::{
         verify_lockfile_dependency_names,
-        with_offline_check_cache_identities,
+        with_offline_and_exotic_cache_identities,
     },
 };
 
 #[cfg(test)]
 mod tests;
 
-/// Persist the post-resolution lockfile as already-verified.
-/// `cache_dir` enables the cache, `lockfile_path` is the absolute
-/// path of the file the next install will read, `lockfile` is the
-/// canonical in-memory shape that round-trips through the writer
-/// (NOT the raw write object, since YAML drops `undefined` fields
-/// and a hash of the raw shape would never match the parsed shape on
-/// the next install).
-pub fn record_lockfile_verified(
+/// Persist a verified lockfile using [`LockfileStat`] captured when the
+/// lockfile was originally read, avoiding any post-verification `stat` race.
+pub fn record_lockfile_verified_with_stat(
     cache_dir: Option<&Path>,
     lockfile_path: &Path,
+    stat: LockfileStat,
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
 ) {
     let Some(cache_dir) = cache_dir else { return };
-    if verifiers.is_empty() {
-        return;
-    }
-    if lockfile.packages.is_none() {
-        return;
-    }
-    if verify_lockfile_dependency_names(lockfile).is_err() {
+    if !can_record_lockfile(lockfile, verifiers, exotic_subdeps) {
         return;
     }
     record_verification(
         cache_dir,
         lockfile_path,
-        &with_offline_check_cache_identities(verifiers),
+        &with_offline_and_exotic_cache_identities(verifiers, exotic_subdeps),
+        || hash_lockfile(lockfile),
+        crate::cache::CachePrecomputed { stat: Some(stat), hash: None },
+    );
+}
+
+/// Persist the post-resolution or in-memory lockfile as already-verified by
+/// content hash.
+///
+/// Post-save callers do not hold metadata guaranteed to come from the exact
+/// written lockfile (a concurrent install may have replaced `lockfile_path`
+/// before this runs), so the verdict is recorded by content hash alone;
+/// the next install reading the unchanged file refreshes the per-path stat
+/// shortcut from its read-time [`LockfileStat`].
+pub fn record_lockfile_verified_by_content(
+    cache_dir: Option<&Path>,
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
+) {
+    let Some(cache_dir) = cache_dir else { return };
+    if !can_record_lockfile(lockfile, verifiers, exotic_subdeps) {
+        return;
+    }
+    record_verification_by_hash(
+        cache_dir,
+        &with_offline_and_exotic_cache_identities(verifiers, exotic_subdeps),
         || hash_lockfile(lockfile),
         crate::cache::CachePrecomputed::default(),
     );
+}
+
+fn can_record_lockfile(
+    lockfile: &Lockfile,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: &ExoticSubdepsPolicy,
+) -> bool {
+    (!verifiers.is_empty() || exotic_subdeps.is_enforced())
+        && lockfile.packages.is_some()
+        && verify_lockfile_dependency_names(lockfile).is_ok()
 }

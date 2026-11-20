@@ -13,6 +13,15 @@ import type { DepPath } from '@pnpm/types'
 import pLimit from 'p-limit'
 
 import {
+  buildExoticSubdepsScopeFromContext,
+  canTrustPolicyIdentities,
+  collectExoticSubdepViolations,
+  EXOTIC_SUBDEP_VIOLATION_CODE,
+  exoticSubdepsCacheIdentity,
+  type ExoticSubdepsScope,
+  snapshotPolicyIdentities,
+} from './verifyLockfileExoticSubdeps.js'
+import {
   collectInvalidAliases,
   collectLockfileFileOfflineViolations,
   collectShapeViolations,
@@ -20,12 +29,19 @@ import {
   RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
 } from './verifyLockfileOfflineChecks.js'
 import {
-  recordVerification,
-  tryLockfileVerificationCache,
+  lookupVerificationCache,
+  persistVerificationCache,
+  type tryLockfileVerificationCache,
   type VerifierCacheIdentity,
 } from './verifyLockfileResolutionsCache.js'
 
-export { hasInvalidDependencyAliases, RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE }
+export {
+  buildExoticSubdepsScopeFromContext,
+  EXOTIC_SUBDEP_VIOLATION_CODE,
+  type ExoticSubdepsScope,
+  hasInvalidDependencyAliases,
+  RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+}
 
 // Re-exported for back-compat with the existing import surface.
 // The interface itself lives in resolver-base so deps-resolver can
@@ -47,6 +63,7 @@ const DEFAULT_CONCURRENCY = 64
 const POLICY_VIOLATION_CODES = new Set([
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
+  EXOTIC_SUBDEP_VIOLATION_CODE,
 ])
 
 // Same code the sink-level guards (`safeJoinModulesDir`) throw.
@@ -70,13 +87,34 @@ const VARIATION_RESOLUTION_CACHE_IDENTITY: VerifierCacheIdentity = {
 }
 
 /**
- * Append the always-on offline structural checks' identities to `verifiers`
- * before consulting or recording the verification cache, so a record written
- * before one of those rules existed fails `canTrustPastCheck` and forces
- * re-verification.
+ * Append the always-on offline structural checks' identities (plus
+ * `blockExoticSubdeps` when active) to `verifiers` before consulting or
+ * recording the verification cache, so a record written before one of those
+ * rules existed fails `canTrustPastCheck` and forces re-verification.
  */
-export function withOfflineCheckCacheIdentities (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
-  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY, VARIATION_RESOLUTION_CACHE_IDENTITY]
+export function withOfflineCheckCacheIdentities (
+  verifiers: readonly VerifierCacheIdentity[],
+  options?: { blockExoticSubdeps?: boolean, exoticSubdepsScope?: ExoticSubdepsScope }
+): VerifierCacheIdentity[] {
+  const base = [RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY, VARIATION_RESOLUTION_CACHE_IDENTITY]
+  return options?.blockExoticSubdeps
+    ? [...verifiers, ...base, exoticSubdepsCacheIdentity(options.exoticSubdepsScope)]
+    : [...verifiers, ...base]
+}
+
+export function snapshotVerificationPolicy (
+  verifiers: readonly VerifierCacheIdentity[],
+  options?: { blockExoticSubdeps?: boolean, exoticSubdepsScope?: ExoticSubdepsScope }
+): Record<string, unknown> {
+  return snapshotPolicyIdentities(withOfflineCheckCacheIdentities(verifiers, options))
+}
+
+export function canTrustPreparedPolicy (
+  recordedPolicy: Record<string, unknown>,
+  verifiers: readonly VerifierCacheIdentity[],
+  options?: { blockExoticSubdeps?: boolean, exoticSubdepsScope?: ExoticSubdepsScope }
+): boolean {
+  return canTrustPolicyIdentities(recordedPolicy, withOfflineCheckCacheIdentities(verifiers, options))
 }
 
 export interface ReplacedCandidate {
@@ -107,6 +145,10 @@ export interface VerifyLockfileResolutionsOptions {
    * verified.
    */
   isReplaced?: (name: string, version: string, candidate?: ReplacedCandidate) => boolean
+  /** Whether `blockExoticSubdeps` is enforced on lockfile subdependencies. */
+  blockExoticSubdeps?: boolean
+  /** Trusted workspace importers, deployed workspace dirs, and runtime mirrors for `blockExoticSubdeps`. */
+  exoticSubdepsScope?: ExoticSubdepsScope
 }
 
 /**
@@ -126,7 +168,7 @@ export interface VerifyLockfileResolutionsOptions {
  *
  * Offline dependency-alias checks run before the verification cache lookup,
  * and resolution-shape checks run on every cache miss even when `verifiers`
- * is empty.
+ * is empty and `blockExoticSubdeps` is off.
  */
 export async function verifyLockfileResolutions (
   lockfile: LockfileObject,
@@ -136,35 +178,46 @@ export async function verifyLockfileResolutions (
   verifyLockfileDependencyAliases(lockfile)
   if (!lockfile.packages) return
 
-  const cacheContext = createVerificationCacheContext(lockfile, verifiers, options)
-  if (isVerifiedByCache(cacheContext, verifiers, options?.lockfilePath)) return
+  const hasPolicyVerifiers = verifiers.length > 0 || Boolean(options?.blockExoticSubdeps)
+  const cacheContext = createVerificationCacheContext(lockfile, verifiers, options, hasPolicyVerifiers)
+  if (isVerifiedByCache(cacheContext, hasPolicyVerifiers, options?.lockfilePath)) return
 
   verifyLockfileResolutionShapes(lockfile)
-  if (verifiers.length === 0) return
+  if (!hasPolicyVerifiers) return
 
-  // Emit started/done around the actual verification pass — the
-  // round-trip can be slow on a cold registry cache, and the cached
-  // short-circuit above announces itself with its own `cached` event,
-  // so a user only sees these messages on installs that are doing
-  // real work.
-  // A degenerate lockfile where every snapshot fails the
-  // name/version extraction (so candidates is empty) skips emission
-  // entirely — no work, no noise.
-  const candidates = collectCandidates(lockfile)
-  if (dropReplacedCandidates(candidates, options?.isReplaced)) {
-    cacheContext.cache = undefined
-  }
-  if (candidates.size === 0) {
+  const candidates = collectCandidatesToVerify(lockfile, cacheContext, options)
+  if (verifiers.length === 0 || candidates.size === 0) {
     recordVerifiedLockfile(cacheContext)
     return
   }
   await verifyCandidates(candidates, verifiers, { cacheContext, options })
 }
 
+function collectCandidatesToVerify (
+  lockfile: LockfileObject,
+  cacheContext: VerificationCacheContext,
+  options: VerifyLockfileResolutionsOptions | undefined
+): Map<string, Candidate> {
+  if (options?.blockExoticSubdeps) {
+    const exoticScan = collectExoticSubdepViolations(lockfile, options.isReplaced, options.exoticSubdepsScope)
+    if (exoticScan.violations.length > 0) {
+      throw buildVerificationError(exoticScan.violations)
+    }
+    if (exoticScan.skippedReplaced) {
+      cacheContext.cache = undefined
+    }
+  }
+  const candidates = collectCandidates(lockfile)
+  if (dropReplacedCandidates(candidates, options?.isReplaced)) {
+    cacheContext.cache = undefined
+  }
+  return candidates
+}
+
 type CachePrecomputed = ReturnType<typeof tryLockfileVerificationCache>['precomputed']
 
 interface VerificationCacheContext {
-  cache?: { cacheDir: string, lockfilePath: string }
+  cache?: { cacheDir: string, lockfilePath?: string }
   cacheVerifiers: VerifierCacheIdentity[]
   hashLockfile: () => string
   // On a miss the stat+hash the lookup computed flow to recordVerification.
@@ -174,15 +227,20 @@ interface VerificationCacheContext {
 function createVerificationCacheContext (
   lockfile: LockfileObject,
   verifiers: ResolutionVerifier[],
-  options: VerifyLockfileResolutionsOptions | undefined
+  options: VerifyLockfileResolutionsOptions | undefined,
+  hasPolicyVerifiers: boolean
 ): VerificationCacheContext {
   // hashObject streams and is key-order-stable, unlike JSON.stringify.
   let cachedHash: string | undefined
+  const useCache = Boolean(options?.cacheDir) && (options?.lockfilePath != null || hasPolicyVerifiers)
   return {
-    cache: options?.cacheDir && options?.lockfilePath
-      ? { cacheDir: options.cacheDir, lockfilePath: options.lockfilePath }
+    cache: useCache
+      ? { cacheDir: options!.cacheDir!, lockfilePath: options?.lockfilePath }
       : undefined,
-    cacheVerifiers: withOfflineCheckCacheIdentities(verifiers),
+    cacheVerifiers: withOfflineCheckCacheIdentities(verifiers, {
+      blockExoticSubdeps: options?.blockExoticSubdeps,
+      exoticSubdepsScope: options?.exoticSubdepsScope,
+    }),
     hashLockfile: () => {
       if (cachedHash == null) cachedHash = hashObject(lockfile)
       return cachedHash
@@ -199,11 +257,11 @@ function createVerificationCacheContext (
  */
 function isVerifiedByCache (
   cacheContext: VerificationCacheContext,
-  verifiers: ResolutionVerifier[],
+  hasPolicyVerifiers: boolean,
   lockfilePath: string | undefined
 ): boolean {
   if (!cacheContext.cache) return false
-  const result = tryLockfileVerificationCache(cacheContext.cache.cacheDir, {
+  const result = lookupVerificationCache(cacheContext.cache.cacheDir, {
     lockfilePath: cacheContext.cache.lockfilePath,
     verifiers: cacheContext.cacheVerifiers,
     hashLockfile: cacheContext.hashLockfile,
@@ -216,20 +274,16 @@ function isVerifiedByCache (
   // (pnpm/pnpm#12324), so surface the reused verdict — but only
   // when policy verifiers are active; the shape-only run that
   // every install performs stays quiet.
-  if (verifiers.length > 0) {
-    lockfileVerificationLogger.debug({
-      status: 'cached',
-      verifiedAt: result.verifiedAt,
-      lockfilePath,
-    })
+  if (hasPolicyVerifiers) {
+    lockfileVerificationLogger.debug({ status: 'cached', verifiedAt: result.verifiedAt, lockfilePath })
   }
   return true
 }
 
-/** Persist the success so the next install can stat-only the lockfile. */
+/** Persist the success so the next install can stat-only or content-match the lockfile. */
 function recordVerifiedLockfile (cacheContext: VerificationCacheContext): void {
   if (!cacheContext.cache) return
-  recordVerification(cacheContext.cache.cacheDir, {
+  persistVerificationCache(cacheContext.cache.cacheDir, {
     lockfilePath: cacheContext.cache.lockfilePath,
     verifiers: cacheContext.cacheVerifiers,
     hashLockfile: cacheContext.hashLockfile,

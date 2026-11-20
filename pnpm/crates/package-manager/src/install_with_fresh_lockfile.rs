@@ -407,6 +407,7 @@ pub(crate) struct WantedLockfileHandles {
     /// the background while this install resolves and materializes. See
     /// [`crate::LockfileVerificationGate`].
     pub(crate) verification_gate: Option<crate::LockfileVerificationGate>,
+    pub(crate) exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
     /// Where a `lockfileCheck` run delivers the wanted lockfile instead of
     /// writing it. See [`crate::Install::run_lockfile_check`].
     pub(crate) check_sink: Option<crate::LockfileCheckSink>,

@@ -111,9 +111,8 @@ function preserveCarriedSettings (
   ignoredSettings: Array<keyof WorkspaceStateSettings> | undefined
 ): void {
   if (previous == null) return
-  if (settings.autoDedupe === undefined && previous.autoDedupe !== undefined) {
-    settings.autoDedupe = previous.autoDedupe
-  }
+  settings.autoDedupe ??= previous.autoDedupe
+  settings.toolMirrors ??= previous.toolMirrors
   if (ignoredSettings == null) return
   const mutable = settings as Record<keyof WorkspaceStateSettings, unknown>
   // `defaultRegistry` is part of the `registryPrefixes` record.

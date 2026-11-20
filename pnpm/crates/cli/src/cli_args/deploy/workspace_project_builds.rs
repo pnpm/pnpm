@@ -27,8 +27,10 @@ use super::{
     lexical_normalize,
     relative_path,
 };
-use pnpm_package_manager::AllowBuildPolicy;
-use std::fs;
+use pnpm_package_manager::{
+    AllowBuildPolicy,
+    is_own_publish_dir,
+};
 
 /// A workspace project a legacy deploy may inject.
 #[derive(Clone)]
@@ -91,6 +93,18 @@ pub(super) fn approve_legacy_workspace_project_builds(
     approve(allow_builds, keys)
 }
 
+/// Package directories of discovered workspace projects relative to `anchor_dir`,
+/// so `blockExoticSubdeps` recognizes every workspace project (named or unnamed).
+pub(super) fn deployed_workspace_project_dirs(
+    project_package_dirs: &[PathBuf],
+    anchor_dir: &Path,
+) -> Vec<String> {
+    project_package_dirs
+        .iter()
+        .map(|package_dir| relative_path(anchor_dir, package_dir))
+        .collect()
+}
+
 /// A key to approve, and the keys the source workspace gives the same
 /// project, a denial of any of which also applies to it.
 struct ProjectBuildKey {
@@ -125,7 +139,7 @@ fn injected_project_keys(name: &str, package_dirs: &[PathBuf], lockfile_dir: &Pa
 
 /// The directories a dependent may install the project from: its root, and
 /// its linked publish directory when that is the project's own.
-fn package_dirs(root_dir: &Path, linked_publish_dir: Option<&Path>) -> Vec<PathBuf> {
+pub(super) fn package_dirs(root_dir: &Path, linked_publish_dir: Option<&Path>) -> Vec<PathBuf> {
     std::iter::once(root_dir.to_path_buf())
         .chain(
             linked_publish_dir
@@ -133,29 +147,6 @@ fn package_dirs(root_dir: &Path, linked_publish_dir: Option<&Path>) -> Vec<PathB
                 .map(Path::to_path_buf),
         )
         .collect()
-}
-
-/// Whether `publish_dir` is a real directory inside `root_dir`, reached
-/// through no symlink and no `node_modules`. `node_modules` matches in any
-/// case, as a case-insensitive file system resolves every spelling to it.
-/// An unreadable path does not qualify, so the approval fails closed.
-fn is_own_publish_dir(root_dir: &Path, publish_dir: &Path) -> bool {
-    let Ok(relative) = publish_dir.strip_prefix(root_dir) else {
-        return false;
-    };
-    if relative.as_os_str().is_empty()
-        || relative
-            .components()
-            .any(|component| component.as_os_str().eq_ignore_ascii_case("node_modules"))
-    {
-        return false;
-    }
-    match (fs::canonicalize(root_dir), fs::canonicalize(publish_dir)) {
-        (Ok(real_root_dir), Ok(real_publish_dir)) => {
-            real_publish_dir == real_root_dir.join(relative)
-        }
-        _ => false,
-    }
 }
 
 fn workspace_project_of_package<'ctx>(

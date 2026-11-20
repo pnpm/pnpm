@@ -3,6 +3,7 @@ use super::{
         super::{
             Arc,
             CheckLockfileSettingsDriftOptions,
+            ExoticSubdepsPolicy,
             InstallError,
             Lockfile,
             Path,
@@ -45,6 +46,7 @@ impl RunExecution<'_> {
         verify_lockfile_offline_and_policies(
             lockfile,
             &[],
+            ExoticSubdepsPolicy::Allow,
             None,
             Some(&self.install.context.config.cache_dir),
         )
@@ -102,18 +104,13 @@ pub(super) async fn verify_settled_frozen_path(
     if let Some(lockfile) = settled.lockfiles.wanted.get() {
         let is_hooked = settled.lockfiles.wanted.is_hooked();
         let config = settled.install.context.config;
-        let can_use_on_disk_cache = !is_hooked
-            && !settled.loaded.wanted.had_conflicts
-            && !config.merge_git_branch_lockfiles
-            && config.git_branch_lockfile_candidates.is_empty();
-        let lockfile_path = can_use_on_disk_cache
-            .then_some(settled.verification.derived_lockfile_path.as_deref())
-            .flatten();
-        let cache_dir = can_use_on_disk_cache.then_some(config.cache_dir.as_path());
+        let lockfile_source = settled.verification.cache_source();
+        let cache_dir = (!is_hooked).then_some(config.cache_dir.as_path());
         verify_lockfile_offline_and_policies(
             lockfile,
             &settled.verification.resolution_verifiers,
-            lockfile_path,
+            settled.verification.exotic_subdeps.clone(),
+            lockfile_source,
             cache_dir,
         )
         .await?;
@@ -125,7 +122,8 @@ pub(super) async fn verify_settled_frozen_path(
 async fn verify_lockfile_offline_and_policies(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>],
-    lockfile_path: Option<&Path>,
+    exotic_subdeps: ExoticSubdepsPolicy,
+    lockfile_source: Option<pnpm_lockfile_verification::LockfileCacheSource<'_>>,
     cache_dir: Option<&Path>,
 ) -> Result<(), InstallError> {
     verify_lockfile_resolutions::<SilentReporter>(
@@ -133,10 +131,12 @@ async fn verify_lockfile_offline_and_policies(
         verifiers,
         &VerifyLockfileResolutionsOptions {
             concurrency: None,
-            lockfile_path,
+            lockfile_path: lockfile_source.map(|source| source.path),
+            lockfile_stat: lockfile_source.and_then(|source| source.stat.cloned()),
             cache_dir,
             replaced: None,
             repairs_lockfile: false,
+            exotic_subdeps,
         },
     )
     .await

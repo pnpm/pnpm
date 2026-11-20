@@ -247,6 +247,8 @@ export interface StrictInstallOptions extends RegistryContext {
   trustLockfile?: boolean
   packageVulnerabilityAudit?: PackageVulnerabilityAudit
   blockExoticSubdeps?: boolean
+  nodeDownloadMirrors?: Record<string, string>
+  deployedWorkspaceDirs?: readonly string[]
   /**
    * Optional alternative install engine. When set, the installer
    * delegates the install to `run` instead of calling `headlessInstall`.

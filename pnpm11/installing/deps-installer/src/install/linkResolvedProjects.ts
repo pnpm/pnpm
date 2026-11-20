@@ -25,6 +25,7 @@ import { linkPackages } from './link.js'
 import { linkBinsOfResolvedProjects, linkRuntimeBinsOfImporters } from './linkBins.js'
 import type { ImporterToUpdate, InstallInContextOptions, ProjectToBeInstalled, UpdatedProject } from './mutationTypes.js'
 import type { GraphResolution } from './resolveProjects.js'
+import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
 import { writeLockfilesAndRecordVerified } from './writeLockfilesAndRecordVerified.js'
 
 /** The state the steps that materialize a resolved graph share. */
@@ -359,6 +360,7 @@ function getInjectionTargetsByDepPath ({ dependenciesGraph, newLockfile }: Graph
 
 async function writeLockfiles ({ ctx, opts, resolution }: LinkContext, result: LinkPackagesResult): Promise<void> {
   if (opts.useLockfile && opts.saveLockfile) {
+    const blockExoticSubdeps = !opts.trustLockfile && Boolean(opts.blockExoticSubdeps)
     await writeLockfilesAndRecordVerified({
       currentLockfile: result.currentLockfile,
       currentLockfileDir: path.join(ctx.rootModulesDir, '.pnpm'),
@@ -366,6 +368,8 @@ async function writeLockfiles ({ ctx, opts, resolution }: LinkContext, result: L
       wantedLockfileDir: ctx.lockfileDir,
       cacheDir: opts.cacheDir,
       resolutionVerifiers: opts.resolutionVerifiers,
+      blockExoticSubdeps,
+      exoticSubdepsScope: blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, opts) : undefined,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
     })

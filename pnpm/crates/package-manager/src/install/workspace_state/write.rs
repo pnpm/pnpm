@@ -42,6 +42,9 @@ pub(crate) struct StateProjects<'a> {
 /// The settings a write takes from what earlier runs established rather than
 /// from this run.
 pub(crate) struct CarriedSettings<'a> {
+    /// Effective `trustLockfile` of the run (`config.trust_lockfile` plus any
+    /// CLI `--trust-lockfile` / `--no-trust-lockfile` override).
+    pub(crate) trust_lockfile: bool,
     /// The dedupe baseline this write knows of, per [`recorded_auto_dedupe`].
     pub(crate) established_auto_dedupe: Option<bool>,
     /// Whether the lockfile this run leaves behind has the keys the declared
@@ -70,6 +73,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         write.projects.manifests,
         write.filesystem_now_ms,
     );
+    state.settings.trust_lockfile = write.carried.trust_lockfile.then_some(true);
     state.settings.auto_dedupe =
         recorded_auto_dedupe(write.config, write.carried.established_auto_dedupe);
     if write.carried.registry_keys_verified {

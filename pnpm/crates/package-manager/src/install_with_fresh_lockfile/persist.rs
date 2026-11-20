@@ -37,11 +37,12 @@ pub(super) async fn verify_repair_if_filtered<Reporter: pnpm_reporter::Reporter>
     verify_filtered_repair: bool,
     built_lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
 ) -> Result<(), InstallWithFreshLockfileError> {
     if !verify_filtered_repair {
         return Ok(());
     }
-    verify_merged_repair::<Reporter>(built_lockfile, resolution_verifiers).await
+    verify_merged_repair::<Reporter>(built_lockfile, resolution_verifiers, exotic_subdeps).await
 }
 /// The repair copy `pacquet install --fix-lockfile` resolves against, which
 /// drops what the repair is meant to rebuild.
@@ -211,11 +212,15 @@ pub(super) struct LockfileOnlyOptions<'a> {
 pub(super) async fn verify_merged_repair<Reporter: self::Reporter>(
     lockfile: &Lockfile,
     resolution_verifiers: &[Arc<dyn ResolutionVerifier>],
+    exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
 ) -> Result<(), InstallWithFreshLockfileError> {
     pnpm_lockfile_verification::verify_lockfile_resolutions::<Reporter>(
         lockfile,
         resolution_verifiers,
-        &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions::default(),
+        &pnpm_lockfile_verification::VerifyLockfileResolutionsOptions {
+            exotic_subdeps,
+            ..Default::default()
+        },
     )
     .await
     .map_err(InstallWithFreshLockfileError::LockfileVerification)

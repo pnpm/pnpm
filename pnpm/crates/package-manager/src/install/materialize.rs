@@ -320,6 +320,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
     fn into_owned_inputs(
         self,
         lockfile_verification_gate: Option<crate::LockfileVerificationGate>,
+        exotic_subdeps: pnpm_lockfile_verification::ExoticSubdepsPolicy,
     ) -> OwnedInputs {
         OwnedInputs {
             wanted_lockfile_shared: self.lockfiles.wanted_shared,
@@ -328,6 +329,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
             pnpmfile_hook_override: self.resolution.pnpmfile_hook,
             lockfile: crate::install_with_fresh_lockfile::WantedLockfileHandles {
                 verification_gate: lockfile_verification_gate,
+                exotic_subdeps,
                 check_sink: self.resolution.lockfile_check_sink,
             },
             resolution: self.resolution.inputs,
@@ -377,7 +379,8 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
                     super::LockfileVerificationGate::spawn::<Reporter>(
                         Arc::clone(&loaded_lockfile),
                         &self.lockfiles.verification.resolution_verifiers,
-                        self.lockfiles.verification.derived_lockfile_path.as_deref(),
+                        self.lockfiles.verification.exotic_subdeps.clone(),
+                        self.lockfiles.verification.cache_source(),
                         &self.install.context.config.cache_dir,
                         self.resolution.inputs.update_seed_policy.replaced_fresh_lockfile_entries(
                             &loaded_lockfile,
@@ -436,13 +439,11 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
         let dependency_groups = std::mem::take(&mut self.workspace.dependency_groups);
         let resolution_verifiers =
             std::mem::take(&mut self.lockfiles.verification.resolution_verifiers);
-        let derived_lockfile_path = self.lockfiles.verification
-            .derived_lockfile_path
-            .take();
+        let exotic_subdeps = std::mem::take(&mut self.lockfiles.verification.exotic_subdeps);
+        let cache_dir = self.install.context.config.cache_dir.as_path();
         let auto_dedupe_baseline = self.lockfiles.verification
             .auto_dedupe_baseline
             .take();
-        let site = (self.workspace.workspace_root, self.install.context.config);
         let prior_unbuilt = prior_unbuilt_builds(self.modules.modules_manifest);
         let prior_skipped = previously_skipped(self.modules.modules_manifest);
         let missing_projects = self.missing_project_manifests();
@@ -454,16 +455,16 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
                 &prior_skipped,
             ),
             importer_manifests: self.importer_manifests(&missing_projects),
-            owned: self.into_owned_inputs(lockfile_verification_gate),
+            owned: self.into_owned_inputs(lockfile_verification_gate, exotic_subdeps.clone()),
         }
         .run::<Reporter>()
         .await
         .map_err(map_fresh_lockfile_error)?;
         record_fresh_lockfile_verified(
             &fresh_result,
-            derived_lockfile_path,
-            site,
+            cache_dir,
             &resolution_verifiers,
+            &exotic_subdeps,
         );
         record_auto_dedupe_baseline(&fresh_result, auto_dedupe_baseline.as_ref());
         Ok(fresh_materialization_output(fresh_result))

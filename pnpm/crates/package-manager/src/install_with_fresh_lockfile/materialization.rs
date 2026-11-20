@@ -184,7 +184,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)?;
         let built_lockfile = build_lockfile_phase::<Reporter>(
             self.install,
-            &mut self.resources.lockfile.verification_gate,
+            &mut self.resources.lockfile,
             std::mem::take(&mut self.resolved.graph.time),
             &self.resolved,
             LockfileViews {

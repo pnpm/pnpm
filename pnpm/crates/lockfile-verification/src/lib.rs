@@ -19,28 +19,40 @@ pub use cache::{
     CacheLookupResult,
     CachePrecomputed,
     CacheRecord,
+    LockfileCacheSource,
     LockfileStat,
     MAX_CACHE_ENTRIES,
     record_verification,
+    stat_from_metadata,
     try_lockfile_verification_cache,
+    try_lockfile_verification_cache_with_stat,
 };
 pub use errors::{
     RenderedViolation,
     VerifyError,
 };
 pub use hash_lockfile::hash_lockfile;
-pub use record_lockfile_verified::record_lockfile_verified;
+pub use record_lockfile_verified::{
+    record_lockfile_verified_by_content,
+    record_lockfile_verified_with_stat,
+};
 pub use verify_lockfile_resolutions::{
+    EXOTIC_SUBDEP_VIOLATION_CODE,
+    ExoticSubdepsPolicy,
+    ExoticSubdepsScope,
     RESOLUTION_SHAPE_CACHE_VERSION,
     RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
     ReplacedCandidate,
     ReplacedEntries,
     VerifiedOfflineLockfile,
     VerifyLockfileResolutionsOptions,
+    can_trust_prepared_policy,
     collect_resolution_policy_violations,
     collect_resolution_shape_violations,
     lockfile_verification_is_cached,
     lockfile_verification_is_cached_by_content,
+    lockfile_verification_is_cached_with_stat,
+    snapshot_verification_policy,
     verify_lockfile_dependency_names,
     verify_lockfile_importer_snapshot_links,
     verify_lockfile_resolution_shapes,

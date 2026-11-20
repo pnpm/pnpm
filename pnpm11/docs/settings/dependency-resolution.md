@@ -441,7 +441,7 @@ Added in: v11.3.0
 * Default: **false**
 * Type: **Boolean**
 
-When `true`, `pnpm install` skips the supply-chain verification pass that re-applies [`minimumReleaseAge`](#minimumreleaseage) and [`trustPolicy`](#trustpolicy) to every entry in the loaded lockfile. The install treats the lockfile as already trusted.
+When `true`, `pnpm install` skips the supply-chain verification pass that re-applies [`minimumReleaseAge`](#minimumreleaseage), [`trustPolicy`](#trustpolicy), and [`blockExoticSubdeps`](#blockexoticsubdeps) to every entry in the loaded lockfile. The install treats the lockfile as already trusted.
 
 Useful in environments where the lockfile is effectively part of the trusted base: closed-source projects where every commit comes from a trusted author. A poisoned lockfile (one a contributor authored under a weaker policy than CI enforces) can slip through, so leave this `false` whenever outside collaborators can edit the lockfile.
 

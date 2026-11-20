@@ -158,6 +158,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             &dirs.project_root,
         )),
         carried: crate::install::CarriedSettings {
+            trust_lockfile: config.trust_lockfile,
             established_auto_dedupe: None,
             registry_keys_verified: true,
             registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
@@ -306,6 +307,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         },
         filesystem_now_ms: Some(last_validated_timestamp),
         carried: crate::install::CarriedSettings {
+            trust_lockfile: config.trust_lockfile,
             established_auto_dedupe: None,
             registry_keys_verified: true,
             registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),
@@ -442,6 +444,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
             &dirs.project_root,
         )),
         carried: crate::install::CarriedSettings {
+            trust_lockfile: config.trust_lockfile,
             established_auto_dedupe: None,
             registry_keys_verified: true,
             registry_routes: Some(crate::install_state::settings::recorded_registry_routes(config)),

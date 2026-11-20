@@ -4,12 +4,15 @@ import { getWantedLockfileName, type LockfileObject, writeWantedLockfile } from 
 import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
 import { recordLockfileVerified } from './recordLockfileVerified.js'
+import type { ExoticSubdepsScope } from './verifyLockfileResolutions.js'
 
 export interface WriteWantedLockfileAndRecordVerifiedOptions {
   lockfileDir: string
   lockfile: LockfileObject
   cacheDir?: string
   resolutionVerifiers: readonly ResolutionVerifier[] | undefined
+  blockExoticSubdeps?: boolean
+  exoticSubdepsScope?: ExoticSubdepsScope
   useGitBranchLockfile?: boolean
   mergeGitBranchLockfiles?: boolean
 }
@@ -18,7 +21,8 @@ export interface WriteWantedLockfileAndRecordVerifiedOptions {
 export async function writeWantedLockfileAndRecordVerified (
   opts: WriteWantedLockfileAndRecordVerifiedOptions
 ): Promise<LockfileObject> {
-  const cacheActive = opts.cacheDir != null && (opts.resolutionVerifiers?.length ?? 0) > 0
+  const cacheActive = opts.cacheDir != null &&
+    ((opts.resolutionVerifiers?.length ?? 0) > 0 || Boolean(opts.blockExoticSubdeps))
   const lockfileName = cacheActive
     ? await getWantedLockfileName({
       useGitBranchLockfile: opts.useGitBranchLockfile,
@@ -36,6 +40,8 @@ export async function writeWantedLockfileAndRecordVerified (
       lockfilePath: path.resolve(opts.lockfileDir, lockfileName!),
       lockfile: written,
       resolutionVerifiers: opts.resolutionVerifiers,
+      blockExoticSubdeps: opts.blockExoticSubdeps,
+      exoticSubdepsScope: opts.exoticSubdepsScope,
     })
   }
   return written

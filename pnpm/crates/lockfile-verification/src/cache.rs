@@ -102,6 +102,9 @@ pub struct CacheLockfile {
     /// ns precision).
     #[serde(rename = "mtimeNs")]
     pub mtime_ns: String,
+    /// Lockfile ctime in nanoseconds, stringified (`"0"` on Windows).
+    #[serde(default, rename = "ctimeNs")]
+    pub ctime_ns: String,
     /// Filesystem inode, stringified. `"0"` on platforms without
     /// inodes (Windows).
     pub inode: String,
@@ -138,7 +141,15 @@ pub struct CachePrecomputed {
 pub struct LockfileStat {
     pub size: u64,
     pub mtime_ns: String,
+    pub ctime_ns: String,
     pub inode: String,
+}
+
+/// File path and optional read-time [`LockfileStat`] for the lockfile being verified.
+#[derive(Debug, Clone, Copy)]
+pub struct LockfileCacheSource<'a> {
+    pub path: &'a Path,
+    pub stat: Option<&'a LockfileStat>,
 }
 
 /// Try to confirm a cached verification covers the lockfile as it
@@ -156,16 +167,39 @@ pub fn try_lockfile_verification_cache(
     cache_dir: &Path,
     lockfile_path: &Path,
     verifiers: &[Arc<dyn ResolutionVerifier>],
+    hash_lockfile: impl FnMut() -> String,
+) -> CacheLookupResult {
+    let Some(stat) = stat_lockfile(lockfile_path) else {
+        return CacheLookupResult::default();
+    };
+    try_lockfile_verification_cache_with_stat(
+        cache_dir,
+        lockfile_path,
+        stat,
+        verifiers,
+        hash_lockfile,
+    )
+}
+
+/// [`try_lockfile_verification_cache`] using a [`LockfileStat`] captured from
+/// the open file handle that produced the lockfile, avoiding a separate `stat`.
+pub fn try_lockfile_verification_cache_with_stat(
+    cache_dir: &Path,
+    lockfile_path: &Path,
+    stat: LockfileStat,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
     mut hash_lockfile: impl FnMut() -> String,
 ) -> CacheLookupResult {
     let Ok(indexes) = read_cache(cache_dir) else {
         // A corrupt cache file should never block the install;
         // fall through to verification so the gate still runs.
-        return CacheLookupResult::default();
-    };
-
-    let Some(stat) = stat_lockfile(lockfile_path) else {
-        return CacheLookupResult::default();
+        // Keep the captured stat so post-verification recording still
+        // describes the lockfile that was checked.
+        return CacheLookupResult {
+            hit: false,
+            verified_at: None,
+            precomputed: CachePrecomputed { stat: Some(stat), hash: None },
+        };
     };
 
     let path_key = lockfile_path.to_string_lossy().to_string();
@@ -220,6 +254,7 @@ fn refresh_record_path(
             path: path_key,
             size: stat.size,
             mtime_ns: stat.mtime_ns.clone(),
+            ctime_ns: stat.ctime_ns.clone(),
             inode: stat.inode.clone(),
         },
         verified_at: record.verified_at.clone(),
@@ -239,6 +274,57 @@ pub(crate) fn lockfile_verification_is_cached_by_hash(
 ) -> bool {
     let Ok(indexes) = read_cache(cache_dir) else { return false };
     trusted_record_by_hash(&indexes, hash, verifiers).is_some()
+}
+
+/// Content-only counterpart to [`try_lockfile_verification_cache`] for
+/// lockfiles that do not correspond to a single unchanged on-disk file.
+pub(crate) fn try_lockfile_verification_cache_by_hash(
+    cache_dir: &Path,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    mut hash_lockfile: impl FnMut() -> String,
+) -> CacheLookupResult {
+    let Ok(indexes) = read_cache(cache_dir) else {
+        return CacheLookupResult::default();
+    };
+    let hash = hash_lockfile();
+    let Some(record) = trusted_record_by_hash(&indexes, &hash, verifiers) else {
+        return CacheLookupResult {
+            hit: false,
+            verified_at: None,
+            precomputed: CachePrecomputed { stat: None, hash: Some(hash) },
+        };
+    };
+    CacheLookupResult {
+        hit: true,
+        verified_at: (!record.verified_at.is_empty()).then(|| record.verified_at.clone()),
+        precomputed: CachePrecomputed { stat: None, hash: Some(hash) },
+    }
+}
+
+/// Persist a successful content-only verification without a path/stat index entry.
+pub(crate) fn record_verification_by_hash(
+    cache_dir: &Path,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+    mut hash_lockfile: impl FnMut() -> String,
+    precomputed: CachePrecomputed,
+) {
+    let hash = precomputed.hash.unwrap_or_else(&mut hash_lockfile);
+    let record = CacheRecord {
+        lockfile: CacheLockfile {
+            hash,
+            path: String::new(),
+            size: 0,
+            mtime_ns: String::new(),
+            ctime_ns: String::new(),
+            inode: String::new(),
+        },
+        verified_at: now_rfc3339(),
+        policy: merge_policies(verifiers),
+    };
+    if append_record(cache_dir, &record).is_err() {
+        return;
+    }
+    maybe_compact_cache(cache_dir);
 }
 
 /// Persist a successful verification.
@@ -265,6 +351,7 @@ pub fn record_verification(
             path: lockfile_path.to_string_lossy().to_string(),
             size: stat.size,
             mtime_ns: stat.mtime_ns,
+            ctime_ns: stat.ctime_ns,
             inode: stat.inode,
         },
         verified_at: now_rfc3339(),
@@ -307,25 +394,26 @@ fn read_cache(cache_dir: &Path) -> io::Result<CacheIndexes> {
     };
     let mut by_hash = HashMap::new();
     let mut by_path = HashMap::new();
-    for line in contents.lines() {
-        if line.is_empty() {
-            continue;
-        }
-        let parsed: CacheRecord = match serde_json::from_str(line) {
-            Ok(value) => value,
-            Err(_) => continue,
-        };
-        if parsed.lockfile.hash.is_empty() || parsed.lockfile.path.is_empty() {
-            continue;
-        }
+    for parsed in contents.lines().filter_map(parse_cache_line) {
         by_hash.insert(parsed.lockfile.hash.clone(), parsed.clone());
-        by_path.insert(parsed.lockfile.path.clone(), parsed);
+        if !parsed.lockfile.path.is_empty() {
+            by_path.insert(parsed.lockfile.path.clone(), parsed);
+        }
     }
     Ok(CacheIndexes { by_hash, by_path })
 }
 
-fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
-    let metadata = fs::metadata(lockfile_path).ok()?;
+fn parse_cache_line(line: &str) -> Option<CacheRecord> {
+    if line.is_empty() {
+        return None;
+    }
+    let parsed: CacheRecord = serde_json::from_str(line).ok()?;
+    (!parsed.lockfile.hash.is_empty()).then_some(parsed)
+}
+
+/// Extract [`LockfileStat`] from open-file or path [`fs::Metadata`].
+#[must_use]
+pub fn stat_from_metadata(metadata: &fs::Metadata) -> LockfileStat {
     let size = metadata.len();
     let mtime_ns = metadata
         .modified()
@@ -335,8 +423,29 @@ fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
         .map(|duration| duration.as_nanos())
         .map(|text| text.to_string())
         .unwrap_or_else(|| "0".to_string());
-    let inode = inode_of(&metadata);
-    Some(LockfileStat { size, mtime_ns, inode })
+    let ctime_ns = ctime_of(metadata);
+    let inode = inode_of(metadata);
+    LockfileStat { size, mtime_ns, ctime_ns, inode }
+}
+
+fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
+    let metadata = fs::metadata(lockfile_path).ok()?;
+    Some(stat_from_metadata(&metadata))
+}
+
+#[cfg(unix)]
+fn ctime_of(metadata: &fs::Metadata) -> String {
+    use std::os::unix::fs::MetadataExt;
+    i128::from(metadata.ctime())
+        .saturating_mul(1_000_000_000)
+        .saturating_add(i128::from(metadata.ctime_nsec()))
+        .max(0)
+        .to_string()
+}
+
+#[cfg(not(unix))]
+fn ctime_of(_metadata: &fs::Metadata) -> String {
+    "0".to_string()
 }
 
 #[cfg(unix)]
@@ -354,7 +463,10 @@ fn inode_of(_metadata: &fs::Metadata) -> String {
 }
 
 fn stat_matches(stat: &LockfileStat, lockfile: &CacheLockfile) -> bool {
-    stat.size == lockfile.size && stat.mtime_ns == lockfile.mtime_ns && stat.inode == lockfile.inode
+    stat.size == lockfile.size
+        && stat.mtime_ns == lockfile.mtime_ns
+        && (!cfg!(unix) || stat.ctime_ns == lockfile.ctime_ns)
+        && stat.inode == lockfile.inode
 }
 
 fn every_verifier_trusts_cached_run(
@@ -422,17 +534,10 @@ fn maybe_compact_cache(cache_dir: &Path) {
 fn newest_records(contents: &str) -> Vec<&str> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut newest: Vec<&str> = Vec::new();
-    for line in contents
-        .lines()
-        .filter(|line| !line.is_empty())
-        .rev()
-    {
-        let Ok(parsed) = serde_json::from_str::<CacheRecord>(line) else {
+    for line in contents.lines().rev() {
+        let Some(parsed) = parse_cache_line(line) else {
             continue;
         };
-        if parsed.lockfile.hash.is_empty() || parsed.lockfile.path.is_empty() {
-            continue;
-        }
         if !seen.insert(format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash)) {
             continue;
         }

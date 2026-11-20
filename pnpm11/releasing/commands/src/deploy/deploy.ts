@@ -19,7 +19,7 @@ import { writeYamlFile } from 'write-yaml-file'
 import { createDeployFiles, type DeployFiles } from './createDeployFiles.js'
 import { deployHook } from './deployHook.js'
 import { prepareDeployDir, validateDeployTarget } from './deployTarget.js'
-import { approveLegacyWorkspaceProjectBuilds } from './workspaceProjectBuilds.js'
+import { approveLegacyWorkspaceProjectBuilds, deployedWorkspaceProjectDirs } from './workspaceProjectBuilds.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 
@@ -137,25 +137,30 @@ function resolveDeployRequest (
   }
 }
 
+function pointProjectsAtDeployModules (allProjects: Project[] | undefined, deployDir: string): void {
+  if (!allProjects) return
+  const deployNodeModules = path.join(deployDir, 'node_modules')
+  for (const project of allProjects) {
+    project.modulesDir = path.relative(project.rootDir, deployNodeModules)
+  }
+}
+
 async function deployWithoutSharedLockfile (
   opts: DeployOptions,
   target: { deployDir: string, includeOnlyPackageFiles: boolean, selectedProject: Project, workspaceDir: string }
 ): Promise<void> {
   const { deployDir, includeOnlyPackageFiles, selectedProject, workspaceDir } = target
-  const deployNodeModules = path.join(deployDir, 'node_modules')
-  if (opts.allProjects) {
-    for (const project of opts.allProjects) {
-      project.modulesDir = path.relative(project.rootDir, deployNodeModules)
-    }
-  }
+  pointProjectsAtDeployModules(opts.allProjects, deployDir)
+  const legacyLockfileDir = opts.lockfileDir ?? selectedProject.rootDir
   await install.handler({
     ...opts,
     allowBuilds: approveLegacyWorkspaceProjectBuilds(opts.allowBuilds, {
       allProjects: opts.allProjects ?? [],
       // The lockfile dir of the install below: the workspace's shared one, or else the deployed project's own.
-      lockfileDir: opts.lockfileDir ?? selectedProject.rootDir,
+      lockfileDir: legacyLockfileDir,
     }),
     deploy: true,
+    deployedWorkspaceDirs: opts.allProjects && deployedWorkspaceProjectDirs(opts.allProjects, legacyLockfileDir),
     configDependencies: undefined,
     confirmModulesPurge: false,
     // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
@@ -199,13 +204,7 @@ async function deployWithoutSharedLockfile (
     // virtual store would create symlinks outside of the deploy directory.
     enableGlobalVirtualStore: false,
     depth: Infinity,
-    hooks: {
-      ...opts.hooks,
-      readPackage: [
-        ...(opts.hooks?.readPackage ?? []),
-        pkg => deployHook(pkg, { convertLinksToFileProtocol: true }),
-      ],
-    },
+    hooks: buildDeployHooks(opts.hooks, { convertLinksToFileProtocol: true }),
     frozenLockfile: false,
     preferFrozenLockfile: false,
     // Deploy doesn't work currently with hoisted node_modules.
@@ -316,6 +315,7 @@ function buildDeployInstallOptions (opts: DeployOptions, { deployDir, deployFile
   return {
     ...opts,
     deploy: true,
+    deployedWorkspaceDirs: opts.allProjects && deployedWorkspaceProjectDirs(opts.allProjects, deployDir),
     allProjects: undefined,
     allProjectsGraph: undefined,
     selectedProjectsGraph: undefined,
@@ -352,11 +352,14 @@ function buildDeployInstallOptions (opts: DeployOptions, { deployDir, deployFile
   }
 }
 
-function buildDeployHooks (hooks: DeployOptions['hooks']): DeployOptions['hooks'] {
+function buildDeployHooks (
+  hooks: DeployOptions['hooks'],
+  hookOpts?: { convertLinksToFileProtocol?: boolean }
+): DeployOptions['hooks'] {
   return {
     ...hooks,
-    readPackage: [...(hooks?.readPackage ?? []), pkg => deployHook(pkg)],
-    calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
+    readPackage: [...(hooks?.readPackage ?? []), pkg => deployHook(pkg, hookOpts)],
+    calculatePnpmfileChecksum: hookOpts?.convertLinksToFileProtocol ? hooks?.calculatePnpmfileChecksum : undefined,
   }
 }
 

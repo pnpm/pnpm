@@ -8,7 +8,10 @@ use crate::{
 };
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         Arc,
         Mutex,
@@ -68,6 +71,8 @@ impl LazyLockfile {
         let cell = OnceLock::new();
         cell.set(LoadedWantedLockfile {
             lockfile: lockfile.map(Arc::new),
+            loaded_path: None,
+            loaded_metadata: None,
             pre_merge_importers: None,
             merged_conflict_files: 0,
         })
@@ -129,6 +134,21 @@ impl LazyLockfile {
         &self,
     ) -> Result<Option<&HashMap<String, ProjectSnapshot>>, LoadLockfileError> {
         Ok(self.load_for_fix()?.pre_merge_importers())
+    }
+
+    /// Single on-disk file that produced the loaded lockfile, or `None` when
+    /// absent, preloaded in memory, or folded across branch lockfiles.
+    pub fn loaded_path(&self) -> Result<Option<&Path>, LoadLockfileError> {
+        Ok(self.load()?.loaded_path.as_deref())
+    }
+
+    /// Open-handle metadata captured when [`Self::loaded_path`] was read.
+    pub fn loaded_metadata(&self) -> Result<Option<&std::fs::Metadata>, LoadLockfileError> {
+        Ok(self.load()?.loaded_metadata.as_ref())
+    }
+
+    fn loaded_path_for_fix(&self) -> Result<Option<&Path>, LoadLockfileError> {
+        Ok(self.load_for_fix()?.loaded_path())
     }
 
     fn merged_conflict_files(&self) -> Result<usize, LoadLockfileError> {
@@ -283,6 +303,23 @@ impl<'a> MaybeLazyLockfile<'a> {
             MaybeLazyLockfile::Loaded(_) => Ok(0),
             MaybeLazyLockfile::Lazy(lazy) => lazy.merged_conflict_files(),
             MaybeLazyLockfile::Repair(lazy) => lazy.merged_conflict_files_for_fix(),
+        }
+    }
+
+    /// Single on-disk file that produced the loaded lockfile, if any.
+    pub fn loaded_path(self) -> Result<Option<&'a Path>, LoadLockfileError> {
+        match self {
+            MaybeLazyLockfile::Loaded(_) => Ok(None),
+            MaybeLazyLockfile::Lazy(lazy) => lazy.loaded_path(),
+            MaybeLazyLockfile::Repair(lazy) => lazy.loaded_path_for_fix(),
+        }
+    }
+
+    /// Open-handle metadata captured when [`Self::loaded_path`] was read.
+    pub fn loaded_metadata(self) -> Result<Option<&'a std::fs::Metadata>, LoadLockfileError> {
+        match self {
+            MaybeLazyLockfile::Loaded(_) | MaybeLazyLockfile::Repair(_) => Ok(None),
+            MaybeLazyLockfile::Lazy(lazy) => lazy.loaded_metadata(),
         }
     }
 }

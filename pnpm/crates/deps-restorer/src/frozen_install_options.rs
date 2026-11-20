@@ -99,9 +99,9 @@ pub struct FrozenLockfileInputs<'a> {
     /// the materialization closure. The verification gates read this one
     /// so a narrower install scope can never narrow what gets checked.
     pub verified: &'a Lockfile,
-    /// Absolute path of the lockfile being verified, for the on-disk
-    /// verification cache. `None` disables the cache.
-    pub path: Option<&'a Path>,
+    /// Path and read-time stat of the lockfile being verified, for the
+    /// on-disk verification cache.
+    pub source: Option<pnpm_lockfile_verification::LockfileCacheSource<'a>>,
     /// The previous install's persisted current lockfile, threaded
     /// through to the hoisted walker for `prev_graph` (orphan
     /// diff). `None` on a first install.
@@ -117,6 +117,7 @@ pub struct FrozenLockfileInputs<'a> {
     /// when verification is disabled (`trustLockfile`), in which case the
     /// gate is a no-op.
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
+    pub exotic_subdeps: &'a pnpm_lockfile_verification::ExoticSubdepsPolicy,
     /// Fetch-evidence cell `CreateVirtualStore` fills after its
     /// warm/cold partition so the concurrent verification fan-out's
     /// age gate can lean on this install's canonical tarball fetches.

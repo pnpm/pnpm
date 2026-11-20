@@ -3,14 +3,21 @@ import { isEmptyLockfile } from '@pnpm/lockfile.fs'
 import { clone, equals } from 'ramda'
 
 import type { ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
-import { matchReplacedLockfileEntries } from './installPredicates.js'
-import { runPreResolutionHooks, startLockfileVerification, willDelegateToPacquet } from './mutateModules.js'
+import { runPreResolutionHooks, startLockfileVerification } from './mutateModules.js'
 import type {
   MutatedProject,
   MutateModulesOptions,
   PreparedFrozenMutation,
 } from './mutationTypes.js'
-import { verifyLockfileResolutions } from './verifyLockfileResolutions.js'
+import { buildExoticSubdepsScopeFromContext } from './verifyLockfileExoticSubdeps.js'
+import { canTrustPreparedPolicy } from './verifyLockfileResolutions.js'
+
+interface OpenedPreparedRun {
+  ctx: PnpmContext
+  installsOnly: boolean
+  opts: StrictInstallOptions
+  projects: MutatedProject[]
+}
 
 export function assertProjectManifestsExist (ctx: PnpmContext, ignorePackageManifest: boolean): void {
   if (ignorePackageManifest) return
@@ -69,37 +76,55 @@ export async function applyPreparedOrRunPreResolutionHooks (
 }
 
 export async function settlePreparedMutationHooksAndVerification (
-  openedRun: {
-    ctx: PnpmContext
-    installsOnly: boolean
-    opts: StrictInstallOptions
-    projects: MutatedProject[]
-  },
+  openedRun: OpenedPreparedRun,
   rawPrepared: MutateModulesOptions['_preparedFrozen']
 ): Promise<{ verifyLockfilePromise?: Promise<void> }> {
-  const { ctx, installsOnly, opts, projects } = openedRun
+  const { ctx, opts } = openedRun
   const prepared = matchesPreparedFrozenLockfile(ctx, rawPrepared) ? rawPrepared : undefined
-  const lockfileChangedAfterPreflight = rawPrepared != null && prepared == null
-  const { verifyLockfilePromise: initialVerifyPromise } = prepared?.verifiedLockfile
-    ? {}
-    : await startLockfileVerification(openedRun, { skipStatShortcut: lockfileChangedAfterPreflight })
-  const wantedBeforeHook = lockfileChangedAfterPreflight && opts.hooks.preResolution?.length
-    ? clone(ctx.wantedLockfile)
-    : undefined
-  await applyPreparedOrRunPreResolutionHooks(opts, ctx, prepared)
-  if (
-    wantedBeforeHook == null ||
-    opts.trustLockfile ||
-    willDelegateToPacquet(opts, ctx, installsOnly) ||
-    equals(wantedBeforeHook, ctx.wantedLockfile)
-  ) {
-    return { verifyLockfilePromise: initialVerifyPromise }
+  const preparedCoversCurrentPolicy = preparedPolicyIsTrusted(ctx, opts, prepared)
+  if (prepared?.preResolutionRan) {
+    return settleRestoredPreResolution(openedRun, prepared, preparedCoversCurrentPolicy)
   }
-  const chained = (initialVerifyPromise ?? Promise.resolve()).then(() =>
-    verifyLockfileResolutions(ctx.wantedLockfile, opts.resolutionVerifiers, {
-      isReplaced: matchReplacedLockfileEntries(projects, ctx, opts),
-    })
-  )
-  chained.catch(() => {})
-  return { verifyLockfilePromise: chained }
+  const lockfileChangedAfterPreflight = rawPrepared != null && prepared == null
+  const hasPreResolutionHooks = Boolean(opts.hooks.preResolution?.length)
+  const wantedBeforeHook = hasPreResolutionHooks ? clone(ctx.wantedLockfile) : undefined
+  await applyPreparedOrRunPreResolutionHooks(opts, ctx, prepared)
+  const wantedMutated = wantedBeforeHook != null && !equals(wantedBeforeHook, ctx.wantedLockfile)
+  if (wantedMutated) ctx.wantedLockfileIsModified = true
+  if (preparedCoversCurrentPolicy && !wantedMutated) return {}
+  return startLockfileVerification(openedRun, {
+    skipStatShortcut: lockfileChangedAfterPreflight || hasPreResolutionHooks || wantedMutated,
+    disableCache: wantedMutated,
+  })
+}
+
+function preparedPolicyIsTrusted (
+  ctx: PnpmContext,
+  opts: StrictInstallOptions,
+  prepared: PreparedFrozenMutation | undefined
+): boolean {
+  if (!prepared?.verifiedLockfile) return false
+  if (prepared.verifiedPolicySnapshot == null) return true
+  const blockExoticSubdeps = !opts.trustLockfile && Boolean(opts.blockExoticSubdeps)
+  return canTrustPreparedPolicy(prepared.verifiedPolicySnapshot, opts.resolutionVerifiers, {
+    blockExoticSubdeps,
+    exoticSubdepsScope: blockExoticSubdeps ? buildExoticSubdepsScopeFromContext(ctx, opts) : undefined,
+  })
+}
+
+async function settleRestoredPreResolution (
+  openedRun: OpenedPreparedRun,
+  prepared: PreparedFrozenMutation,
+  preparedCoversCurrentPolicy: boolean
+): Promise<{ verifyLockfilePromise?: Promise<void> }> {
+  const { ctx, opts } = openedRun
+  const wantedMutated = prepared.hookedWantedLockfile != null &&
+    !equals(ctx.wantedLockfile, prepared.hookedWantedLockfile)
+  await applyPreparedOrRunPreResolutionHooks(opts, ctx, prepared)
+  if (wantedMutated) ctx.wantedLockfileIsModified = true
+  if (preparedCoversCurrentPolicy) return {}
+  return startLockfileVerification(openedRun, {
+    skipStatShortcut: true,
+    disableCache: wantedMutated,
+  })
 }

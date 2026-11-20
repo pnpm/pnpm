@@ -266,6 +266,8 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_install_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub block_exotic_subdeps: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalogs: Option<serde_json::Value>,
     /// `dangerouslyAllowAllBuilds`. An unset value reads as `false`. Turned
     /// on, it allows builds the last install ignored, so the next install has
@@ -355,6 +357,8 @@ pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub minimum_release_age_strict: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_download_mirrors: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_linker: Option<NodeLinker>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_linker_excluded: Option<Vec<String>>,
@@ -406,6 +410,10 @@ pub struct WorkspaceStateSettings {
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,
+    /// Configured `tools.<name>.mirror` / `channels` runtime mirrors, recorded
+    /// only when set. pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_mirrors: Option<BTreeMap<String, String>>,
     /// The store directory a configured `storeDir` resolves to, recorded
     /// only when set. The modules directory is linked from the store it was
     /// installed with, so a change must reach the install that recreates it.

@@ -22,10 +22,13 @@ use super::{
     CacheLockfile,
     CachePrecomputed,
     CacheRecord,
+    LockfileStat,
     MAX_CACHE_ENTRIES,
     lockfile_verification_is_cached_by_hash,
     record_verification,
+    stat_from_metadata,
     try_lockfile_verification_cache,
+    try_lockfile_verification_cache_with_stat,
 };
 
 /// Trivial verifier that records what policy it advertises and
@@ -434,6 +437,7 @@ fn compaction_dedupes_by_path_and_hash() {
                 path: lockfile.to_string_lossy().into_owned(),
                 size: 0,
                 mtime_ns: "0".into(),
+                ctime_ns: "0".into(),
                 inode: "0".into(),
             },
             verified_at: counter.to_string(),
@@ -478,6 +482,7 @@ fn malformed_lines_are_tolerated_on_read() {
             path: lockfile.to_string_lossy().into_owned(),
             size: 0,
             mtime_ns: "0".into(),
+            ctime_ns: "0".into(),
             inode: "0".into(),
         },
         verified_at: "now".into(),
@@ -506,6 +511,7 @@ fn cache_lockfile_serializes_with_camelcase_fields() {
             path: "/p".into(),
             size: 42,
             mtime_ns: "100".into(),
+            ctime_ns: "105".into(),
             inode: "5".into(),
         },
         verified_at: "now".into(),
@@ -513,7 +519,93 @@ fn cache_lockfile_serializes_with_camelcase_fields() {
     };
     let json = serde_json::to_string(&record).expect("serialize");
     assert!(json.contains(r#""mtimeNs":"100""#), "got: {json}");
+    assert!(json.contains(r#""ctimeNs":"105""#), "got: {json}");
     assert!(json.contains(r#""verifiedAt":"now""#), "got: {json}");
+}
+
+#[cfg(unix)]
+#[test]
+fn ctime_mismatch_invalidates_stat_shortcut_even_when_mtime_is_restored() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(dir.path(), "same-len-a");
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+    let baseline_stat = LockfileStat {
+        size: 10,
+        mtime_ns: "1700000000000000000".to_string(),
+        ctime_ns: "1700000000000000000".to_string(),
+        inode: "42".to_string(),
+    };
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "hash-a".to_string(),
+        CachePrecomputed { stat: Some(baseline_stat.clone()), hash: None },
+    );
+
+    let mut hash_calls = 0usize;
+    let initial = try_lockfile_verification_cache_with_stat(
+        dir.path(),
+        &lockfile,
+        baseline_stat.clone(),
+        &verifiers,
+        || {
+            hash_calls += 1;
+            "hash-a".to_string()
+        },
+    );
+    assert!(initial.hit, "matching stat must take the stat shortcut");
+    assert_eq!(hash_calls, 0, "stat shortcut must not invoke hash callback");
+
+    let changed_ctime_stat =
+        LockfileStat { ctime_ns: "1700000000000000001".to_string(), ..baseline_stat };
+    let result = try_lockfile_verification_cache_with_stat(
+        dir.path(),
+        &lockfile,
+        changed_ctime_stat,
+        &verifiers,
+        || {
+            hash_calls += 1;
+            "hash-b".to_string()
+        },
+    );
+    assert_eq!(hash_calls, 1, "ctime mismatch must bypass stat shortcut and hash content");
+    assert!(!result.hit, "restored mtime must not keep stat shortcut alive after ctime change");
+}
+
+#[test]
+fn cache_read_failure_preserves_captured_stat_across_lockfile_replacement() {
+    let dir = TempDir::new().expect("tempdir");
+    let cache_dir = dir.path().join("cache");
+    fs::create_dir_all(cache_dir.join(CACHE_FILE_NAME)).expect("directory at cache file path");
+    let lockfile = touch_lockfile(dir.path(), "verified-lockfile");
+    let captured = stat_from_metadata(&fs::metadata(&lockfile).expect("orig metadata"));
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+
+    let lookup = try_lockfile_verification_cache(&cache_dir, &lockfile, &verifiers, || {
+        "hash-verified".to_string()
+    });
+    assert!(!lookup.hit);
+    assert_eq!(lookup.precomputed.stat, Some(captured.clone()));
+
+    fs::write(&lockfile, "replacement-lockfile-with-different-bytes").expect("replace lockfile");
+    fs::remove_dir(cache_dir.join(CACHE_FILE_NAME)).expect("clear unreadable cache dir");
+    record_verification(
+        &cache_dir,
+        &lockfile,
+        &verifiers,
+        || "hash-verified".to_string(),
+        lookup.precomputed,
+    );
+
+    let contents = fs::read_to_string(cache_dir.join(CACHE_FILE_NAME)).expect("read recorded");
+    let written: CacheRecord = serde_json::from_str(contents.trim_end()).expect("parse recorded");
+    assert_eq!(written.lockfile.size, captured.size);
+    assert_eq!(written.lockfile.mtime_ns, captured.mtime_ns);
+    assert_eq!(written.lockfile.ctime_ns, captured.ctime_ns);
+    assert_eq!(written.lockfile.inode, captured.inode);
 }
 
 fn rewrite_cached_mtime(cache_dir: &Path, mtime_ns: &str) {
