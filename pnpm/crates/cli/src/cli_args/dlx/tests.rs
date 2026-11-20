@@ -27,6 +27,8 @@ use crate::cli_args::{
     },
 };
 use clap::Parser;
+#[cfg(windows)]
+use command_extra::CommandExtra;
 use indexmap::IndexMap;
 use pnpm_config::{
     Config,
@@ -989,9 +991,9 @@ fn clean_expired_dlx_cache_does_not_follow_a_junction_root() {
 #[cfg(windows)]
 fn create_junction(target: &Path, link: &Path) {
     let output = std::process::Command::new("cmd")
-        .args(["/d", "/c", "mklink", "/J"])
-        .arg(link)
-        .arg(target)
+        .with_args(["/d", "/c", "mklink", "/J"])
+        .with_arg(link)
+        .with_arg(target)
         .output()
         .expect("create a junction");
     assert!(output.status.success(), "mklink failed: {output:?}");

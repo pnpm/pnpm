@@ -177,7 +177,7 @@ fn original_path_is_appended_last() {
 }
 
 /// Regression: a path component containing the platform separator
-/// must not cause `extend_path` to drop the computed entries. The
+/// must not drop the computed entries from the extended `PATH`. The
 /// plain string join embeds the separator verbatim. Skipping on
 /// Windows where `;` is far less likely to appear in real paths, but
 /// the invariant holds there too.

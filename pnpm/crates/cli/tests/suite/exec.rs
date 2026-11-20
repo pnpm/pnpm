@@ -438,7 +438,7 @@ fn exec_output_ends_while_a_detached_grandchild_runs() {
 
     if let Ok(pid) = fs::read_to_string(&waiter_pid_path) {
         let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/PID", pid.trim()])
+            .with_args(["/F", "/PID", pid.trim()])
             .output();
     }
     assert_eq!(status.code(), Some(0), "the detached spawn should succeed: {output:?}");
@@ -486,10 +486,10 @@ fn start_detached_waiter(waiter_pid_path: &Path) {
         }
     }
     let waiter_pid = std::process::Command::new("node")
-        .args(["-e", "setTimeout(() => {}, 60000)"])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_args(["-e", "setTimeout(() => {}, 60000)"])
+        .with_stdin(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
         .spawn()
         .expect("spawn the detached waiter")

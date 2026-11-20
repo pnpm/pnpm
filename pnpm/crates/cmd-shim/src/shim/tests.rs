@@ -1462,16 +1462,15 @@ fn a_shim_runs_a_cmd_target_in_every_msys_conversion_mode() {
             (Some(("MSYS_NO_PATHCONV", "1")), "CMD_OK [/usr] [/c/Users]".to_owned()),
             (Some(("MSYS2_ARG_CONV_EXCL", "*")), "CMD_OK [/usr] [/c/Users]".to_owned()),
         ] {
-            let mut command = std::process::Command::new(&bash);
-            command
-                .args(["--noprofile", "--norc"])
-                .arg(&shim)
-                .args(["/usr", "/c/Users"])
-                .env_remove("MSYS_NO_PATHCONV")
-                .env_remove("MSYS2_ARG_CONV_EXCL")
-                .stdin(std::process::Stdio::null());
+            let mut command = std::process::Command::new(&bash)
+                .with_args(["--noprofile", "--norc"])
+                .with_arg(&shim)
+                .with_args(["/usr", "/c/Users"])
+                .without_env("MSYS_NO_PATHCONV")
+                .without_env("MSYS2_ARG_CONV_EXCL")
+                .with_stdin(std::process::Stdio::null());
             if let Some((name, value)) = conversion_off {
-                command.env(name, value);
+                command = command.with_env(name, value);
             }
             let output = command.output().expect("run the shim under Git Bash");
             assert!(

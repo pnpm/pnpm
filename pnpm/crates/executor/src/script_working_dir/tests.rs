@@ -3,6 +3,8 @@ use super::{
     is_refused_directory,
     shorter_working_dirs,
 };
+#[cfg(windows)]
+use command_extra::CommandExtra;
 use std::{
     io,
     path::{
@@ -127,9 +129,9 @@ fn a_slot_windows_refuses_spawns_in_a_shorter_spelling() {
 #[cfg(windows)]
 fn spawn_in(dir: &Path) -> io::Result<std::process::ExitStatus> {
     std::process::Command::new("cmd")
-        .args(["/d", "/s", "/c", "cd"])
-        .current_dir(dir)
-        .stdout(std::process::Stdio::null())
+        .with_args(["/d", "/s", "/c", "cd"])
+        .with_current_dir(dir)
+        .with_stdout(std::process::Stdio::null())
         .status()
 }
 

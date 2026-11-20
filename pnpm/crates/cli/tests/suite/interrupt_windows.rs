@@ -155,7 +155,7 @@ fn wait_for_shutdown(process: &mut Child) -> ExitStatus {
 /// End pnpm together with everything it started, and reap it.
 fn end_process_tree(process: &mut Child) -> ExitStatus {
     let _ = Command::new("taskkill")
-        .args(["/T", "/F", "/PID", &process.id().to_string()])
+        .with_args(["/T", "/F", "/PID", &process.id().to_string()])
         .status();
     process.wait().expect("wait for pnpm")
 }

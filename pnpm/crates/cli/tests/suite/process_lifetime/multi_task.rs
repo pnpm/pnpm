@@ -288,8 +288,8 @@ fn recursive_run_bail_ends_a_detached_grandchild_of_a_running_script() {
 
     let mut run = pacquet
         .with_args(["--workspace-concurrency=2", "--no-sort", "-r", "run", "build"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .with_stdout(Stdio::null())
+        .with_stderr(Stdio::null())
         .spawn()
         .expect("spawn pacquet");
     let connection = super::killed::accept_detached_connection(&listener, &mut run);

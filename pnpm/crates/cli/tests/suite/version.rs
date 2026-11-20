@@ -135,7 +135,7 @@ fn version_flags_do_not_modify_the_project_directory() {
     for args in [vec!["--version"], vec!["-v"], vec!["--store-dir=", "--version"]] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         let output = test_command(pacquet, root.path())
-            .args(&args)
+            .with_args(&args)
             .output()
             .expect("run version flag");
         assert!(output.status.success(), "{args:?}: {output:?}");

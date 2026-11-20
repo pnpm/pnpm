@@ -638,15 +638,15 @@ fn completion_powershell_preserves_literal_script_names() {
     let project = project_with_scripts(&names);
     let mut script = stdout(
         pacquet()
-            .args(["completion", "pwsh"])
+            .with_args(["completion", "pwsh"])
             .output()
             .unwrap(),
     );
     script.push_str(include_str!("completion/powershell_safety.ps1"));
     let output = Command::new("pwsh")
-        .current_dir(project.path())
-        .env("PATH", prepend_binary_dir_to_path())
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .with_current_dir(project.path())
+        .with_env("PATH", prepend_binary_dir_to_path())
+        .with_args(["-NoProfile", "-NonInteractive", "-Command", &script])
         .output()
         .unwrap();
     let reply = stdout(output);

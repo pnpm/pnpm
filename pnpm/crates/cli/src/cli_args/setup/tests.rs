@@ -433,6 +433,7 @@ mod windows_alias_scripts {
         Path,
         create_alias_scripts,
     };
+    use command_extra::CommandExtra;
 
     /// `cmd.exe` needs `System32` for its own startup. It follows the decoy on the
     /// `PATH` handed to the child, and the decoy coming first is what this test
@@ -469,10 +470,10 @@ mod windows_alias_scripts {
 
         for (name, subcommand) in [("pn", ""), ("pnpx", "dlx "), ("pnx", "dlx ")] {
             let output = std::process::Command::new("cmd")
-                .arg("/c")
-                .arg(bin_dir.join(format!("{name}.cmd")))
-                .args(["add", "foo"])
-                .env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
+                .with_arg("/c")
+                .with_arg(bin_dir.join(format!("{name}.cmd")))
+                .with_args(["add", "foo"])
+                .with_env("PATH", format!("{};{SYSTEM32}", decoy_dir.display()))
                 .output()
                 .expect("run the alias wrapper");
 
@@ -513,7 +514,7 @@ mod windows_alias_scripts {
         // The interpreter itself: a launcher found on `PATH` may dispatch on its
         // own file name, which the copy below changes.
         let exec_path = Command::new("node")
-            .args(["-p", "process.execPath"])
+            .with_args(["-p", "process.execPath"])
             .output()
             .expect("run node");
         let node = String::from_utf8(exec_path.stdout).expect("node output is UTF-8");

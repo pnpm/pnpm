@@ -62,6 +62,7 @@ fn filesystem_check_warns_without_probing_beneath_world_or_group_writable_ancest
 #[cfg(windows)]
 #[test]
 fn filesystem_check_warns_without_probing_beneath_shared_windows_ancestor() {
+    use command_extra::CommandExtra;
     use std::process::Command;
 
     let sandbox = tempfile::tempdir().expect("create sandbox");
@@ -70,8 +71,8 @@ fn filesystem_check_warns_without_probing_beneath_shared_windows_ancestor() {
     fs::create_dir_all(&project_dir).expect("create project dir");
 
     let grant = Command::new("icacls")
-        .arg(&shared_parent)
-        .args(["/grant", "*S-1-1-0:(OI)(CI)(F)"])
+        .with_arg(&shared_parent)
+        .with_args(["/grant", "*S-1-1-0:(OI)(CI)(F)"])
         .output()
         .expect("run icacls grant");
     assert!(grant.status.success(), "icacls grant failed: {grant:?}");
@@ -87,8 +88,8 @@ fn filesystem_check_warns_without_probing_beneath_shared_windows_ancestor() {
 
     let result = check_filesystem_capabilities::<Host>(&config);
     let _ = Command::new("icacls")
-        .arg(&shared_parent)
-        .args(["/reset", "/T"])
+        .with_arg(&shared_parent)
+        .with_args(["/reset", "/T"])
         .output();
 
     dbg!(&result);
