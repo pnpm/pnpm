@@ -22,13 +22,11 @@ use super::{
     CacheLockfile,
     CachePrecomputed,
     CacheRecord,
-    LockfileStat,
     MAX_CACHE_ENTRIES,
     lockfile_verification_is_cached_by_hash,
     record_verification,
     stat_from_metadata,
     try_lockfile_verification_cache,
-    try_lockfile_verification_cache_with_stat,
 };
 
 /// Trivial verifier that records what policy it advertises and
@@ -526,6 +524,11 @@ fn cache_lockfile_serializes_with_camelcase_fields() {
 #[cfg(unix)]
 #[test]
 fn ctime_mismatch_invalidates_stat_shortcut_even_when_mtime_is_restored() {
+    use super::{
+        LockfileStat,
+        try_lockfile_verification_cache_with_stat,
+    };
+
     let dir = TempDir::new().expect("tempdir");
     let lockfile = touch_lockfile(dir.path(), "same-len-a");
     let verifiers: Vec<Arc<dyn ResolutionVerifier>> =

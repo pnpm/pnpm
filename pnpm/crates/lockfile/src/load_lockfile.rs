@@ -187,14 +187,14 @@ impl Lockfile {
             let clean_metadata = (parsed.merged_conflict_files == 0).then_some(metadata).flatten();
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = lockfile.importers.clone();
-                let (merged, merged_any, branch_conflict_files) =
+                let BranchMerge { merged, merged_any, conflict_files } =
                     merge_git_branch_lockfiles(lockfile, dir)?;
                 Ok(LoadedWantedLockfile {
                     lockfile: Some(Arc::new(merged)),
                     loaded_path: (!merged_any).then_some(path),
                     loaded_metadata: (!merged_any).then_some(clean_metadata).flatten(),
                     pre_merge_importers: merged_any.then_some(pre_merge_importers),
-                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
+                    merged_conflict_files: parsed.merged_conflict_files + conflict_files,
                 })
             } else {
                 Ok(LoadedWantedLockfile {
@@ -222,13 +222,16 @@ impl Lockfile {
             let Some(views) = parsed.value else { continue };
             return if selection.merge_git_branch_lockfiles {
                 let pre_merge_importers = views.seed.importers.clone();
-                let (views, merged_any, branch_conflict_files) =
-                    merge_git_branch_lockfile_repairs(views, dir)?;
+                let BranchMerge {
+                    merged: views,
+                    merged_any,
+                    conflict_files,
+                } = merge_git_branch_lockfile_repairs(views, dir)?;
                 Ok(LoadedRepairLockfile {
                     views: Some(views),
                     loaded_path: (!merged_any).then_some(path),
                     pre_merge_importers: merged_any.then_some(pre_merge_importers),
-                    merged_conflict_files: parsed.merged_conflict_files + branch_conflict_files,
+                    merged_conflict_files: parsed.merged_conflict_files + conflict_files,
                 })
             } else {
                 Ok(LoadedRepairLockfile {
@@ -499,10 +502,19 @@ fn merge_repair_lockfile_views(
     }
 }
 
+/// A lockfile with the Git branch lockfiles next to it folded in.
+struct BranchMerge<Merged> {
+    merged: Merged,
+    /// Whether at least one branch lockfile was folded into `merged`.
+    merged_any: bool,
+    /// Number of branch lockfiles whose Git conflict markers were merged.
+    conflict_files: usize,
+}
+
 fn merge_git_branch_lockfiles(
     base: Lockfile,
     dir: &Path,
-) -> Result<(Lockfile, bool, usize), LoadLockfileError> {
+) -> Result<BranchMerge<Lockfile>, LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
     let mut merged = base;
@@ -516,7 +528,7 @@ fn merge_git_branch_lockfiles(
             merged_any = true;
         }
     }
-    Ok((merged, merged_any, merged_conflict_files))
+    Ok(BranchMerge { merged, merged_any, conflict_files: merged_conflict_files })
 }
 
 /// [`merge_git_branch_lockfiles`] folding each branch lockfile into both
@@ -524,7 +536,7 @@ fn merge_git_branch_lockfiles(
 fn merge_git_branch_lockfile_repairs(
     mut base: RepairLockfileViews,
     dir: &Path,
-) -> Result<(RepairLockfileViews, bool, usize), LoadLockfileError> {
+) -> Result<BranchMerge<RepairLockfileViews>, LoadLockfileError> {
     let branch_lockfiles =
         Lockfile::git_branch_lockfiles(dir).map_err(LoadLockfileError::ReadFile)?;
     let mut merged_any = false;
@@ -537,7 +549,7 @@ fn merge_git_branch_lockfile_repairs(
             merged_any = true;
         }
     }
-    Ok((base, merged_any, merged_conflict_files))
+    Ok(BranchMerge { merged: base, merged_any, conflict_files: merged_conflict_files })
 }
 
 /// A next-format document, written as JSON or, by an earlier pnpm, as YAML,

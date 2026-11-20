@@ -164,24 +164,22 @@ fn match_candidates(
         return Some(matched);
     }
     // Cycle cuts can omit nested groups (and collapse to name@version) for cyclic providers.
-    let (mixed, changed) = mixed_cycle_cut_candidates(candidates, packages, cycle_probe);
-    if !changed {
-        return None;
-    }
+    let mixed = mixed_cycle_cut_candidates(candidates, packages, cycle_probe)?;
     CombinationSearch::new(PeerGroups::Full, hash_hex).find_mixed(&mixed)
 }
 
+/// The candidates extended with cycle-cut forms, or `None` when no slot has one.
 fn mixed_cycle_cut_candidates(
     candidates: &[Vec<PkgNameVerPeer>],
     packages: Option<&HashMap<PkgNameVerPeer, PackageMetadata>>,
     cycle_probe: &mut CycleProbe<'_>,
-) -> (Vec<Vec<MixedCandidate>>, bool) {
+) -> Option<Vec<Vec<MixedCandidate>>> {
     let mut changed = false;
     let mixed = candidates
         .iter()
         .map(|targets| expand_slot_variants(targets, packages, cycle_probe, &mut changed))
         .collect();
-    (mixed, changed)
+    changed.then_some(mixed)
 }
 
 fn expand_slot_variants(
