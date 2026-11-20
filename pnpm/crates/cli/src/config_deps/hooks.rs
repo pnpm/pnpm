@@ -72,6 +72,8 @@ pub async fn prepare_config<Reporter: self::Reporter>(
     config: &mut Config,
     dir: &Path,
 ) -> Result<Vec<Arc<dyn PnpmfileHooks>>> {
+    // An install promotes the resolutions before it runs `updateConfig`.
+    crate::state::resolutions::promote_root_resolutions(dir, config);
     let config_root = config.root_project_manifest_dir(dir).to_path_buf();
     install_config_deps::<Reporter>(
         config,

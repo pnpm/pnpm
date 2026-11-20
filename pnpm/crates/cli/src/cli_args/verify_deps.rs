@@ -78,7 +78,6 @@ pub(crate) fn verify_deps_before_run(
     if !config.verify_deps_before_run.is_enabled() {
         return Ok(());
     }
-    let config = &crate::state::resolutions::with_promoted_resolutions(dir, config);
     verify_deps_before_run_in(dir, (selected_project_dirs, None), config, reporter)
 }
 
@@ -155,7 +154,6 @@ pub(crate) fn verify_deps_before_recursive_run<ProjectPath: AsRef<Path>>(
     if !config.verify_deps_before_run.is_enabled() {
         return Ok(());
     }
-    let config = &crate::state::resolutions::with_promoted_resolutions(workspace_root, config);
     let mut seen = HashSet::new();
     let project_dirs: Vec<ProjectPath> = selected_project_dirs
         .into_iter()

@@ -1,4 +1,4 @@
-use super::{InitStateError, apply_fast_path_resolutions, apply_resolutions_to_config};
+use super::{InitStateError, apply_resolutions_to_config, promote_root_resolutions};
 use indexmap::IndexMap;
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
@@ -272,7 +272,7 @@ fn test_apply_resolutions_to_config_truncates_large_resolutions() {
 }
 
 #[test]
-fn test_apply_fast_path_resolutions_reads_the_root_project_manifest() {
+fn test_promote_root_resolutions_reads_the_root_project_manifest() {
     let root_dir = TempDir::new().unwrap();
     std::fs::write(
         root_dir.path().join("package.yaml"),
@@ -293,7 +293,7 @@ fn test_apply_fast_path_resolutions_reads_the_root_project_manifest() {
 
     let mut config = Config::new();
     config.workspace_dir = Some(root_dir.path().to_path_buf());
-    let warnings = apply_fast_path_resolutions(&project_dir, &mut config).unwrap();
+    let warnings = promote_root_resolutions(&project_dir, &mut config).unwrap();
     assert_eq!(warnings.len(), 1);
     let expected: IndexMap<String, String> =
         std::iter::once(("root-pkg".to_owned(), "^1.0.0".to_owned())).collect();
@@ -301,10 +301,10 @@ fn test_apply_fast_path_resolutions_reads_the_root_project_manifest() {
 }
 
 #[test]
-fn test_apply_fast_path_resolutions_rejects_invalid_resolutions() {
+fn test_promote_root_resolutions_rejects_invalid_resolutions() {
     let (dir, _manifest) = make_manifest(&json!({ "resolutions": { "foo": 1 } }));
     let mut config = Config::new();
-    assert!(apply_fast_path_resolutions(dir.path(), &mut config).is_none());
+    assert!(promote_root_resolutions(dir.path(), &mut config).is_none());
     assert!(config.overrides.is_none());
 }
 

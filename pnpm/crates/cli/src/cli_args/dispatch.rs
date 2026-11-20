@@ -191,7 +191,7 @@ impl CliArgs {
         // over to it must not carry the promoted overrides already.
         let configured_overrides = config.overrides.clone();
         let Some(resolutions_warnings) =
-            crate::state::resolutions::apply_fast_path_resolutions(&dir, &mut config)
+            crate::state::resolutions::promote_root_resolutions(&dir, &mut config)
         else {
             config.overrides = configured_overrides;
             *preloaded_config = Some(Ok(config));

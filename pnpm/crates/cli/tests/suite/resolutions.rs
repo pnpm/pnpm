@@ -327,3 +327,51 @@ fn recursive_run_gate_accepts_promoted_resolutions_with_dedicated_lockfiles() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn run_gate_accepts_promoted_resolutions_extended_by_update_config() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "resolutions-hook-host",
+            "version": "1.0.0",
+            "scripts": { "hello": "echo hello" },
+            "resolutions": { "@pnpm.e2e/foo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json with resolutions");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.overrides = { ...config.overrides, '@pnpm.e2e/bar': '2.0.0' }; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut yaml = OpenOptions::new()
+        .append(true)
+        .open(workspace.join("pnpm-workspace.yaml"))
+        .expect("open pnpm-workspace.yaml for append");
+    writeln!(yaml, "verifyDepsBeforeRun: error").expect("append verifyDepsBeforeRun");
+
+    let install = pnpm_at(&workspace)
+        .with_arg("install")
+        .output()
+        .expect("spawn pnpm install");
+    assert!(install.status.success(), "{}", String::from_utf8_lossy(&install.stderr));
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.contains("'@pnpm.e2e/foo': 1.0.0"), "{lockfile}");
+    assert!(lockfile.contains("'@pnpm.e2e/bar': 2.0.0"), "{lockfile}");
+
+    let run = pnpm_at(&workspace)
+        .with_args(["run", "hello"])
+        .output()
+        .expect("spawn pnpm run");
+    let printed =
+        format!("{}{}", String::from_utf8_lossy(&run.stdout), String::from_utf8_lossy(&run.stderr));
+    assert!(run.status.success(), "{printed}");
+
+    drop((root, mock_instance));
+}

@@ -6,7 +6,7 @@ use pnpm_network::redact_url_credentials;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_text_sanitize::sanitize_inline;
-use std::{borrow::Cow, path::Path};
+use std::path::Path;
 
 /// Validate and promote root resolutions for `prepare_root_config`.
 /// `config_root` is the root project's directory.
@@ -24,37 +24,16 @@ pub fn prepare_root_resolutions<ReporterType: Reporter>(
     Ok(())
 }
 
-/// Apply root resolutions for the repeat-install fast path started in `dir`.
-/// `None` means the manifest or its resolutions are invalid, which the fast
-/// path leaves to the full install to report.
-pub fn apply_fast_path_resolutions(dir: &Path, config: &mut Config) -> Option<Vec<String>> {
+/// Promote the root project's resolutions into `config` for a command
+/// started in `dir`, returning the warnings for the caller to emit or drop.
+/// `None` means the manifest or its resolutions are invalid, which only an
+/// install reports.
+pub fn promote_root_resolutions(dir: &Path, config: &mut Config) -> Option<Vec<String>> {
     let root_dir = config.root_project_manifest_dir(dir).to_path_buf();
     let Some(manifest) = safe_read_project_manifest_from_dir(&root_dir).ok()? else {
         return Some(Vec::new());
     };
     apply_resolutions_to_config(config, &manifest).ok()
-}
-
-/// `config` with the root project's resolutions promoted as an install
-/// started in `dir` promotes them, for comparing against what that install
-/// recorded. The install reports the warnings, so they are dropped here, as
-/// are invalid resolutions.
-pub fn with_promoted_resolutions<'config>(
-    dir: &Path,
-    config: &'config Config,
-) -> Cow<'config, Config> {
-    let root_dir = config.root_project_manifest_dir(dir);
-    let Some(manifest) = safe_read_project_manifest_from_dir(root_dir).ok().flatten() else {
-        return Cow::Borrowed(config);
-    };
-    if manifest.get("resolutions").is_none() {
-        return Cow::Borrowed(config);
-    }
-    let mut promoted = config.clone();
-    match apply_resolutions_to_config(&mut promoted, &manifest) {
-        Ok(_) => Cow::Owned(promoted),
-        Err(_) => Cow::Borrowed(config),
-    }
 }
 
 pub fn emit_resolutions_warnings(emit: fn(&LogEvent), dir: &Path, warnings: Vec<String>) {
