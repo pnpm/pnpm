@@ -984,7 +984,7 @@ pnpr derives a key for each purpose from its secret:
 
 Each secret must be at least 16 bytes. Quote a secret that YAML would read as a
 number, such as `secret: "${PNPR_SECRET}"` for an all-digit value. Changing the `cache` secret orphans the
-private cache entries keyed with the old one. `pnpr cache gc` removes them.
+private cache entries keyed with the old one. `pnpr cache-gc` removes them.
 
 When no `cache` secret is configured, pnpr generates a random one for a single
 run on an empty local cache directory. pnpr refuses to start without one when
