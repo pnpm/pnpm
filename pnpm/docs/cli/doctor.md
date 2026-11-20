@@ -41,7 +41,7 @@ It also warns when the `pnpm` found on `PATH` is not the one in the global bin d
 
 ### Node.js on PATH
 
-Added in: v12.9.0
+Added in: v12.23.0
 
 Lists the `node` executables on the `PATH` pnpm runs with, in lookup order. Lifecycle scripts run the first one, unless a directory pnpm puts ahead of them, such as `node_modules/.bin`, has its own `node`. pnpm itself does not need Node.js, but the executables in `node_modules/.bin` that run JavaScript do.
 
@@ -49,7 +49,7 @@ Warns when there is no `node` on `PATH`, and when a `node` entry is skipped beca
 
 ### Script shell
 
-Added in: v12.9.0
+Added in: v12.23.0
 
 Reports the shell that runs scripts: the [`scriptShell`](../settings/other.md#scriptshell), the built-in shell emulator, or `sh`. Outside Windows it also reports what `/bin/sh` is, because `/bin/sh` starts every executable in `node_modules/.bin`. On macOS that is the shell `/private/var/select/sh` links to.
 
@@ -87,7 +87,7 @@ This check is always offline by construction, so `--offline` does not skip it.
 
 ### Lifecycle scripts
 
-Added in: v12.9.0
+Added in: v12.23.0
 
 Installs a temporary project whose `postinstall` script calls a dependency's executable, using the configured script shell. It then runs the same executable through `pnpm exec` in the current project, if there is one. Both go through the executable's `node_modules/.bin` shim, which has to find `node` on `PATH`. The check reports the `node` each run used.
 

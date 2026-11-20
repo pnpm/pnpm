@@ -142,8 +142,7 @@ fn a_node_only_others_may_execute_is_skipped() {
     use std::os::unix::fs::PermissionsExt;
 
     // Root may execute any file that has an execute bit set.
-    // SAFETY: `geteuid` has no preconditions.
-    if unsafe { libc::geteuid() } == 0 {
+    if pnpm_ffi_process::effective_user_id() == 0 {
         return;
     }
     let root = tempfile::tempdir().expect("create temp dir");
