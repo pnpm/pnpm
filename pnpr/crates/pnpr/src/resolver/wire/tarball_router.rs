@@ -402,9 +402,11 @@ pub(super) fn tarball_route_tail(package: &str, version: &str, tarball_url: &str
     }
     let filename = match CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm) {
         Ok(name) => tarball_basename_for_package(tarball_url, &name)
-            .map_or_else(|| name.tarball_name_for_version(version), std::borrow::Cow::into_owned),
+            .map(std::borrow::Cow::into_owned)
+            .unwrap_or_else(|| name.tarball_name_for_version(version)),
         Err(_) => tarball_basename(tarball_url)
-            .map_or_else(|| format!("{package}-{version}.tgz"), str::to_string),
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{package}-{version}.tgz")),
     };
     format!("{package}/-/{filename}")
 }

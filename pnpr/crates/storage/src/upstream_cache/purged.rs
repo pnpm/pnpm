@@ -47,7 +47,7 @@ impl PurgedUpstreamPackages {
         } else if self.loaded.initialized() {
             return Ok(false);
         }
-        self.ensure_loaded(cache_root).await?;
+        Box::pin(self.ensure_loaded(cache_root)).await?;
         if !self.has_any.load(Ordering::Acquire) {
             return Ok(false);
         }
@@ -62,7 +62,7 @@ impl PurgedUpstreamPackages {
     ) -> Result<()> {
         let _write_guard = store.record_write_lock.lock().await;
         self.insert_in_memory(namespace, name);
-        let _ = self.ensure_loaded(&store.root).await;
+        let _ = Box::pin(self.ensure_loaded(&store.root)).await;
         let package_dir = store.namespaced(namespace).package_dir(name);
         if let Err(err) = fs::metadata(&package_dir).await
             && err.kind() == ErrorKind::NotFound
@@ -89,7 +89,7 @@ impl PurgedUpstreamPackages {
             return Ok(());
         }
         let _write_guard = store.record_write_lock.lock().await;
-        self.ensure_loaded(&store.root).await?;
+        Box::pin(self.ensure_loaded(&store.root)).await?;
         if !self.contains_in_memory(namespace, name) {
             return Ok(());
         }

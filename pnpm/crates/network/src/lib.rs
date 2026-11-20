@@ -19,7 +19,7 @@ pub use limited_body::{
     read_self_delimiting_body,
 };
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
-pub use redirect_guard::{RedirectGuard, origins_redirect_guard};
+pub use redirect_guard::{RedirectGuard, is_blocked_redirect, origins_redirect_guard};
 pub use requests::HeadError;
 pub use retry::{
     RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,

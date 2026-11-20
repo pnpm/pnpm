@@ -5,7 +5,7 @@ pub(super) use missing_versions::{
     reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
 };
 pub(super) use serving::serve_packument_via_upstream;
-pub(super) use write_order::{PackumentWriteOrder, WriteVerdict};
+pub(super) use write_order::{PackumentWriteOrder, PurgeRemoval, WriteVerdict};
 
 use super::{
     Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
@@ -71,7 +71,8 @@ pub(super) async fn load_upstream_packument(
             return Ok(Some(bytes));
         }
     }
-    let document = fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl).await?;
+    let document =
+        Box::pin(fetch_coalesced_upstream_packument(state, namespace, upstream, name, ttl)).await?;
     Ok(document.map(|document| document.bytes.to_vec()))
 }
 

@@ -443,3 +443,70 @@ async fn declared_tarball_errors_never_expose_presigned_query_credentials_and_is
         assert!(!formatted.contains("EXAMPLE_PRESIGNED_TOKEN"), "leaked in {formatted}");
     }
 }
+
+#[tokio::test]
+async fn declared_tarball_redirect_to_disallowed_target_is_blocked_without_contacting_it() {
+    let reg = mockito::Server::new_async().await;
+    let mut cdn = mockito::Server::new_async().await;
+    let mut internal = mockito::Server::new_async().await;
+
+    let metadata_redirect = cdn
+        .mock("GET", "/redirect-metadata.tgz")
+        .with_status(302)
+        .with_header("location", "http://169.254.169.254/latest/meta-data/")
+        .expect(1)
+        .create_async()
+        .await;
+    let internal_redirect = cdn
+        .mock("GET", "/redirect-internal.tgz")
+        .with_status(302)
+        .with_header("location", &format!("{}/secret", internal.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let untouched_internal = internal
+        .mock("GET", "/secret")
+        .expect(0)
+        .create_async()
+        .await;
+    let allowed_tarball = cdn
+        .mock("GET", "/ok.tgz")
+        .with_status(200)
+        .with_body("tarball-bytes")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mut cfg =
+        pnpr_config::UpstreamConfig::with_defaults(reg.url(), reqwest::header::HeaderMap::new());
+    cfg.requests.max_fails = 1;
+    let cdn_origin = reqwest::Url::parse(&cdn.url()).unwrap().origin();
+    let client = crate::Upstream::new("corp", &cfg)
+        .with_declared_tarball_guards(
+            std::sync::Arc::new(move |url| url.origin() == cdn_origin),
+            std::sync::Arc::new(|_, _| true),
+        );
+    let pkg =
+        CanonicalPackageName::parse("@corp/split", pnpr_package_name::Ecosystem::Npm).unwrap();
+
+    for path in ["/redirect-metadata.tgz", "/redirect-internal.tgz"] {
+        let route = crate::UpstreamTarballRoute::Url(format!("{}{path}", cdn.url()));
+        let err = client
+            .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &route)
+            .await
+            .unwrap_err();
+        let message = err.to_string();
+        eprintln!("ERR:\n{message}\n");
+        assert!(message.contains("URL is not allowed by the fetch allowlist"));
+    }
+    metadata_redirect.assert_async().await;
+    internal_redirect.assert_async().await;
+    untouched_internal.assert_async().await;
+
+    // Blocked redirects must not open the upstream circuit breaker (`max_fails = 1`).
+    let ok_route = crate::UpstreamTarballRoute::Url(format!("{}/ok.tgz", cdn.url()));
+    let outcome =
+        client.fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &ok_route).await.unwrap();
+    assert!(matches!(outcome, crate::FetchOutcome::Ok(_)));
+    allowed_tarball.assert_async().await;
+}

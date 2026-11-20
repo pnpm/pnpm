@@ -38,6 +38,14 @@ impl std::fmt::Display for BlockedRedirect {
 
 impl std::error::Error for BlockedRedirect {}
 
+/// Whether `error` failed because a [`RedirectGuard`] rejected a redirect target.
+#[must_use]
+pub fn is_blocked_redirect(error: &reqwest::Error) -> bool {
+    std::error::Error::source(error)
+        .and_then(|source| source.downcast_ref::<BlockedRedirect>())
+        .is_some()
+}
+
 /// Create a [`RedirectGuard`] that allows redirects only to origins matching the
 /// supplied registry URLs (comparing scheme, host, and port).
 #[must_use]

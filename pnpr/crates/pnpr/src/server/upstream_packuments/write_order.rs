@@ -19,6 +19,12 @@ pub(in crate::server) enum WriteVerdict {
     SupersededByPurge,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::server) enum PurgeRemoval {
+    Complete,
+    Pending,
+}
+
 #[derive(Clone, Copy)]
 enum CommittedKind {
     Stored,
@@ -126,15 +132,18 @@ impl PackumentWriteOrder {
         namespace: &str,
         name: &CanonicalPackageName,
         fetch_seq: u64,
-        removal_complete: bool,
+        removal: PurgeRemoval,
     ) {
         let mut state = self.state.lock().expect("packument write-order lock poisoned");
         let key = (namespace.to_string(), name.clone());
         if fetch_seq > latest_seq(&state, &key) {
-            if removal_complete {
-                state.unresolved_purges.remove(&key);
-            } else {
-                state.unresolved_purges.insert(key.clone(), fetch_seq);
+            match removal {
+                PurgeRemoval::Complete => {
+                    state.unresolved_purges.remove(&key);
+                }
+                PurgeRemoval::Pending => {
+                    state.unresolved_purges.insert(key.clone(), fetch_seq);
+                }
             }
             state.accepted.insert(
                 key,
@@ -142,12 +151,18 @@ impl PackumentWriteOrder {
                 1,
                 WRITE_ORDER_CAPACITY,
             );
-        } else if removal_complete
-            && state.unresolved_purges
-                .get(&key)
-                .is_some_and(|&seq| seq <= fetch_seq)
-        {
-            state.unresolved_purges.remove(&key);
+        } else {
+            match removal {
+                PurgeRemoval::Complete => {
+                    if state.unresolved_purges
+                        .get(&key)
+                        .is_some_and(|&seq| seq <= fetch_seq)
+                    {
+                        state.unresolved_purges.remove(&key);
+                    }
+                }
+                PurgeRemoval::Pending => {}
+            }
         }
     }
 
@@ -160,7 +175,10 @@ impl PackumentWriteOrder {
 }
 
 fn latest_seq(state: &OrderState, key: &(String, CanonicalPackageName)) -> u64 {
-    let accepted = state.accepted.get(key).map_or(0, |entry| entry.seq);
+    let accepted = state.accepted
+        .get(key)
+        .map(|entry| entry.seq)
+        .unwrap_or(0);
     let unresolved = state.unresolved_purges
         .get(key)
         .copied()

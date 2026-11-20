@@ -58,6 +58,12 @@ impl Upstream {
             .send()
             .await
             .map_err(|source| {
+                if pnpm_network::is_blocked_redirect(&source) {
+                    return RegistryError::UpstreamResponse {
+                        url: redact_url_for_display(url),
+                        reason: "URL is not allowed by the fetch allowlist".to_string(),
+                    };
+                }
                 self.breaker.record_failure();
                 RegistryError::Upstream {
                     url: redact_url_for_display(url),
@@ -121,25 +127,32 @@ impl Upstream {
             }
         };
         let response = match deadline {
-            Deadline::Whole => client
-                .get_response_with_scoped_headers(url, configure)
-                .await
-                .map_err(HeadError::Request),
+            Deadline::Whole => {
+                client.get_response_with_scoped_headers_guarded(url, guard, configure).await
+            }
             Deadline::Head => {
-                client.get_response_head_within(url, self.http.timeout, configure).await
+                client.get_response_head_within_guarded(url, self.http.timeout, guard, configure)
+                    .await
             }
         };
         response.map_err(|error| self.map_head_error(url, error))
     }
 
     fn map_head_error(&self, url: &str, error: HeadError) -> RegistryError {
-        self.breaker.record_failure();
         let url = redact_url_for_display(url);
         match error {
+            HeadError::BlockedUrl(_) => RegistryError::UpstreamResponse {
+                url,
+                reason: "URL is not allowed by the fetch allowlist".to_string(),
+            },
             HeadError::Request(source) => {
+                self.breaker.record_failure();
                 RegistryError::Upstream { url, source: source.without_url() }
             }
-            HeadError::TimedOut => RegistryError::UpstreamTimeout { url },
+            HeadError::TimedOut => {
+                self.breaker.record_failure();
+                RegistryError::UpstreamTimeout { url }
+            }
         }
     }
 

@@ -120,7 +120,8 @@ fn frozen_package_coordinates(package_key: &PackageKey) -> (String, String, Stri
     let suffix_version = package_key.suffix.version().to_string();
     let bare_version = package_key.suffix
         .registry_version()
-        .map_or_else(|| suffix_version.clone(), ToString::to_string);
+        .map(ToString::to_string)
+        .unwrap_or_else(|| suffix_version.clone());
     let id = format!("{name}@{suffix_version}");
     (name, id, bare_version)
 }

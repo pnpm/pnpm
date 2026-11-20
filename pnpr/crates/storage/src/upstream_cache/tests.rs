@@ -104,8 +104,11 @@ async fn durable_purge_marker_suppresses_retained_cache_across_restarts_until_cl
     assert!(!cleaned.is_upstream_package_purged(ns, &name).await.unwrap());
 }
 
-#[cfg(unix)]
 #[tokio::test]
+#[cfg_attr(
+    not(unix),
+    ignore = "regular file parent produces NotFound rather than NotADirectory on Windows"
+)]
 async fn inaccessible_purged_package_dir_keeps_suppression_without_blocking_other_packages() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);

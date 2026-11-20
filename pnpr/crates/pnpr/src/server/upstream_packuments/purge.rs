@@ -1,8 +1,8 @@
 use std::{future::Future, time::Duration};
 
 use super::{
-    AppState, CanonicalPackageName, RegistryError, WriteVerdict, invalidate_upstream_package,
-    lock_upstream_package,
+    AppState, CanonicalPackageName, PurgeRemoval, RegistryError, WriteVerdict,
+    invalidate_upstream_package, lock_upstream_package,
 };
 
 pub(super) async fn read_unpurged_upstream_document(
@@ -38,6 +38,14 @@ async fn suppress_if_purged(
     {
         return Ok(false);
     }
+    Box::pin(suppress_if_purged_slow(state, namespace, name)).await
+}
+
+async fn suppress_if_purged_slow(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+) -> Result<bool, RegistryError> {
     let _guard = lock_upstream_package(state, namespace, name).await;
     if state.inner.storage.is_upstream_package_purged(namespace, name).await? {
         if state.inner.storage.remove_upstream_package(namespace, name).await.is_ok() {
@@ -80,8 +88,8 @@ where
         WriteVerdict::Proceed => {}
     }
     invalidate_upstream_package(state, namespace, name);
-    let removal_complete = complete_upstream_purge(state, namespace, name, remove).await;
-    state.inner.proxy.packument_writes.commit_purged(namespace, name, fetch_seq, removal_complete);
+    let removal = complete_upstream_purge(state, namespace, name, remove).await;
+    state.inner.proxy.packument_writes.commit_purged(namespace, name, fetch_seq, removal);
     Ok(None)
 }
 
@@ -90,21 +98,21 @@ async fn complete_upstream_purge<Remove, Fut>(
     namespace: &str,
     name: &CanonicalPackageName,
     remove: Remove,
-) -> bool
+) -> PurgeRemoval
 where
     Remove: FnOnce() -> Fut,
     Fut: Future<Output = Result<bool, RegistryError>>,
 {
     match remove().await {
         Ok(_) => match state.inner.storage.clear_upstream_package_purged(namespace, name).await {
-            Ok(()) => true,
+            Ok(()) => PurgeRemoval::Complete,
             Err(err) => {
                 tracing::warn!(
                     ?err,
                     package = %name.as_str(),
                     "failed to clear durable purge marker after an upstream 404",
                 );
-                false
+                PurgeRemoval::Pending
             }
         },
         Err(err) => {
@@ -124,7 +132,7 @@ where
                     "failed to purge cached entry after an upstream 404; persisted purge marker",
                 );
             }
-            false
+            PurgeRemoval::Pending
         }
     }
 }

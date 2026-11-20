@@ -43,14 +43,14 @@ pub(super) async fn serve_tarball_via_upstream(
         Ok(upstream) => upstream,
         Err(err) => return err.into_response(),
     };
-    serve_authorized_upstream_tarball(
+    Box::pin(serve_authorized_upstream_tarball(
         state,
         &upstream,
         &namespace,
         &name,
         &filename,
         parsed_version.as_deref(),
-    )
+    ))
     .await
 }
 
@@ -69,7 +69,8 @@ pub(super) async fn serve_authorized_upstream_tarball(
         return err.into_response();
     }
     let ttl = upstream.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl);
-    let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
+    let dist =
+        Box::pin(bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl)).await;
     let TarballDist {
         version,
         route,
