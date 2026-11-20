@@ -254,30 +254,20 @@ fn frozen_install_force_verifies_tarballs_in_unsupported_optional_dependencies()
 
     fs::remove_file(&tarball).expect("remove tarball");
 
-    Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_args(["install", "--frozen-lockfile", "--force"])
-        .assert()
-        .success();
-
-    let output = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_args([
-            "install",
-            "--frozen-lockfile",
-            "--force",
-            "--config.force-ignores-platform=true",
-        ])
-        .output()
-        .expect("run forced frozen install under force-ignores-platform");
-    assert!(
-        !output.status.success(),
-        "force under force-ignores-platform must verify previously skipped optional tarballs",
-    );
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_TARBALL_READ_LOCAL_TARBALL"));
+    for flag in ["--force", "--reinstall"] {
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_args(["install", "--frozen-lockfile", flag])
+            .output()
+            .expect("run forced frozen install");
+        assert!(
+            !output.status.success(),
+            "{flag} must verify previously skipped optional tarballs",
+        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("ERR_PNPM_TARBALL_READ_LOCAL_TARBALL"));
+    }
 
     drop((root, mock_instance));
 }

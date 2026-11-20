@@ -242,7 +242,7 @@ Relink every package the lockfile names, including packages that an earlier inst
 
 Added in: v12.23.0
 
-Install packages whose `os`, `cpu`, `libc`, or `engines` do not match the host instead of skipping them. See [`pnpm install --ignore-platform-checks`](./install.md#--ignore-platform-checks).
+Install dependencies whose `os`, `cpu`, `libc`, or `engines` do not match the host instead of skipping them. See [`pnpm install --ignore-platform-checks`](./install.md#--ignore-platform-checks).
 
 ### --lockfile-dir &lt;dir\>
 

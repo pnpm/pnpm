@@ -6,7 +6,7 @@ async fn detect_host(
     settled: &Settled<'_, '_>,
     lockfile: &pnpm_lockfile::Lockfile,
 ) -> Option<pnpm_deps_restorer::InstallabilityHost> {
-    let needs_check = !settled.install.context.config.installs_incompatible_packages()
+    let needs_check = !settled.install.context.config.reevaluates_every_snapshot()
         && match (lockfile.snapshots.as_ref(), lockfile.packages.as_ref()) {
             (Some(snaps), Some(pkgs)) if !snaps.is_empty() => {
                 pnpm_deps_restorer::any_installability_constraint(snaps, pkgs)
