@@ -27,14 +27,29 @@ pub(in crate::server) async fn refresh_cached_packument(
     namespace: &str,
     name: &CanonicalPackageName,
     bytes: Vec<u8>,
-) -> Result<RefreshedPackument, RegistryError> {
+    fetch_seq: u64,
+) -> Result<Option<RefreshedPackument>, RegistryError> {
     let _guard = super::lock_upstream_package(state, namespace, name).await;
     let previous = state.inner.storage.read_upstream_document_any(namespace, name).await?;
+    if !state.inner.proxy.packument_writes.try_accept(namespace, name, fetch_seq) {
+        return Ok(previous.map(|bytes| RefreshedPackument { bytes, needs_backfill: false }));
+    }
     let package = name.clone();
     let Reconciliation { packument, eviction } =
         state.inner.packuments.workers.run(move || reconcile(previous.as_deref(), bytes, &package))
             .await??;
     crate::server::upstream_packuments::invalidate_upstream_package(state, namespace, name);
+    evict_stale_upstream_blobs(state, namespace, name, eviction).await?;
+    state.inner.storage.write_upstream_document(namespace, name, &packument.bytes).await?;
+    Ok(Some(packument))
+}
+
+async fn evict_stale_upstream_blobs(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    eviction: BlobEviction,
+) -> Result<(), RegistryError> {
     // Evict before publishing the new document so a failed deletion cannot be forgotten.
     match eviction {
         BlobEviction::Package => {
@@ -46,8 +61,7 @@ pub(in crate::server) async fn refresh_cached_packument(
             }
         }
     }
-    state.inner.storage.write_upstream_document(namespace, name, &packument.bytes).await?;
-    Ok(packument)
+    Ok(())
 }
 
 fn reconcile(

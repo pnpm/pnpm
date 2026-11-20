@@ -314,7 +314,12 @@ async fn verify_input_lockfile(
     raw_lockfile: &Lockfile,
 ) -> Result<Option<ObservedDistStats>, VerifyFailure> {
     let epoch = runtime.local_registry.verdict_epoch();
-    let hash = context.tarball_router.verification_verdict_hash(context.config, raw_lockfile);
+    let expired = || tokio::time::Instant::now() >= context.deadline;
+    let Some(hash) =
+        context.tarball_router.verification_verdict_hash_until(context.config, raw_lockfile, &expired)
+    else {
+        return Err(VerifyFailure::Internal(request_timeout_response()));
+    };
     let dist_stats = observed_dist_stats_sink();
     let verifiers = build_input_verifiers(
         runtime,

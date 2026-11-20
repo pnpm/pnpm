@@ -26,14 +26,15 @@ use pnpm_lockfile::{
 use pnpm_package_manager::{ResolvedPackageHint, tarball_url_and_integrity};
 use pnpm_resolving_npm_resolver::{
     BUILTIN_REGISTRIES_BY_PREFIX, MappedTarballUrl, PublishedTarballUrlMapper,
-    ReverseRoutedTarballUrl,
+    ReverseRoutedTarballUrl, VerificationRegistryRoutes,
 };
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
 use pnpr_upstream::{
-    tarball_basename, tarball_basename_for_package, version_route_tarball_version,
+    revision_route_tarball_version, tarball_basename, tarball_basename_for_package,
+    version_route_tarball_version,
 };
 
 use super::{

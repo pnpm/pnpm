@@ -18,11 +18,12 @@
 //! [`PublishedAtLookupContext`] so verifying many pinned versions of
 //! the same package costs at most one fetch per layer.
 
+pub use registry_routes::VerificationRegistryRoutes;
+
 mod registry_tarball;
 use registry_tarball::npm_registry_tarball;
 
 mod registry_routes;
-use registry_routes::VerificationRegistryRoutes;
 
 mod trust_check;
 

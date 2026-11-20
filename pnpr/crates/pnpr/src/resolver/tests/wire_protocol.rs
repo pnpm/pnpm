@@ -2,8 +2,8 @@ use super::{
     AllowAllVersions, Arc, Duration, HashMap, Identity, Mutex, ResolveRequest, RouteContext,
     cached_resolution, config, config_for_registry, lockfile, lockfile_tarball_url,
     lockfile_with_tarball, private_alias_footprint, public_registry_config, registry_config,
-    reject_inline_url_auth, store_resolution, tarball_router, tarball_router_with_registries,
-    upstream_with_access, user,
+    reject_inline_url_auth, set_local_hosted_rules, store_resolution, tarball_router,
+    tarball_router_with_registries, upstream_with_access, user,
 };
 
 #[test]
@@ -630,4 +630,41 @@ fn published_tarball_mapper_accepts_public_query_urls_and_binds_private_entries_
         router.verification_verdict_hash(&pnpm_config, &raw),
         outsider_router.verification_verdict_hash(&pnpm_config, &raw),
     );
+    assert!(
+        router
+            .verification_verdict_hash_until(&pnpm_config, &raw, &|| true)
+            .is_none(),
+    );
+
+    // Hosted (default and addressed `/~local`) and proxied (`/~corp`) revision
+    // URLs (`{pkg}@{version}+r{N}`) preserve their revision route instead of
+    // turning into `{pkg}/-/{pkg}@{version}+r{N}`.
+    let mut hosted_cfg = registry_config();
+    set_local_hosted_rules(&mut hosted_cfg, "@private/*", "alice");
+    let hosted_mapper = tarball_router(&hosted_cfg, user("alice")).published_tarball_mapper();
+    let hosted_rev = "http://127.0.0.1:7677/npm/@private/rev@1.0.0+r3";
+    let hosted_mapped = hosted_mapper(
+        "http://127.0.0.1:7677/npm/",
+        "@private/rev",
+        "1.0.0",
+        hosted_rev,
+        hosted_rev,
+    );
+    assert_eq!(hosted_mapped.accepted_routed_url.as_deref(), Some(hosted_rev));
+
+    let addressed_rev = "http://127.0.0.1:7677/npm/~local/@private/rev@1.0.0+r3";
+    let addressed_mapped = hosted_mapper(
+        "http://127.0.0.1:7677/npm/~local/",
+        "@private/rev",
+        "1.0.0",
+        addressed_rev,
+        addressed_rev,
+    );
+    assert_eq!(addressed_mapped.accepted_routed_url.as_deref(), Some(addressed_rev));
+
+    let upstream_rev = "https://npm.corp.example/@corp/rev@1.0.0+r3";
+    let proxied_rev = "http://127.0.0.1:7677/npm/~corp/@corp/rev@1.0.0+r3";
+    let proxied_mapped =
+        mapper("https://npm.corp.example/", "@corp/rev", "1.0.0", proxied_rev, upstream_rev);
+    assert_eq!(proxied_mapped.accepted_routed_url.as_deref(), Some(proxied_rev));
 }

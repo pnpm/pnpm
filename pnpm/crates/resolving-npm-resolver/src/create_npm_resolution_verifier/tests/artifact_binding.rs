@@ -769,6 +769,61 @@ async fn published_tarball_mapper_binds_routed_pnpr_install_v2_documents() {
 }
 
 #[tokio::test]
+async fn published_tarball_mapper_preserves_hosted_pnpr_install_v2_revision_urls() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let sha512 = ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(b"rev3")
+        .result();
+    let packument = serde_json::json!({
+        "name": "@corp/v2",
+        "distTags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "integrity": sha512.to_string(),
+                "revision": 3,
+                "manifest": {},
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/@corp%2Fv2")
+        .with_header("content-type", "application/vnd.pnpr.install-v2+json")
+        .with_body(packument.to_string())
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    let mut reg_opts = std::collections::BTreeMap::new();
+    reg_opts.insert(
+        registry.clone(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            supports_time_field: None,
+        },
+    );
+    opts.registry_options_by_url = Some(reg_opts);
+    opts.artifacts.published_tarball_mapper =
+        Some(std::sync::Arc::new(|_, _, _, _, published| crate::MappedTarballUrl {
+            accepted_routed_url: Some(published.to_string()),
+            display_url: published.to_string(),
+            accept_published_url: false,
+        }));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "@corp/v2".parse().expect("parse");
+    let rev_url = format!("{registry}@corp/v2@1.0.0+r3");
+    let ok = LockfileResolution::Tarball(pnpm_lockfile::TarballResolution {
+        tarball: rev_url,
+        integrity: Some(sha512),
+        revision: Some(pnpm_lockfile::TarballRevision::try_from(3).expect("rev")),
+        git_hosted: None,
+        path: None,
+    });
+    assert_eq!(verifier.verify(&ok, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
 async fn unmapped_tarball_mismatch_strips_presigned_query_and_fragment() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());

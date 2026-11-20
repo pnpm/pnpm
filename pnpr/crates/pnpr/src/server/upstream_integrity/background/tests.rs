@@ -135,7 +135,8 @@ async fn a_refresh_during_backfill_retries_the_new_document() {
         .unwrap();
     schedule(&state, "test", upstream, &name);
     tokio::time::timeout(Duration::from_secs(10), observed.recv()).await.unwrap().unwrap();
-    super::super::refresh_cached_packument(&state, "test", &name, document("new"))
+    let fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
+    super::super::refresh_cached_packument(&state, "test", &name, document("new"), fetch_seq)
         .await
         .unwrap();
     schedule(&state, "test", upstream, &name);
@@ -409,4 +410,77 @@ async fn a_full_queue_rejects_pin_waits_and_allows_a_later_retry() {
     let pinned: Value = serde_json::from_slice(&bytes).unwrap();
     assert!(pinned["versions"]["1.0.0"]["dist"]["integrity"].as_str().is_some());
     archive.assert_async().await;
+}
+
+#[tokio::test]
+async fn refresh_cached_packument_rejects_older_fetch_completion_after_newer_write() {
+    let server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server.url());
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let doc = |sig: &str| {
+        serde_json::to_vec(&json!({
+            "versions": {
+                "1.0.0": {
+                    "dist": {
+                        "tarball": format!("{}/example/-/example-1.0.0.tgz?sig={sig}", server.url()),
+                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    }
+                }
+            }
+        }))
+        .unwrap()
+    };
+
+    let older_read_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let newer_refresh_seq = state.inner.proxy.packument_writes.begin_fetch();
+
+    let accepted = super::super::refresh_cached_packument(
+        &state,
+        "test",
+        &name,
+        doc("rotated"),
+        newer_refresh_seq,
+    )
+    .await
+    .unwrap()
+    .expect("newer refresh stored");
+    let accepted_json: Value = serde_json::from_slice(&accepted.bytes).unwrap();
+    assert!(
+        accepted_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=rotated"),
+    );
+
+    let stale_result = super::super::refresh_cached_packument(
+        &state,
+        "test",
+        &name,
+        doc("expired"),
+        older_read_seq,
+    )
+    .await
+    .unwrap()
+    .expect("stale read returns newer stored bytes");
+    let returned_json: Value = serde_json::from_slice(&stale_result.bytes).unwrap();
+    assert!(
+        returned_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=rotated"),
+    );
+
+    let stored = state.inner.storage
+        .read_upstream_document_any("test", &name)
+        .await
+        .unwrap()
+        .unwrap();
+    let stored_json: Value = serde_json::from_slice(&stored).unwrap();
+    assert!(
+        stored_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=rotated"),
+    );
 }

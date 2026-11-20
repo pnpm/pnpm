@@ -1,21 +1,45 @@
 use std::fmt::Write as _;
 
+use pnpm_lockfile::PkgName;
 use sha2::{Digest as _, Sha256};
 
-use super::{Lockfile, LockfileResolution, PacquetConfig, RouteClass, TarballRouter};
+use super::{
+    BUILTIN_REGISTRIES_BY_PREFIX, HashMap, Lockfile, LockfileResolution, PackageKey, PacquetConfig,
+    RouteClass, TarballRouter, VerificationRegistryRoutes,
+};
 
-const VERDICT_HASH_VERSION: &[u8] = b"pnpr-verdict-v2";
+const VERDICT_HASH_VERSION: &[u8] = b"pnpr-verdict-v3";
+const CANCEL_CHECK_ENTRY_STRIDE: usize = 256;
 
 impl TarballRouter {
-    /// Compute an identity- and routing-scoped verdict cache key without
-    /// cloning `lockfile`. Distinguishes binding rule versions, `public_url`,
-    /// per-package `RouteClass` decisions (`Public` vs `Hosted` vs `Proxied`),
-    /// and caller-authorized `/~<alias>/` reversals.
+    #[cfg(test)]
     pub(in crate::resolver) fn verification_verdict_hash(
         &self,
         config: &PacquetConfig,
         lockfile: &Lockfile,
     ) -> String {
+        self.verification_verdict_hash_until(config, lockfile, &|| false)
+            .expect("unconditional verdict hashing cannot cancel")
+    }
+
+    /// Compute an identity- and routing-scoped verdict cache key without
+    /// cloning `lockfile` or building a package-by-registry cross product.
+    /// Hashes each entry's single selected registry classification and any
+    /// authorized `/~<alias>/` reversal into a fixed 32-byte digest.
+    pub(in crate::resolver) fn verification_verdict_hash_until(
+        &self,
+        config: &PacquetConfig,
+        lockfile: &Lockfile,
+        should_cancel: &dyn Fn() -> bool,
+    ) -> Option<String> {
+        if should_cancel() {
+            return None;
+        }
+        let routes = self.build_verification_routes(config);
+        let entry_digests = self.collect_entry_binding_digests(&routes, lockfile, should_cancel)?;
+        if should_cancel() {
+            return None;
+        }
         let raw_hash = pnpm_lockfile_verification::hash_lockfile(lockfile);
         let mut hasher = Sha256::new();
         hasher.update(VERDICT_HASH_VERSION);
@@ -23,56 +47,132 @@ impl TarballRouter {
         hasher.update(raw_hash.as_bytes());
         hasher.update([0]);
         hasher.update(self.public_url.as_bytes());
-
-        let mut candidate_registries: Vec<String> = config
-            .resolved_registries()
-            .into_values()
-            .chain(config.registries_by_prefix.values().cloned())
-            .chain(self.registries.values().cloned())
-            .chain(self.registries_by_prefix.values().cloned())
-            .collect();
-        candidate_registries.sort_unstable();
-        candidate_registries.dedup();
-
-        let mut entries =
-            self.collect_entry_binding_records(config, lockfile, &candidate_registries);
-        entries.sort_unstable();
-        for entry in entries {
+        for digest in &entry_digests {
             hasher.update([0]);
-            hasher.update(entry.as_bytes());
+            hasher.update(digest);
         }
-        format!("{:x}", hasher.finalize())
+        Some(format!("{:x}", hasher.finalize()))
     }
 
-    fn collect_entry_binding_records(
-        &self,
-        config: &PacquetConfig,
-        lockfile: &Lockfile,
-        candidate_registries: &[String],
-    ) -> Vec<String> {
-        let Some(packages) = lockfile.packages.as_ref() else {
-            return Vec::new();
-        };
-        let mut records = Vec::with_capacity(packages.len());
-        for (package_key, metadata) in packages {
-            let name = package_key.name.to_string();
-            let mut line = format!("{package_key}");
-            let primary_registry = match package_key.suffix.registry_qualified() {
-                Some((reg_name, _)) => self
-                    .named_registry_url(Some(config), reg_name)
-                    .map(str::to_string),
-                None => Some(self.scope_registry_for_package(config, &name)),
-            };
-            if let Some(reg) = primary_registry.as_deref() {
-                self.append_binding_tag(&mut line, reg, &name);
-            }
-            for reg in candidate_registries {
-                self.append_binding_tag(&mut line, reg, &name);
-            }
-            self.append_resolution_reversals(&mut line, &name, &metadata.resolution);
-            records.push(line);
+    fn build_verification_routes(&self, config: &PacquetConfig) -> VerificationRegistryRoutes {
+        let registries: HashMap<String, String> = config
+            .resolved_registries()
+            .into_iter()
+            .collect();
+        let mut registries_by_prefix: HashMap<String, String> = BUILTIN_REGISTRIES_BY_PREFIX
+            .iter()
+            .map(|(alias, url)| ((*alias).to_string(), (*url).to_string()))
+            .collect();
+        for (alias, url) in &self.registries_by_prefix {
+            registries_by_prefix.insert(alias.clone(), url.clone());
         }
-        records
+        for (alias, url) in &config.registries_by_prefix {
+            registries_by_prefix.insert(alias.clone(), url.clone());
+        }
+        VerificationRegistryRoutes::new(registries, registries_by_prefix, None)
+    }
+
+    fn collect_entry_binding_digests(
+        &self,
+        routes: &VerificationRegistryRoutes,
+        lockfile: &Lockfile,
+        should_cancel: &dyn Fn() -> bool,
+    ) -> Option<Vec<[u8; 32]>> {
+        let Some(packages) = lockfile.packages.as_ref() else {
+            return Some(Vec::new());
+        };
+        let mut digests = Vec::with_capacity(packages.len());
+        let mut scratch = String::with_capacity(256);
+        for (index, (package_key, metadata)) in packages.iter().enumerate() {
+            if index % CANCEL_CHECK_ENTRY_STRIDE == 0 && should_cancel() {
+                return None;
+            }
+            digests.push(self.hash_entry_binding(
+                routes,
+                package_key,
+                &metadata.resolution,
+                &mut scratch,
+            ));
+        }
+        digests.sort_unstable();
+        Some(digests)
+    }
+
+    fn hash_entry_binding(
+        &self,
+        routes: &VerificationRegistryRoutes,
+        package_key: &PackageKey,
+        resolution: &LockfileResolution,
+        scratch: &mut String,
+    ) -> [u8; 32] {
+        scratch.clear();
+        let _ = write!(scratch, "{package_key}");
+        let name_str = package_key.name.to_string();
+        let registry_name = package_key.suffix.registry_qualified().map(|(reg_name, _)| reg_name);
+        self.append_resolution_binding(
+            routes,
+            (&package_key.name, &name_str, registry_name),
+            resolution,
+            scratch,
+        );
+        Sha256::digest(scratch.as_bytes()).into()
+    }
+
+    fn append_resolution_binding(
+        &self,
+        routes: &VerificationRegistryRoutes,
+        (pkg_name, name_str, registry_name): (&PkgName, &str, Option<&str>),
+        resolution: &LockfileResolution,
+        scratch: &mut String,
+    ) {
+        match resolution {
+            LockfileResolution::Registry(_) => {
+                self.append_selected_registry(
+                    routes,
+                    (pkg_name, name_str, registry_name),
+                    None,
+                    scratch,
+                );
+            }
+            LockfileResolution::Tarball(tarball) => {
+                let reversed = self.upstream_endpoint_tarball_url(&tarball.tarball, Some(name_str));
+                let effective = reversed.as_deref().unwrap_or(tarball.tarball.as_str());
+                self.append_selected_registry(
+                    routes,
+                    (pkg_name, name_str, registry_name),
+                    Some(effective),
+                    scratch,
+                );
+                scratch.push('\x1f');
+                if let Some(reversed) = reversed.as_deref() {
+                    scratch.push_str(reversed);
+                }
+            }
+            LockfileResolution::Variations(variations) => {
+                for variant in &variations.variants {
+                    self.append_resolution_binding(
+                        routes,
+                        (pkg_name, name_str, registry_name),
+                        &variant.resolution,
+                        scratch,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn append_selected_registry(
+        &self,
+        routes: &VerificationRegistryRoutes,
+        (pkg_name, name_str, registry_name): (&PkgName, &str, Option<&str>),
+        effective_tarball_url: Option<&str>,
+        scratch: &mut String,
+    ) {
+        match routes.select_registry(pkg_name, registry_name, effective_tarball_url) {
+            Some(registry) => self.append_binding_tag(scratch, &registry, name_str),
+            None => scratch.push_str("\x1emissing"),
+        }
     }
 
     fn append_binding_tag(&self, line: &mut String, registry: &str, package: &str) {
@@ -90,29 +190,6 @@ impl TarballRouter {
                     .unwrap_or_default();
                 let _ = write!(line, "proxied:{registry}:{alias}:{credential_digest}:{upstream}");
             }
-        }
-    }
-
-    fn append_resolution_reversals(
-        &self,
-        line: &mut String,
-        package: &str,
-        resolution: &LockfileResolution,
-    ) {
-        match resolution {
-            LockfileResolution::Tarball(tarball) => {
-                let reversed = self
-                    .upstream_endpoint_tarball_url(&tarball.tarball, Some(package))
-                    .unwrap_or_default();
-                line.push('\x1f');
-                line.push_str(&reversed);
-            }
-            LockfileResolution::Variations(variations) => {
-                for variant in &variations.variants {
-                    self.append_resolution_reversals(line, package, &variant.resolution);
-                }
-            }
-            _ => {}
         }
     }
 }

@@ -2,6 +2,8 @@ pub(super) use missing_versions::{
     PackumentRefetches, REFETCH_INTERVAL, reload_source_packument_lacking_version,
     reload_upstream_packument_for_expired_tarball, reload_upstream_packument_lacking_version,
 };
+pub(super) use serving::serve_packument_via_upstream;
+pub(super) use write_order::PackumentWriteOrder;
 
 use super::{
     Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
@@ -11,10 +13,12 @@ use super::{
     package_responses::processing::admission::{DocumentSource, SourceAdmission},
     packument_response, resolve_registry_source, timed, upstream_cache_namespace,
 };
-use axum::{body::Bytes, response::IntoResponse};
+use axum::body::Bytes;
 use std::{future::Future, sync::Arc};
 
 mod missing_versions;
+mod serving;
+mod write_order;
 
 /// The stored packument of whichever source a registry routes this package to.
 ///
@@ -169,6 +173,7 @@ async fn fetch_and_cache_upstream_packument(
         return Ok(Some(bytes));
     }
 
+    let fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
     let fetched = match timed(
         "packument:upstream_fetch",
         name.as_str(),
@@ -184,7 +189,9 @@ async fn fetch_and_cache_upstream_packument(
                 .map_err(Arc::new);
         }
     };
-    cache_upstream_packument(state, namespace, upstream, name, fetched).await.map_err(Arc::new)
+    cache_upstream_packument(state, namespace, upstream, name, fetched, fetch_seq)
+        .await
+        .map_err(Arc::new)
 }
 
 pub(super) async fn cache_upstream_packument(
@@ -193,19 +200,24 @@ pub(super) async fn cache_upstream_packument(
     upstream: &Upstream,
     name: &CanonicalPackageName,
     fetched: PackumentFetch,
+    fetch_seq: u64,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     match fetched {
         PackumentFetch::Modified(fetched) => {
             if !upstream.caches() {
                 return Ok(Some(fetched.bytes));
             }
-            let refreshed = super::upstream_integrity::refresh_cached_packument(
+            let Some(refreshed) = super::upstream_integrity::refresh_cached_packument(
                 state,
                 namespace,
                 name,
                 fetched.bytes,
+                fetch_seq,
             )
-            .await?;
+            .await?
+            else {
+                return Ok(None);
+            };
             if refreshed.needs_backfill {
                 super::upstream_integrity::schedule(state, namespace, upstream, name);
             }
@@ -216,10 +228,10 @@ pub(super) async fn cache_upstream_packument(
             // so drop its cached entry too. Otherwise the stale copy would
             // outlive every TTL and a later transient outage could resurrect
             // the unpublished package through the stale-if-error fallback.
-            if upstream.caches() {
-                purge_cached_package(state, namespace, name).await;
+            if !upstream.caches() {
+                return Ok(None);
             }
-            Ok(None)
+            purge_cached_package(state, namespace, name, fetch_seq).await
         }
         // `load_upstream_packument` sends no conditional validators (the upstream
         // cache refetches stale entries rather than revalidating — see
@@ -233,8 +245,16 @@ pub(super) async fn cache_upstream_packument(
     }
 }
 
-async fn purge_cached_package(state: &AppState, namespace: &str, name: &CanonicalPackageName) {
+async fn purge_cached_package(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    fetch_seq: u64,
+) -> Result<Option<Vec<u8>>, RegistryError> {
     let _guard = lock_upstream_package(state, namespace, name).await;
+    if !state.inner.proxy.packument_writes.try_accept(namespace, name, fetch_seq) {
+        return state.inner.storage.read_upstream_document_any(namespace, name).await;
+    }
     invalidate_upstream_package(state, namespace, name);
     if let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await {
         tracing::warn!(
@@ -243,6 +263,7 @@ async fn purge_cached_package(state: &AppState, namespace: &str, name: &Canonica
             "failed to purge cached entry after an upstream 404",
         );
     }
+    Ok(None)
 }
 
 /// Serializes the writes to one upstream package's cached packument: a refresh,
@@ -362,108 +383,5 @@ pub(super) async fn load_packument_for_read(
                 .await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
-    }
-}
-
-pub(super) async fn serve_packument_via_upstream(
-    state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
-    upstream: &str,
-    name: &CanonicalPackageName,
-    tarball_base: &str,
-    view: DistView<'_>,
-) -> Response {
-    let client = match authorized_upstream(state, identity, upstream) {
-        Ok(client) => client,
-        Err(err) => return err.into_response(),
-    };
-    let document = UpstreamDocument {
-        state,
-        upstream: &client,
-        namespace: upstream_cache_namespace(state, upstream),
-        name,
-        ttl: client.packument_ttl().unwrap_or(state.inner.config.http.packument_ttl),
-        response: DocumentResponse { headers, tarball_base, view },
-    };
-    match document.cached().await {
-        Ok(Some(response)) => response,
-        Ok(None) => document.fetched().await,
-        Err(err) => err.into_response(),
-    }
-}
-
-struct UpstreamDocument<'a> {
-    state: &'a AppState,
-    upstream: &'a Upstream,
-    namespace: String,
-    name: &'a CanonicalPackageName,
-    ttl: Duration,
-    response: DocumentResponse<'a>,
-}
-
-struct DocumentResponse<'a> {
-    headers: &'a HeaderMap,
-    tarball_base: &'a str,
-    view: DistView<'a>,
-}
-
-impl UpstreamDocument<'_> {
-    async fn cached(&self) -> Result<Option<Response>, RegistryError> {
-        if !self.upstream.caches() {
-            return Ok(None);
-        }
-        let response = async {
-            let Some(bytes) =
-                read_cached_upstream_packument(self.state, &self.namespace, self.name, self.ttl)
-                    .await?
-            else {
-                return Ok(None);
-            };
-            self.render(bytes.into()).await.map(Some)
-        };
-        self.state.inner.packuments.admissions.serve(DocumentSource::Stored, response).await
-    }
-
-    async fn fetched(&self) -> Response {
-        let document = match fetch_coalesced_upstream_packument(
-            self.state,
-            &self.namespace,
-            self.upstream,
-            self.name,
-            self.ttl,
-        )
-        .await
-        {
-            Ok(Some(document)) => document,
-            Ok(None) => return not_found(),
-            Err(err) => return err.into_response(),
-        };
-        let rendering = self.render(document.bytes.clone());
-        let response =
-            self.state.inner.packuments.admissions.serve(DocumentSource::Stored, rendering).await;
-        drop(document);
-        match response {
-            Ok(response) => response,
-            Err(err) => err.into_response(),
-        }
-    }
-
-    async fn render(&self, bytes: Bytes) -> Result<Response, RegistryError> {
-        let table = self.state.inner.storage.read_tar_integrities(self.name).await?;
-        let view = DistView { tar_integrities: Some(&table), ..self.response.view };
-        packument_response(
-            self.name,
-            bytes,
-            self.response.tarball_base,
-            view,
-            self.state,
-            self.response.headers,
-            self.upstream
-                .response_ttl()
-                .unwrap_or(self.state.inner.config.http.packument_ttl)
-                .as_secs(),
-        )
-        .await
     }
 }

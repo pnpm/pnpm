@@ -2,9 +2,10 @@ use super::{
     Arc, BTreeMap, BUILTIN_REGISTRIES_BY_PREFIX, CanonicalPackageName, HashMap, Identity, Lockfile,
     LockfileResolution, MappedTarballUrl, PackageKey, PackageMetadata, PacquetConfig,
     PublishedTarballUrlMapper, ReverseRoutedTarballUrl, RouteClass, RouteContext,
-    TarballResolution, is_git_hosted_tarball_url, is_http_tarball_url, pick_registry_for_package,
-    sanitize_registry_tarball_url, strip_url_credentials, tarball_basename,
-    tarball_basename_for_package, tarball_url_and_integrity, version_route_tarball_version,
+    TarballResolution, VerificationRegistryRoutes, is_git_hosted_tarball_url, is_http_tarball_url,
+    pick_registry_for_package, revision_route_tarball_version, sanitize_registry_tarball_url,
+    strip_url_credentials, tarball_basename, tarball_basename_for_package,
+    tarball_url_and_integrity, version_route_tarball_version,
 };
 
 mod verdict_salt;
@@ -80,7 +81,7 @@ impl TarballRouter {
             // sanitized URL still works.
             RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
             RouteClass::Hosted { .. } => {
-                pnpr_tarball_url(&self.public_url, package, version, tarball_url)
+                pnpr_tarball_url(&self.public_url, registry, package, version, tarball_url)
             }
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
@@ -192,31 +193,49 @@ impl TarballRouter {
                 }
             }
             RouteClass::Hosted { .. } => {
-                let hosted =
-                    pnpr_tarball_url(&self.public_url, package, version, published_tarball);
+                let hosted = pnpr_tarball_url(
+                    &self.public_url,
+                    registry,
+                    package,
+                    version,
+                    published_tarball,
+                );
                 MappedTarballUrl {
                     accepted_routed_url: Some(hosted.clone()),
                     display_url: hosted,
                     accept_published_url: false,
                 }
             }
-            RouteClass::Proxied { alias, .. } => {
-                let display_url = upstream_endpoint_tarball_url(
-                    &self.public_url,
-                    &alias,
-                    package,
-                    version,
-                    published_tarball,
-                );
-                let accepted_routed_url = self
-                    .upstream_endpoint_tarball_url(lockfile_tarball, Some(package))
-                    .is_some()
-                    .then(|| self.context.upstream_registry(&self.identity, &alias, Some(package)))
-                    .flatten()
-                    .map(|_| display_url.clone());
-                MappedTarballUrl { display_url, accepted_routed_url, accept_published_url: false }
-            }
+            RouteClass::Proxied { alias, .. } => self.proxied_verification_tarball(
+                &alias,
+                (package, version),
+                lockfile_tarball,
+                published_tarball,
+            ),
         }
+    }
+
+    fn proxied_verification_tarball(
+        &self,
+        alias: &str,
+        (package, version): (&str, &str),
+        lockfile_tarball: &str,
+        published_tarball: &str,
+    ) -> MappedTarballUrl {
+        let display_url = upstream_endpoint_tarball_url(
+            &self.public_url,
+            alias,
+            package,
+            version,
+            published_tarball,
+        );
+        let accepted_routed_url = self
+            .upstream_endpoint_tarball_url(lockfile_tarball, Some(package))
+            .is_some()
+            .then(|| self.context.upstream_registry(&self.identity, alias, Some(package)))
+            .flatten()
+            .map(|_| display_url.clone());
+        MappedTarballUrl { display_url, accepted_routed_url, accept_published_url: false }
     }
 
     #[cfg_attr(
@@ -319,7 +338,7 @@ impl TarballRouter {
             // stripped first, so pnpr never streams or caches it.
             RouteClass::Public => strip_url_credentials(tarball_url),
             RouteClass::Hosted { .. } => {
-                pnpr_tarball_url(&self.public_url, package, version, tarball_url)
+                pnpr_tarball_url(&self.public_url, tarball_url, package, version, tarball_url)
             }
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
@@ -377,6 +396,7 @@ fn hint_registry_prefix<'a>(id: &'a str, package: &str) -> Option<&'a str> {
 pub(super) fn tarball_route_tail(package: &str, version: &str, tarball_url: &str) -> String {
     if let Ok(name) = CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm)
         && let Some(route_version) = version_route_tarball_version(tarball_url, &name)
+            .or_else(|| revision_route_tarball_version(tarball_url, &name))
     {
         return format!("{package}@{route_version}");
     }
@@ -391,11 +411,28 @@ pub(super) fn tarball_route_tail(package: &str, version: &str, tarball_url: &str
 
 pub(super) fn pnpr_tarball_url(
     public_url: &str,
+    source_url: &str,
     package: &str,
     version: &str,
     tarball_url: &str,
 ) -> String {
-    format!("{}/{}", npm_endpoint(public_url), tarball_route_tail(package, version, tarball_url))
+    format!(
+        "{}/{}",
+        hosted_endpoint(public_url, source_url),
+        tarball_route_tail(package, version, tarball_url),
+    )
+}
+
+fn hosted_endpoint(public_url: &str, source_url: &str) -> String {
+    let base = npm_endpoint(public_url);
+    let addressed_prefix = format!("{base}/~");
+    if let Some(rest) = source_url.strip_prefix(&addressed_prefix) {
+        let name = rest.split('/').next().unwrap_or(rest);
+        if !name.is_empty() {
+            return format!("{addressed_prefix}{name}");
+        }
+    }
+    base
 }
 
 /// The registry-endpoint URL a proxied route's tarball is served through.

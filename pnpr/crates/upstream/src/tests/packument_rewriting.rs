@@ -656,3 +656,30 @@ fn preserves_exact_timestamps_for_same_day_releases_so_trust_order_survives() {
     assert_eq!(time["2.0.0"], "2024-02-16");
     assert_eq!(time["modified"], "2024-03-02");
 }
+
+#[test]
+fn revision_route_tarball_version_recognizes_clean_canonical_revisions() {
+    use crate::revision_route_tarball_version;
+
+    let unscoped = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let scoped =
+        CanonicalPackageName::parse("@corp/foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+
+    assert_eq!(
+        revision_route_tarball_version("https://pnpr.test/npm/foo@1.0.0+r0", &unscoped),
+        Some("1.0.0+r0"),
+    );
+    assert_eq!(
+        revision_route_tarball_version("https://pnpr.test/npm/@corp/foo@1.0.0+r3", &scoped),
+        Some("1.0.0+r3"),
+    );
+    for invalid in [
+        "https://pnpr.test/npm/foo@1.0.0+r02",
+        "https://pnpr.test/npm/evil/../foo@1.0.0+r3",
+        "https://pnpr.test/npm/foo@1.0.0+r3?sig=secret",
+        "https://pnpr.test/npm/foo@1.0.0+build.1",
+        "https://pnpr.test/npm/foo/-/foo-1.0.0.tgz",
+    ] {
+        assert_eq!(revision_route_tarball_version(invalid, &unscoped), None, "{invalid}");
+    }
+}

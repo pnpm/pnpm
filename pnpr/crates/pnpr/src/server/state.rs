@@ -64,6 +64,7 @@ pub(super) struct ProxyState {
     pub(super) integrity_backfill: super::upstream_integrity::BackgroundIntegrity,
     pub(super) version_tgzs: super::VersionTgzCache,
     pub(super) packument_refetches: super::PackumentRefetches,
+    pub(super) packument_writes: super::PackumentWriteOrder,
 }
 
 pub(super) struct MutationLocks {
@@ -163,6 +164,7 @@ impl ProxyState {
             integrity_backfill: super::upstream_integrity::BackgroundIntegrity::default(),
             version_tgzs: super::VersionTgzCache::default(),
             packument_refetches: super::PackumentRefetches::default(),
+            packument_writes: super::PackumentWriteOrder::default(),
         }
     }
 }

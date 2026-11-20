@@ -2,8 +2,9 @@ pub use abbreviate::{abbreviate_packument, abbreviate_version};
 pub use discovery::SearchResponse;
 pub use packument::{
     extract_upstream_revision_integrity, extract_upstream_version_manifest,
-    extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
-    tarball_basename, tarball_basename_for_package, version_route_tarball_version,
+    extract_version_manifest, revision_route_tarball_version, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename, tarball_basename_for_package,
+    version_route_tarball_version,
 };
 pub use time::TIME_PRECISION_HORIZON_DAYS;
 

@@ -133,6 +133,45 @@ pub fn version_route_tarball_version<'a>(
     .then_some(version)
 }
 
+/// The `<version>+r<revision>` segment when `url` is a clean revision route
+/// ending on `{pkg}@{version}+r<revision>`.
+#[must_use]
+pub fn revision_route_tarball_version<'a>(
+    url: &'a str,
+    pkg: &CanonicalPackageName,
+) -> Option<&'a str> {
+    if url.contains(['?', '#', '\\', '%']) || has_dot_path_segment(url) {
+        return None;
+    }
+    let (prefix, version_and_rev) = url.rsplit_once('@')?;
+    if !(prefix.ends_with(&format!("/{}", pkg.as_str())) || prefix == pkg.as_str()) {
+        return None;
+    }
+    let (base_version, build) = version_and_rev.split_once('+')?;
+    if !pnpr_package_name::is_safe_path_segment(base_version) || base_version.contains(['+', '@']) {
+        return None;
+    }
+    let digits = build.strip_prefix('r')?;
+    let canonical_digits = digits == "0"
+        || (!digits.is_empty()
+            && !digits.starts_with('0')
+            && digits.bytes().all(|byte| byte.is_ascii_digit()));
+    let valid_revision = canonical_digits
+        && digits
+            .parse::<u64>()
+            .ok()
+            .and_then(|num| TarballRevision::try_from(num).ok())
+            .is_some();
+    valid_revision.then_some(version_and_rev)
+}
+
+fn has_dot_path_segment(url: &str) -> bool {
+    let after_scheme = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let path = after_scheme.split_once('/').map_or("", |(_, path)| path);
+    path.split('/')
+        .any(|seg| seg == "." || seg == "..")
+}
+
 /// The tarball filename a `dist.tarball` URL addresses for `pkg`: the canonical
 /// `<basename>-<version>.tgz` when `url` is a `{pkg}@{version}` route, or
 /// [`tarball_basename`] otherwise.
