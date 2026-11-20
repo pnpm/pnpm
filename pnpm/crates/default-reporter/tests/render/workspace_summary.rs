@@ -15,7 +15,10 @@ use super::{
     state,
     summary,
 };
-use pnpm_reporter::RemovedRoot;
+use pnpm_reporter::{
+    AddedRoot,
+    RemovedRoot,
+};
 use serde_json::json;
 
 fn workspace_summary(new_projects: &[&str]) -> LogEvent {
@@ -40,6 +43,24 @@ fn removed_root_at(prefix: &str, name: &str, version: &str) -> LogEvent {
                 name: name.to_string(),
                 version: Some(version.to_string()),
                 dependency_type: Some(DependencyType::Prod),
+            },
+        },
+    })
+}
+
+fn aliased_root_at(prefix: &str, alias: &str, real_name: &str, version: &str) -> LogEvent {
+    LogEvent::Root(RootLog {
+        level: LogLevel::Debug,
+        message: RootMessage::Added {
+            prefix: prefix.to_string(),
+            added: AddedRoot {
+                name: alias.to_string(),
+                real_name: real_name.to_string(),
+                version: Some(version.to_string()),
+                dependency_type: Some(DependencyType::Prod),
+                id: None,
+                latest: None,
+                linked_from: None,
             },
         },
     })
@@ -121,9 +142,6 @@ fn different_versions_of_a_dependency_are_separate_lines() {
     );
 }
 
-/// On a first install every project is new: plain additions are left out,
-/// while deprecated and outdated dependencies and the ones the command
-/// asked for are still listed.
 #[test]
 fn first_workspace_install_lists_only_what_carries_information() {
     let mut reporter = state(false);
@@ -218,4 +236,62 @@ fn newly_added_project_lists_only_the_installed_projects_changes() {
         ],
     );
     assert_eq!(frame, "\ndependencies:\n+ bar 1.0.0  packages/old\n+ baz 1.0.0\n");
+}
+
+#[test]
+fn same_alias_for_different_packages_is_separate_lines() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            aliased_root_at("/repo/packages/a", "compat", "foo", "1.0.0"),
+            aliased_root_at("/repo/packages/b", "compat", "bar", "1.0.0"),
+            aliased_root_at("/repo/packages/c", "compat", "bar", "1.0.0"),
+            workspace_summary(&[]),
+        ],
+    );
+    assert_eq!(
+        frame,
+        "\ndependencies:\n\
+         + compat <- bar 1.0.0  packages/b, packages/c\n\
+         + compat <- foo 1.0.0  packages/a\n",
+    );
+}
+
+/// The manifest after the edit arrives once another project's change has
+/// rendered the summary.
+#[test]
+fn new_project_dependency_moved_out_of_its_declared_range_is_listed() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            package_manifest_initial_at(
+                "/repo/packages/a",
+                json!({ "dependencies": { "foo": "^1.0.0", "bar": "^1.0.0" } }),
+            ),
+            added_root_at("/repo/packages/a", "foo", "2.0.0", DependencyType::Prod),
+            added_root_at("/repo/packages/a", "bar", "1.2.0", DependencyType::Prod),
+            added_root_at("/repo/packages/b", "baz", "1.0.0", DependencyType::Prod),
+            workspace_summary(&["/repo/packages/a"]),
+            package_manifest_updated_at(
+                "/repo/packages/a",
+                json!({ "dependencies": { "foo": "^2.0.0", "bar": "^1.0.0" } }),
+            ),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ baz 1.0.0  packages/b\n+ foo 2.0.0  packages/a\n",);
+}
+
+#[test]
+fn project_paths_lose_control_characters() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            added_root_at("/repo/packages/evil\n\u{1b}[2Jx", "foo", "1.0.0", DependencyType::Prod),
+            workspace_summary(&[]),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ foo 1.0.0  packages/evil[2Jx\n");
 }

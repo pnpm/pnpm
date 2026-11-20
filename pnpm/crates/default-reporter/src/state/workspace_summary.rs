@@ -17,6 +17,11 @@ use super::{
     normalized_prefix,
     remove_optional_from_prod,
 };
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_text_sanitize::sanitize_inline;
 use std::fmt::Write as _;
 
 /// How many projects a change names before it counts the rest.
@@ -44,25 +49,41 @@ impl WorkspaceSummary {
     }
 }
 
-/// One rendered line: changes equal in sign, name, version and link
-/// target are the same line.
-type ChangeKey<'a> = (&'a str, bool, Option<&'a str>, Option<&'a str>);
+/// One rendered line: changes equal in sign, name, package behind an
+/// alias, version and link target are the same line.
+type ChangeKey<'a> = (&'a str, bool, Option<&'a str>, Option<&'a str>, Option<&'a str>);
+
+/// The dependencies each project with no previous install was asked for,
+/// keyed by normalized prefix.
+pub(super) type NewProjectRequests<'a> = HashMap<&'a str, RequestedDependencies>;
 
 /// A command that edits manifests reports each project's manifest before
 /// the install and after it. The manifest after it arrives once the
-/// summary may have rendered, so a dependency the manifest before did not
-/// declare counts as requested too.
-struct RequestedDependencies {
-    declared_before: Option<HashSet<String>>,
+/// summary may have rendered, so the manifest before also tells: a
+/// dependency it did not declare, or declared with a range the installed
+/// version is outside of, was requested.
+pub(super) struct RequestedDependencies {
+    declared_before: Option<HashMap<String, String>>,
     changed: HashSet<String>,
 }
 
 impl RequestedDependencies {
-    fn contains(&self, name: &str) -> bool {
-        self.changed.contains(name)
-            || self.declared_before
-                .as_ref()
-                .is_some_and(|declared| !declared.contains(name))
+    fn contains(&self, diff: &PackageDiff) -> bool {
+        if self.changed.contains(&diff.name) {
+            return true;
+        }
+        let Some(declared_before) = &self.declared_before else {
+            return false;
+        };
+        match declared_before.get(&diff.name) {
+            None => true,
+            Some(spec) => {
+                diff.added
+                    && diff.version
+                        .as_deref()
+                        .is_some_and(|version| is_outside_range(version, spec))
+            }
+        }
     }
 }
 
@@ -75,13 +96,20 @@ impl ReporterState {
     pub(super) fn workspace_summary_lines(
         &self,
         workspace: &WorkspaceSummary,
+        requests: &NewProjectRequests<'_>,
         kind: DepKind,
     ) -> Vec<String> {
         let mut changes: BTreeMap<ChangeKey<'_>, WorkspaceChange<'_>> = BTreeMap::new();
         for (prefix, buckets) in self.project_diffs(workspace) {
-            for diff in self.reported_changes(workspace, prefix, &buckets[diff_key(kind)]) {
+            let requested = requests.get(prefix);
+            for diff in buckets[diff_key(kind)].values() {
+                if self.is_hidden_linked(diff)
+                    || requested.is_some_and(|requested| !self.is_notable(requested, diff))
+                {
+                    continue;
+                }
                 changes
-                    .entry((&diff.name, diff.added, diff.version.as_deref(), diff.from.as_deref()))
+                    .entry(change_key(diff))
                     .or_insert_with(|| WorkspaceChange { diff, projects: Vec::new() })
                     .projects
                     .push(prefix);
@@ -93,7 +121,7 @@ impl ReporterState {
                 format!(
                     "{}{}",
                     self.diff_line(change.diff),
-                    self.projects_suffix(workspace, &change.projects),
+                    self.projects_suffix(workspace, change.projects),
                 )
             })
             .collect()
@@ -111,34 +139,23 @@ impl ReporterState {
             )
     }
 
-    /// A project with no previous install reports only the changes that
-    /// tell more than that it was installed: the ones this command asked
-    /// for, and deprecated or outdated dependencies.
-    fn reported_changes<'a>(
-        &'a self,
-        workspace: &WorkspaceSummary,
-        prefix: &'a str,
-        bucket: &'a HashMap<String, PackageDiff>,
-    ) -> impl Iterator<Item = &'a PackageDiff> {
-        let requested = workspace.new_projects
-            .contains(prefix)
-            .then(|| self.requested_dependencies(prefix));
-        bucket
-            .values()
-            .filter(|diff| !self.is_hidden_linked(diff))
-            .filter(move |diff| {
-                requested
-                    .as_ref()
-                    .is_none_or(|requested| {
-                        requested.contains(&diff.name)
-                            || self.is_deprecated(diff)
-                            || is_outdated(diff)
-                    })
-            })
+    /// Whether a change of a project with no previous install tells more
+    /// than that the project was installed: this command asked for it, or
+    /// the dependency is deprecated or outdated.
+    fn is_notable(&self, requested: &RequestedDependencies, diff: &PackageDiff) -> bool {
+        requested.contains(diff) || self.is_deprecated(diff) || is_outdated(diff)
     }
 
-    /// The dependencies this command added to or changed in the project's
-    /// manifest.
+    pub(super) fn new_project_requests<'a>(
+        &self,
+        workspace: &'a WorkspaceSummary,
+    ) -> NewProjectRequests<'a> {
+        workspace.new_projects
+            .iter()
+            .map(|prefix| (prefix.as_str(), self.requested_dependencies(prefix)))
+            .collect()
+    }
+
     fn requested_dependencies(&self, prefix: &str) -> RequestedDependencies {
         let edit = self.summary.manifest_diffs.get(prefix);
         let initial = edit.and_then(|edit| edit.initial.as_ref()).map(remove_optional_from_prod);
@@ -148,7 +165,7 @@ impl ReporterState {
         let Some(initial) = initial else {
             return requested;
         };
-        let mut declared_before = HashSet::new();
+        let mut declared_before = HashMap::new();
         for kind in [DepKind::Peer, DepKind::Prod, DepKind::Optional, DepKind::Dev] {
             let before = manifest_dep_versions(&initial, kind.header());
             if let Some(updated) = &updated {
@@ -163,7 +180,7 @@ impl ReporterState {
                         .map(|(name, _)| name.clone()),
                 );
             }
-            declared_before.extend(before.into_keys());
+            declared_before.extend(before);
         }
         requested.declared_before = Some(declared_before);
         requested
@@ -179,18 +196,23 @@ impl ReporterState {
 
     /// The projects that made a change, as paths relative to the workspace
     /// root. Empty when only the current project made it.
-    fn projects_suffix(&self, workspace: &WorkspaceSummary, projects: &[&str]) -> String {
+    fn projects_suffix(&self, workspace: &WorkspaceSummary, mut projects: Vec<&str>) -> String {
         if projects == [workspace.current_project.as_str()] {
             return String::new();
         }
-        let mut shown: Vec<String> = projects
+        let hidden = projects.len().saturating_sub(MAX_SHOWN_PROJECTS);
+        if hidden > 0 {
+            projects.select_nth_unstable(MAX_SHOWN_PROJECTS - 1);
+            projects.truncate(MAX_SHOWN_PROJECTS);
+        }
+        projects.sort_unstable();
+        let mut suffix = projects
             .iter()
-            .map(|prefix| format_prefix_no_trim(&workspace.root, prefix))
-            .collect();
-        shown.sort();
-        let hidden = shown.len().saturating_sub(MAX_SHOWN_PROJECTS);
-        shown.truncate(MAX_SHOWN_PROJECTS);
-        let mut suffix = shown.join(", ");
+            .map(|prefix| {
+                sanitize_inline(&format_prefix_no_trim(&workspace.root, prefix)).into_owned()
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
         if hidden > 0 {
             let _ = write!(suffix, " and {hidden} more");
         }
@@ -198,9 +220,25 @@ impl ReporterState {
     }
 }
 
+fn change_key(diff: &PackageDiff) -> ChangeKey<'_> {
+    let aliased = diff.real_name
+        .as_deref()
+        .filter(|real_name| *real_name != diff.name);
+    (&diff.name, diff.added, aliased, diff.version.as_deref(), diff.from.as_deref())
+}
+
 fn is_outdated(diff: &PackageDiff) -> bool {
     match (&diff.latest, &diff.version) {
         (Some(latest), Some(version)) => is_strictly_newer(latest, version),
+        _ => false,
+    }
+}
+
+/// Whether `version` is outside the semver range `spec`. A specifier that
+/// is not a range, such as an alias or a link, is never outside.
+fn is_outside_range(version: &str, spec: &str) -> bool {
+    match (Range::parse(spec), Version::parse(version)) {
+        (Ok(range), Ok(version)) => !range.satisfies(&version),
         _ => false,
     }
 }

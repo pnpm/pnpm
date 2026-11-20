@@ -136,6 +136,9 @@ struct PackageDiff {
 struct ManifestDiff {
     initial: Option<Value>,
     updated: Option<Value>,
+    /// Whether the edit from `initial` to `updated` is already folded into
+    /// the summary's changes.
+    applied: bool,
 }
 
 /// The five dependency buckets, in summary render order.

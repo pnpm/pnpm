@@ -62,6 +62,7 @@ impl ReporterState {
                 }
                 PackageManifestMessage::Updated { updated, .. } => {
                     diff.updated = Some(updated.clone());
+                    diff.applied = false;
                 }
             }
         }
@@ -110,9 +111,14 @@ impl ReporterState {
 
     pub(super) fn render_summary(&self) -> String {
         let mut msg = String::new();
+        let workspace = self.summary.workspace
+            .as_ref()
+            .map(|workspace| (workspace, self.new_project_requests(workspace)));
         for kind in SUMMARY_ORDER {
-            let lines = match &self.summary.workspace {
-                Some(workspace) => self.workspace_summary_lines(workspace, kind),
+            let lines = match &workspace {
+                Some((workspace, requests)) => {
+                    self.workspace_summary_lines(workspace, requests, kind)
+                }
                 None => self.current_project_summary_lines(kind),
             };
             if lines.is_empty() {
@@ -195,24 +201,28 @@ impl ReporterState {
         format!(" {}", self.rendering.colors.grey(&format!("({latest} is available)")))
     }
 
-    /// Fold every manifest edit into the changes of its project. Without a
-    /// workspace summary only the current project's edits render.
+    /// Fold each manifest edit not folded yet into the changes of its
+    /// project. Without a workspace summary only the current project's edits
+    /// render.
     fn apply_manifest_diffs(&mut self) {
-        let edits: Vec<(String, Value, Value)> = self.summary.manifest_diffs
-            .iter()
-            .filter_map(|(prefix, diff)| {
-                Some((prefix.clone(), diff.initial.clone()?, diff.updated.clone()?))
-            })
-            .collect();
-        for (prefix, initial, updated) in edits {
-            let buckets = if self.is_current_prefix(&prefix) {
-                &mut self.summary.diff
-            } else if self.summary.workspace.is_some() {
-                self.summary.other_projects.entry(prefix).or_insert_with(empty_diff_buckets)
+        let current_project = normalized_prefix(&self.rendering.cwd, &self.rendering.cwd);
+        let every_prefix_is_current = self.options.scope.summary == SummaryScope::AllPrefixes;
+        let summary = &mut self.summary;
+        for (prefix, edit) in &mut summary.manifest_diffs {
+            let (false, Some(initial), Some(updated)) =
+                (edit.applied, &edit.initial, &edit.updated)
+            else {
+                continue;
+            };
+            let buckets = if every_prefix_is_current || *prefix == current_project {
+                &mut summary.diff
+            } else if summary.workspace.is_some() {
+                summary.other_projects.entry(prefix.clone()).or_insert_with(empty_diff_buckets)
             } else {
                 continue;
             };
-            apply_manifest_pair_diff(buckets, &initial, &updated);
+            apply_manifest_pair_diff(buckets, initial, updated);
+            edit.applied = true;
         }
     }
 }
