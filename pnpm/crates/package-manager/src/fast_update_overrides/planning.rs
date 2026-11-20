@@ -353,10 +353,12 @@ pub(super) fn is_safe_registry_result(
         && manifest.get("version").and_then(Value::as_str) == Some(version)
         && manifest
             .get("peerDependencies")
-            .is_none_or(|value| value.as_object().is_some_and(serde_json::Map::is_empty))
+            .map(Value::as_object)
+            .is_none_or(|object| object.is_some_and(serde_json::Map::is_empty))
         && manifest
             .get("peerDependenciesMeta")
-            .is_none_or(|value| value.as_object().is_some_and(serde_json::Map::is_empty))
+            .map(Value::as_object)
+            .is_none_or(|object| object.is_some_and(serde_json::Map::is_empty))
         && manifest.get("deprecated").is_none()
         && manifest.get("bundledDependencies").is_none()
         && manifest.get("bundleDependencies").is_none()

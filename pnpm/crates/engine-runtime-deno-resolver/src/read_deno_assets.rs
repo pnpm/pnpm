@@ -256,7 +256,8 @@ fn extract_sha256(body: &str) -> Option<String> {
     bytes
         .windows(64)
         .find(|window| window.iter().all(u8::is_ascii_hexdigit))
-        .map(|window| String::from_utf8_lossy(window).to_ascii_lowercase())
+        .map(String::from_utf8_lossy)
+        .map(|from_utf8_lossy| from_utf8_lossy.to_ascii_lowercase())
 }
 
 fn decode_hex(hex: &str) -> Option<Vec<u8>> {

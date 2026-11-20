@@ -43,5 +43,7 @@ pub(super) fn fresh_secret() -> [u8; 32] {
 pub fn unix_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+        .map(|duration| duration.as_millis())
+        .map(u64::try_from)
+        .map_or(0, |converted| converted.unwrap_or(u64::MAX))
 }

@@ -127,7 +127,8 @@ fn existing_mode(path: &Path) -> Option<u32> {
     fs::symlink_metadata(path)
         .ok()
         .filter(|metadata| !metadata.file_type().is_symlink())
-        .map(|metadata| metadata.permissions().mode())
+        .map(|metadata| metadata.permissions())
+        .map(|permissions| permissions.mode())
 }
 
 #[cfg(target_os = "wasi")]

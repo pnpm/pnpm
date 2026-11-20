@@ -123,7 +123,8 @@ impl StageApprovalItem {
         let string_field = |field: &str| {
             item.get(field)
                 .and_then(Value::as_str)
-                .map(|value| sanitize_inline(value).into_owned())
+                .map(sanitize_inline)
+                .map(std::borrow::Cow::into_owned)
                 .filter(|value| !value.is_empty())
         };
         // The id and the package name are validated as they came: removing a

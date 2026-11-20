@@ -299,7 +299,10 @@ impl FilesIndex {
     fn entry_paths(&self) -> Result<Vec<PathBuf>, StoreIndexError> {
         let mut paths = Vec::new();
         for shard in read_dir_paths(&self.dir)? {
-            if !fs::symlink_metadata(&shard).is_ok_and(|meta| meta.file_type().is_dir()) {
+            if !fs::symlink_metadata(&shard)
+                .map(|meta| meta.file_type())
+                .is_ok_and(|file_type| file_type.is_dir())
+            {
                 continue;
             }
             paths.extend(
@@ -315,7 +318,10 @@ fn key_hex(key: &str) -> String {
 }
 
 fn is_regular_entry_file(path: &Path) -> bool {
-    !is_temp_file(path) && fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_file())
+    !is_temp_file(path)
+        && fs::symlink_metadata(path)
+            .map(|meta| meta.file_type())
+            .is_ok_and(|file_type| file_type.is_file())
 }
 
 fn is_temp_file(path: &Path) -> bool {
@@ -359,7 +365,8 @@ fn read_dir_paths(dir: &Path) -> Result<Vec<PathBuf>, StoreIndexError> {
         Err(source) => return Err(to_error(source)),
     };
     entries
-        .map(|entry| entry.map(|entry| entry.path()).map_err(to_error))
+        .map(|entry| entry.map(|entry| entry.path()))
+        .map(|path| path.map_err(to_error))
         .collect()
 }
 

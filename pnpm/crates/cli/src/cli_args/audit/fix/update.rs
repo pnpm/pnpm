@@ -112,7 +112,8 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // pnpm's `fixWithUpdate`, which errors rather than reporting everything
     // fixed against an empty installed set.
     let Some(updated) = Lockfile::load_wanted_from_dir(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("re-read the lockfile after update"))?
+        .map_err(miette::Report::new)
+        .map_err(|value| value.wrap_err("re-read the lockfile after update"))?
     else {
         return Err(AuditError::NoLockfileAfterUpdate.into());
     };

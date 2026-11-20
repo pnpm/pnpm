@@ -1074,7 +1074,8 @@ snapshots:
         .as_object()
         .expect("license groups")
         .values()
-        .flat_map(|group| group.as_array().expect("license group"))
+        .map(Value::as_array)
+        .flat_map(|array| array.expect("license group"))
         .filter(|pkg| pkg["name"] == "is-positive")
         .flat_map(|pkg| {
             let versions = pkg["versions"]

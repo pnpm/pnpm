@@ -194,7 +194,8 @@ pub(super) fn tarball_integrity_error(
 pub(super) fn wants_abbreviated(headers: &HeaderMap) -> bool {
     headers
         .get(header::ACCEPT)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
 }
 

@@ -52,7 +52,8 @@ pub(in super::super) fn deploy<'a>(
     // never has to name a target it does not deploy to.
     let script_args = args.target_dirs
         .iter()
-        .map(|target| target.to_string_lossy().into_owned())
+        .map(|target| target.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect();
     if let Some(run_args) = script_override::resolve(ctx, cfg, "deploy", script_args)? {
         return dispatch_script::run(ctx, run_args);

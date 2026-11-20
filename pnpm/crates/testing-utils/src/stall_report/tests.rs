@@ -90,7 +90,8 @@ fn assert_grandchild_reported_and_killed(message: &str) {
         .lines()
         .filter(|line| line.contains(LONG_RUNNING))
         .find(|line| !line.contains("spawn"))
-        .and_then(|line| line.split_whitespace().next())
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.next())
         .map(str::parse)
         .and_then(Result::ok)
         .unwrap_or_else(|| panic!("the report must list the grandchild:\n{message}"));

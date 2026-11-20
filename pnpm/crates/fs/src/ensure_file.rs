@@ -1,4 +1,8 @@
 pub use overwrite::overwrite_file_in_place;
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+};
 
 mod creation;
 mod overwrite;
@@ -447,7 +451,8 @@ fn write_atomic(
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
     let name = file_path
         .file_name()
-        .map(|file_name| file_name.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(Cow::into_owned)
         .unwrap_or_default();
     let TempFile {
         path: tmp_path,

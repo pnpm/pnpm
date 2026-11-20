@@ -283,12 +283,14 @@ fn enable_modules_dir_false_writes_no_node_modules_and_fills_the_store() {
     let store_dir = options.store_dir.as_deref().expect("the test options pin a store dir");
     let store_versions: Vec<_> = std::fs::read_dir(store_dir)
         .expect("the store directory exists")
-        .map(|entry| entry.expect("store entry").path())
+        .map(|entry| entry.expect("store entry"))
+        .map(|value| value.path())
         .collect();
     assert!(
         store_versions
             .iter()
-            .any(|version| version.join("files").is_dir()),
+            .map(|version| version.join("files"))
+            .any(|joined| joined.is_dir()),
         "the packages are fetched into the store: {store_versions:?}",
     );
 }

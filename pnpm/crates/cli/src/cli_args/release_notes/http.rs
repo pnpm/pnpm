@@ -172,7 +172,8 @@ fn publication_link(request_url: &str, headers: &HeaderMap) -> Option<Publicatio
     let target = headers
         .get_all("link")
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .filter_map(Result::ok)
         .flat_map(|value| value.split(','))
         .find(|link| link.contains(r#"rel="publication-notes""#))?;
     let reference = target

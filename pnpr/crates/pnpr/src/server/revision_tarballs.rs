@@ -253,7 +253,8 @@ impl UpstreamRevision<'_> {
         let expected = integrity.clone();
         let checked = write.check(move |file| {
             tar_resource_integrity(std::io::BufReader::new(file), gzip)
-                .is_some_and(|tar| tar.matches(&expected).is_some())
+                .map(|tar| tar.matches(&expected))
+                .is_some_and(|expected| expected.is_some())
         })
         .await;
         match checked {

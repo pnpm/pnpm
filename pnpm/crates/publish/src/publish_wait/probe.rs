@@ -147,7 +147,8 @@ fn retry_after(response: &Response) -> Duration {
     let Some(value) = response
         .headers()
         .get(header::RETRY_AFTER)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
     else {
         return Duration::ZERO;
     };

@@ -1067,7 +1067,8 @@ fn update_config_omits_the_settings_nothing_set() {
         .as_array()
         .expect("the pnpmfiles seen are an array")
         .iter()
-        .map(|path| path.as_str().expect("a pnpmfile path is a string"))
+        .map(serde_json::Value::as_str)
+        .map(|text| text.expect("a pnpmfile path is a string"))
         .collect();
     assert_eq!(pnpmfiles.len(), 1);
     assert!(pnpmfiles[0].ends_with(".pnpmfile.cjs"));

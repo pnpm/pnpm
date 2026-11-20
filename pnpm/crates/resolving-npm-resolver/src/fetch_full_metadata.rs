@@ -85,7 +85,8 @@ pub(crate) fn metadata_response_is_uncacheable(headers: &header::HeaderMap) -> b
     headers
         .get_all(header::CACHE_CONTROL)
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .filter_map(Result::ok)
         .any(cache_control_value_is_uncacheable)
 }
 
@@ -112,7 +113,8 @@ fn cache_control_value_is_uncacheable(value: &str) -> bool {
 pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
     headers
         .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .is_some_and(|value| {
             let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
             let media_type = media_type.trim();
@@ -130,9 +132,11 @@ fn parse_metadata(body: &str, install_v2: bool) -> serde_json::Result<Package> {
 fn is_install_v2_content_type(headers: &header::HeaderMap) -> bool {
     headers
         .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .and_then(|value| value.split(';').next())
-        .is_some_and(|media_type| media_type.trim().eq_ignore_ascii_case(INSTALL_V2_CONTENT_TYPE))
+        .map(str::trim)
+        .is_some_and(|trimmed| trimmed.eq_ignore_ascii_case(INSTALL_V2_CONTENT_TYPE))
 }
 
 /// Warn, once per registry, that `registry` sent a package document with

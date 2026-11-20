@@ -246,7 +246,8 @@ pub(super) fn relative_subpath_posix(raw: &Path) -> Option<String> {
 pub(super) fn escape_wax_path(posix: &str) -> String {
     posix
         .split('/')
-        .map(|seg| wax::escape(seg).into_owned())
+        .map(wax::escape)
+        .map(std::borrow::Cow::into_owned)
         .collect::<Vec<_>>()
         .join("/")
 }

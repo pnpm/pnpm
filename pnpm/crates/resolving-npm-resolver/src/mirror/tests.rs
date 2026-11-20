@@ -135,7 +135,9 @@ fn get_registry_name_escapes_delimiters() {
     ];
     let mut keys: Vec<String> = distinct
         .iter()
-        .map(|url| get_registry_name(url).expect("encode"))
+        .copied()
+        .map(get_registry_name)
+        .map(|registry_name| registry_name.expect("encode"))
         .collect();
     keys.sort();
     let key_count = keys.len();

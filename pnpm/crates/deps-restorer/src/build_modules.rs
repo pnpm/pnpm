@@ -488,7 +488,8 @@ impl BuildModules<'_> {
         let hoisted_bin_dir = self.scripts.path.private_hoisting
             .then_some(self.scripts.patched_engines.install_state_dir)
             .flatten()
-            .map(|install_state_dir| install_state_dir.join("node_modules").join(".bin"));
+            .map(|install_state_dir| install_state_dir.join("node_modules"))
+            .map(|joined| joined.join(".bin"));
         self.runtime_node_bin_dir(snapshots)
             .into_iter()
             .chain(hoisted_bin_dir)

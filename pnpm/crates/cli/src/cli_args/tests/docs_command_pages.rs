@@ -119,7 +119,8 @@ fn heading_flags(heading: &str) -> Vec<String> {
         return Vec::new();
     }
     text.split(',')
-        .filter_map(|part| part.split_whitespace().next())
+        .map(str::split_whitespace)
+        .filter_map(|mut words| words.next())
         .map(|spelling| spelling.split_once('=').map_or(spelling, |(flag, _)| flag))
         .filter(|spelling| spelling.starts_with('-'))
         .flat_map(expand_negatable)
@@ -278,7 +279,8 @@ fn setting_names(flag: &str) -> Vec<String> {
 fn documented_everywhere() -> BTreeSet<String> {
     WalkDir::new(docs_dir())
         .into_iter()
-        .map(|entry| entry.expect("walk pnpm/docs").into_path())
+        .map(|entry| entry.expect("walk pnpm/docs"))
+        .map(walkdir::DirEntry::into_path)
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "md")

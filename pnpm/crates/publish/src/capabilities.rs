@@ -113,7 +113,9 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .map(|elapsed| elapsed.as_millis())
+            .map(u64::try_from)
+            .map_or(0, |converted| converted.unwrap_or(u64::MAX))
     }
 }
 

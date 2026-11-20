@@ -89,7 +89,8 @@ async fn read_http_path(socket: &mut tokio::net::TcpStream) -> String {
     let head = String::from_utf8_lossy(&buf);
     head.lines()
         .next()
-        .and_then(|line| line.split_whitespace().nth(1))
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.nth(1))
         .unwrap_or("/")
         .to_string()
 }

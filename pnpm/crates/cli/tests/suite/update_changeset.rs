@@ -58,7 +58,8 @@ fn generated_changesets(workspace: &Path) -> Vec<std::path::PathBuf> {
     let changeset_dir = workspace.join(".changeset");
     let Ok(entries) = fs::read_dir(changeset_dir) else { return Vec::new() };
     let mut paths = entries
-        .map(|entry| entry.expect("read changeset entry").path())
+        .map(|entry| entry.expect("read changeset entry"))
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
                 .and_then(OsStr::to_str)

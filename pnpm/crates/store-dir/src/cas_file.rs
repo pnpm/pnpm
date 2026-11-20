@@ -249,7 +249,8 @@ fn commit_streamed_temp_file(
     let existing_meta = fs::symlink_metadata(file_path).ok();
     let existing_is_regular = existing_meta
         .as_ref()
-        .is_some_and(|meta| meta.file_type().is_file());
+        .map(fs::Metadata::file_type)
+        .is_some_and(|file_type| file_type.is_file());
     let existing_is_live = existing_meta
         .as_ref()
         .filter(|meta| meta.file_type().is_file())
@@ -318,7 +319,10 @@ fn stream_into_temp_file(
             Err(error) => return Err(WriteCasFileFromReaderError::Read(error)),
         }
     }
-    writer.into_inner().map_err(|error| io_write_error(error.into_error()))?;
+    writer
+        .into_inner()
+        .map_err(io::IntoInnerError::into_error)
+        .map_err(io_write_error)?;
 
     if let Some(expected) = expected_size
         && size != expected

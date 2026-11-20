@@ -40,7 +40,8 @@ pub fn package_map_path_for_execution(config: &Config, dir: &Path) -> Option<Pat
     let modules_dir_name = config.modules_dir_name();
     let workspace_path = config.workspace_dir
         .as_ref()
-        .map(|dir| dir.join(modules_dir_name).join(PACKAGE_MAP_FILENAME));
+        .map(|dir| dir.join(modules_dir_name))
+        .map(|modules_dir_name| modules_dir_name.join(PACKAGE_MAP_FILENAME));
     if let Some(path) = workspace_path
         && path.exists()
     {

@@ -73,7 +73,8 @@ fn parse_node_abi(part: &str) -> Option<Result<NodeAbi, TagError>> {
         return Some(parse_number(abi).map(NodeAbi::Node));
     }
     part.strip_prefix("electron")
-        .map(|abi| parse_number(abi).map(NodeAbi::Electron))
+        .map(parse_number)
+        .map(|number| number.map(NodeAbi::Electron))
 }
 
 impl Platform {

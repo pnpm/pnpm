@@ -140,7 +140,8 @@ fn record(
             query,
             authorization: headers
                 .get("authorization")
-                .and_then(|value| value.to_str().ok())
+                .map(axum::http::HeaderValue::to_str)
+                .and_then(Result::ok)
                 .map(str::to_string),
         });
 }

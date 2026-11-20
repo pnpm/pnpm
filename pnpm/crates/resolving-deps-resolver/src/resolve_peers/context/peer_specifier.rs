@@ -156,7 +156,8 @@ pub(in super::super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<Str
     let segments = pnpm_lockfile::split_peer_suffix_segments(&raw[peers_index..])?;
     segments
         .iter()
-        .map(|segment| peer_segment_name(segment).map(str::to_string))
+        .map(|segment| peer_segment_name(segment))
+        .map(|peer_segment_name| peer_segment_name.map(str::to_string))
         .collect()
 }
 

@@ -342,7 +342,8 @@ impl<'a> Snapshots<'a> {
                 .filter(|name| {
                     bindings
                         .get(&name.to_string())
-                        .is_some_and(|reference| reference.peers().is_some())
+                        .map(NextRef::peers)
+                        .is_some_and(|peers| peers.is_some())
                 })
             {
                 explicit.mark_snapshot_reference(snapshot.key, name);

@@ -25,7 +25,8 @@ fn filter_projects_builds_graph_and_follows_dependencies() {
     .unwrap();
     let dirs: Vec<String> = result.selected_projects
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect();
     assert_eq!(dirs, ["/ws/a", "/ws/b"]);
 }
@@ -36,7 +37,8 @@ fn filter_projects_empty_filter_selects_everything() {
     let result = filter_projects(projects, &[], &filter_projects_options()).unwrap();
     let dirs: Vec<String> = result.selected_projects
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect();
     assert_eq!(dirs, ["/ws/a", "/ws/b"]);
 }

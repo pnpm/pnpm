@@ -181,7 +181,8 @@ fn bad_request(reason: impl std::fmt::Display) -> RegistryError {
 fn html_response(headers: &HeaderMap, html: String) -> Response {
     let accept = headers
         .get(header::ACCEPT)
-        .and_then(|value| value.to_str().ok());
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok);
     let content_type =
         if wants_versioned_html(accept) { HTML_CONTENT_TYPE } else { "text/html; charset=utf-8" };
     Response::builder()
@@ -205,7 +206,8 @@ fn accepts_json(headers: &HeaderMap) -> bool {
     wants_json(
         headers
             .get(header::ACCEPT)
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
     )
 }
 

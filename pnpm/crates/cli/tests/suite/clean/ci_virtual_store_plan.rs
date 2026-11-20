@@ -44,7 +44,8 @@ fn read_pre_res_entries(workspace: &Path) -> Vec<serde_json::Value> {
     fs::read_to_string(workspace.join("pre-res.jsonl"))
         .expect("read pre-res.jsonl")
         .lines()
-        .map(|line| serde_json::from_str(line).expect("parse jsonl line"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("parse jsonl line"))
         .collect()
 }
 

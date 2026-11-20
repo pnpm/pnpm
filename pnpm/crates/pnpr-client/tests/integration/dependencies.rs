@@ -24,7 +24,8 @@ async fn forwards_optional_dependencies() {
     assert!(
         packages
             .keys()
-            .any(|key| key.to_string().starts_with("@foo/no-deps@1.0.0")),
+            .map(|key| key.to_string())
+            .any(|text| text.starts_with("@foo/no-deps@1.0.0")),
         "the optional dependency should be resolved into the lockfile, got: {:?}",
         packages
             .keys()

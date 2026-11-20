@@ -12,9 +12,12 @@ use crate::{
     },
     dependency_rewriter::DependencyRewriter,
 };
-use std::path::{
-    Path,
-    PathBuf,
+use std::{
+    borrow::Cow,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 struct TestProject {
@@ -71,7 +74,8 @@ fn project(root: &str, name: &str, version: &str, prod: &[(&str, &str)]) -> Test
 fn edges(graph: &crate::ProjectGraph<TestProject>, key: &str) -> Vec<String> {
     graph[Path::new(key)].dependencies
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(Cow::into_owned)
         .collect()
 }
 

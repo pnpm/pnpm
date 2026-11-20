@@ -228,7 +228,7 @@ fn derive_from_decode(
     else {
         return;
     };
-    if compressed.checker.is_some_and(|checker| checker.result().is_err()) {
+    if compressed.checker.map(IntegrityChecker::result).is_some_and(|result| result.is_err()) {
         let _ = tar_tx.blocking_send(Err(stale.evict()));
         return;
     }

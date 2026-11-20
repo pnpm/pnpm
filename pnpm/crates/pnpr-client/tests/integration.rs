@@ -150,7 +150,8 @@ async fn start_pnpr_inner(
     config.identity.auth.users.max_users = pnpr::MaxUsers::Unlimited;
     config.routing.route_policy.allowed_private_networks = ["127.0.0.0/8", "::1"]
         .into_iter()
-        .map(|network| pnpr::IpNetwork::parse(network).expect("loopback network parses"))
+        .map(pnpr::IpNetwork::parse)
+        .map(|parsed| parsed.expect("loopback network parses"))
         .collect();
     for (name, upstream) in upstreams {
         config.routing.upstreams.insert(name, upstream);

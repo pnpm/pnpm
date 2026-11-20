@@ -9,6 +9,10 @@ use super::{
     Value,
     canonicalize_output_key,
 };
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+};
 
 /// Project a [`PackResult`] into its JSON shape.
 #[must_use]
@@ -140,13 +144,15 @@ fn resolve_output_values(
     // confusing OS error, so reject the option up front.
     let Some(tarball_name) = prepared_path
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(Cow::into_owned)
     else {
         return Err(PackError::InvalidOut { out: out.to_owned() });
     };
     let parent = prepared_path
         .parent()
-        .map(|dir| dir.to_string_lossy().into_owned())
+        .map(Path::to_string_lossy)
+        .map(Cow::into_owned)
         .unwrap_or_default();
     let pack_destination =
         if parent.is_empty() { pack_destination.map(str::to_owned) } else { Some(parent) };

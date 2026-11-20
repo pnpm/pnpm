@@ -157,11 +157,13 @@ where
             .collect(),
         names: projects
             .iter()
-            .map(|project| project.manifest_name().map(str::to_string))
+            .map(|project| project.manifest_name())
+            .map(|manifest_name| manifest_name.map(str::to_string))
             .collect(),
         versions: projects
             .iter()
-            .map(|project| project.manifest_version().map(str::to_string))
+            .map(|project| project.manifest_version())
+            .map(|manifest_version| manifest_version.map(str::to_string))
             .collect(),
         dependency_lists: projects
             .iter()

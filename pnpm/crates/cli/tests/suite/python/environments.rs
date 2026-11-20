@@ -25,7 +25,10 @@ pub(super) fn project_directories(root: &Path) -> Vec<PathBuf> {
         return Vec::new();
     };
     let mut directories = projects
-        .map(|project| dunce::canonicalize(project.unwrap().path()).unwrap())
+        .map(Result::unwrap)
+        .map(|value| value.path())
+        .map(dunce::canonicalize)
+        .map(Result::unwrap)
         .collect::<Vec<_>>();
     directories.sort();
     directories
@@ -37,7 +40,8 @@ pub(super) fn generations(root: &Path) -> Vec<PathBuf> {
         .into_iter()
         .map(fs::read_dir)
         .flat_map(Result::unwrap)
-        .map(|generation| generation.unwrap().path())
+        .map(Result::unwrap)
+        .map(|value| value.path())
         .collect::<Vec<_>>();
     generations.sort();
     generations

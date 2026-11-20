@@ -69,7 +69,8 @@ fn install_dir_of(pnpm_home: &Path, package: &str) -> PathBuf {
         .flatten()
         .map(|entry| entry.path())
         .filter(|path| path.is_symlink())
-        .map(|link| fs::canonicalize(link).expect("resolve the hash link"))
+        .map(fs::canonicalize)
+        .map(|canonical| canonical.expect("resolve the hash link"))
         .find(|install_dir| {
             pnpm_fs::join_slash_separated_path(&install_dir.join("node_modules"), package).exists()
         })

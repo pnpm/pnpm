@@ -63,7 +63,8 @@ pub fn may_update_config(config: &Config, root_dir: &Path) -> bool {
     }
     let has_config_plugin = config.config_dependencies
         .as_ref()
-        .is_some_and(|dependencies| dependencies.keys().any(|name| finder::is_plugin_name(name)));
+        .map(BTreeMap::keys)
+        .is_some_and(|mut keys| keys.any(|name| finder::is_plugin_name(name)));
     has_config_plugin
         || !finder::find_pnpmfiles(root_dir, pnpm_package_manager::pnpmfile_selection(config))
             .is_empty()

@@ -283,10 +283,12 @@ fn skipped_parent(id: &Arc<str>, pkg: Option<&ResolvedPackage>) -> SkippedOption
     SkippedOptionalDependencyParent {
         id: id.to_string(),
         name: pkg
-            .map(|pkg| pkg.name().to_string())
+            .map(ResolvedPackage::name)
+            .map(|name| name.to_string())
             .unwrap_or_default(),
         version: pkg
-            .map(|pkg| pkg.version().to_string())
+            .map(ResolvedPackage::version)
+            .map(|version| version.to_string())
             .unwrap_or_default(),
     }
 }

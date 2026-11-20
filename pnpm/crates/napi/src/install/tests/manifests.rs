@@ -408,10 +408,12 @@ fn repeat_install_compares_injected_project_with_its_dependency_manifest() {
     // `lib@file+lib(@pnpm.e2e+foo@100.1.0)`.
     let injected_lib_deps = std::fs::read_dir(root_dir.join("node_modules/.pnpm"))
         .expect("read the virtual store")
-        .map(|entry| entry.expect("virtual store entry").path())
+        .map(|entry| entry.expect("virtual store entry"))
+        .map(|value| value.path())
         .find(|path| {
             path.file_name()
-                .is_some_and(|name| name.to_string_lossy().starts_with("lib@file+lib"))
+                .map(std::ffi::OsStr::to_string_lossy)
+                .is_some_and(|text| text.starts_with("lib@file+lib"))
         })
         .expect("the injected lib's slot")
         .join("node_modules");

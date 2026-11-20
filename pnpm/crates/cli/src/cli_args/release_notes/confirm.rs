@@ -67,5 +67,7 @@ fn holds(text: Option<&str>, initial_digest: Option<&str>, expected: &str) -> bo
     let expected_text = expected.trim();
     expected_text.is_empty()
         || initial_digest == Some(note_digest(expected).as_str())
-        || text.is_some_and(|text| normalize_line_endings(text).contains(expected_text))
+        || text
+            .map(normalize_line_endings)
+            .is_some_and(|normalize_line_endings| normalize_line_endings.contains(expected_text))
 }

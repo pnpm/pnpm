@@ -626,7 +626,8 @@ fn staged_files(root: &std::path::Path) -> Vec<PathBuf> {
             staged.extend(staged_files(&path));
         } else if path
             .file_name()
-            .is_some_and(|name| name.to_string_lossy().contains(".tmp."))
+            .map(std::ffi::OsStr::to_string_lossy)
+            .is_some_and(|text| text.contains(".tmp."))
         {
             staged.push(path);
         }

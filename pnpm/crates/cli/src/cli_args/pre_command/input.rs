@@ -385,7 +385,8 @@ fn should_skip_invocation(
         && !positionals.is_empty()
         && positionals
             .iter()
-            .all(|spec| crate::engine_pm::pin::declared_package_manager(spec).is_some());
+            .map(|spec| crate::engine_pm::pin::declared_package_manager(spec))
+            .all(|declared_package_manager| declared_package_manager.is_some());
     let is_engine_update_or_outdated =
         matches!(command, Some("update" | "up" | "upgrade" | "outdated"))
             && crate::cli_args::engine_deps::has_only_engine_selectors(positionals);

@@ -1,4 +1,8 @@
 use pnpm_fs::CopyPermissions as Permissions;
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+};
 #[cfg(not(target_os = "wasi"))]
 use std::{
     fs::{
@@ -62,7 +66,8 @@ pub(super) fn write_atomic_with_mode(
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let file_name = target
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(Cow::into_owned)
         .unwrap_or_else(|| String::from("patched"));
 
     let mut last_already_exists: Option<io::Error> = None;

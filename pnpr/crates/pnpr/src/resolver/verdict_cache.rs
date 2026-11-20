@@ -251,7 +251,9 @@ fn evict_overflow(conn: &Connection) {
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|elapsed| i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+        .map(|elapsed| elapsed.as_millis())
+        .map(i64::try_from)
+        .map(|converted| converted.unwrap_or(i64::MAX))
         .unwrap_or(0)
 }
 

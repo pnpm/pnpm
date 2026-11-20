@@ -107,7 +107,8 @@ fn apply_importer_lockfile_pins(
     for (importer_id, pins) in pins_by_importer {
         let mut seed = by_importer
             .get(importer_id)
-            .map_or_else(|| workspace_seed.clone(), |seed| seed.as_ref().clone());
+            .map(|seed| seed.as_ref())
+            .map_or_else(|| workspace_seed.clone(), |value| value.clone());
         replace_version_pins(&mut seed, pins);
         by_importer.insert(importer_id.clone(), Arc::new(seed));
     }

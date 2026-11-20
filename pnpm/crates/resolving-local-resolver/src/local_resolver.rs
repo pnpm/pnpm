@@ -4,6 +4,7 @@
 //! [`LocalPackageSpec`] has been chosen.
 
 pub use filesystem_policy::LocalFilesystemPolicy;
+use std::ffi::OsStr;
 
 use std::{
     path::PathBuf,
@@ -440,7 +441,8 @@ fn synthesize_fallback_manifest(
     }
     let name = spec.fetch_spec
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .unwrap_or_default();
     Ok(serde_json::json!({ "name": name }))
 }

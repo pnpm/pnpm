@@ -75,7 +75,8 @@ fn commands_without_store_access_do_not_modify_the_project_directory() {
         }
         let entries: Vec<_> = fs::read_dir(&workspace)
             .unwrap()
-            .map(|entry| entry.unwrap().file_name())
+            .map(Result::unwrap)
+            .map(|value| value.file_name())
             .collect();
         assert_eq!(entries, ["package.json"], "{args:?}");
     }

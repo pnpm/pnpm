@@ -47,9 +47,9 @@ impl Provider<'_> {
         Ok(matched
             .into_iter()
             .filter(|version| allow_prerelease || !version.any_prerelease())
-            .fold(Ranges::empty(), |range, version| {
-                range.union(&Ranges::singleton(version.clone()))
-            }))
+            .map(|version| version.clone())
+            .map(Ranges::singleton)
+            .fold(Ranges::empty(), |range, empty| range.union(&empty)))
     }
 
     pub(super) fn requirement_extras(

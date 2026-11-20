@@ -519,7 +519,9 @@ fn manifestless_tarball_result_with_revision(
     result.resolution = LockfileResolution::Tarball(TarballResolution {
         integrity: Some(integrity.parse().expect("parse integrity")),
         tarball: tarball_url.to_string(),
-        revision: revision.map(|revision| revision.try_into().expect("build revision")),
+        revision: revision
+            .map(|revision| revision.try_into())
+            .map(|into| into.expect("build revision")),
         git_hosted: None,
         path: None,
     });

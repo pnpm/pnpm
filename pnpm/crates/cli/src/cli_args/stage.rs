@@ -346,7 +346,8 @@ impl StageArgs {
         // the write against any bare-basename assumption it might not cover.
         if output_path
             .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
+            .map(std::ffi::OsStr::to_string_lossy)
+            .map(std::borrow::Cow::into_owned)
             != Some(filename.clone())
             || output_path.parent() != Some(dir)
         {

@@ -400,7 +400,9 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
     let (table_name, key) =
         if development { ("dependency-groups", "dev") } else { ("project", "dependencies") };
     let table = document.get(table_name);
-    let existing_array = table.and_then(|table| table.get_ref().get(key));
+    let existing_array = table
+        .map(toml::Spanned::get_ref)
+        .and_then(|value| value.get(key));
     let mut entries = existing_array
         .map(|array| {
             array

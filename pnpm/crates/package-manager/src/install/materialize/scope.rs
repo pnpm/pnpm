@@ -57,7 +57,8 @@ pub(super) fn prior_unbuilt_builds(
             modules.ignored_builds
                 .iter()
                 .flatten()
-                .map(|dep_path| dep_path.as_str().to_string()),
+                .map(pnpm_modules_yaml::DepPath::as_str)
+                .map(str::to_string),
         );
     }
     unbuilt

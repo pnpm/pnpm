@@ -353,7 +353,8 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let error: Value = stderr
         .lines()
-        .map(|line| serde_json::from_str::<Value>(line).expect("stderr records are JSON"))
+        .map(serde_json::from_str::<Value>)
+        .map(|value| value.expect("stderr records are JSON"))
         .find(|record| record["level"] == "error")
         .expect("fatal error record");
     let message = error["message"].as_str().expect("error message");

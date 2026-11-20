@@ -382,7 +382,8 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     assert!(
         node_path
             .split(path_delimiter)
-            .any(|entry| Path::new(entry).ends_with("node_modules/.pnpm/node_modules")),
+            .map(Path::new)
+            .any(|value| value.ends_with("node_modules/.pnpm/node_modules")),
         "NODE_PATH must carry the private hoist dir: {node_path}",
     );
     let node_options =

@@ -353,7 +353,9 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     };
     if !script_names
         .iter()
-        .any(|name| declares(name).is_some())
+        .copied()
+        .map(declares)
+        .any(|declares| declares.is_some())
     {
         return Ok(());
     }

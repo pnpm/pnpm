@@ -335,7 +335,8 @@ fn quality(accept: &str, media: &str) -> Option<f32> {
                 return None;
             }
             let weight = parameters
-                .filter_map(|parameter| parameter.trim().split_once('='))
+                .map(str::trim)
+                .filter_map(|trimmed| trimmed.split_once('='))
                 .find(|(name, _)| name.trim().eq_ignore_ascii_case("q"))
                 .map_or(1.0, |(_, value)| {
                     value

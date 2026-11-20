@@ -172,7 +172,9 @@ fn resolved_config_values(
         virtual_store_dir: display_path(&config.install_state_dir),
         effective_virtual_store_dir: display_path(config.virtual_store_dir()),
         network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
-        max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
+        max_sockets: config.max_sockets
+            .map(u32::try_from)
+            .map(|converted| converted.unwrap_or(u32::MAX)),
         fetch_retries: config.fetch_retries,
         fetch_retry_factor: config.fetch_retry_factor,
         fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),

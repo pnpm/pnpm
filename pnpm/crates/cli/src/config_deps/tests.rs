@@ -647,7 +647,8 @@ async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path()
             "/custom{delimiter}{}",
             old_paths
                 .iter()
-                .map(|path| path.display().to_string())
+                .map(|path| path.display())
+                .map(|shown| shown.to_string())
                 .collect::<Vec<_>>()
                 .join(&delimiter.to_string()),
         ),

@@ -537,7 +537,8 @@ fn add_config_keeps_an_integrity_pin() {
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     let integrity = lockfile
         .lines()
-        .find_map(|line| line.trim().strip_prefix("resolution: {integrity: "))
+        .map(str::trim)
+        .find_map(|trimmed| trimmed.strip_prefix("resolution: {integrity: "))
         .and_then(|rest| rest.split([',', '}']).next())
         .expect("the lockfile records an integrity");
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");

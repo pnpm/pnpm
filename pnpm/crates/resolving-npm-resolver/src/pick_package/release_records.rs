@@ -223,7 +223,8 @@ async fn read_release_record_response(
 fn is_immutable_cache_control(headers: &header::HeaderMap) -> bool {
     headers
         .get(header::CACHE_CONTROL)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .is_some_and(|value| {
             value
                 .split(',')

@@ -161,7 +161,8 @@ async fn read_marker_state(dir: &Arc<OpenDir>) -> pnpr_error::Result<MarkerRead>
             Err(err) => return Err(err.into()),
         };
         let parsed = std::str::from_utf8(&bytes)
-            .map(|raw| raw.trim().to_string())
+            .map(str::trim)
+            .map(|trimmed| trimmed.to_string())
             .unwrap_or_else(|_| "<invalid>".to_string());
         Ok(MarkerRead::Contents(parsed))
     })

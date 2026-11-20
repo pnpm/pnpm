@@ -373,7 +373,8 @@ pub(super) fn graph_versions_of(
     let prefix = format!("{name}@");
     let mut versions: Vec<String> = result.peers.graph
         .keys()
-        .filter_map(|dep_path| dep_path.as_str().strip_prefix(&prefix))
+        .map(crate::DepPath::as_str)
+        .filter_map(|text| text.strip_prefix(&prefix))
         .map(str::to_string)
         .collect();
     versions.sort();

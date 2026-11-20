@@ -217,7 +217,8 @@ async fn add_security_headers(request: Request, next: Next) -> Response {
         .uri()
         .path()
         .strip_prefix(UI_PATH)
-        .is_some_and(|path| path.trim_start_matches('/').starts_with(HASHED_ASSETS_DIR));
+        .map(|path| path.trim_start_matches('/'))
+        .is_some_and(|trim_start_matches| trim_start_matches.starts_with(HASHED_ASSETS_DIR));
     let mut response = next.run(request).await;
     let is_html = response
         .headers()

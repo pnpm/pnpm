@@ -136,7 +136,8 @@ impl Resolution {
         self.packages.candidates.retain(|_, versions| {
             versions
                 .values()
-                .all(|candidate| candidate.directory().is_some())
+                .map(pnpm_python_resolver::Candidate::directory)
+                .all(|directory| directory.is_some())
         });
         self.packages.direct_urls.clear();
         self.packages.rejected_sources.clear();

@@ -137,7 +137,8 @@ impl MirrorWrite {
             kind,
             etag: headers
                 .get(header::ETAG)
-                .and_then(|value| value.to_str().ok())
+                .map(reqwest::header::HeaderValue::to_str)
+                .and_then(Result::ok)
                 .map(str::to_string),
             uncacheable: metadata_response_is_uncacheable(headers),
             normalize_to_abbreviated: normalizes_to_abbreviated(kind, headers),

@@ -564,7 +564,8 @@ fn read_child_file_bounded_enforces_size_cap_and_pinned_helper_cleans_up_temps()
     );
     let entries: Vec<_> = fs::read_dir(&pinned)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     assert_eq!(entries, vec![std::ffi::OsString::from(".marker")]);
     assert_eq!(fs::read(pinned.join(".marker")).unwrap(), b"first");

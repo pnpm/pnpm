@@ -274,7 +274,8 @@ fn symlinked_ancestors(repo_root: &Path, path: &Path) -> Vec<PathBuf> {
         .filter(|ancestor| {
             ancestor
                 .symlink_metadata()
-                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+                .map(|metadata| metadata.file_type())
+                .is_ok_and(|file_type| file_type.is_symlink())
                 && is_inside_repo(ancestor, repo_root)
         })
         .map(Path::to_path_buf)

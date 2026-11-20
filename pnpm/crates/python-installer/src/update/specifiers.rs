@@ -182,6 +182,7 @@ fn updated_single_specifier(
         _ => (force_bump && !existing.contains(version)).then(|| format!(">={version}")),
     };
     formatted
-        .map(|text| text.parse().into_diagnostic())
+        .map(|text| text.parse())
+        .map(|parsed| parsed.into_diagnostic())
         .transpose()
 }

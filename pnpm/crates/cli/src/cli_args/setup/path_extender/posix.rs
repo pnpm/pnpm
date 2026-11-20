@@ -74,7 +74,8 @@ pub(in crate::cli_args::setup) fn detect_current_shell() -> Option<String> {
     let shell = std::env::var("SHELL").ok()?;
     Path::new(&shell)
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
 }
 
 fn update_shell(

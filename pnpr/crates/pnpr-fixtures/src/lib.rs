@@ -537,7 +537,8 @@ fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) 
 fn is_version_dir(dir: Option<&Path>) -> bool {
     dir.and_then(Path::file_name)
         .and_then(|name| name.to_str())
-        .is_some_and(|name| Version::parse(name).is_ok())
+        .map(Version::parse)
+        .is_some_and(|parsed| parsed.is_ok())
 }
 
 fn tarball_basename(name: &str) -> String {

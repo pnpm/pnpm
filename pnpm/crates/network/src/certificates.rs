@@ -49,7 +49,8 @@ pub fn bundled_root_certs() -> &'static [Certificate] {
     static CERTS: LazyLock<Vec<Certificate>> = LazyLock::new(|| {
         webpki_root_certs::TLS_SERVER_ROOT_CERTS
             .iter()
-            .map(|der| Certificate::from_der(der).expect("bundled Mozilla root is valid DER"))
+            .map(|der| Certificate::from_der(der))
+            .map(|from_der| from_der.expect("bundled Mozilla root is valid DER"))
             .collect()
     });
     &CERTS

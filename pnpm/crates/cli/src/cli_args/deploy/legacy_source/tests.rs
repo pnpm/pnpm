@@ -97,7 +97,8 @@ fn rebase_ignores_escaping_publish_directory_absent_from_project_manifest() {
     assert!(
         !packages
             .keys()
-            .any(|key| key.to_string().contains("outside")),
+            .map(|key| key.to_string())
+            .any(|text| text.contains("outside")),
         "a publishDirectory only the lockfile records must not synthesize a directory package: {packages:?}",
     );
     let lib_version = &source.lockfile.importers["."].dependencies

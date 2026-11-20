@@ -298,7 +298,8 @@ pub fn in_declared_workspace(workspace: &Path, project: &Path) -> bool {
     canonical(project)
         .ancestors()
         .take_while(|ancestor| ancestor.starts_with(&stop))
-        .any(|ancestor| workspace_declaration(ancestor).is_some())
+        .map(workspace_declaration)
+        .any(|workspace_declaration| workspace_declaration.is_some())
 }
 
 /// The manifest of the nearest enclosing `[tool.uv.workspace]` up to

@@ -337,6 +337,7 @@ async fn record_request(
 fn header_text(headers: &axum::http::HeaderMap, name: &axum::http::HeaderName) -> Option<String> {
     headers
         .get(name)
-        .and_then(|value| value.to_str().ok())
+        .map(axum::http::HeaderValue::to_str)
+        .and_then(Result::ok)
         .map(str::to_string)
 }

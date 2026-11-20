@@ -1,7 +1,10 @@
 //! The per-package summary `pnpm publish` returns and prints under `--json`,
 //! modeled after `npm publish --json`.
 
-use std::path::Path;
+use std::{
+    ffi::OsStr,
+    path::Path,
+};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -68,7 +71,8 @@ pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> 
     let version = manifest_string(info.published_manifest, "version");
     let filename = Path::new(info.tarball_path)
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .unwrap_or_default();
     PublishSummary {
         id: format!("{name}@{version}"),
@@ -102,7 +106,8 @@ pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
     match raw {
         Some(Value::Array(items)) => items
             .iter()
-            .filter_map(|item| item.as_str().map(str::to_owned))
+            .map(Value::as_str)
+            .filter_map(|text| text.map(str::to_owned))
             .collect(),
         // `true` means "bundle every dependency"; expand it to the names.
         Some(Value::Bool(true)) => manifest

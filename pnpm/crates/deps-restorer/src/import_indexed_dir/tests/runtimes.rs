@@ -194,7 +194,8 @@ fn undeletable_stale_subtree_does_not_block_the_forced_replacement() {
 
     let displaced: Vec<_> = fs::read_dir(tmp.path())
         .unwrap()
-        .map(|entry| entry.unwrap().path())
+        .map(Result::unwrap)
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())

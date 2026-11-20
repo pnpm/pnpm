@@ -72,7 +72,8 @@ pub fn own_dependency_names(
             .get(key)
             .and_then(Value::as_object)
             .into_iter()
-            .flat_map(|map| map.keys().map(String::as_str))
+            .map(serde_json::Map::keys)
+            .flat_map(|keys| keys.map(String::as_str))
     };
     names("dependencies")
         .filter(move |name| !peer_shadowed(name))

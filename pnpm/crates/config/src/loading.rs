@@ -150,7 +150,9 @@ impl Config {
         }
         pnpm_workspace::WORKSPACE_DIR_ENV_VARS
             .iter()
-            .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
+            .copied()
+            .map(Sys::var_os)
+            .find_map(|variable| variable.filter(|value| !value.is_empty()))
             .map(std::path::PathBuf::from)
             .or_else(|| {
                 crate::workspace_yaml::find_workspace_manifest(start_dir)

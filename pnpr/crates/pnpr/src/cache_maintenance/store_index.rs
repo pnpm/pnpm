@@ -77,7 +77,9 @@ pub(super) async fn process_cas_entries(
         CacheGcEffect::DryRun => preview_cas_entries_sync(&root, &root_path, pending, &seen_keys),
     })
     .await
-    .map_err(|err| io::Error::other(err.to_string()).into())
+    .map_err(|err| err.to_string())
+    .map_err(io::Error::other)
+    .map_err(|other| other.into())
 }
 
 fn evict_cas_entries_sync(

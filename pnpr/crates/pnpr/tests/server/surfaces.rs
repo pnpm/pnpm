@@ -323,7 +323,8 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         .unwrap();
     assert!(
         vary.split(',')
-            .any(|header| header.trim().eq_ignore_ascii_case("origin")),
+            .map(str::trim)
+            .any(|trimmed| trimmed.eq_ignore_ascii_case("origin")),
     );
 
     let missing = app
@@ -386,7 +387,8 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
     assert!(
         allowed_headers
             .split(',')
-            .any(|header| header.trim().eq_ignore_ascii_case("authorization")),
+            .map(str::trim)
+            .any(|trimmed| trimmed.eq_ignore_ascii_case("authorization")),
     );
 }
 

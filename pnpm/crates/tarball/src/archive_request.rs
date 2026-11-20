@@ -128,7 +128,8 @@ fn header_string(
     response
         .headers()
         .get(name)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .map(str::to_owned)
 }
 
@@ -138,7 +139,8 @@ fn header_list(response: &reqwest::Response, name: reqwest::header::HeaderName) 
         .headers()
         .get_all(name)
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .filter_map(Result::ok)
         .collect();
     (!values.is_empty()).then(|| values.join(", "))
 }

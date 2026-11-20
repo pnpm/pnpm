@@ -178,7 +178,8 @@ async fn existing_file(path: &Path) -> miette::Result<bool> {
 
 fn comment_version_token(comment: Option<&str>) -> Option<String> {
     comment
-        .and_then(|comment| comment.split_whitespace().next())
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.next())
         .filter(|candidate| parse_comment_version(candidate).is_some())
         .map(str::to_string)
 }

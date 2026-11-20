@@ -133,7 +133,8 @@ pub fn global_config_yaml_enables_gvs() {
             if name == "XDG_CONFIG_HOME" {
                 return XDG_CONFIG_HOME_PATH
                     .get()
-                    .map(|path| path.to_string_lossy().into_owned());
+                    .map(|path| path.to_string_lossy())
+                    .map(std::borrow::Cow::into_owned);
             }
             safe_host_var(name)
         }
@@ -578,7 +579,8 @@ pub fn lockfile_dir_equal_to_workspace_root_does_not_reanchor_env_paths() {
             match name {
                 "PNPM_CONFIG_LOCKFILE_DIR" => WORKSPACE_DIR
                     .get()
-                    .map(|path| path.to_string_lossy().into_owned()),
+                    .map(|path| path.to_string_lossy())
+                    .map(std::borrow::Cow::into_owned),
                 "PNPM_CONFIG_VIRTUAL_STORE_DIR" => Some("cache".to_owned()),
                 _ => safe_host_var(name),
             }

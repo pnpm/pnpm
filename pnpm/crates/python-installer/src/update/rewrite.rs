@@ -170,7 +170,8 @@ fn collect_array_edits(
     }
     if outcomes
         .iter()
-        .any(|outcome| outcome.as_ref().is_some_and(Vec::is_empty))
+        .map(Option::as_ref)
+        .any(|value| value.is_some_and(Vec::is_empty))
     {
         edits.push((spanned.span(), render_filtered_array(entries, &outcomes, original)));
         return Ok(());

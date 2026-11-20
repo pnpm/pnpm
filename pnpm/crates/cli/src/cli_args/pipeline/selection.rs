@@ -37,7 +37,8 @@ use pnpm_workspace_projects_graph::{
 pub(super) fn workspace_identity(workspace_root: &Path) -> String {
     let basename: String = workspace_root
         .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .unwrap_or_default()
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-'))

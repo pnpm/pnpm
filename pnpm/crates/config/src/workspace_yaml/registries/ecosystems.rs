@@ -158,7 +158,8 @@ pub fn take_roles_from_earlier_layers(
         .chain(
             layer.registries_by_prefix
                 .values()
-                .map(|registry| normalize_registry_url(registry).into_owned()),
+                .map(|registry| normalize_registry_url(registry))
+                .map(std::borrow::Cow::into_owned),
         )
         .chain(layer.registry_options_by_url.keys().cloned())
         .chain(layer.default_registry.clone())

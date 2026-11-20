@@ -156,7 +156,8 @@ async fn try_rewrite_packument(
     let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
     let removed = prepare_packument_rewrite(hosted, &tar_integrities, name, &mut packument)?;
     let bytes = serde_json::to_vec_pretty(&packument)
-        .map_err(|err| RegistryError::Json(err).into_response())?;
+        .map_err(RegistryError::Json)
+        .map_err(|value| value.into_response())?;
     let unpublished = unpublished_blobs(&storage, name, &removed).await;
     match storage
         .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())

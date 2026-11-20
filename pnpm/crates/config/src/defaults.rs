@@ -158,7 +158,8 @@ where
     Some(match env::consts::OS {
         "macos" => home_dir.join("Library/pnpm"),
         "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
-            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
+            .map(PathBuf::from)
+            .map_or_else(|| home_dir.join(".pnpm"), |joined| joined.join("pnpm")),
         // pnpm treats every non-Windows platform as Unix here.
         _ => home_dir.join(".local/share/pnpm"),
     })

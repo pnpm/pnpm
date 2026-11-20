@@ -245,7 +245,8 @@ impl TarballResolver {
         let resolved_url = if response
             .headers()
             .get(reqwest::header::CACHE_CONTROL)
-            .and_then(|header| header.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .is_some_and(|header| header.contains("immutable"))
         {
             response.url().to_string()

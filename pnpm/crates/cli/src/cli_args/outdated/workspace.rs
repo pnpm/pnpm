@@ -68,7 +68,8 @@ pub(super) fn loaded_lockfile(state: &State) -> miette::Result<Option<Cow<'_, Lo
 fn wanted_lockfile(state: &State) -> miette::Result<Option<&Lockfile>> {
     state.lockfile
         .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))
+        .map_err(miette::Report::new)
+        .map_err(|value| value.wrap_err("load the lockfile"))
 }
 
 pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
@@ -90,7 +91,8 @@ pub(super) fn global_states(
         .into_iter()
         .map(|pkg| {
             State::init(pkg.install_dir.join("package.json"), config, false)
-                .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))
+                .map_err(miette::Report::new)
+                .map_err(|value| value.wrap_err("initialize global state"))
         })
         .collect()
 }

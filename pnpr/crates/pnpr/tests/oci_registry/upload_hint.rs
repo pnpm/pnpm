@@ -97,7 +97,8 @@ fn assert_chunk_hint(response: &Response, limit: Option<NonZeroU64>) {
         response
             .headers()
             .get("oci-chunk-max-length")
-            .map(|value| value.to_str().unwrap()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .map(Result::unwrap),
         limit.map(|_| "5"),
     );
 }

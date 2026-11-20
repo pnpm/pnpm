@@ -18,6 +18,7 @@
 pub(crate) use bins::HoistedBinLinkOutput;
 pub use bins::HoistedBinSources;
 pub use dir_clone::HoistedDirCloneCache;
+use std::ffi::OsStr;
 
 mod bins;
 
@@ -273,7 +274,8 @@ pub(crate) fn containing_modules_dir(pkg_dir: &Path) -> Option<&Path> {
     let parent = pkg_dir.parent()?;
     let is_scope = parent
         .file_name()
-        .is_some_and(|name| name.as_encoded_bytes().starts_with(b"@"));
+        .map(OsStr::as_encoded_bytes)
+        .is_some_and(|encoded_bytes| encoded_bytes.starts_with(b"@"));
     if is_scope { parent.parent() } else { Some(parent) }
 }
 

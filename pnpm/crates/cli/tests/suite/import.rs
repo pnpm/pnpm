@@ -31,7 +31,8 @@ use std::{
 fn assert_no_import_backups(lockfile_dir: &Path) {
     let leftovers: Vec<_> = fs::read_dir(lockfile_dir)
         .expect("read the lockfile directory")
-        .map(|entry| entry.expect("read a lockfile directory entry").file_name())
+        .map(|entry| entry.expect("read a lockfile directory entry"))
+        .map(|value| value.file_name())
         .filter(|name| name.to_string_lossy().ends_with(".import.bak"))
         .collect();
     assert!(leftovers.is_empty(), "import backups left behind: {leftovers:?}");

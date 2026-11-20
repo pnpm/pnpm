@@ -312,14 +312,16 @@ fn global_virtual_store_build_shims_do_not_capture_the_project_path() {
     let version_dir = store_dir.join("v11/links/@pnpm.e2e/own-bin-created-by-preinstall/1.0.0");
     let hashes: Vec<_> = fs::read_dir(&version_dir)
         .expect("read GVS hash directories")
-        .map(|entry| entry.expect("read GVS hash directory").path())
+        .map(|entry| entry.expect("read GVS hash directory"))
+        .map(|value| value.path())
         .collect();
     assert_eq!(hashes.len(), 1, "the package has one shared GVS slot");
     let shim_dir =
         hashes[0].join("node_modules/@pnpm.e2e/own-bin-created-by-preinstall/node_modules/.bin");
     let shim = fs::read_dir(&shim_dir)
         .expect("read built package bin shims")
-        .map(|entry| entry.expect("read bin shim").path())
+        .map(|entry| entry.expect("read bin shim"))
+        .map(|value| value.path())
         .find(|path| {
             path.file_name()
                 .is_some_and(|name| {

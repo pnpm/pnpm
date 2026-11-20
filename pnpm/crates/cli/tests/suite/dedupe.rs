@@ -983,7 +983,8 @@ fn dedupe_check_reports_the_lockfile_diff() {
     let ndjson_stderr = String::from_utf8(ndjson_output.stderr).expect("stderr is UTF-8");
     let ndjson_records = ndjson_stderr
         .lines()
-        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid NDJSON"))
+        .map(serde_json::from_str::<serde_json::Value>)
+        .map(|value| value.expect("valid NDJSON"))
         .collect::<Vec<_>>();
     assert!(
         ndjson_records
@@ -1396,7 +1397,8 @@ fn dedupe_warm_full_run_counts_each_reused_package_once() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     let records = stderr
         .lines()
-        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("valid NDJSON"))
+        .map(serde_json::from_str::<serde_json::Value>)
+        .map(|value| value.expect("valid NDJSON"))
         .collect::<Vec<_>>();
     let package_ids = |status: &str| {
         records

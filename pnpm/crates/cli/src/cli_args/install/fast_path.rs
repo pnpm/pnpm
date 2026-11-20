@@ -73,7 +73,8 @@ fn report_up_to_date_install(
         total: up_to_date.project_count,
         workspace_prefix: config.workspace_dir
             .as_deref()
-            .map(|dir| dir.to_string_lossy().into_owned()),
+            .map(std::path::Path::to_string_lossy)
+            .map(std::borrow::Cow::into_owned),
     }));
     let prefix = up_to_date.root.to_string_lossy().into_owned();
     emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {

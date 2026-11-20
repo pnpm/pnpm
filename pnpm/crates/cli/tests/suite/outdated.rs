@@ -547,14 +547,16 @@ fn outdated_recursive_aggregates_workspace_dependents() {
     assert!(
         dependents[0]["location"]
             .as_str()
-            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-a"))),
+            .map(Path::new)
+            .is_some_and(|value| value.ends_with(Path::new("packages").join("app-a"))),
         "unexpected app-a location: {}",
         dependents[0]["location"],
     );
     assert!(
         dependents[1]["location"]
             .as_str()
-            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-b"))),
+            .map(Path::new)
+            .is_some_and(|value| value.ends_with(Path::new("packages").join("app-b"))),
         "unexpected app-b location: {}",
         dependents[1]["location"],
     );

@@ -245,7 +245,8 @@ module.exports = {
     let lines: Vec<serde_json::Value> = fs::read_to_string(&log_path)
         .expect("read pre-res.jsonl")
         .lines()
-        .map(|line| serde_json::from_str(line).expect("parse jsonl line"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("parse jsonl line"))
         .collect();
     assert_eq!(lines.len(), 1, "preResolution ran once and replayed: {lines:?}");
     assert_eq!(lines[0]["exists"], serde_json::json!(true), "{lines:?}");

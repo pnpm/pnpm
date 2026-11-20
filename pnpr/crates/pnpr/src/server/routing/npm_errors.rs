@@ -64,7 +64,8 @@ async fn error_message(response: &mut Response, is_owned: bool) -> Option<String
     let is_plain_text = response
         .headers()
         .get(header::CONTENT_TYPE)
-        .is_none_or(|value| value.as_bytes().starts_with(b"text/plain"));
+        .map(HeaderValue::as_bytes)
+        .is_none_or(|bytes| bytes.starts_with(b"text/plain"));
     let is_error = response.status().is_client_error() || response.status().is_server_error();
     if is_owned && is_error && is_plain_text {
         Some(framework_error_message(response).await)
@@ -92,7 +93,8 @@ fn is_npm_path(path: &str) -> bool {
     }
     let path = path
         .strip_prefix("/~")
-        .and_then(|tail| tail.split_once('/').map(|(_, path)| path))
+        .map(|tail| tail.split_once('/'))
+        .and_then(|parts| parts.map(|(_, path)| path))
         .unwrap_or(path);
     let path = path.trim_start_matches('/');
     path == "-/whoami"

@@ -185,12 +185,15 @@ fn resolve_overlay(options: &ResolveDependencyOptions) -> ConfigOverlay {
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
         registries: options.registries
             .as_ref()
-            .map(|map| map.clone().into_iter().collect()),
+            .map(|map| map.clone())
+            .map(|value| value.into_iter())
+            .map(|value| value.collect()),
         offline: options.offline,
         prefer_offline: options.prefer_offline,
         auth_header_by_uri: options.auth_header_by_uri
             .clone()
-            .map(|map| map.into_iter().collect()),
+            .map(|map| map.into_iter())
+            .map(|value| value.collect()),
         ..ConfigOverlay::default()
     }
 }

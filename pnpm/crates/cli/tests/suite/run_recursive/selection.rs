@@ -364,7 +364,8 @@ fn filtered_run_prints_the_script_command_unless_silent() {
     assert!(
         stderr
             .lines()
-            .all(|line| serde_json::from_str::<Value>(line).is_ok()),
+            .map(serde_json::from_str::<Value>)
+            .all(|value| value.is_ok()),
         "NDJSON filtered build must contain only JSON records: {stderr}",
     );
 

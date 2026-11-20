@@ -219,7 +219,8 @@ async fn create_token_with_kind() {
     assert!(
         tokens
             .iter()
-            .all(|token| token.get("scopes").is_none()),
+            .map(|token| token.get("scopes"))
+            .all(|value| value.is_none()),
     );
     assert!(
         tokens

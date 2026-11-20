@@ -218,7 +218,9 @@ pub fn confined_modules_dir(modules_dir: &Path, workspace_root: &Path) -> Option
 /// intermediate component (`@scope/`, `.bin/`); the containment check
 /// above only vouches for the modules dir itself.
 pub(crate) fn is_real_dir(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir())
+    fs::symlink_metadata(path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_dir())
         && read_symlink_dir(path).is_err()
 }
 

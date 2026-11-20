@@ -308,7 +308,9 @@ fn unlink_restores_registry_package_in_lockfile() {
         .success();
     let installed = workspace.join("node_modules").join(PKG);
     assert!(
-        fs::symlink_metadata(&installed).is_ok_and(|meta| meta.file_type().is_symlink()),
+        fs::symlink_metadata(&installed)
+            .map(|meta| meta.file_type())
+            .is_ok_and(|file_type| file_type.is_symlink()),
         "the link override should make node_modules/{PKG} a symlink before unlink",
     );
 

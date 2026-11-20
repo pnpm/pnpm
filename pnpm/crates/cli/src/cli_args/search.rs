@@ -243,7 +243,8 @@ fn format_package(pkg: &SearchPackage) -> String {
     {
         let sanitized_keywords: Vec<String> = keywords
             .iter()
-            .map(|keyword| sanitize(keyword).into_owned())
+            .map(|keyword| sanitize(keyword))
+            .map(std::borrow::Cow::into_owned)
             .collect();
         lines.push(format!("Keywords: {}", sanitized_keywords.join(", ")));
     }

@@ -166,7 +166,8 @@ fn find_token(connection: &dyn Connection, key: &str) -> Result<Option<TokenReco
             &format!("SELECT {TOKEN_COLUMNS} FROM tokens t WHERE t.token_hash = ?1"),
             &[Param::Text(key)],
         )?
-        .map(|row| decode_token(row).map(|(_, record)| record))
+        .map(decode_token)
+        .map(|decode_token| decode_token.map(|(_, record)| record))
         .transpose()
 }
 

@@ -301,7 +301,8 @@ pub(super) fn peer_names_from_manifest(manifest: &serde_json::Value) -> HashSet<
                 .get(field)
                 .and_then(|v| v.as_object())
                 .into_iter()
-                .flat_map(|obj| obj.keys().map(String::as_str))
+                .map(serde_json::Map::keys)
+                .flat_map(|keys| keys.map(String::as_str))
         })
         .collect();
 

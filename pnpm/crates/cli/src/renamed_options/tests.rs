@@ -25,7 +25,8 @@ fn drop_aliases(tokens: &[&str]) -> Vec<String> {
             .collect(),
     )
     .into_iter()
-    .map(|token| token.into_string().expect("test tokens are UTF-8"))
+    .map(OsString::into_string)
+    .map(|text| text.expect("test tokens are UTF-8"))
     .collect()
 }
 

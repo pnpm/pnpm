@@ -363,7 +363,8 @@ impl AddArgs {
         }
         let selectors: Vec<String> = self.package_names
             .iter()
-            .map(|request| request.selector().to_string())
+            .map(AddRequest::selector)
+            .map(|selector| selector.to_string())
             .collect();
         let package_names =
             match workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())? {

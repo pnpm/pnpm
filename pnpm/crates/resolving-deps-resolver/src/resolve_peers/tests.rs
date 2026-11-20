@@ -595,7 +595,8 @@ fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: &PeerCycleShape
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|path| path.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
     keys.sort_unstable();
     keys

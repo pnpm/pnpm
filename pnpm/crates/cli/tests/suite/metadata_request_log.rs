@@ -44,7 +44,8 @@ fn every_case_of_the_shared_table() {
             .as_array()
             .expect("case args")
             .iter()
-            .map(|arg| arg.as_str().expect("case arg"))
+            .map(Value::as_str)
+            .map(|text| text.expect("case arg"))
             .collect();
         let expected: Vec<Vec<String>> =
             serde_json::from_value(case["installs"].clone()).expect("case installs");

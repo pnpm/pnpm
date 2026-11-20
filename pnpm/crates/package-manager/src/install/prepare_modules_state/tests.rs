@@ -77,7 +77,8 @@ fn purge_removes_directory_links_without_following_them() {
 
     let remaining = fs::read_dir(&modules_dir)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect::<Vec<_>>();
     dbg!(&remaining);
     assert!(remaining.is_empty());

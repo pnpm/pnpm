@@ -76,7 +76,9 @@ fn build_layout_overlay(
         registry: None,
         registries: options.registries
             .as_ref()
-            .map(|map| map.clone().into_iter().collect()),
+            .map(|map| map.clone())
+            .map(|value| value.into_iter())
+            .map(|value| value.collect()),
         proxy: options.proxy_config
             .as_ref()
             .map(build_proxy_config)
@@ -202,7 +204,8 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
         allow_builds: options.allow_builds
             .clone()
-            .map(|map| map.into_iter().collect()),
+            .map(|map| map.into_iter())
+            .map(|value| value.collect()),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
         trust_lockfile: options.trust_lockfile,
@@ -217,11 +220,14 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
                 allow_any: rules.allow_any.clone(),
                 allowed_versions: rules.allowed_versions
                     .as_ref()
-                    .map(|map| map.clone().into_iter().collect()),
+                    .map(|map| map.clone())
+                    .map(|value| value.into_iter())
+                    .map(|value| value.collect()),
             }),
         auth_header_by_uri: options.auth_header_by_uri
             .clone()
-            .map(|map| map.into_iter().collect()),
+            .map(|map| map.into_iter())
+            .map(|value| value.collect()),
         ..overlay
     }
 }

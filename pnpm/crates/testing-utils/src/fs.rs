@@ -275,7 +275,8 @@ pub fn bump_mtime(path: &Path) {
 fn recorded_validation_timestamp(path: &Path) -> i64 {
     path.ancestors()
         .skip(1)
-        .find_map(|dir| load_workspace_state(dir).expect("read the workspace state"))
+        .map(load_workspace_state)
+        .find_map(|load_workspace_state| load_workspace_state.expect("read the workspace state"))
         .unwrap_or_else(|| panic!("no workspace state above {path:?} to bump the mtime past"))
         .last_validated_timestamp
 }

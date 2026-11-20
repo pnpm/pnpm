@@ -18,7 +18,8 @@ fn argv(tokens: &[&str]) -> Vec<OsString> {
 
 fn strings(argv: &[OsString]) -> Vec<String> {
     argv.iter()
-        .map(|token| token.to_string_lossy().into_owned())
+        .map(|token| token.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 

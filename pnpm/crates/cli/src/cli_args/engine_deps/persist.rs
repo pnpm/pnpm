@@ -226,13 +226,15 @@ fn find_engine_entry_mut<'a>(
             .find(|item| {
                 item.get("name")
                     .and_then(Value::as_str)
-                    .is_some_and(|name| name.trim().eq_ignore_ascii_case(target_name))
+                    .map(str::trim)
+                    .is_some_and(|trimmed| trimmed.eq_ignore_ascii_case(target_name))
             });
     }
     field
         .get("name")
         .and_then(Value::as_str)
-        .is_some_and(|name| name.trim().eq_ignore_ascii_case(target_name))
+        .map(str::trim)
+        .is_some_and(|trimmed| trimmed.eq_ignore_ascii_case(target_name))
         .then_some(field)
 }
 

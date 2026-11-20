@@ -85,10 +85,12 @@ async fn outdated_group_rows(
     let mut rows = Vec::new();
     for pkg in matched_packages {
         let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
-            .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
+            .map_err(miette::Report::new)
+            .map_err(|value| value.wrap_err("initialize global state"))?;
         let lockfile = state.lockfile
             .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+            .map_err(miette::Report::new)
+            .map_err(|value| value.wrap_err("load the lockfile"))?;
         let mut outdated = collect_outdated_for_importer(
             &state.manifest,
             lockfile,

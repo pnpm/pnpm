@@ -355,7 +355,8 @@ pub(super) fn create_file_url_key(
         .or_else(|| {
             normalized
                 .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
+                .map(std::ffi::OsStr::to_string_lossy)
+                .map(std::borrow::Cow::into_owned)
         })
         .unwrap_or_else(|| normalized.display().to_string());
     format!("{name}@{dep_file_url}{suffix}")

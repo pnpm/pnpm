@@ -125,7 +125,8 @@ async fn frozen_lockfile_with_gvs_off_registers_the_project() {
     let registered: Vec<_> = pnpm_store_dir::get_registered_projects(&config.store_dir)
         .expect("list registered projects")
         .iter()
-        .map(|project| dunce::canonicalize(project).expect("resolve registered project"))
+        .map(dunce::canonicalize)
+        .map(|canonical| canonical.expect("resolve registered project"))
         .collect();
     let project_root = dunce::canonicalize(&dirs.project_root).expect("resolve project root");
     assert_eq!(registered, [project_root]);

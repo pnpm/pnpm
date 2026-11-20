@@ -515,7 +515,8 @@ fn write_atomic_rename_failure_surfaces_as_rename_file_error() {
     // not have been left behind.
     let leftovers: Vec<_> = std::fs::read_dir(&virtual_store_dir)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .filter(|name| {
             let name_str = name.to_string_lossy();
             name_str != Lockfile::CURRENT_FILE_NAME
@@ -881,7 +882,8 @@ fn save_leaves_no_temp_file_behind() {
 
     let leftovers: Vec<_> = std::fs::read_dir(dir.path())
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .filter(|name| name.to_string_lossy() != Lockfile::FILE_NAME)
         .collect();
     assert!(leftovers.is_empty(), "temp file should not be left behind, found: {leftovers:?}");

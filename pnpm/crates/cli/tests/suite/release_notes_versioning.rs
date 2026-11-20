@@ -149,7 +149,8 @@ fn versioning_composes_sends_and_collects_release_notes() {
         !parked
             .join("publications")
             .read_dir()
-            .is_ok_and(|mut dir| dir.next().is_some()),
+            .map(|mut dir| dir.next())
+            .is_ok_and(|next| next.is_some()),
     );
     drop(root);
 }

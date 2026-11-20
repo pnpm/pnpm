@@ -70,7 +70,8 @@ pub fn is_on_revision_tarball_route(tarball: &str, registry: &str) -> bool {
         && build
             .strip_prefix('r')
             .filter(|digits| !digits.is_empty())
-            .is_some_and(|digits| digits.bytes().all(|b| b.is_ascii_digit()))
+            .map(str::bytes)
+            .is_some_and(|mut bytes| bytes.all(|b| b.is_ascii_digit()))
 }
 
 fn registry_relative_path(tarball: &str, registry: &str) -> Option<String> {

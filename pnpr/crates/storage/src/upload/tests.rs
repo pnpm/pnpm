@@ -410,7 +410,8 @@ fn uploads_left(tmp: &TempDir) -> Vec<std::ffi::OsString> {
     dir.extend(crate::layout::namespace_segments("", Ecosystem::Oci));
     std::fs::read_dir(dir.join(super::UPLOADS_DIR))
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect()
 }
 

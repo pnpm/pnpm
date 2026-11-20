@@ -295,7 +295,8 @@ fn compile_walk_ignores(
         .iter()
         .copied()
         .chain(dot_ignores)
-        .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
+        .map(Glob::new)
+        .map(|value| value.map(Glob::into_owned))
         .collect::<Result<Vec<_>, _>>()?;
     wax::any(patterns)
 }

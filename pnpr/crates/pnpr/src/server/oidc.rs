@@ -241,7 +241,8 @@ fn browser_secret<'h>(headers: &'h HeaderMap, cookie_name: &str) -> Option<&'h s
         .map(HeaderValue::to_str)
         .filter_map(Result::ok)
         .flat_map(|value| value.split(';'))
-        .filter_map(|cookie| cookie.trim().split_once('='))
+        .map(str::trim)
+        .filter_map(|trimmed| trimmed.split_once('='))
         .filter(|(name, _)| *name == cookie_name);
     let secret = cookies.next().map(|(_, value)| value)?;
     cookies

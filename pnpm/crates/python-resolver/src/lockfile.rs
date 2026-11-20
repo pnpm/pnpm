@@ -244,7 +244,8 @@ impl Lockfile {
             .collect::<Result<Vec<_>>>()?;
         let markers = environments
             .iter()
-            .map(|marker| marker.parse::<MarkerTree>().into_diagnostic())
+            .map(|marker| marker.parse::<MarkerTree>())
+            .map(|value| value.into_diagnostic())
             .collect::<Result<Vec<_>>>()?;
         for ((environment, marker), written) in solved
             .iter()
@@ -445,5 +446,6 @@ fn check_one_version_per_environment(packages: &[LockedPackage]) -> Result<()> {
 fn marker_tree(package: &LockedPackage) -> Result<MarkerTree> {
     package.marker
         .as_deref()
-        .map_or(Ok(MarkerTree::TRUE), |marker| marker.parse().into_diagnostic())
+        .map(str::parse)
+        .map_or(Ok(MarkerTree::TRUE), |parsed| parsed.into_diagnostic())
 }

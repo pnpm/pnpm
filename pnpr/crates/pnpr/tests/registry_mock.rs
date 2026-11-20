@@ -147,7 +147,8 @@ async fn abbreviated_accept_header_strips_packument() {
         response
             .headers()
             .get("content-type")
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("application/vnd.npm.install-v1+json"),
     );
 
@@ -208,7 +209,8 @@ async fn full_packument_served_when_accept_does_not_request_abbreviated() {
         response
             .headers()
             .get("content-type")
-            .and_then(|value| value.to_str().ok()),
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok),
         Some("application/json"),
     );
 

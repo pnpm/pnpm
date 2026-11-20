@@ -81,7 +81,8 @@ fn assert_directory_owners(dir_names: &[&str]) {
     }
     let expected: Vec<_> = dirs
         .iter()
-        .map(|dir| dir.to_string_lossy().into_owned())
+        .map(|dir| dir.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect();
     for since in ["HEAD", "HEAD~1"] {
         if since == "HEAD~1" {

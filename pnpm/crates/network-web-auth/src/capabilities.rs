@@ -164,7 +164,9 @@ impl Clock for Host {
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+            .map(|elapsed| elapsed.as_millis())
+            .map(u64::try_from)
+            .map_or(0, |converted| converted.unwrap_or(u64::MAX))
     }
 }
 
@@ -199,7 +201,8 @@ impl WebAuthFetch for Host {
         let retry_after = response
             .headers()
             .get(reqwest::header::RETRY_AFTER)
-            .and_then(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .map(str::to_owned);
         // The poll loop never reads the body of a non-ok or 202 response;
         // returning early leaves `response` unread, stopping the transfer.

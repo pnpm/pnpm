@@ -564,7 +564,10 @@ fn scrub_directory_at_cafs_path(path: &Path) {
     // handled correctly. Without the gate every mismatched *file*
     // would pay the rename round-trip and briefly vanish from its
     // path.
-    if !fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir()) {
+    if !fs::symlink_metadata(path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_dir())
+    {
         return;
     }
     static SCRUB_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -580,7 +583,9 @@ fn scrub_directory_at_cafs_path(path: &Path) {
         // rename is not possible; either way the next install retries.
         return;
     }
-    let is_dir = fs::symlink_metadata(scrub_path).is_ok_and(|meta| meta.file_type().is_dir());
+    let is_dir = fs::symlink_metadata(scrub_path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_dir());
     let result = if is_dir {
         fs::remove_dir_all(scrub_path)
     } else {

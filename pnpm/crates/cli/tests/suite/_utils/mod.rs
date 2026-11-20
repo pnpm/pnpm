@@ -1177,7 +1177,8 @@ fn declared_dependencies(manifest: &Value, groups: &[&str]) -> Vec<String> {
     let mut names = groups
         .iter()
         .filter_map(|group| manifest[*group].as_object())
-        .flat_map(|deps| deps.keys().cloned())
+        .map(Map::keys)
+        .flat_map(|keys| keys.cloned())
         .collect::<Vec<_>>();
     names.sort();
     names.dedup();
@@ -1192,7 +1193,8 @@ pub fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> 
             dir.file_name()
                 .is_none_or(|base| base != "node_modules")
         })
-        .map(|dir| dir.join("node_modules").join(name))
+        .map(|dir| dir.join("node_modules"))
+        .map(|joined| joined.join(name))
         .find(|candidate| candidate.join("package.json").is_file())
 }
 

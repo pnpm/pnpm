@@ -105,7 +105,9 @@ impl CurrentGroups {
             .collect();
         let materialized = groups
             .iter()
-            .flat_map(|pkg| get_global_package_details(pkg).into_iter().map(|pkg| pkg.alias))
+            .map(get_global_package_details)
+            .map(|global_package_details| global_package_details.into_iter())
+            .flat_map(|global_package_details| global_package_details.map(|pkg| pkg.alias))
             .collect();
         Ok(Self { declared, materialized })
     }

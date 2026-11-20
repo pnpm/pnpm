@@ -1910,7 +1910,8 @@ async fn locks_every_declared_platform_into_one_lockfile() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|marker| marker.as_str().unwrap())
+        .map(toml::Value::as_str)
+        .map(Option::unwrap)
         .collect::<Vec<_>>();
     assert_eq!(environments.len(), platforms.len());
     assert!(

@@ -615,7 +615,8 @@ fn an_unused_patch_is_recorded_without_resolution_and_a_used_one_is_not() {
             .as_ref()
             .expect("snapshots")
             .keys()
-            .any(|key| key.to_string().starts_with("is-positive@1.0.0(patch_hash=")),
+            .map(|key| key.to_string())
+            .any(|text| text.starts_with("is-positive@1.0.0(patch_hash=")),
         "the patched package's snapshot key carries the patch hash",
     );
     assert!(

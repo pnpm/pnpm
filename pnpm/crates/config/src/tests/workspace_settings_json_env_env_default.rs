@@ -715,7 +715,8 @@ pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
             if name == "XDG_CONFIG_HOME" {
                 return XDG_CONFIG_HOME_PATH
                     .get()
-                    .map(|path| path.to_string_lossy().into_owned());
+                    .map(|path| path.to_string_lossy())
+                    .map(std::borrow::Cow::into_owned);
             }
             safe_host_var(name)
         }
@@ -777,7 +778,8 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
             if name == "XDG_CONFIG_HOME" {
                 return XDG_CONFIG_HOME_PATH
                     .get()
-                    .map(|path| path.to_string_lossy().into_owned());
+                    .map(|path| path.to_string_lossy())
+                    .map(std::borrow::Cow::into_owned);
             }
             safe_host_var(name)
         }
@@ -834,7 +836,8 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
             if name == "XDG_CONFIG_HOME" {
                 return XDG_CONFIG_HOME_PATH
                     .get()
-                    .map(|path| path.to_string_lossy().into_owned());
+                    .map(|path| path.to_string_lossy())
+                    .map(std::borrow::Cow::into_owned);
             }
             safe_host_var(name)
         }

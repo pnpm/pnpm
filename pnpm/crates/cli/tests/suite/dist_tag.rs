@@ -564,7 +564,8 @@ fn add_rejects_web_otp_challenge_urls_with_control_chars() {
     assert!(
         !stderr
             .lines()
-            .any(|line| line.trim_start().starts_with("spoof")),
+            .map(str::trim_start)
+            .any(|trim_start| trim_start.starts_with("spoof")),
         "stderr:\n{stderr}",
     );
     drop((root, server));

@@ -1,7 +1,10 @@
-use std::path::{
-    Component,
-    Path,
-    PathBuf,
+use std::{
+    ffi::OsStr,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 use pnpm_fs::lexical_normalize;
@@ -109,7 +112,8 @@ fn owner_dir<'a>(pkg_dir: &'a Path, relative_modules_dir: &Path) -> Option<&'a P
     let mut modules_dir = pkg_dir.parent()?;
     if modules_dir
         .file_name()
-        .is_some_and(|component| component.to_string_lossy().starts_with('@'))
+        .map(OsStr::to_string_lossy)
+        .is_some_and(|text| text.starts_with('@'))
     {
         modules_dir = modules_dir.parent()?;
     }
@@ -223,7 +227,8 @@ fn resolve_virtual_store_package_path(
             // Scoped parents live one level deeper (`node_modules/@scope/pkg`).
             if dir
                 .file_name()
-                .is_some_and(|component| component.to_string_lossy().starts_with('@'))
+                .map(OsStr::to_string_lossy)
+                .is_some_and(|text| text.starts_with('@'))
                 && let Some(grandparent) = dir.parent()
             {
                 dir = grandparent.to_path_buf();

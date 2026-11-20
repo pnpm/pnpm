@@ -234,7 +234,8 @@ fn missing_lifecycle_order(
         projects: project_dirs
             .iter()
             .filter(|dir| !ordered_dirs.contains(*dir))
-            .map(|dir| dir.display().to_string())
+            .map(|dir| dir.display())
+            .map(|shown| shown.to_string())
             .collect::<Vec<_>>()
             .join(", "),
     }

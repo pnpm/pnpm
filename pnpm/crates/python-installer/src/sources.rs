@@ -124,7 +124,8 @@ impl Registry<'_> {
         if self.resolution.packages.candidates
             .get(name)
             .and_then(|versions| versions.get(version))
-            .is_some_and(|candidate| candidate.sdist().is_some())
+            .map(Candidate::sdist)
+            .is_some_and(|sdist| sdist.is_some())
         {
             return self.build_sdist::<Reporter>(name, version).await;
         }

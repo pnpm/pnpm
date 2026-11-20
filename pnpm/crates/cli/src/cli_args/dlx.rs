@@ -489,7 +489,8 @@ fn get_pkg_name(cached_dir: &Path) -> Result<String, DlxError> {
     manifest
         .get("dependencies")
         .and_then(Value::as_object)
-        .and_then(|deps| deps.keys().next())
+        .map(serde_json::Map::keys)
+        .and_then(|mut keys| keys.next())
         .cloned()
         .ok_or(DlxError::NoDep)
 }

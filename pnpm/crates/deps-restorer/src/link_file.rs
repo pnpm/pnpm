@@ -317,7 +317,10 @@ fn recover_from_concurrent_import(
     if !is_placed_concurrently(&error, source_file, target_link) {
         return Err(import_error(error));
     }
-    if fs::symlink_metadata(target_link).is_ok_and(|meta| meta.file_type().is_symlink()) {
+    if fs::symlink_metadata(target_link)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_symlink())
+    {
         return Ok(());
     }
     if same_inode(source_file, target_link) {

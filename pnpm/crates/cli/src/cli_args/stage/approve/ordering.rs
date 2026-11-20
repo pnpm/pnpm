@@ -103,7 +103,8 @@ fn approval_order(graph: &ProjectGraph<GraphPkg<'_>>) -> StageApprovalOrder {
             stage_id.clone(),
             graph[&root_dir].dependencies
                 .iter()
-                .map(|dependency| dependency.to_string_lossy().into_owned())
+                .map(|dependency| dependency.to_string_lossy())
+                .map(std::borrow::Cow::into_owned)
                 .collect(),
         );
         if let Some(package_name) = graph[&root_dir].package.project.manifest

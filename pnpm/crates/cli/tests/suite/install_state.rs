@@ -555,7 +555,8 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
         .success();
     let entries = fs::read_dir(workspace.join("node_modules/.pnpm"))
         .expect("read virtual store")
-        .map(|entry| entry.expect("read entry").file_name())
+        .map(|entry| entry.expect("read entry"))
+        .map(|value| value.file_name())
         .collect::<Vec<_>>();
     assert!(!stale_slot.exists(), "the expired orphaned slot must be pruned: {entries:?}");
 

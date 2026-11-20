@@ -548,7 +548,9 @@ fn link_existing_dependency_writes_override_only() {
     // `link:`, confirm the symlink was created rather than a registry fetch.
     let linked = workspace.join("node_modules").join("target-project");
     assert!(
-        fs::symlink_metadata(&linked).is_ok_and(|meta| meta.file_type().is_symlink()),
+        fs::symlink_metadata(&linked)
+            .map(|meta| meta.file_type())
+            .is_ok_and(|file_type| file_type.is_symlink()),
         "node_modules/target-project must be a symlink created from the link override",
     );
 

@@ -199,7 +199,8 @@ fn loaded_project_boundary(
             .ok();
     }
     if std::fs::symlink_metadata(normalized_target)
-        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+        .map(|metadata| metadata.file_type())
+        .is_ok_and(|file_type| file_type.is_symlink())
     {
         return None;
     }

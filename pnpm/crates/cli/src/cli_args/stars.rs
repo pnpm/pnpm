@@ -30,7 +30,8 @@ fn parse_stars_response(body: &Value) -> Option<String> {
     if let Some(arr) = body.as_array() {
         let res: Vec<String> = arr
             .iter()
-            .filter_map(|val| val.as_str().map(String::from))
+            .map(Value::as_str)
+            .filter_map(|text| text.map(String::from))
             .collect();
         Some(res.join("\n"))
     } else if let Some(obj) = body.as_object() {

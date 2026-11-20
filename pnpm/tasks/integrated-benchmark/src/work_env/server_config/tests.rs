@@ -19,6 +19,7 @@ use serde_json::{
     json,
 };
 use std::{
+    ffi::OsStr,
     fs,
     path::Path,
 };
@@ -155,7 +156,8 @@ fn only_a_database_pnpr_server_gets_a_public_url_of_its_own_host() {
         });
         let args: Vec<_> = command
             .get_args()
-            .map(|arg| arg.to_str().unwrap())
+            .map(OsStr::to_str)
+            .map(Option::unwrap)
             .collect();
         let public_url = args
             .windows(2)

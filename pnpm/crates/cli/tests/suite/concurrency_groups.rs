@@ -511,7 +511,8 @@ fn workspace_path_cannot_inject_process_stamp_metadata() {
     let holder_stamp = fs::read_to_string(pool.join("0.holder")).expect("read holder stamp");
     let waiter_stamp_path = fs::read_dir(pool.join("waiters"))
         .expect("list waiters")
-        .map(|entry| entry.expect("waiter entry").path())
+        .map(|entry| entry.expect("waiter entry"))
+        .map(|value| value.path())
         .find(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "stamp")

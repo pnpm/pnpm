@@ -133,7 +133,9 @@ fn disclosed_sources(sources: &[&str], visible: &impl Fn(&str) -> bool) -> Optio
         .then(|| {
             sources
                 .iter()
-                .map(|source| Registries::local_name(source).to_string())
+                .copied()
+                .map(Registries::local_name)
+                .map(str::to_string)
                 .collect()
         })
 }

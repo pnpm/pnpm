@@ -371,7 +371,8 @@ fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     assert_eq!(
         min_age_excludes
             .iter()
-            .filter_map(|value| value.as_str().map(str::to_string))
+            .map(serde_json::Value::as_str)
+            .filter_map(|text| text.map(str::to_string))
             .collect::<Vec<_>>(),
         vec!["acme".to_string(), "lodash".to_string()],
         "sorted + deduped",

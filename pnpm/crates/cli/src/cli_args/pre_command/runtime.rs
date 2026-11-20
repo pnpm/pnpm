@@ -44,7 +44,8 @@ pub(super) fn declares_runtime(manifest: &Value) -> bool {
     ["devEngines", "engines"]
         .into_iter()
         .flat_map(|engines_field| declared_runtimes(manifest, engines_field))
-        .filter_map(|runtime| runtime.get("name").and_then(Value::as_str))
+        .map(|runtime| runtime.get("name"))
+        .filter_map(|value| value.and_then(Value::as_str))
         .any(is_runtime_alias)
 }
 

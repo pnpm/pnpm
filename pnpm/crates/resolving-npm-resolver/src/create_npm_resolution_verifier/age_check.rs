@@ -161,7 +161,8 @@ impl NpmResolutionVerifier {
         response
             .headers()
             .get("last-modified")
-            .and_then(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .map(str::to_string)
     }
 

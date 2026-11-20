@@ -37,7 +37,8 @@ pub(super) fn has_pending_direct_non_registry_builds(
     };
     let ignored_keys: Vec<String> = ignored
         .iter()
-        .map(|dep_path| allow_build_key_from_ignored_build(dep_path.as_str()))
+        .map(pnpm_modules_yaml::DepPath::as_str)
+        .map(allow_build_key_from_ignored_build)
         .collect();
     Ok(!approved_direct_build_keys(config, cache_dir, &ignored_keys)?.is_empty())
 }

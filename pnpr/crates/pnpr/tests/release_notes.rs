@@ -68,7 +68,8 @@ impl Answer {
     fn header(&self, name: &str) -> Option<&str> {
         self.headers
             .get(name)
-            .map(|value| value.to_str().unwrap())
+            .map(reqwest::header::HeaderValue::to_str)
+            .map(Result::unwrap)
     }
 }
 

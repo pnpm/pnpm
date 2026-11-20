@@ -186,7 +186,8 @@ fn dependencies(
         .chain(
             targets
                 .into_iter()
-                .flat_map(|targets| targets.values().filter_map(Value::as_table)),
+                .map(Table::values)
+                .flat_map(|values| values.filter_map(Value::as_table)),
         );
     let mut found = Vec::new();
     for section in sections {

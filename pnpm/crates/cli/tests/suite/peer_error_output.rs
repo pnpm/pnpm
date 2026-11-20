@@ -85,7 +85,8 @@ fn fatal_peer_ndjson_keeps_the_structured_error() {
     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
     let records: Vec<Value> = stderr
         .lines()
-        .map(|line| serde_json::from_str(line).expect("every stderr line is JSON"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("every stderr line is JSON"))
         .collect();
     let errors: Vec<_> = records
         .iter()

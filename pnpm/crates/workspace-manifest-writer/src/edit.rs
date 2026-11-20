@@ -259,7 +259,8 @@ fn override_keys_in_text(text: &str) -> Vec<String> {
     serde_saphyr::from_str::<OnlyOverrides>(text)
         .ok()
         .and_then(|parsed| parsed.overrides)
-        .map(|map| map.into_keys().collect())
+        .map(IndexMap::into_keys)
+        .map(|keys| keys.collect())
         .unwrap_or_default()
 }
 

@@ -281,7 +281,8 @@ fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {
         Some(Value::Object(value)) => ["username", "name", "email"]
             .iter()
             .filter_map(|field| value.get(*field).and_then(Value::as_str))
-            .any(|value| value.to_lowercase().contains(needle)),
+            .map(str::to_lowercase)
+            .any(|lowercase| lowercase.contains(needle)),
         _ => false,
     }
 }

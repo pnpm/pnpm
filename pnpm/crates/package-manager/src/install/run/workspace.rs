@@ -370,7 +370,9 @@ pub(super) fn emit_scope_log<Reporter: self::Reporter>(
         level: LogLevel::Debug,
         selected: workspace_wide.map_or(1, <[_]>::len),
         total: workspace_wide.map(<[_]>::len),
-        workspace_prefix: workspace_dir.map(|dir| dir.to_string_lossy().into_owned()),
+        workspace_prefix: workspace_dir
+            .map(Path::to_string_lossy)
+            .map(std::borrow::Cow::into_owned),
     }));
 }
 /// What decides which projects this install records as importers.

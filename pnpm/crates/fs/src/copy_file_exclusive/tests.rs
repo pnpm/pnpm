@@ -124,7 +124,8 @@ fn copy_file_atomic_replaces_the_target_and_leaves_no_temp_file() {
     assert_eq!(fs::read_to_string(&target).unwrap(), "new");
     let names: Vec<_> = fs::read_dir(dir.path())
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect();
     assert_eq!(names.len(), 2, "only the source and the target remain: {names:?}");
 }

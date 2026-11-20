@@ -426,7 +426,8 @@ fn parse_scalar(raw: &str, key: &str) -> Scalar {
             .lines()
             .map(strip_line_comment)
             .flat_map(|line| line.split(','))
-            .map(|item| item.trim().trim_matches('\''))
+            .map(str::trim)
+            .map(|trimmed| trimmed.trim_matches('\''))
             .filter(|item| !item.is_empty())
             .map(str::to_string)
             .collect();

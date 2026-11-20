@@ -321,7 +321,8 @@ pub(crate) fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) 
         let parent = dir.parent().unwrap_or_else(|| Path::new(""));
         let parent_starts_with_at = parent
             .to_str()
-            .and_then(|text| text.chars().next())
+            .map(str::chars)
+            .and_then(|mut chars| chars.next())
             .is_some_and(|ch| ch == '@');
         if !parent_starts_with_at {
             bin_dirs.push(dir.join("node_modules").join(".bin"));

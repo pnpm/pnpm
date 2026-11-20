@@ -30,7 +30,8 @@ async fn an_upstream_resolves_a_private_package() {
     assert!(
         packages
             .keys()
-            .any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
+            .map(|key| key.to_string())
+            .any(|text| text.starts_with("@pnpm.e2e/needs-auth@1.0.0")),
         "lockfile should contain the authed package, got: {:?}",
         packages
             .keys()

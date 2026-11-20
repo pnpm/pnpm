@@ -90,7 +90,8 @@ pub(super) fn targets_changed(
         .iter()
         .map(Path::new)
         .filter_map(Path::parent)
-        .map(|dir| dir.to_string_lossy().replace('\\', "/"))
+        .map(Path::to_string_lossy)
+        .map(|text| text.replace('\\', "/"))
         .collect();
     let Ok(canonical_root) = dunce::canonicalize(workspace_root) else {
         return true;
@@ -215,7 +216,8 @@ fn existing_agent_dirs(workspace_root: &Path) -> Vec<PathBuf> {
                 .to_string_lossy()
                 .starts_with('.')
         })
-        .map(|entry| entry.path().join("skills"))
+        .map(|entry| entry.path())
+        .map(|path| path.join("skills"))
         .filter(|dir| dir.is_dir())
         .collect();
     dirs.sort();

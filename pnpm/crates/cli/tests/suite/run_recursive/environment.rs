@@ -67,7 +67,8 @@ fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
     let mut lines = groups.lines();
     let parent_group = lines
         .next()
-        .and_then(|line| line.split_whitespace().nth(1))
+        .map(str::split_whitespace)
+        .and_then(|mut words| words.nth(1))
         .expect("parent process group")
         .to_string();
     for line in groups.lines() {

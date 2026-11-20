@@ -215,7 +215,8 @@ pub(crate) fn prune_unreachable(
     let mut reachable: HashSet<DepPath> = HashSet::default();
     let mut stack: Vec<DepPath> = direct_by_importer
         .values()
-        .flat_map(|direct| direct.values().cloned())
+        .map(BTreeMap::values)
+        .flat_map(|values| values.cloned())
         .collect();
     while let Some(dep_path) = stack.pop() {
         if !reachable.insert(dep_path.clone()) {

@@ -2,6 +2,7 @@
 
 pub(crate) use pnpm_package_manifest::PROJECT_MANIFEST_BASENAMES;
 pub use pnpm_package_manifest::project_manifest_path;
+use std::ffi::OsStr;
 
 use derive_more::{
     Display,
@@ -101,7 +102,8 @@ pub fn read_exact_project_manifest(
 ) -> Result<PackageManifest, ReadProjectManifestError> {
     let basename = manifest_path
         .file_name()
-        .map(|name| name.to_string_lossy().to_ascii_lowercase())
+        .map(OsStr::to_string_lossy)
+        .map(|text| text.to_ascii_lowercase())
         .unwrap_or_default();
     match basename.as_str() {
         "package.json" | "package.json5" | "package.yaml" => {

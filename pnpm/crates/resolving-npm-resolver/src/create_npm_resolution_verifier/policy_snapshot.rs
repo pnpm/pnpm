@@ -157,7 +157,8 @@ pub(super) fn cached_policy_patterns(
         .map(|values| {
             values
                 .iter()
-                .filter_map(|value| value.as_str().map(str::to_string))
+                .map(JsonValue::as_str)
+                .filter_map(|text| text.map(str::to_string))
                 .collect()
         })
         .unwrap_or_default()

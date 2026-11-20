@@ -70,7 +70,8 @@ pub(super) struct PasswordAuthentication;
 pub(super) fn carries_bearer_secret(headers: &HeaderMap, expected: &str) -> bool {
     headers
         .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .and_then(|value| value.strip_prefix("Bearer "))
         .is_some_and(|sent| {
             super::ecosystem::sha256_hex(expected.as_bytes())

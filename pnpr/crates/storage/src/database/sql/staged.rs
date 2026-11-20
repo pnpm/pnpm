@@ -109,7 +109,8 @@ fn read_one(connection: &dyn Connection, id: &StagedId) -> Result<Option<StagedR
         .into_iter()
         .flatten()
         .next()
-        .map(|row| entry_from(row).map(|(_, record)| record))
+        .map(entry_from)
+        .map(|entry_from| entry_from.map(|(_, record)| record))
         .transpose()
 }
 

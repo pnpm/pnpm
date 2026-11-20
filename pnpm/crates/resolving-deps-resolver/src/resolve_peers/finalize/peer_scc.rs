@@ -296,7 +296,8 @@ impl Walker<'_> {
         }
         let peer_names: Vec<&str> = graph
             .values()
-            .flat_map(|edges| edges.iter().copied())
+            .map(BTreeSet::iter)
+            .flat_map(|value| value.copied())
             .collect();
         for peer_name in peer_names {
             if !graph.contains_key(peer_name) {

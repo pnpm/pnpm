@@ -809,9 +809,8 @@ fn sbom_root_repository_that_is_not_a_url_is_omitted() {
         !root
             .get("externalReferences")
             .and_then(serde_json::Value::as_array)
-            .is_some_and(|ext_refs| ext_refs
-                .iter()
-                .any(|ext_ref| ext_ref["type"] == "vcs")),
+            .map(|ext_refs| ext_refs.iter())
+            .is_some_and(|mut value| value.any(|ext_ref| ext_ref["type"] == "vcs")),
         "an email is not a repository URL and must not be published: {root}",
     );
 }

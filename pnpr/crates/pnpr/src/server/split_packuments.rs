@@ -57,7 +57,8 @@ const PNPR_FIELDS: [&str; 2] = ["requiresBuild", "bins"];
 pub(super) fn wants_install_v2(headers: &HeaderMap) -> bool {
     headers
         .get(header::ACCEPT)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .is_some_and(|accept| accept.contains(INSTALL_V2_CONTENT_TYPE))
 }
 

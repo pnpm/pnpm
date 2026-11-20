@@ -95,7 +95,8 @@ pub(crate) fn command_lockfile<'a>(
     let source = MaybeLazyLockfile::Lazy(lockfile);
     let document = source
         .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        .map_err(miette::Report::new)
+        .map_err(|value| value.wrap_err("load the lockfile"))?;
     Ok(CommandLockfile { document, source, path: Some(path) })
 }
 

@@ -15,6 +15,7 @@ use super::{
     TreeChildren,
     Walker,
 };
+use crate::DependenciesTreeNode;
 
 use crate::peer_provider::{
     LockedProvider,
@@ -243,7 +244,8 @@ impl Walker<'_> {
             || (source.declared_direct_dependencies.contains(alias)
                 && self.tree.dependencies_tree
                     .get(peer_node_id)
-                    .is_none_or(|node| node.previous_dep_path().is_none()))
+                    .map(DependenciesTreeNode::previous_dep_path)
+                    .is_none_or(|previous_dep_path| previous_dep_path.is_none()))
     }
 
     fn ancestor_path_was_reresolved(

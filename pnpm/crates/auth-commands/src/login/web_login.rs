@@ -113,7 +113,9 @@ async fn web_login_post(
         .headers()
         .get_all("npm-notice")
         .iter()
-        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
+        .map(reqwest::header::HeaderValue::as_bytes)
+        .map(String::from_utf8_lossy)
+        .map(std::borrow::Cow::into_owned)
         .collect();
     let body = response.text().await.unwrap_or_default();
     Ok(HttpResponse { ok, status, body, notices })

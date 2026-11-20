@@ -235,7 +235,8 @@ fn a_shared_consumer_keeps_each_importers_peer_provider_variant() {
     let mut reachable: HashSet<DepPath> = HashSet::default();
     let mut queue: Vec<DepPath> = result.direct_dependencies_by_importer
         .values()
-        .flat_map(|direct| direct.values().cloned())
+        .map(BTreeMap::values)
+        .flat_map(|values| values.cloned())
         .collect();
     while let Some(dep_path) = queue.pop() {
         if !reachable.insert(dep_path.clone()) {

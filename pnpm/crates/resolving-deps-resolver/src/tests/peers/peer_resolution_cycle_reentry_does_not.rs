@@ -196,7 +196,8 @@ async fn dedupe_peers_collapses_nested_peer_suffixes() {
     .await;
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
     keys.sort();
     assert_eq!(
@@ -218,7 +219,8 @@ async fn no_dedupe_peers_keeps_nested_peer_suffixes() {
     let result = resolve_emotion_fixture(ResolvePeersOptions::default()).await;
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
     keys.sort();
     assert_eq!(
@@ -298,7 +300,8 @@ async fn dedupe_peers_propagates_transitive_peer_to_parent() {
     );
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
     keys.sort();
     assert_eq!(
@@ -403,7 +406,8 @@ async fn peers_own_peer_shared_with_sibling_that_peer_depends_both() {
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
     assert!(
         keys.contains(
@@ -483,7 +487,8 @@ async fn ancestor_peer_carries_its_own_suffix() {
     let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
     let mut keys: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
     keys.sort();
     assert_eq!(
@@ -662,7 +667,8 @@ async fn cyclic_peer_dependencies_resolve_cleanly() {
     // every depPath starts with the expected pkg id.
     let dep_paths: Vec<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
     for (name, _) in &[("foo", ""), ("bar", ""), ("qar", ""), ("zoo", "")] {
         let prefix = format!("{name}@1.0.0");
@@ -750,7 +756,8 @@ async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
 
     let dep_paths: std::collections::HashSet<String> = result.graph
         .keys()
-        .map(|dp| dp.as_str().to_string())
+        .map(DepPath::as_str)
+        .map(|text| text.to_string())
         .collect();
 
     assert!(

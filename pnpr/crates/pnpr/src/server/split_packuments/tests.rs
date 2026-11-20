@@ -79,7 +79,8 @@ fn a_small_document_keeps_every_manifest() {
     assert!(
         versions
             .values()
-            .all(|entry| entry.get("manifest").is_some()),
+            .map(|entry| entry.get("manifest"))
+            .all(|value| value.is_some()),
     );
 }
 
@@ -131,7 +132,8 @@ fn is_split(body: &[u8]) -> bool {
         .as_object()
         .expect("versions")
         .values()
-        .any(|entry| entry.get("manifest").is_none())
+        .map(|entry| entry.get("manifest"))
+        .any(|value| value.is_none())
 }
 
 #[test]

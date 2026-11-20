@@ -60,7 +60,9 @@ fn importer_roots<'a>(
 ) -> Vec<PackageKey> {
     lockfile.importers
         .values()
-        .flat_map(|importer| maps(importer).iter().flatten())
+        .map(maps)
+        .map(|maps| maps.iter())
+        .flat_map(|maps| maps.flatten())
         .flatten()
         .filter_map(|(name, spec)| spec.version.resolved_key(name))
         .collect()

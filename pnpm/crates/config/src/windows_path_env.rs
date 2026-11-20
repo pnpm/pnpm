@@ -60,7 +60,9 @@ pub(crate) fn ensure_windows_dir_envs_on<Sys: EnvVar>(
     }
     if dirs_with_fallback
         .iter()
-        .any(|name| Sys::var(name).is_none())
+        .copied()
+        .map(Sys::var)
+        .any(|variable| variable.is_none())
     {
         expand_if_set::<Sys>("LOCALAPPDATA")?;
     }

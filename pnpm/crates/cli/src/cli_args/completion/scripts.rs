@@ -15,7 +15,8 @@ pub(super) fn complete_scripts(context: &CompletionContext<'_>) -> miette::Resul
         .get("scripts")
         .and_then(serde_json::Value::as_object)
         .into_iter()
-        .flat_map(|scripts| scripts.keys().cloned())
+        .map(serde_json::Map::keys)
+        .flat_map(|keys| keys.cloned())
         .collect();
     scripts.sort();
     Ok(scripts)

@@ -196,7 +196,8 @@ async fn stage_mutation(
     let www_authenticate = response
         .headers()
         .get(reqwest::header::WWW_AUTHENTICATE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .map(str::to_owned);
     let body = read_limited_body(response, STAGE_ERROR_BODY_LIMIT).await
         .map_err(|source| {
@@ -317,8 +318,9 @@ fn parse_stage_otp_challenge(www_authenticate: Option<&str>, body: &[u8]) -> Opt
     let auth_url = read("authUrl");
     let done_url = read("doneUrl");
     let has_web_auth_urls = auth_url.is_some() && done_url.is_some();
-    let header_mentions_otp =
-        www_authenticate.is_some_and(|value| value.to_lowercase().contains("otp"));
+    let header_mentions_otp = www_authenticate
+        .map(str::to_lowercase)
+        .is_some_and(|lowercase| lowercase.contains("otp"));
     if !has_web_auth_urls && !header_mentions_otp {
         return None;
     }

@@ -179,7 +179,8 @@ fn www_authenticate_header(response: &reqwest::Response) -> Option<String> {
     response
         .headers()
         .get(reqwest::header::WWW_AUTHENTICATE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .map(str::to_owned)
 }
 
@@ -190,7 +191,8 @@ pub(super) fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bo
     let header_lists_otp = www_authenticate.is_some_and(|value| {
         value
             .split(',')
-            .any(|token| token.trim().eq_ignore_ascii_case("otp"))
+            .map(str::trim)
+            .any(|trimmed| trimmed.eq_ignore_ascii_case("otp"))
     });
     header_lists_otp || body.to_lowercase().contains("one-time pass")
 }

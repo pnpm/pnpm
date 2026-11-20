@@ -20,7 +20,8 @@ pub(super) fn is_not_modified(
     }
     if let Some(ims) = headers
         .get(header::IF_MODIFIED_SINCE)
-        .and_then(|val| val.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         && let Some(lm) = last_modified
     {
         return if_modified_since_matches(ims, lm);

@@ -353,7 +353,9 @@ fn prune_unexpected_siblings<Reporter: self::Reporter>(
 /// layout falls back to a recursive remove. A genuine failure (anything
 /// but "already gone") is logged rather than silently swallowed.
 fn prune_link(path: &Path) {
-    let is_link = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
+    let is_link = fs::symlink_metadata(path)
+        .map(|meta| meta.file_type())
+        .is_ok_and(|file_type| file_type.is_symlink());
     let result = if is_link { pnpm_fs::remove_symlink_dir(path) } else { fs::remove_dir_all(path) };
     if let Err(error) = result
         && error.kind() != std::io::ErrorKind::NotFound

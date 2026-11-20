@@ -149,7 +149,8 @@ fn a_response_carries_a_bounded_size_of_notices() {
         .headers()
         .get_all("npm-notice")
         .iter()
-        .map(|value| value.to_str().unwrap())
+        .map(reqwest::header::HeaderValue::to_str)
+        .map(Result::unwrap)
         .collect();
     // Nine 200-byte notices fit beside the summary, which counts the rest.
     assert_eq!(sent.len(), 10);

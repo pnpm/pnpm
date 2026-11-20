@@ -54,7 +54,8 @@ pub fn boundary(content_type: &str) -> Result<&str, MultipartError> {
         return Err(MultipartError::NotMultipart);
     }
     let boundary = params
-        .filter_map(|param| param.trim().split_once('='))
+        .map(str::trim)
+        .filter_map(|trimmed| trimmed.split_once('='))
         .find(|(key, _)| key.trim().eq_ignore_ascii_case("boundary"))
         .map(|(_, value)| value.trim().trim_matches('"'))
         .filter(|value| !value.is_empty())

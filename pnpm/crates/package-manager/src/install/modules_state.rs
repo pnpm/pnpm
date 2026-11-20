@@ -328,7 +328,8 @@ pub(super) fn unapproved_recorded_ignored_builds(
     let mut names: Vec<String> = ignored
         .iter()
         .filter(|dep_path| policy.check(dep_path.as_str()).is_none())
-        .map(|dep_path| dep_path.as_str().to_string())
+        .map(pnpm_modules_yaml::DepPath::as_str)
+        .map(str::to_string)
         .collect();
     names.sort();
     Ok((!names.is_empty()).then_some(names))

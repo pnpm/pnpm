@@ -235,7 +235,8 @@ fn publication_name(
     }
     let groups: Vec<&PlannedRelease> = settings.fixed
         .iter()
-        .filter_map(|group| group.iter().find_map(|reference| released(reference)))
+        .map(|group| group.iter())
+        .filter_map(|mut references| references.find_map(|reference| released(reference)))
         .collect();
     match groups.as_slice() {
         [group] if leads.is_empty() => Some(format!("v{}", group.version.next)),

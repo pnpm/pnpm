@@ -54,7 +54,9 @@ pub(super) fn next_importer(
 }
 
 fn is_injected(injected: Option<&serde_json::Value>, alias: &PkgName) -> bool {
-    injected.is_some_and(|injected| injected.get(alias.to_string()).is_some())
+    injected
+        .map(|injected| injected.get(alias.to_string()))
+        .is_some_and(|text| text.is_some())
 }
 
 fn next_dep(

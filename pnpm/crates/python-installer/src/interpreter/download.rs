@@ -188,7 +188,8 @@ pub(super) fn exact_version(
                     pep440_rs::Operator::Equal | pep440_rs::Operator::ExactEqual,
                 )
             })
-            .map(|specifier| specifier.version().clone())
+            .map(pep440_rs::VersionSpecifier::version)
+            .cloned()
     });
     required.or_else(|| {
         requested.filter(|version| {

@@ -30,10 +30,12 @@ impl fmt::Debug for ReleaseRecordsConfig {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let key = self.log_signing_key
             .as_ref()
-            .map(|signer| signer.verifier_key().to_string());
+            .map(|signer| signer.verifier_key())
+            .map(|verifier_key| verifier_key.to_string());
         let statement_key = self.statement_signing_key
             .as_ref()
-            .map(|signer| signer.verifier_key().to_string());
+            .map(|signer| signer.verifier_key())
+            .map(|verifier_key| verifier_key.to_string());
         formatter
             .debug_struct("ReleaseRecordsConfig")
             .field("log_signing_key", &key)

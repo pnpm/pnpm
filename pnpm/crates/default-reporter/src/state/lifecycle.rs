@@ -101,7 +101,9 @@ impl ReporterState {
         let time = self.scripts.entries
             .get(key)
             .and_then(|e| e.start)
-            .map(|start| pretty_ms(start.elapsed().as_millis()))
+            .map(|start| start.elapsed())
+            .map(|elapsed| elapsed.as_millis())
+            .map(pretty_ms)
             .unwrap_or_default();
         if exit_code == 0 {
             self.rendering.format_indented_status(&self.rendering.colors.magenta_bright(&format!(
@@ -166,7 +168,9 @@ impl ReporterState {
         let time = self.scripts.entries
             .get(key)
             .and_then(|e| e.start)
-            .map(|start| pretty_ms(start.elapsed().as_millis()))
+            .map(|start| start.elapsed())
+            .map(|elapsed| elapsed.as_millis())
+            .map(pretty_ms)
             .unwrap_or_default();
         if *exit_code == 0 {
             return format!("{label}, done in {time}");

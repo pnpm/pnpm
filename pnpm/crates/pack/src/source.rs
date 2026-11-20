@@ -253,7 +253,8 @@ pub(super) fn check_packed_bins_for_crlf(
         }
         let mut head = Vec::with_capacity(SHEBANG_SCAN_LEN as usize);
         File::open(source)
-            .and_then(|file| file.take(SHEBANG_SCAN_LEN).read_to_end(&mut head))
+            .map(|file| file.take(SHEBANG_SCAN_LEN))
+            .and_then(|mut take| take.read_to_end(&mut head))
             .map_err(|error| PackError::ReadFile {
                 path: source.display().to_string(),
                 source: error,

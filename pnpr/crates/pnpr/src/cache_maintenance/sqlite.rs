@@ -318,7 +318,8 @@ fn load_row_weights(conn: &Connection, floor_ms: i64) -> Option<Vec<u64>> {
         .query_map([floor_ms], |row| row.get::<_, i64>(0))
         .ok()?
         .flatten()
-        .map(|val| u64::try_from(val).unwrap_or(0))
+        .map(u64::try_from)
+        .map(|converted| converted.unwrap_or(0))
         .collect();
     Some(weights)
 }
@@ -352,6 +353,8 @@ fn proportional_bytes(total_bytes: u64, part_weight: u64, total_weight: u64) -> 
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|elapsed| i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+        .map(|elapsed| elapsed.as_millis())
+        .map(i64::try_from)
+        .map(|converted| converted.unwrap_or(i64::MAX))
         .unwrap_or(0)
 }

@@ -156,7 +156,8 @@ impl CheckpointPolicy {
         }
         let log_public_keys: HashSet<_> = log_keys.keys
             .iter()
-            .map(|key| key.public_key().to_bytes())
+            .map(VerifierKey::public_key)
+            .map(ed25519_dalek::VerifyingKey::to_bytes)
             .collect();
         if let Some(key) = witnesses.keys
             .iter()

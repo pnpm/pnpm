@@ -159,7 +159,8 @@ fn start_pnpr_registry_with(
 fn loopback_networks() -> Vec<pnpr::IpNetwork> {
     ["127.0.0.0/8", "::1"]
         .into_iter()
-        .map(|network| pnpr::IpNetwork::parse(network).expect("loopback network parses"))
+        .map(pnpr::IpNetwork::parse)
+        .map(|parsed| parsed.expect("loopback network parses"))
         .collect()
 }
 

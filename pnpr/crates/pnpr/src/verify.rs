@@ -316,12 +316,14 @@ fn filename_from_url(url: &str) -> Option<&str> {
 fn verify_blob_integrity(bytes: &[u8], integrity_str: &str) -> bool {
     integrity_str
         .parse::<ssri::Integrity>()
-        .is_ok_and(|expected| expected.check(bytes).is_ok())
+        .map(|expected| expected.check(bytes))
+        .is_ok_and(|bytes| bytes.is_ok())
 }
 
 fn verify_blob_shasum(bytes: &[u8], expected_hex: &str) -> bool {
     ssri::Integrity::from_hex(expected_hex, ssri::Algorithm::Sha1)
-        .is_ok_and(|expected| expected.check(bytes).is_ok())
+        .map(|expected| expected.check(bytes))
+        .is_ok_and(|bytes| bytes.is_ok())
 }
 
 #[must_use]

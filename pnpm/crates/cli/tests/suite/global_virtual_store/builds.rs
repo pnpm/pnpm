@@ -408,7 +408,8 @@ fn gvs_build_failure_leaves_no_package_in_the_slot() {
     let entries = fs::read_dir(&scope_dir)
         .map(|entries| {
             entries
-                .map(|entry| entry.expect("read entry").file_name())
+                .map(|entry| entry.expect("read entry"))
+                .map(|value| value.file_name())
                 .collect()
         })
         .unwrap_or_else(|_| Vec::new());
@@ -926,7 +927,8 @@ fn concurrent_installs_build_one_shared_slot() {
     }
     let leftovers: Vec<_> = fs::read_dir(slot.join("node_modules/@pnpm.e2e"))
         .expect("read the slot's scope")
-        .map(|entry| entry.expect("read entry").file_name())
+        .map(|entry| entry.expect("read entry"))
+        .map(|value| value.file_name())
         .filter(|name| name.to_string_lossy().starts_with('.'))
         .collect();
     assert!(leftovers.is_empty(), "staging directories left behind: {leftovers:?}");

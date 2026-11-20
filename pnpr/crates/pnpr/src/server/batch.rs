@@ -128,7 +128,8 @@ async fn serve(
 ) -> Response {
     let key = headers
         .get(IDEMPOTENCY_KEY)
-        .and_then(|key| key.to_str().ok());
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok);
     super::publishing::retry::retry_reclaimed(&state.inner.locks.publish_replays, body, |body| {
         publish_batch(state, caller, key, body)
     })

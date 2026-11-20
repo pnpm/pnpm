@@ -173,7 +173,8 @@ impl Lockfile {
         selection: &WantedLockfileSelection,
     ) -> Result<Option<Self>, LoadLockfileError> {
         Ok(Self::load_wanted_detailed(dir, selection)?.lockfile
-            .map(|lockfile| Arc::try_unwrap(lockfile).unwrap_or_else(|shared| (*shared).clone())))
+            .map(Arc::try_unwrap)
+            .map(|unwrap| unwrap.unwrap_or_else(|shared| (*shared).clone())))
     }
 
     /// [`Self::load_wanted`] keeping the importers the fold started from.

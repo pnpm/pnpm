@@ -109,7 +109,8 @@ fn first_local_in_dep_maps<'a>(
 ) -> Option<&'a str> {
     maps.into_iter()
         .flatten()
-        .flat_map(|dependencies| dependencies.values().map(String::as_str))
+        .map(std::collections::BTreeMap::values)
+        .flat_map(|values| values.map(String::as_str))
         .find(|spec| is_local_request_spec(spec, importer_dir, declared_prefixes))
 }
 

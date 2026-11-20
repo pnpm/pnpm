@@ -223,7 +223,8 @@ fn skips_dep_entries_whose_alias_matches_self_name() {
 
     let entries: Vec<PathBuf> = fs::read_dir(&virtual_node_modules_dir)
         .unwrap()
-        .map(|entry| entry.unwrap().path())
+        .map(Result::unwrap)
+        .map(|value| value.path())
         .collect();
     assert!(entries.is_empty(), "self-named entries must not become symlinks; got {entries:?}");
 }

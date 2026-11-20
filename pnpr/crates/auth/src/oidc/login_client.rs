@@ -56,7 +56,10 @@ impl OidcState {
         Ok(CoreClient::from_provider_metadata(
             metadata,
             ClientId::new(config.audience.clone()),
-            login.client_secret.clone().map(|secret| ClientSecret::new(secret.into_inner())),
+            login.client_secret
+                .clone()
+                .map(pnpr_config::Secret::into_inner)
+                .map(ClientSecret::new),
         )
         .set_auth_type(auth_type)
         .set_redirect_uri(

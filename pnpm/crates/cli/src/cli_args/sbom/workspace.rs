@@ -304,7 +304,8 @@ pub(super) fn select_importer_ids(
 pub(super) fn required_sbom_lockfile(state: &State) -> miette::Result<&Lockfile> {
     let lockfile = state.lockfile
         .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        .map_err(miette::Report::new)
+        .map_err(|value| value.wrap_err("load the lockfile"))?;
 
     let Some(lockfile) = lockfile else {
         return Err(miette::miette!(

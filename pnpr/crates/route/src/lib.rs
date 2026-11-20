@@ -564,7 +564,8 @@ fn public_route_matchers(policy: &RoutePolicy) -> Vec<RouteMatcher> {
 pub fn validate_public_routes(policy: &RoutePolicy) -> Result<(), String> {
     policy.public
         .iter()
-        .try_for_each(|route| RouteMatcher::from_public_route(route).map(drop))
+        .map(RouteMatcher::from_public_route)
+        .try_for_each(|from_public_route| from_public_route.map(drop))
 }
 
 impl RouteMatcher {

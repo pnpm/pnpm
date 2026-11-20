@@ -67,7 +67,8 @@ pub(super) fn load_audited_lockfiles<'lockfile>(
 ) -> miette::Result<Option<(Cow<'lockfile, Lockfile>, Option<EnvLockfile>)>> {
     let lockfile = state.lockfile
         .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+        .map_err(miette::Report::new)
+        .map_err(|value| value.wrap_err("load the lockfile"))?;
     let Some(lockfile) = lockfile else {
         return Err(AuditError::NoLockfile.into());
     };
@@ -183,7 +184,8 @@ fn signature_package_for_key(
 
 fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
     EnvLockfile::read(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))
+        .map_err(miette::Report::new)
+        .map_err(|value| value.wrap_err("load the env lockfile"))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

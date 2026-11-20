@@ -252,7 +252,9 @@ impl Config {
         // this far; see [`Config::ignore_workspace`].
         let env_workspace_dir = pnpm_workspace::WORKSPACE_DIR_ENV_VARS
             .iter()
-            .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
+            .copied()
+            .map(Sys::var_os)
+            .find_map(|variable| variable.filter(|value| !value.is_empty()))
             .map(PathBuf::from);
         let workspace_yaml = if self.ignore_workspace {
             None

@@ -525,7 +525,8 @@ fn check_single_importer(
     let prefix = manifest
         .path()
         .parent()
-        .map(|project_dir| project_dir.display().to_string())
+        .map(Path::display)
+        .map(|shown| shown.to_string())
         .unwrap_or_default();
     Ok(skipped
         .into_iter()

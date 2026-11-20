@@ -278,7 +278,10 @@ fn check_existing_patch_file_kind(
     if target_stats.is_some_and(fs::Metadata::is_dir) {
         return Err(PatchError::PatchFileIsDirectory { patch_file: patch_file.to_string() });
     }
-    if !target_stats.is_some_and(|stats| stats.file_type().is_symlink()) {
+    if !target_stats
+        .map(std::fs::Metadata::file_type)
+        .is_some_and(|file_type| file_type.is_symlink())
+    {
         if target_stats.is_some_and(|stats| !stats.is_file()) {
             return Err(PatchError::PatchFileNotRegular { patch_file: patch_file.to_string() });
         }

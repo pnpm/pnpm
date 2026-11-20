@@ -263,7 +263,10 @@ fn apply_change_with_link<Sys: FsHardLink>(
 /// a file is a file in the copy, and a hardlink of the link would be another
 /// link, one the copy cannot resolve.
 fn linked_file(path: &Path) -> PathBuf {
-    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+    if fs::symlink_metadata(path)
+        .map(|metadata| metadata.file_type())
+        .is_ok_and(|file_type| file_type.is_symlink())
+    {
         fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
     } else {
         path.to_path_buf()

@@ -130,7 +130,8 @@ pub struct TaskRunExecutionSettings<'a> {
 pub fn task_run_execution_settings(opts: &TaskRunExecutionSettings<'_>) -> Vec<String> {
     let extra_bin_paths: Vec<String> = opts.extra_bin_paths
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect();
     let mut extra_env: Vec<(&String, &String)> = opts.extra_env.iter().collect();
     extra_env.sort_by_key(|(key, _)| *key);

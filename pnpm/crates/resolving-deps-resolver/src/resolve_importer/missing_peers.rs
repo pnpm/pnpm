@@ -137,7 +137,8 @@ fn merge_workspace_peer_ranges(
     }
     if versioned
         .iter()
-        .any(|body| Range::parse(body).is_err())
+        .map(Range::parse)
+        .any(|parsed| parsed.is_err())
     {
         return MissingPeerKind::Unhoistable;
     }
@@ -224,7 +225,8 @@ pub(super) fn merge_ranges(
     if auto_install_peers_from_highest_match
         && unique
             .iter()
-            .all(|range| Range::parse(range).is_ok())
+            .map(Range::parse)
+            .all(|parsed| parsed.is_ok())
     {
         return Some(ranges.join(" || "));
     }

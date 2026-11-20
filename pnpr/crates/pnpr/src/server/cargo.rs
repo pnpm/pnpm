@@ -214,7 +214,8 @@ async fn get_search(
         .map_or(DEFAULT_SEARCH_PAGE, |size| size.clamp(1, pnpr_search::MAX_PAGE_SIZE));
     // crates.io numbers pages from one; anything lower starts at the first.
     let from = pnpr_search::parse_usize_param(&query_string, "page")
-        .map_or(0, |page| page.saturating_sub(1).saturating_mul(size));
+        .map(|page| page.saturating_sub(1))
+        .map_or(0, |saturating_sub| saturating_sub.saturating_mul(size));
 
     let mut page = SearchPage::new(from, size);
     if let Err(err) = collect_hosted_crates(&state, &identity, &target, &text, &mut page).await {

@@ -53,7 +53,8 @@ impl<'a> MissingNames<'a> {
         };
         one.into_iter()
             .chain(union.into_iter().flatten().copied())
-            .flat_map(|names| names.iter().map(String::as_str))
+            .map(HashSet::iter)
+            .flat_map(|value| value.map(String::as_str))
     }
 }
 

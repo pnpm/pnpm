@@ -174,7 +174,8 @@ fn install_rejects_a_traversal_dependency_name_in_the_manifest() {
     assert!(
         !workspace
             .parent()
-            .is_some_and(|parent| parent.join("escaped-link").exists()),
+            .map(|parent| parent.join("escaped-link"))
+            .is_some_and(|joined| joined.exists()),
         "no link may be created outside the project",
     );
 
@@ -1014,7 +1015,8 @@ fn read_package_hook_applied(workspace: &Path) -> bool {
         .packages
         .expect("packages")
         .keys()
-        .any(|key| key.to_string().starts_with("is-positive@"))
+        .map(|key| key.to_string())
+        .any(|text| text.starts_with("is-positive@"))
 }
 
 mod aliases;

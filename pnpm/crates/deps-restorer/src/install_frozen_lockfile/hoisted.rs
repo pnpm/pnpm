@@ -381,7 +381,8 @@ fn link_hoisted_workspace_packages(
         walked.direct_dependencies_by_importer_id
             .get(".")
             .into_iter()
-            .flat_map(|root_deps| root_deps.keys().map(String::as_str))
+            .map(BTreeMap::keys)
+            .flat_map(|keys| keys.map(String::as_str))
             .chain(root_links.iter().map(String::as_str)),
         &create_matcher(
             config.hoist_pattern

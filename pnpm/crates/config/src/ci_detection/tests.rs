@@ -90,7 +90,8 @@ fn vendor_envs(spec: &Value) -> Vec<Vec<(String, String)>> {
             vec![
                 specs
                     .iter()
-                    .flat_map(|spec| vendor_envs(spec).swap_remove(0))
+                    .map(vendor_envs)
+                    .flat_map(|mut vendor_envs| vendor_envs.swap_remove(0))
                     .collect(),
             ]
         }

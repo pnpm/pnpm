@@ -329,7 +329,8 @@ pub(crate) async fn get_bytes(
             let response = client
                 .get_limited_bytes_with_scoped_auth(url, authorize, accept, body_limit)
                 .await
-                .map_err(|error| SecureAttemptError::Request(error.without_url()))?;
+                .map_err(reqwest::Error::without_url)
+                .map_err(SecureAttemptError::Request)?;
             if !response.body_truncated && should_retry_status(response.status) {
                 Err(SecureAttemptError::Response(response))
             } else {

@@ -283,7 +283,8 @@ impl SbomArgs {
 
         let lockfile = state.lockfile
             .get()
-            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+            .map_err(miette::Report::new)
+            .map_err(|value| value.wrap_err("load the lockfile"))?;
         let all_importer_ids = sorted_importer_ids(lockfile);
         let all_count = all_importer_ids.len();
         let Some(importer_ids) = select_importer_ids(&state, all_importer_ids, lockfile.is_some())?
@@ -324,7 +325,8 @@ impl SbomArgs {
             .as_deref()
             .map(|csv| {
                 csv.split(',')
-                    .map(|author| author.trim().to_string())
+                    .map(str::trim)
+                    .map(|trimmed| trimmed.to_string())
                     .filter(|author| !author.is_empty())
                     .collect()
             })

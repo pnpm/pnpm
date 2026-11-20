@@ -213,7 +213,8 @@ fn payload_has_any_dependency_entries(payload: &Map<String, Value>) -> bool {
     let has_packages = payload
         .get("packages")
         .and_then(Value::as_object)
-        .is_some_and(|map| map.keys().any(|key| !key.is_empty()));
+        .map(Map::keys)
+        .is_some_and(|mut keys| keys.any(|key| !key.is_empty()));
     let has_arrays = ["install", "remove"]
         .iter()
         .any(|key| {

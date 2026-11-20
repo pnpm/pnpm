@@ -31,7 +31,8 @@ use std::collections::HashSet;
 pub fn with_boolean_negations(mut cmd: Command) -> Command {
     let existing_longs: HashSet<String> = cmd
         .get_arguments()
-        .filter_map(|arg| arg.get_long().map(String::from))
+        .map(Arg::get_long)
+        .filter_map(|long| long.map(String::from))
         .collect();
 
     let negations: Vec<(clap::Id, String, bool)> = cmd
@@ -70,7 +71,8 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
 
     let subcommand_names: Vec<String> = cmd
         .get_subcommands()
-        .map(|sub| sub.get_name().to_string())
+        .map(Command::get_name)
+        .map(|name| name.to_string())
         .collect();
     for name in subcommand_names {
         cmd = cmd.mut_subcommand(name, with_boolean_negations);

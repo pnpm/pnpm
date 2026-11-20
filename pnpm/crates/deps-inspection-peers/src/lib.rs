@@ -186,7 +186,8 @@ pub fn peer_issues_for_lockfile(
         .any(|project_issues| {
             project_issues.missing
                 .values()
-                .any(|entries| entries.iter().any(|entry| !entry.optional))
+                .map(|entries| entries.iter())
+                .any(|mut value| value.any(|entry| !entry.optional))
         });
     let has_issues = has_missing_peer
         || issues

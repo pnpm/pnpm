@@ -343,7 +343,8 @@ fn capture_dep_specs(root_dirs: &[PathBuf]) -> Result<CapturedManifests, UpdateC
             safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?;
         if let Some(name) = manifest
             .as_ref()
-            .and_then(|manifest| manifest.value().get("name"))
+            .map(PackageManifest::value)
+            .and_then(|value| value.get("name"))
             .and_then(Value::as_str)
         {
             *name_counts.entry(name.to_string()).or_insert(0) += 1;

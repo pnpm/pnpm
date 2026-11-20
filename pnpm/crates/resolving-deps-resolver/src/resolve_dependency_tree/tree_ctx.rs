@@ -587,7 +587,8 @@ impl TreeCtx {
                 let versions: HashSet<String> = run.versions
                     .get(name)
                     .into_iter()
-                    .flat_map(|bucket| bucket.keys().cloned())
+                    .map(std::collections::BTreeMap::keys)
+                    .flat_map(|keys| keys.cloned())
                     .collect();
                 (!versions.is_empty()).then(|| (name.to_string(), versions))
             })

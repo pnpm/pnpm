@@ -207,7 +207,8 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
 
     let stored: Vec<_> = std::fs::read_dir(cache_dir.path().join("gvs-layout"))
         .expect("read the cache dir")
-        .map(|entry| entry.expect("cache entry").path())
+        .map(|entry| entry.expect("cache entry"))
+        .map(|value| value.path())
         .collect();
     assert_eq!(
         stored.len(),

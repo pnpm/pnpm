@@ -74,7 +74,8 @@ fn ndjson_reports_fatal_resolution_errors_with_codes_and_prefix() {
         eprintln!("stderr={stderr}");
         let records: Vec<serde_json::Value> = stderr
             .lines()
-            .map(|line| serde_json::from_str(line).expect("every stderr line must be JSON"))
+            .map(serde_json::from_str)
+            .map(|parsed| parsed.expect("every stderr line must be JSON"))
             .collect();
         let errors: Vec<_> = records
             .iter()
@@ -193,7 +194,8 @@ fn ndjson_reports_early_directory_errors() {
     eprintln!("stderr={stderr}");
     let records: Vec<serde_json::Value> = stderr
         .lines()
-        .map(|line| serde_json::from_str(line).expect("every stderr line must be JSON"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("every stderr line must be JSON"))
         .collect();
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["name"], "pnpm");

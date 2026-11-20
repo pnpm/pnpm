@@ -924,7 +924,8 @@ fn no_optional_excludes_an_optional_link_dep_from_a_slot() {
         snapshot.optional_dependencies
             .as_ref()
             .and_then(|dependencies| dependencies.get(&peer_name))
-            .is_some_and(|dep_ref| dep_ref.as_link_target().is_some()),
+            .map(pnpm_lockfile::SnapshotDepRef::as_link_target)
+            .is_some_and(|link_target| link_target.is_some()),
         "the fixture must exercise an optional link edge: {snapshot:?}",
     );
 
@@ -992,7 +993,8 @@ fn adding_a_dependency_over_a_warm_layout_cache_still_hashes_its_slot() {
         fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
             .expect("read pnpm-workspace.yaml")
             .lines()
-            .find_map(|line| line.strip_prefix("cacheDir: ").map(ToOwned::to_owned))
+            .map(|line| line.strip_prefix("cacheDir: "))
+            .find_map(|rest| rest.map(ToOwned::to_owned))
             .expect("the harness writes a cacheDir"),
     );
     assert!(

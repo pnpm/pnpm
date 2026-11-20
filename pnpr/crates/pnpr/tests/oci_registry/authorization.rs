@@ -42,7 +42,8 @@ async fn reads_of_a_private_repository_are_kept_out_of_shared_caches() {
             response
                 .headers()
                 .get(header::CACHE_CONTROL)
-                .map(|value| value.to_str().unwrap()),
+                .map(reqwest::header::HeaderValue::to_str)
+                .map(Result::unwrap),
             Some("private, no-store"),
             "{path} must not be storable by a shared cache",
         );

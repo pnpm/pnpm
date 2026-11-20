@@ -35,7 +35,8 @@ async fn main() {
         std::fs::canonicalize(&args.build.repository).expect("get absolute path to repository");
     let pnpm_repository = args.build.pnpm_repository
         .as_ref()
-        .map(|path| std::fs::canonicalize(path).expect("get absolute path to pnpm repository"));
+        .map(std::fs::canonicalize)
+        .map(|canonical| canonical.expect("get absolute path to pnpm repository"));
     let work_env = prepared_work_env(&args.work_env);
     let registry = RegistryLink::plan(&args);
 

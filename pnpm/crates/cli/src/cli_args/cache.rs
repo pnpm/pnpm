@@ -205,7 +205,8 @@ impl CacheCommand {
         let store_index = StoreIndex::shared_readonly_in(&config.store_dir);
         let store_index = store_index
             .as_ref()
-            .map(|index| index.lock().expect("store index mutex"));
+            .map(|index| index.lock())
+            .map(|value| value.expect("store index mutex"));
 
         // IndexMap preserves insertion order so the JSON key order is
         // deterministic (driven by the sorted file paths), matching pnpm's
@@ -567,7 +568,9 @@ fn split_cached_versions(
             integrity,
             &format!("{}@{}", meta_object.name, version),
         );
-        let is_cached = store_index.is_some_and(|index| index.contains_key(&key).unwrap_or(false));
+        let is_cached = store_index
+            .map(|index| index.contains_key(&key))
+            .is_some_and(|key| key.unwrap_or(false));
         if is_cached {
             cached.push(version.clone());
         } else {

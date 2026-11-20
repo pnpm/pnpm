@@ -149,7 +149,8 @@ pub(super) fn node_edges<Node: Clone + Eq + std::hash::Hash>(
 pub(super) fn task_concurrency(settings: &impl TaskDeclaration) -> Option<usize> {
     settings
         .concurrency()
-        .map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
+        .map(usize::try_from)
+        .map(|converted| converted.unwrap_or(usize::MAX))
 }
 
 fn sequenced_order<Node: Clone + Eq + std::hash::Hash>(

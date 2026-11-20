@@ -92,6 +92,7 @@ fn matches_metadata_digest(bytes: &[u8], metadata: &CoreMetadata) -> bool {
             algorithm
                 .parse::<Algorithm>()
                 .and_then(|algorithm| Integrity::from_hex(digest, algorithm))
-                .is_ok_and(|integrity| integrity.check(bytes).is_ok())
+                .map(|integrity| integrity.check(bytes))
+                .is_ok_and(|bytes| bytes.is_ok())
         })
 }

@@ -557,7 +557,8 @@ fn api_base(uri_path: &str, tail: &str) -> String {
     uri_path
         .trim_end_matches('/')
         .strip_suffix(tail.trim_end_matches('/'))
-        .map_or_else(|| format!("/{API_SEGMENT}"), |base| base.trim_end_matches('/').to_string())
+        .map(|base| base.trim_end_matches('/'))
+        .map_or_else(|| format!("/{API_SEGMENT}"), |trim_end_matches| trim_end_matches.to_string())
 }
 
 /// One named parameter of a raw query string.

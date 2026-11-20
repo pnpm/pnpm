@@ -144,7 +144,8 @@ where
             let current = ctx.lookup_current();
             let span_name = current
                 .as_ref()
-                .map(|span| span.name().to_string());
+                .map(tracing_subscriber::registry::SpanRef::name)
+                .map(str::to_string);
             let span_fields = current
                 .as_ref()
                 .and_then(|span| {

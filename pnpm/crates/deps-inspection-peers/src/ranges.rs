@@ -172,7 +172,8 @@ pub(super) fn normalize_version_str(version_raw: &str) -> String {
         .collect();
     if !numeric
         .iter()
-        .all(|part| part.chars().all(|character| character.is_ascii_digit()))
+        .map(|part| part.chars())
+        .all(|mut chars| chars.all(|character| character.is_ascii_digit()))
     {
         return version_raw.to_string();
     }

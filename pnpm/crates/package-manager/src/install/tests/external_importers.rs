@@ -159,7 +159,9 @@ async fn run_capsule(
 fn assert_capsules_dir_linked(setup: &CapsuleLayout) {
     let link = setup.capsules.join("node_modules/core-aspect");
     assert!(
-        fs::symlink_metadata(&link).is_ok_and(|meta| meta.file_type().is_symlink()),
+        fs::symlink_metadata(&link)
+            .map(|meta| meta.file_type())
+            .is_ok_and(|file_type| file_type.is_symlink()),
         "{link:?} should be a symlink",
     );
     assert!(link.join("package.json").exists());

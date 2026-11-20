@@ -62,7 +62,9 @@ fn names_undeclared_option(
         let name = rest.split_once('=').map_or(rest, |(name, _)| name);
         return !name.is_empty()
             && top_level.long_consumes_value(name).is_none()
-            && subcommand_table.is_none_or(|table| table.long_consumes_value(name).is_none());
+            && subcommand_table
+                .map(|table| table.long_consumes_value(name))
+                .is_none_or(|name| name.is_none());
     }
     token
         .strip_prefix('-')

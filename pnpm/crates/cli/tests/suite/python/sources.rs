@@ -864,7 +864,8 @@ async fn add_supports_pep508_direct_wheel_and_git_urls_and_preserves_disjoint_ma
         .as_array()
         .unwrap()
         .iter()
-        .map(|entry| entry.as_str().unwrap())
+        .map(toml::Value::as_str)
+        .map(Option::unwrap)
         .collect::<Vec<_>>();
     assert_eq!(
         deps,

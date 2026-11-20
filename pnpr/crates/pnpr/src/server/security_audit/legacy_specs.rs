@@ -194,7 +194,8 @@ fn is_strict_version_token(token: &str) -> bool {
         parts
             .next()
             .filter(|part| !part.is_empty())
-            .is_some_and(|part| part.bytes().all(|b| b.is_ascii_digit()))
+            .map(str::bytes)
+            .is_some_and(|mut bytes| bytes.all(|b| b.is_ascii_digit()))
     });
     valid_core && parts.next().is_none()
 }

@@ -165,7 +165,8 @@ pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageMa
     if let Some(mut pm) = parse_dev_engines_package_manager(manifest) {
         if pm.version
             .as_deref()
-            .is_some_and(|version| node_semver::Range::parse(version).is_err())
+            .map(node_semver::Range::parse)
+            .is_some_and(|parsed| parsed.is_err())
         {
             pm.version = None;
         }
@@ -225,7 +226,8 @@ pub(crate) fn parse_package_manager(package_manager: &str) -> (String, Option<St
     let (name, reference) = split_spec(package_manager);
     let version = reference
         .filter(|reference| is_version_request(reference))
-        .map(|reference| version_without_build(reference).to_string());
+        .map(version_without_build)
+        .map(|version_without_build| version_without_build.to_string());
     (name.to_string(), version)
 }
 

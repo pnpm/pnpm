@@ -1072,7 +1072,8 @@ fn store_operation_lock_lives_in_the_xdg_runtime_dir() {
 
     let lock_dirs: Vec<_> = fs::read_dir(&runtime_dir)
         .expect("read XDG_RUNTIME_DIR")
-        .map(|entry| entry.expect("read XDG_RUNTIME_DIR entry").path())
+        .map(|entry| entry.expect("read XDG_RUNTIME_DIR entry"))
+        .map(|value| value.path())
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())

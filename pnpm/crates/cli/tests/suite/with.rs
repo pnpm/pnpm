@@ -281,17 +281,18 @@ fn assert_semver_like(value: &str) {
         parts
             .next()
             .filter(|part| !part.is_empty())
-            .is_some_and(|part| part.chars().all(|c| c.is_ascii_digit()))
+            .map(str::chars)
+            .is_some_and(|mut chars| chars.all(|c| c.is_ascii_digit()))
             && parts
                 .next()
                 .filter(|part| !part.is_empty())
-                .is_some_and(|part| part.chars().all(|c| c.is_ascii_digit()))
+                .map(str::chars)
+                .is_some_and(|mut chars| chars.all(|c| c.is_ascii_digit()))
             && parts
                 .next()
-                .is_some_and(|part| part
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.is_ascii_digit())),
+                .map(str::chars)
+                .map(|mut chars| chars.next())
+                .is_some_and(|chars| chars.is_some_and(|c| c.is_ascii_digit())),
         "expected a semver-looking version, got {value:?}",
     );
 }

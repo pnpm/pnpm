@@ -133,7 +133,8 @@ fn selected(graph: &ProjectGraph<TestPkg>, selectors: &[ProjectSelector]) -> Vec
         .expect("filter should succeed")
         .selected_projects
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 
@@ -146,7 +147,8 @@ fn selected_with_glob(graph: &ProjectGraph<TestPkg>, selectors: &[ProjectSelecto
     .expect("filter should succeed")
     .selected_projects
     .iter()
-    .map(|path| path.to_string_lossy().into_owned())
+    .map(|path| path.to_string_lossy())
+    .map(std::borrow::Cow::into_owned)
     .collect()
 }
 
@@ -477,7 +479,8 @@ fn select_all_packages_except_one() {
         selected(&graph, &[ProjectSelector { exclude: true, ..selector(Some("project-1")) }]);
     let expected: Vec<String> = projects_graph()
         .keys()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .filter(|path| path != "/packages/project-1")
         .collect();
     assert_eq!(result, expected);
@@ -694,7 +697,8 @@ mod changed_packages {
             .expect("filter should succeed")
             .selected_projects
             .iter()
-            .map(|path| path.to_string_lossy().into_owned())
+            .map(|path| path.to_string_lossy())
+            .map(std::borrow::Cow::into_owned)
             .collect()
     }
 
@@ -1736,7 +1740,8 @@ fn graph_project(root: &str, name: &str, deps: &[(&str, &str)]) -> TestPkg {
 fn project_dirs(result: &crate::filter::FilteredProjects) -> Vec<String> {
     result.selected_projects
         .iter()
-        .map(|path| path.to_string_lossy().into_owned())
+        .map(|path| path.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 

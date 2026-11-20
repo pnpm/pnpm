@@ -108,7 +108,8 @@ impl Locator {
             .replace('\\', "/");
         let direct_slot = Path::new(importer_id)
             .ancestors()
-            .map(|dir| dir.to_string_lossy().replace('\\', "/"))
+            .map(Path::to_string_lossy)
+            .map(|text| text.replace('\\', "/"))
             .map(|dir| match dir.as_str() {
                 "" | "." => format!("{root_modules_dir}/{alias}"),
                 dir => format!("{dir}/node_modules/{alias}"),

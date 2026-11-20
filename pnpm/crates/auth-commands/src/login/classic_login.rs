@@ -191,7 +191,8 @@ fn joined_www_authenticate(response: &reqwest::Response) -> Option<String> {
         .headers()
         .get_all(reqwest::header::WWW_AUTHENTICATE)
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .filter_map(Result::ok)
         .collect::<Vec<_>>()
         .join(", ");
     (!joined.is_empty()).then_some(joined)

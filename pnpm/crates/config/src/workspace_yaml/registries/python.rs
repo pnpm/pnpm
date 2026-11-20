@@ -154,7 +154,8 @@ pub(super) fn patterns(
     }
     let patterns = packages
         .iter()
-        .map(|pattern| PythonPattern::parse(pattern).map_err(invalid))
+        .map(|pattern| PythonPattern::parse(pattern))
+        .map(|parsed| parsed.map_err(invalid))
         .collect::<Result<Vec<_>, _>>()?;
     for (i, pattern) in patterns.iter().enumerate() {
         if patterns[..i]

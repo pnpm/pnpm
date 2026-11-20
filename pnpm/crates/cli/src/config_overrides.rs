@@ -239,7 +239,8 @@ impl ConfigOverrides {
         CliLayer {
             npmrc_tokens: self.npmrc_tokens.clone(),
             registry: registry_flag
-                .map(|registry| normalize_registry_url(registry).into_owned())
+                .map(normalize_registry_url)
+                .map(std::borrow::Cow::into_owned)
                 .or_else(|| self.registry.clone()),
             scoped_registries: self.registries.clone(),
             setting_values,

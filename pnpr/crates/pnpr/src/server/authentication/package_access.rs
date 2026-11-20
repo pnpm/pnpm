@@ -140,7 +140,8 @@ fn packument_owners(packument: &serde_json::Value) -> Vec<String> {
         .and_then(serde_json::Value::as_array)
         .into_iter()
         .flatten()
-        .filter_map(|entry| entry.get("userId").and_then(serde_json::Value::as_str))
+        .map(|entry| entry.get("userId"))
+        .filter_map(|value| value.and_then(serde_json::Value::as_str))
         .map(str::to_string)
         .collect()
 }

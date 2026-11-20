@@ -145,7 +145,8 @@ pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Pa
         && markers.all(resolves_in_root)
         && shim_content
             .lines()
-            .filter_map(|line| line.trim_start().strip_prefix("export NODE_PATH="))
+            .map(str::trim_start)
+            .filter_map(|trim_start| trim_start.strip_prefix("export NODE_PATH="))
             .all(entries_resolve_in_root)
 }
 
@@ -231,7 +232,8 @@ fn wasm_shim_resolves_in_root(
                 .is_some_and(|paths| {
                     paths
                         .iter()
-                        .all(|entry| entry.as_str().is_some_and(&resolves_in_root))
+                        .map(serde_json::Value::as_str)
+                        .all(|text| text.is_some_and(&resolves_in_root))
                 }),
     )
 }

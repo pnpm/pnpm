@@ -402,7 +402,7 @@ struct RealPatchRemoveFs;
 
 impl PatchRemoveFs for RealPatchRemoveFs {
     fn is_dir_empty(&self, path: &Path) -> io::Result<bool> {
-        fs::read_dir(path).map(|mut entries| entries.next().is_none())
+        fs::read_dir(path).map(|mut entries| entries.next()).map(|next| next.is_none())
     }
 
     fn remove_dir(&self, path: &Path) -> io::Result<()> {

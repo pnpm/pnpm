@@ -66,12 +66,14 @@ const READ_AFTER_THE_SWITCH: &[&str] = &[
 fn every_global_flag_is_read_before_the_switch_or_after_it() {
     let bootstrap = BootstrapArgv::command()
         .get_arguments()
-        .map(|arg| arg.get_id().as_str())
+        .map(Arg::get_id)
+        .map(clap::Id::as_str)
         .collect::<HashSet<_>>();
     let global = grammar()
         .get_arguments()
         .filter(|arg| arg.is_global_set())
-        .map(|arg| arg.get_id().as_str())
+        .map(Arg::get_id)
+        .map(clap::Id::as_str)
         .collect::<Vec<_>>();
 
     let unclassified = global

@@ -138,7 +138,8 @@ async fn frames(body: Body) -> Vec<Value> {
     String::from_utf8_lossy(&bytes)
         .lines()
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_str(line).expect("frame is JSON"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("frame is JSON"))
         .collect()
 }
 

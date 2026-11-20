@@ -537,11 +537,13 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
     assert!(
         !result.peers.graph
             .keys()
-            .any(|dep_path| dep_path.as_str().contains("1.9.9")),
+            .map(crate::DepPath::as_str)
+            .any(|text| text.contains("1.9.9")),
         "the peer must come from the root's tarball dep, not a second copy off the registry: {:?}",
         result.peers.graph
             .keys()
-            .map(|k| k.as_str().to_string())
+            .map(crate::DepPath::as_str)
+            .map(|text| text.to_string())
             .collect::<Vec<_>>(),
     );
 }
@@ -677,11 +679,13 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
     assert!(
         !result.peers.graph
             .keys()
-            .any(|dep_path| dep_path.as_str().contains("1.9.9")),
+            .map(crate::DepPath::as_str)
+            .any(|text| text.contains("1.9.9")),
         "no second copy off the registry: {:?}",
         result.peers.graph
             .keys()
-            .map(|key| key.as_str().to_string())
+            .map(crate::DepPath::as_str)
+            .map(|text| text.to_string())
             .collect::<Vec<_>>(),
     );
 }

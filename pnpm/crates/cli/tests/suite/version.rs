@@ -1853,7 +1853,8 @@ fn release_inputs(workspace: &Path) -> BTreeMap<PathBuf, String> {
         .into_iter();
     let intents = fs::read_dir(workspace.join(".changeset"))
         .expect("read .changeset")
-        .map(|entry| entry.expect("read a .changeset entry").path());
+        .map(|entry| entry.expect("read a .changeset entry"))
+        .map(|value| value.path());
     manifests
         .chain(intents)
         .map(|path| {

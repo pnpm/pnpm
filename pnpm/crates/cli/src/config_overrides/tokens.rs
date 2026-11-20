@@ -20,7 +20,8 @@ pub(super) fn is_forwarded(passthrough_from: Option<usize>, index: usize) -> boo
 pub(super) fn verify_deps_env_is_set() -> bool {
     ["PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN", pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV]
         .iter()
-        .any(|name| std::env::var(name).is_ok())
+        .map(std::env::var)
+        .any(|variable| variable.is_ok())
 }
 
 pub(super) enum ConfigToken<'a> {

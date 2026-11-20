@@ -40,7 +40,8 @@ pub(crate) fn get_automatically_ignored_builds(
         .map(|ignored| {
             ignored
                 .iter()
-                .map(|dep_path| allow_build_key_from_ignored_build(dep_path.as_str()))
+                .map(pnpm_modules_yaml::DepPath::as_str)
+                .map(allow_build_key_from_ignored_build)
                 .collect::<IndexSet<String>>()
                 .into_iter()
                 .collect()

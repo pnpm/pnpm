@@ -1,5 +1,6 @@
 use super::ResolvePeersOptions;
 use crate::{
+    DependenciesTreeNode,
     NodeId,
     ResolvedTree,
     TreeChildren,
@@ -17,7 +18,8 @@ use rustc_hash::{
 pub(crate) fn has_contexts(tree: &ResolvedTree) -> bool {
     tree.dependencies_tree
         .values()
-        .any(|node| node.locked_peer_context().is_some())
+        .map(DependenciesTreeNode::locked_peer_context)
+        .any(|locked_peer_context| locked_peer_context.is_some())
 }
 
 pub(crate) fn mark_changed_children(tree: &mut ResolvedTree, lockfile: Option<&Lockfile>) {

@@ -274,7 +274,8 @@ fn emit_selection_scope(emit: fn(&LogEvent), config: &Config, selected: usize, t
         total: Some(total),
         workspace_prefix: config.workspace_dir
             .as_deref()
-            .map(|dir| dir.to_string_lossy().into_owned()),
+            .map(Path::to_string_lossy)
+            .map(std::borrow::Cow::into_owned),
     }));
 }
 

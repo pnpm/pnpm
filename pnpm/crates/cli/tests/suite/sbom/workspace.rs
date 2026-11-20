@@ -253,7 +253,8 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
     let sboms: Vec<serde_json::Value> = String::from_utf8(output.stdout)
         .expect("SBOM output is UTF-8")
         .lines()
-        .map(|line| serde_json::from_str(line).expect("parse split CycloneDX output"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("parse split CycloneDX output"))
         .collect();
     assert_eq!(sboms.len(), 2);
     for sbom in sboms {
@@ -512,7 +513,8 @@ fn sbom_workspace_split_each_line_has_correct_root() {
     let boms: Vec<serde_json::Value> = stdout
         .lines()
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_str(line).expect("valid JSON"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("valid JSON"))
         .collect();
     let root_names: Vec<&str> = boms
         .iter()
@@ -539,7 +541,8 @@ fn sbom_workspace_split_from_member_anchors_importers_at_workspace_root() {
     let boms = output.stdout
         .split(|byte| *byte == b'\n')
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_slice::<serde_json::Value>(line).expect("valid JSON"))
+        .map(serde_json::from_slice::<serde_json::Value>)
+        .map(|value| value.expect("valid JSON"))
         .collect::<Vec<_>>();
     let root_names = boms
         .iter()

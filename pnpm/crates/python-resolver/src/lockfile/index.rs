@@ -122,7 +122,8 @@ impl<'a> LockIndex<'a> {
         requirement: &Requirement,
         excluded_marker: Option<&MarkerTree>,
     ) -> Result<Option<Vec<Requirement>>> {
-        let excluded_complement = excluded_marker.map(|marker| marker.clone().negate());
+        let excluded_complement =
+            excluded_marker.map(|marker| marker.clone()).map(|value| value.negate());
         let pins: Vec<LockedPin<'a>> = self
             .matching_index_pins(requirement)
             .into_iter()

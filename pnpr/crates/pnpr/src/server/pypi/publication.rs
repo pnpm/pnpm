@@ -81,7 +81,8 @@ pub(super) async fn upload_file(
 ) -> Result<(), RegistryError> {
     let content_type = headers
         .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .ok_or_else(|| bad_request("request body must be multipart/form-data"))?;
     let parts = multipart::parse_form(content_type, body).map_err(bad_request)?;
     let upload = parse_upload(parts).map_err(bad_request)?;

@@ -64,7 +64,8 @@ replace-with = "checkout-source"
     );
     let args = command
         .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
+        .map(std::ffi::OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .collect::<Vec<_>>();
     eprintln!("Only audited checkout settings may reach Cargo: {args:?}");
     assert!(

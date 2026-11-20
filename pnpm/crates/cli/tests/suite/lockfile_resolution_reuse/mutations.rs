@@ -213,7 +213,8 @@ fn dropping_a_dependency_from_the_manifest_skips_resolution() {
             .as_ref()
             .expect("packages")
             .keys()
-            .any(|key| key.to_string().starts_with("is-positive@")),
+            .map(|key| key.to_string())
+            .any(|text| text.starts_with("is-positive@")),
         "the dropped package is pruned from the lockfile",
     );
     assert!(
@@ -290,7 +291,8 @@ fn remove_command_drops_the_dependency_without_resolving() {
             .as_ref()
             .expect("packages")
             .keys()
-            .any(|key| key.to_string().starts_with("is-positive@")),
+            .map(|key| key.to_string())
+            .any(|text| text.starts_with("is-positive@")),
         "the removed package is pruned from the lockfile",
     );
     assert!(
@@ -499,9 +501,12 @@ fn a_remove_with_an_unchanged_pnpmfile_skips_resolution() {
     assert!(
         pinned.dependencies
             .as_ref()
-            .is_some_and(|dependencies| dependencies
-                .get(&"@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("alias"))
-                .is_some_and(|reference| reference.to_string() == "100.0.0")),
+            .map(|dependencies| dependencies.get(
+                &"@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("alias")
+            ))
+            .is_some_and(|parsed| parsed.is_some_and(
+                |reference| reference.to_string() == "100.0.0"
+            )),
         "the hook's pin survives the fast update",
     );
 
@@ -662,7 +667,8 @@ fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
             .as_ref()
             .expect("packages")
             .keys()
-            .any(|key| key.to_string().starts_with("@pnpm.e2e/bar@")),
+            .map(|key| key.to_string())
+            .any(|text| text.starts_with("@pnpm.e2e/bar@")),
         "and so is what only it depended on",
     );
 

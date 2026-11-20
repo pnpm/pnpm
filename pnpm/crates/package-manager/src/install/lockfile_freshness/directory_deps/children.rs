@@ -211,7 +211,9 @@ fn recorded_local_target_is_fresh(
     let local = child.bare_specifier.starts_with("workspace:")
         || child.bare_specifier.starts_with("link:")
         || super::is_declared_by_path(&child.bare_specifier)
-        || recorded.is_some_and(|recorded| recorded.as_link_target().is_some());
+        || recorded
+            .map(pnpm_lockfile::SnapshotDepRef::as_link_target)
+            .is_some_and(|link_target| link_target.is_some());
     if !local {
         return true;
     }
