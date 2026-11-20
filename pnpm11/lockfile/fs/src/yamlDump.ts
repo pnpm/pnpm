@@ -76,7 +76,7 @@ function writeBlockSequence (state: DumpState, sequence: unknown[], level: numbe
 }
 
 function writeFlowSequence (state: DumpState, sequence: unknown[], level: number): string {
-  const items = sequence.map((item) => writeSequenceItem(state, item, { level, block: false, compact: false, isKey: false }))
+  const items = Array.from(sequence, (item) => writeSequenceItem(state, item, { level, block: false, compact: false, isKey: false }))
   return `[${items.join(', ')}]`
 }
 

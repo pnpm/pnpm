@@ -1,5 +1,6 @@
 // The patterns below are copied from js-yaml 4, so that the lockfile quotes exactly the scalars it always has.
-const FLOAT_PATTERN = /^(?:[-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/
+// One exception: a sign before a leading-dot float (`+.5`) is accepted, because js-yaml 5 reads it as a number.
+const FLOAT_PATTERN = /^(?:[-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?|[-+]?\.\d+(?:[eE][-+]?\d+)?|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/
 const FLOAT_SPECIAL_PATTERN = /^(?:[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const TIMESTAMP_PATTERN = /^\d{4}-\d{1,2}-\d{1,2}(?:[Tt]|[ \t]+)\d{1,2}:\d{2}:\d{2}(?:\.\d*)?(?:[ \t]*(?:Z|[-+]\d{1,2}(?::\d{2})?))?$/

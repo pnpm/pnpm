@@ -15,6 +15,9 @@ test.each([
   ['0x1F', "'0x1F'"],
   ['1e5', "'1e5'"],
   ['.inf', "'.inf'"],
+  ['+.5', "'+.5'"],
+  ['-.5', "'-.5'"],
+  ['1_000', '1_000'],
   ['yes', 'yes'],
   ['on', 'on'],
   ['null', "'null'"],
@@ -45,6 +48,10 @@ test.each([
 test('dumpYaml() writes collections from the flow level in flow style', () => {
   expect(dumpYaml({ cpu: ['x64', 'a,b'], engines: { node: '>=18', npm: 'first\nsecond' } }, { flowLevel: 1 }))
     .toBe("cpu: [x64, 'a,b']\nengines: {node: '>=18', npm: \"first\\nsecond\"}\n")
+})
+
+test('dumpYaml() writes a hole in a flow sequence as null', () => {
+  expect(dumpYaml({ cpu: Array(1) }, { flowLevel: 1 })).toBe('cpu: [null]\n')
 })
 
 test('dumpYaml() writes non-string values, skips undefined mapping values, and writes undefined sequence items as null', () => {
