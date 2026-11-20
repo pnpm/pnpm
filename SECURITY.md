@@ -15,6 +15,13 @@ Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
 
 **We do not operate a bounty program.**
 
+### pnpr
+
+The resolver server (`pnpr/`) is **not production ready** and is under active
+development. Do not report security issues in it through the security advisory
+process — open a [regular issue](https://github.com/pnpm/pnpm/issues) in this
+repository instead.
+
 ## Threat Model and Scope
 
 pnpm's security boundary is **filesystem permissions**. We assume that the store
