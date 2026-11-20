@@ -276,8 +276,8 @@ pub enum CliCommand {
     /// Manage the pnpm configuration files.
     #[clap(visible_alias = "c")]
     Config(ConfigArgs),
-    /// Print the config value for the provided key or property path.
-    /// Shorthand for `pnpm config get`.
+    /// Print the config value at the provided property path, such as
+    /// `nodeVersion` or `catalog.react`. Shorthand for `pnpm config get`.
     Get(ConfigGetAliasArgs),
     /// Set the config key to the value provided. Shorthand for
     /// `pnpm config set`.

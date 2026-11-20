@@ -27,7 +27,7 @@ const SUBCOMMANDS_HELP = [
     name: 'set',
   },
   {
-    description: 'Print the config value for the provided key or property path',
+    description: 'Print the config value at the provided property path, such as "nodeVersion" or "catalog.react"',
     name: 'get',
   },
   {

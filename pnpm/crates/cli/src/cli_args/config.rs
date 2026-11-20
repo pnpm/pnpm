@@ -87,7 +87,8 @@ impl ConfigArgs {
 pub enum ConfigSubcommand {
     /// Set the config key to the value provided.
     Set(ConfigSetArgs),
-    /// Print the config value for the provided key or property path.
+    /// Print the config value at the provided property path, such as
+    /// `nodeVersion` or `catalog.react`.
     Get(ConfigGetArgs),
     /// Remove the config key from the config file.
     Delete(ConfigDeleteArgs),
