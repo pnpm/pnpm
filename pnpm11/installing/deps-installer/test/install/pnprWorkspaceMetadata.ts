@@ -463,6 +463,30 @@ test('pnpr does not freeze an empty lockfile under frozenLockfileIfExists', asyn
   expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('pnpmfileChecksum: pnpmfile-checksum')
 })
 
+test.each([
+  [false, 'rejects'],
+  [true, 'accepts'],
+])('a frozen pnpr install with ignoreLockfileSettingsChecks: %s %s a changed pnpmfile checksum', async (ignoreLockfileSettingsChecks) => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  fs.writeFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\n\npnpmfileChecksum: old-checksum\n\nimporters:\n\n  .: {}\n")
+  const options = createOptions(workspaceRoot, rootDir, {
+    frozenLockfile: true,
+    hooks: { calculatePnpmfileChecksum: async () => 'new-checksum' },
+    ignoreLockfileSettingsChecks,
+  })
+
+  const installing = install({ name: 'app', version: '1.0.0' }, options)
+
+  if (ignoreLockfileSettingsChecks) {
+    await installing
+    expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({ frozenLockfile: true }))
+  } else {
+    await expect(installing).rejects.toMatchObject({ code: 'ERR_PNPM_LOCKFILE_CONFIG_MISMATCH' })
+    expect(resolveViaPnprServer).not.toHaveBeenCalled()
+  }
+})
+
 test('pnpr forwards every registry alias with a canonical key prefix', async () => {
   const workspaceRoot = prepareEmpty().dir()
   const rootDir = workspaceRoot as ProjectRootDir
