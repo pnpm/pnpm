@@ -24,6 +24,7 @@ use pnpm_network::{
 };
 use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_package_manifest::{
+    ManifestFormat,
     PackageManifest,
     safe_read_project_manifest_from_dir,
 };
@@ -63,7 +64,7 @@ impl RepoArgs {
         let prefix = dir.to_string_lossy().into_owned();
 
         let urls = if self.packages.is_empty() {
-            vec![get_repo_url_from_current_project(dir)?]
+            vec![get_repo_url_from_current_project(dir, config.preferred_manifest_format)?]
         } else {
             self.resolve_repo_urls(config).await?
         };
@@ -131,8 +132,12 @@ pub enum RepoError {
     NoRepoUrlRegistry { name: String },
 }
 
-fn get_repo_url_from_current_project(dir: &std::path::Path) -> miette::Result<String> {
-    let manifest = safe_read_project_manifest_from_dir(dir)?.ok_or(RepoError::NoRepoUrlLocal)?;
+fn get_repo_url_from_current_project(
+    dir: &std::path::Path,
+    manifest_format: ManifestFormat,
+) -> miette::Result<String> {
+    let manifest = safe_read_project_manifest_from_dir(dir, manifest_format)?
+        .ok_or(RepoError::NoRepoUrlLocal)?;
     let repository = manifest.get("repository");
     pick_repo_url(repository).ok_or_else(|| RepoError::NoRepoUrlLocal.into())
 }

@@ -40,6 +40,7 @@ use crate::cli_args::reporter::{
     CliReporter,
     selected_reporter,
 };
+use pnpm_workspace::project_manifest_path;
 
 pub(in super::super) fn deploy<'a>(
     ctx: &RunCtx<'a>,
@@ -73,8 +74,8 @@ pub(in super::super) fn dedupe<'a>(
     args: DedupeArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = selected_reporter();
     Ok(Box::pin(async move {
         args.apply_cli_config(cfg);
@@ -86,7 +87,7 @@ pub(in super::super) fn dedupe<'a>(
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
         };
         Box::pin(dedupe.run::<CliReporter>()).await?;
@@ -99,8 +100,8 @@ pub(in super::super) fn prune<'a>(
     args: PruneArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = selected_reporter();
     Ok(Box::pin(async move {
         let config_root = derive_config_root(&mut *cfg, dir, reporter)
@@ -111,7 +112,7 @@ pub(in super::super) fn prune<'a>(
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
         };
         Box::pin(pipeline.run::<CliReporter>()).await?;
@@ -124,12 +125,14 @@ pub(in super::super) fn fetch<'a>(
     args: FetchArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let ignore_pnpmfile = args.ignore_pnpmfile;
-    let manifest_path = ctx.locations.manifest_path;
+    let dir = ctx.locations.dir;
     let config = ctx.prepared_config_with(move |config| {
         config.ignore_pnpmfile |= ignore_pnpmfile;
     });
     Ok(Box::pin(async move {
-        super::super::pipelines::run_fetch::<CliReporter>(args, config.await?, manifest_path).await
+        let config = config.await?;
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+        super::super::pipelines::run_fetch::<CliReporter>(args, config, &manifest_path).await
     }))
 }
 
@@ -154,7 +157,7 @@ pub(in super::super) fn link<'a>(
     let config = (ctx.loaders.config)()?;
     let dir = ctx.locations.dir;
     let cli_dir = ctx.locations.cli_dir.to_path_buf();
-    let manifest_path = ctx.locations.manifest_path.to_path_buf();
+    let manifest_path = ctx.locations.manifest_path(config);
     Ok(Box::pin(async move {
         apply_update_config(config, dir).await?;
         args.run::<CliReporter>(config, manifest_path, &cli_dir).await
@@ -166,13 +169,13 @@ pub(in super::super) fn unlink<'a>(
     args: UnlinkArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     let reporter = selected_reporter();
     Ok(Box::pin(async move {
         let recursive_sort = cfg.sort;
         args.apply_cli_config(cfg);
-        if !args.remove_links(cfg, dir, manifest_path, recursive_sort)? {
+        if !args.remove_links(cfg, dir, &manifest_path, recursive_sort)? {
             return Ok(());
         }
         // Reinstall through the install-family pipeline, exactly as pnpm's
@@ -187,7 +190,7 @@ pub(in super::super) fn unlink<'a>(
             cfg,
             config_root,
             prefix: dir.to_path_buf(),
-            manifest_path: manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
             require_lockfile: false,
             frozen_lockfile: false,
@@ -203,8 +206,8 @@ pub(in super::super) fn rebuild<'a>(
     command_name: &'static str,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let cfg = (ctx.loaders.config)()?;
+    let manifest_path = ctx.locations.manifest_path(cfg);
     if let Some(run_args) = script_override::resolve(ctx, cfg, command_name, args.packages.clone())?
     {
         return dispatch_script::run(ctx, run_args);
@@ -217,7 +220,7 @@ pub(in super::super) fn rebuild<'a>(
         Box::pin(args.run_from_cli::<CliReporter>(
             cfg,
             dir.to_path_buf(),
-            manifest_path.to_path_buf(),
+            manifest_path,
             recursive_sort,
             recursive_no_bail,
         ))
@@ -273,9 +276,11 @@ pub(in super::super) fn permissions<'a>(
         Some(PermissionsCommand::Approve(args)) => approve(ctx, args),
         Some(PermissionsCommand::List) | None => {
             let config = ctx.prepared_config();
-            let manifest_path = ctx.locations.manifest_path;
+            let dir = ctx.locations.dir;
             Ok(Box::pin(async move {
-                let config = installed_project_config(config.await?, manifest_path);
+                let config = config.await?;
+                let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+                let config = installed_project_config(config, &manifest_path);
                 pnpm_diagnostics::print!("{}", render_permissions(config)?);
                 Ok(())
             }))
@@ -289,10 +294,11 @@ pub(in super::super) fn approve<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config = ctx.prepared_config();
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     Ok(Box::pin(async move {
-        let config = installed_project_config(config.await?, manifest_path);
-        Box::pin(args.run::<CliReporter>(dir, config, manifest_path)).await
+        let config = config.await?;
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+        let config = installed_project_config(config, &manifest_path);
+        Box::pin(args.run::<CliReporter>(dir, config, &manifest_path)).await
     }))
 }
 
@@ -306,11 +312,12 @@ pub(in super::super) fn approve_builds<'a>(
     }
     let config = ctx.prepared_config();
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     Ok(Box::pin(async move {
-        let config = installed_project_config(config.await?, manifest_path);
+        let config = config.await?;
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+        let config = installed_project_config(config, &manifest_path);
         let Some((rebuild_state, build_packages)) =
-            args.prepare::<CliReporter>(dir, config, config, manifest_path)?
+            args.prepare::<CliReporter>(dir, config, config, &manifest_path)?
         else {
             return Ok(());
         };

@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use pnpm_package_manifest::{
+    ManifestFormat,
     publishes_from_directory,
     safe_read_project_manifest_from_dir,
 };
@@ -66,8 +67,9 @@ pub(crate) fn find_bounded_parent_publish_manifest(
                 .skip(1)
                 .take_while(|parent| pnpm_fs::is_subdir(&root, parent))
             {
-                let Some(manifest) = safe_read_project_manifest_from_dir(parent)
-                    .map_err(ResolveLocalError::ReadManifest)?
+                let Some(manifest) =
+                    safe_read_project_manifest_from_dir(parent, ManifestFormat::default())
+                        .map_err(ResolveLocalError::ReadManifest)?
                 else {
                     continue;
                 };

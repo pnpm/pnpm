@@ -286,7 +286,7 @@ impl Config {
             .map_or_else(Vec::new, |dir| {
                 let root_name = self
                     .applies_package_configs()
-                    .then(|| pnpm_workspace::read_project_name(dir))
+                    .then(|| pnpm_workspace::read_project_name(dir, self.preferred_manifest_format))
                     .flatten();
                 vec![self.project_modules_dir(dir, root_name.as_deref()).join(".bin")]
             })

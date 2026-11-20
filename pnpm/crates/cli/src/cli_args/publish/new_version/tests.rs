@@ -14,7 +14,10 @@ use crate::cli_args::{
         select_recursive_projects,
     },
 };
-use pnpm_config::Config;
+use pnpm_config::{
+    Config,
+    ManifestFormat,
+};
 use serde_json::{
     Value,
     json,
@@ -93,7 +96,8 @@ fn no_new_version_flag_validates_and_applies_as_a_noop() {
     let args = publish_args();
     args.validate_new_version().expect("no flag validates");
     let dir = tempfile::tempdir().expect("a project dir");
-    args.apply_new_version(dir.path()).expect("no flag applies as a no-op");
+    args.apply_new_version(dir.path(), ManifestFormat::default())
+        .expect("no flag applies as a no-op");
     assert!(!dir.path().join("package.json").exists());
 }
 
@@ -105,7 +109,7 @@ fn apply_new_version_rewrites_the_project_manifest() {
         .expect("write package.json");
 
     let bumped = args_with_new_version("2.0.0-alpha.1")
-        .apply_new_version(dir.path())
+        .apply_new_version(dir.path(), ManifestFormat::default())
         .expect("the version is applied");
     assert_eq!(bumped.as_deref(), Some(&HashSet::from(["pkg".to_string()])));
 
@@ -126,7 +130,8 @@ fn apply_new_version_resolves_a_relative_package_argument() {
     let mut args = args_with_new_version("3.0.0");
     args.package = Some("subpkg".to_owned());
 
-    args.apply_new_version(dir.path()).expect("the version is applied to the argument directory");
+    args.apply_new_version(dir.path(), ManifestFormat::default())
+        .expect("the version is applied to the argument directory");
 
     let written: Value = serde_json::from_str(
         &std::fs::read_to_string(package_dir.join("package.json")).expect("read package.json"),
@@ -147,7 +152,7 @@ fn apply_new_version_skips_a_nameless_manifest() {
     std::fs::write(&manifest_path, r#"{"version":"1.0.0"}"#).expect("write package.json");
 
     let bumped = args_with_new_version("2.0.0")
-        .apply_new_version(dir.path())
+        .apply_new_version(dir.path(), ManifestFormat::default())
         .expect("a nameless manifest is skipped");
 
     assert_eq!(bumped.as_deref(), Some(&HashSet::new()));
@@ -158,7 +163,7 @@ fn apply_new_version_skips_a_nameless_manifest() {
 fn apply_new_version_ignores_a_missing_manifest() {
     let dir = tempfile::tempdir().expect("an empty dir");
     args_with_new_version("2.0.0")
-        .apply_new_version(dir.path())
+        .apply_new_version(dir.path(), ManifestFormat::default())
         .expect("a missing manifest is left to the pack");
     assert!(!dir.path().join("package.json").exists());
 }
@@ -177,7 +182,9 @@ fn apply_new_version_rewrites_the_publish_directory_manifest() {
     std::fs::write(dir.path().join("dist/package.json"), r#"{"name":"pkg","version":"1.0.0"}"#)
         .expect("write dist/package.json");
 
-    args_with_new_version("2.0.0").apply_new_version(dir.path()).expect("the version is applied");
+    args_with_new_version("2.0.0")
+        .apply_new_version(dir.path(), ManifestFormat::default())
+        .expect("the version is applied");
 
     assert_eq!(read_json(&dir.path().join("package.json"))["version"], "2.0.0");
     assert_eq!(read_json(&dir.path().join("dist/package.json"))["version"], "2.0.0");
@@ -218,8 +225,9 @@ fn bump_filtered_workspace(
     let selected = select_recursive_projects(&projects, &config, dir, AutoExcludeRoot::Disabled)
         .expect("select the workspace")
         .selected_dirs();
-    let bumped = set_projects_version(&mut projects, &selected, new_version)
-        .expect("the version is applied recursively");
+    let bumped =
+        set_projects_version(&mut projects, &selected, new_version, ManifestFormat::default())
+            .expect("the version is applied recursively");
     (projects, HashSet::clone(&bumped))
 }
 

@@ -1,5 +1,8 @@
 use crate::install_state::ProjectManifestsByDir;
-use pnpm_package_manifest::PackageManifest;
+use pnpm_package_manifest::{
+    ManifestFormat,
+    PackageManifest,
+};
 use std::{
     borrow::Cow,
     path::{
@@ -82,7 +85,7 @@ pub(in crate::install::lockfile_freshness) fn unhooked_manifest(
     if described.is_some() {
         return described;
     }
-    match pnpm_workspace::safe_read_project_manifest_only(injected.dir) {
+    match pnpm_workspace::safe_read_project_manifest_only(injected.dir, ManifestFormat::default()) {
         Ok(Some(manifest)) => Some(manifest),
         Ok(None) => manifest_of_project_publishing_from(injected, None)
             .or_else(|| directory_name_manifest(injected.dir)),
@@ -121,7 +124,12 @@ fn manifest_of_project_publishing_from(
                 .get(candidate)
                 .map(|manifest| (*manifest).clone())
                 .or_else(|| {
-                    pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten()
+                    pnpm_workspace::safe_read_project_manifest_only(
+                        candidate,
+                        ManifestFormat::default(),
+                    )
+                    .ok()
+                    .flatten()
                 })?;
             pnpm_package_manifest::publishes_from_directory(candidate, manifest.value(), &target)
                 .then_some(manifest)

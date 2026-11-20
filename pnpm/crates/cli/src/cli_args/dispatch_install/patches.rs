@@ -17,6 +17,7 @@ use crate::{
     cli_args::reporter::CliReporter,
 };
 use indexmap::IndexMap;
+use pnpm_workspace::project_manifest_path;
 
 pub(in super::super) fn patch<'a>(
     ctx: &RunCtx<'a>,
@@ -24,11 +25,12 @@ pub(in super::super) fn patch<'a>(
 ) -> miette::Result<CommandFuture<'a>> {
     let config = ctx.prepared_config();
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     Ok(Box::pin(async move {
-        let config = installed_project_config(config.await?, manifest_path);
-        let command_state = State::init(manifest_path.to_path_buf(), config, false)
-            .wrap_err("initialize the state")?;
+        let config = config.await?;
+        let manifest_path = project_manifest_path(dir, config.preferred_manifest_format);
+        let config = installed_project_config(config, &manifest_path);
+        let command_state =
+            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
         Box::pin(args.run::<CliReporter>(dir, command_state)).await?;
         Ok(())
     }))
@@ -69,10 +71,10 @@ pub(in super::super) fn patch_commit<'a>(
     args: PatchCommitArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let config = ctx.prepared_config();
     Ok(Box::pin(async move {
         let config = config.await?;
+        let manifest_path = &project_manifest_path(dir, config.preferred_manifest_format);
         let state = State::init(
             manifest_path.to_path_buf(),
             installed_project_config(config, manifest_path),
@@ -92,10 +94,10 @@ pub(in super::super) fn patch_remove<'a>(
     args: PatchRemoveArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let dir = ctx.locations.dir;
-    let manifest_path = ctx.locations.manifest_path;
     let config = ctx.prepared_config();
     Ok(Box::pin(async move {
         let config = config.await?;
+        let manifest_path = &project_manifest_path(dir, config.preferred_manifest_format);
         let state = State::init(
             manifest_path.to_path_buf(),
             patch_state_config(config, manifest_path),

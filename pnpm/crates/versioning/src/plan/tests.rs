@@ -43,6 +43,7 @@ fn make_project(name: &str, version: &str, deps: &[(&str, &str)]) -> WorkspacePr
     WorkspaceProject {
         root_dir: PathBuf::from(format!("/ws/{name}")),
         private: false,
+        manifest_path: PathBuf::from(format!("/ws/{name}")).join("package.json"),
         name: Some(name.to_string()),
         version: Some(version.to_string()),
         prod_dependencies: deps
@@ -137,6 +138,7 @@ fn twins() -> [WorkspaceProject; 2] {
         WorkspaceProject {
             root_dir: PathBuf::from("/ws/pnpm11/pnpm"),
             private: false,
+            manifest_path: PathBuf::from("/ws/pnpm11/pnpm").join("package.json"),
             name: Some("pnpm".to_string()),
             version: Some("11.0.0".to_string()),
             prod_dependencies: Vec::new(),
@@ -144,6 +146,7 @@ fn twins() -> [WorkspaceProject; 2] {
         WorkspaceProject {
             root_dir: PathBuf::from("/ws/pnpm/npm/pnpm"),
             private: false,
+            manifest_path: PathBuf::from("/ws/pnpm/npm/pnpm").join("package.json"),
             name: Some("pnpm".to_string()),
             version: Some("12.0.0".to_string()),
             prod_dependencies: Vec::new(),
@@ -155,6 +158,7 @@ fn project_at(name: &str, version: &str, dir: &str) -> WorkspaceProject {
     WorkspaceProject {
         root_dir: PathBuf::from(format!("/ws/{dir}")),
         private: false,
+        manifest_path: PathBuf::from(format!("/ws/{dir}")).join("package.json"),
         name: Some(name.to_string()),
         version: Some(version.to_string()),
         prod_dependencies: Vec::new(),

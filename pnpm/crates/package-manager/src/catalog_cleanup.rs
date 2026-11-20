@@ -29,7 +29,6 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
     FindWorkspaceDirError,
     FindWorkspaceProjectsError,
-    FindWorkspaceProjectsOpts,
     Project,
     ReadWorkspaceManifestError,
     find_workspace_projects,
@@ -87,8 +86,7 @@ pub(crate) fn write_workspace_catalogs(
         None => derive_workspace_dir(config, current_manifest)?,
     };
     let projects = if config.catalog_prune {
-        let ignored_directories = config.managed_directories();
-        load_cleanup_projects(&workspace_dir, &ignored_directories)?
+        load_cleanup_projects(&workspace_dir, config)?
     } else {
         Vec::new()
     };
@@ -250,16 +248,16 @@ pub fn prune_against_project_lockfiles(
     if !config.lockfile || config.shares_one_lockfile() {
         return Ok(());
     }
-    let mut project_dirs: Vec<PathBuf> =
-        load_cleanup_projects(workspace_dir, &config.managed_directories())?
-            .into_iter()
-            .map(|project| project.root_dir)
-            .collect();
+    let mut project_dirs: Vec<PathBuf> = load_cleanup_projects(workspace_dir, config)?
+        .into_iter()
+        .map(|project| project.root_dir)
+        .collect();
     if project_dirs.is_empty() {
         return Ok(());
     }
     let normalized_root = pnpm_fs::lexical_normalize(workspace_dir);
-    if pnpm_package_manifest::project_manifest_path(workspace_dir).is_file()
+    if pnpm_package_manifest::project_manifest_path(workspace_dir, config.preferred_manifest_format)
+        .is_file()
         && !project_dirs
             .iter()
             .any(|dir| pnpm_fs::lexical_normalize(dir) == normalized_root)
@@ -340,17 +338,15 @@ fn record_resolved_package_versions<'a>(
 /// cleanup pass; there is no workspace manifest to clean either.
 fn load_cleanup_projects(
     workspace_dir: &Path,
-    ignored_directories: &[PathBuf],
+    config: &Config,
 ) -> Result<Vec<Project>, WriteWorkspaceCatalogsError> {
     let Some(workspace_manifest) = read_workspace_manifest(workspace_dir)
         .map_err(WriteWorkspaceCatalogsError::ReadWorkspaceManifest)?
     else {
         return Ok(Vec::new());
     };
-    let opts = FindWorkspaceProjectsOpts {
-        patterns: Some(workspace_package_patterns(&workspace_manifest)),
-        ignored_directories: ignored_directories.to_vec(),
-    };
+    let opts =
+        config.find_workspace_projects_opts(Some(workspace_package_patterns(&workspace_manifest)));
     find_workspace_projects(workspace_dir, &opts)
         .map_err(WriteWorkspaceCatalogsError::FindWorkspaceProjects)
 }

@@ -20,6 +20,7 @@ use super::{
     InitType,
     LinkWorkspacePackages,
     LogLevel,
+    ManifestFormat,
     NodeLinker,
     NodePackageMapMode,
     NodePackageMapType,
@@ -1790,6 +1791,12 @@ pub struct Config {
     /// accepted); default `false`, matching pnpm.
     pub catalog_prune: bool,
 
+    /// Which manifest a workspace project is read from and written to when
+    /// several coexist in its directory. The `preferredManifestFormat`
+    /// setting; default [`ManifestFormat::Json`], which keeps the
+    /// `package.json`, `package.json5`, `package.yaml` precedence.
+    pub preferred_manifest_format: ManifestFormat,
+
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
     /// (possibly modified) by the hook. `None` when no hook changed
@@ -1990,6 +1997,21 @@ impl Config {
             self.install_state_dir.clone(),
             self.global_virtual_store_dir.clone(),
         ]
+    }
+
+    /// Workspace project discovery options for `patterns` that skip
+    /// [`Self::managed_directories`] and read each project from the manifest
+    /// [`Self::preferred_manifest_format`] selects.
+    #[must_use]
+    pub fn find_workspace_projects_opts(
+        &self,
+        patterns: Option<Vec<String>>,
+    ) -> pnpm_workspace::FindWorkspaceProjectsOpts {
+        pnpm_workspace::FindWorkspaceProjectsOpts {
+            patterns,
+            ignored_directories: self.managed_directories(),
+            preferred_manifest_format: self.preferred_manifest_format,
+        }
     }
 
     /// Persist the config data until the program terminates.

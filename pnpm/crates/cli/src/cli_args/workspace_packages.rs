@@ -73,6 +73,7 @@ pub fn create_publish_pack_manifest_options(
             manifest_flags.no_skip_manifest_obfuscation,
             config.skip_manifest_obfuscation,
         ),
+        format: config.preferred_manifest_format,
         before_packing_hooks: before_packing_hooks.to_vec(),
         workspace_packages,
         bumped_workspace_packages: bumped_packages.map(Arc::clone),

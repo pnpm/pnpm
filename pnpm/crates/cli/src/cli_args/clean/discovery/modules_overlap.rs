@@ -128,14 +128,8 @@ fn initial_projects(
         }
         Some(list)
     };
-    find_workspace_projects(
-        workspace_dir,
-        &FindWorkspaceProjectsOpts {
-            patterns: effective_patterns,
-            ignored_directories: config.managed_directories(),
-        },
-    )
-    .wrap_err("finding workspace projects")
+    find_workspace_projects(workspace_dir, &config.find_workspace_projects_opts(effective_patterns))
+        .wrap_err("finding workspace projects")
 }
 
 fn refine_projects(
@@ -168,6 +162,7 @@ fn refine_projects(
             &FindWorkspaceProjectsOpts {
                 patterns: patterns.map(<[String]>::to_vec),
                 ignored_directories,
+                preferred_manifest_format: config.preferred_manifest_format,
             },
         )
         .wrap_err("finding workspace projects")?;

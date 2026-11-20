@@ -122,6 +122,8 @@ mod yaml;
 
 mod json5;
 
+mod manifest_format;
+
 mod raw;
 
 mod bundled_manifest;

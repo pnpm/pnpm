@@ -79,6 +79,7 @@ use pnpm_hooks::{
     PnpmfileHooks,
 };
 use pnpm_package_manifest::{
+    ManifestFormat,
     PackageManifestError,
     project_manifest_path,
 };
@@ -323,6 +324,7 @@ where
                 &opts.dir,
                 &["postpack"],
                 &source.entry_manifest,
+                opts.manifest.format,
             )?;
         }
     }
@@ -353,7 +355,10 @@ fn packed_files_map(
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(files);
     files_map.retain(|name, _| !is_manifest_entry(name));
-    files_map.insert("package/package.json".to_string(), project_manifest_path(&source.dir));
+    files_map.insert(
+        "package/package.json".to_string(),
+        project_manifest_path(&source.dir, opts.manifest.format),
+    );
     inject_workspace_license(opts, &source.dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.

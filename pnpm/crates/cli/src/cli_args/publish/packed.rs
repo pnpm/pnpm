@@ -9,7 +9,10 @@ use miette::{
     Context,
     IntoDiagnostic,
 };
-use pnpm_config::Config;
+use pnpm_config::{
+    Config,
+    ManifestFormat,
+};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
     Host as PackHost,
@@ -57,16 +60,7 @@ impl PublishArgs {
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
         scope: PublishScope<'_>,
     ) -> miette::Result<PackedDirectory> {
-        let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
-            .into_diagnostic()
-            .wrap_err("read project manifest")?
-            .ok_or_else(|| {
-                let dir = project_dir.display();
-                miette::miette!(
-                    code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
-                    "No package.json found in {dir}",
-                )
-            })?;
+        let manifest = read_publish_manifest(project_dir, config.preferred_manifest_format)?;
 
         if !self.should_ignore_scripts(config) {
             run_publish_scripts::<Reporter>(
@@ -158,4 +152,21 @@ impl PublishArgs {
             .map_err(miette::Report::new)
             .wrap_err(crate::cli_args::pack::PACK_ERROR_CONTEXT)
     }
+}
+
+/// The publish manifest under `project_dir`, which must have one.
+fn read_publish_manifest(
+    project_dir: &Path,
+    manifest_format: ManifestFormat,
+) -> miette::Result<serde_json::Value> {
+    pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir, manifest_format)
+        .into_diagnostic()
+        .wrap_err("read project manifest")?
+        .ok_or_else(|| {
+            let dir = project_dir.display();
+            miette::miette!(
+                code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
+                "No package.json found in {dir}",
+            )
+        })
 }

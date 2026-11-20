@@ -155,7 +155,8 @@ fn emit_npmrc_warnings(warnings: &[String]) {
 
 /// Whether the running pnpm is the version the project in `dir` pins.
 fn runs_the_pinned_pnpm(config: &Config, dir: &Path) -> bool {
-    let manifest = read_root_manifest(&PinRoots::of(config, dir).manifest);
+    let roots = PinRoots::of(config, dir);
+    let manifest = read_root_manifest(&roots.manifest, roots.manifest_format);
     pins_running_pnpm(
         manifest
             .as_ref()

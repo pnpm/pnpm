@@ -41,6 +41,7 @@ use super::{
         PinRoots,
         WantedPackageManager,
         package_manager_to_sync_for_version,
+        read_every_root_manifest,
         read_root_manifest,
         should_persist_package_manager_lockfile,
         version_satisfies,
@@ -228,11 +229,15 @@ fn pre_command_plan_with_state(
     let config =
         load_pre_command_config(invocation, config_overrides, &dir, ConfigLoad::PIN_DECISION)?;
     let roots = if invocation.global {
-        PinRoots { manifest: dir.clone(), env: dir.clone() }
+        PinRoots {
+            manifest: dir.clone(),
+            env: dir.clone(),
+            manifest_format: config.preferred_manifest_format,
+        }
     } else {
         PinRoots::of(&config, &dir)
     };
-    let manifest = read_root_manifest(&roots.manifest);
+    let manifest = read_root_manifest(&roots.manifest, roots.manifest_format);
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let locked_env = read_pin_lockfile(
         wanted_pm.as_ref(),
@@ -316,7 +321,7 @@ fn pins_nothing_to_check(invocation: &Invocation, dir: &Path) -> bool {
     let checks_runtimes = invocation.check_runtimes && !invocation.global;
     candidates
         .iter()
-        .filter_map(|candidate| read_root_manifest(candidate))
+        .flat_map(|candidate| read_every_root_manifest(candidate))
         .all(|manifest| {
             wanted_package_manager(&manifest).is_none()
                 && !(checks_runtimes && declares_runtime(&manifest))

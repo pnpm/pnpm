@@ -263,7 +263,11 @@ fn provider_name(provider: &Provider) -> Option<String> {
     match provider {
         Provider::Package(key) => Some(key.name.to_string()),
         Provider::Link(path) => {
-            let manifest = pnpm_workspace::read_project_manifest_only(path).ok()?;
+            let manifest = pnpm_workspace::read_project_manifest_only(
+                path,
+                pnpm_workspace::ManifestFormat::default(),
+            )
+            .ok()?;
             manifest
                 .value()
                 .get("name")?

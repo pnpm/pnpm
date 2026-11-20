@@ -48,6 +48,7 @@ pub(super) fn run_project_stages(
     );
     let dep_path = project_dir.to_string_lossy();
     stages(&RunPostinstallHooks {
+        manifest_format: config.preferred_manifest_format,
         environment: pnpm_executor::ScriptEnvironment {
             init_cwd: workspace_root,
             node_execpath: None,
@@ -175,7 +176,7 @@ fn save_manifest_for_implicit_gyp_build(
 ) -> Result<(), InstallError> {
     if config.workspace_dir.is_none()
         && stages.contains(&"install")
-        && !project_manifest_path(project_dir).exists()
+        && !project_manifest_path(project_dir, config.preferred_manifest_format).exists()
         && project_requires_implicit_gyp_build(project_dir, manifest)
     {
         manifest

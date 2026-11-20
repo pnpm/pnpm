@@ -165,9 +165,12 @@ impl<'a> ProjectHost<'a> {
         }
         // An unreadable root manifest fails the root project's own check,
         // which every install runs, so the error is reported there.
-        let Some((_, manifest)) =
-            pnpm_workspace::try_read_project_manifest(self.root_dir).ok().flatten()
-        else {
+        let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(
+            self.root_dir,
+            self.config.preferred_manifest_format,
+        )
+        .ok()
+        .flatten() else {
             return Ok(None);
         };
         let runtime_on_fail = self.config.runtime_on_fail.map(pnpm_config::RuntimeOnFail::as_str);

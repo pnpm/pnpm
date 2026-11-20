@@ -154,7 +154,11 @@ impl Config {
             self.apply_pnpm_home_global_shims::<Sys>(base_dir)?;
         }
         if let Some(overrides) = self.overrides.as_mut() {
-            crate::override_version_references::resolve_version_references(overrides, base_dir)?;
+            crate::override_version_references::resolve_version_references(
+                overrides,
+                base_dir,
+                self.preferred_manifest_format,
+            )?;
         }
         Ok(())
     }

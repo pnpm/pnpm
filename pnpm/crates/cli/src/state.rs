@@ -293,8 +293,9 @@ fn load_or_create_manifest(
 ) -> Result<PackageManifest, InitStateError> {
     if !manifest_path.exists() {
         let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
-        if let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
-            .map_err(InitStateError::ManifestRead)?
+        if let Some((_, manifest)) =
+            pnpm_workspace::try_read_project_manifest(project_dir, config.preferred_manifest_format)
+                .map_err(InitStateError::ManifestRead)?
         {
             return Ok(apply_runtime_on_fail(manifest, config));
         }
@@ -324,8 +325,9 @@ pub(crate) fn check_root_project_engine(
     emit: fn(&LogEvent),
 ) -> Result<(), InitStateError> {
     let project_dir = root_project_dir(manifest_path, config);
-    let Some((_, manifest)) = pnpm_workspace::try_read_project_manifest(project_dir)
-        .map_err(InitStateError::ManifestRead)?
+    let Some((_, manifest)) =
+        pnpm_workspace::try_read_project_manifest(project_dir, config.preferred_manifest_format)
+            .map_err(InitStateError::ManifestRead)?
     else {
         return Ok(());
     };

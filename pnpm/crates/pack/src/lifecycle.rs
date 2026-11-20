@@ -6,6 +6,7 @@ use super::{
     LogEvent,
     LogFn,
     LogLevel,
+    ManifestFormat,
     PackError,
     PackScripts,
     Path,
@@ -68,6 +69,7 @@ impl PackScripts {
         dir: &Path,
         script_names: &[&str],
         manifest: &Value,
+        manifest_format: ManifestFormat,
     ) -> Result<(), PackError> {
         let scripts = manifest.get("scripts");
         if !script_names
@@ -80,6 +82,7 @@ impl PackScripts {
         let dep_path = dir.to_string_lossy().into_owned();
         let root_modules_dir = realpath_missing(&dir.join("node_modules"));
         let run_opts = RunPostinstallHooks {
+            manifest_format,
             environment: pnpm_executor::ScriptEnvironment {
                 init_cwd: dir,
                 node_execpath: None,

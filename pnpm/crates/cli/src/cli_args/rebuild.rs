@@ -25,6 +25,7 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::{
     DependencyGroup,
+    ManifestFormat,
     project_manifest_path,
 };
 use pnpm_reporter::Reporter;
@@ -103,7 +104,11 @@ impl RebuildArgs {
         project_dir: &Path,
     ) -> miette::Result<()> {
         let project_config = Config::leak(project_config);
-        let state = State::init(project_dir.join("package.json"), project_config, true)
+        let manifest_path = pnpm_workspace::project_manifest_path(
+            project_dir,
+            project_config.preferred_manifest_format,
+        );
+        let state = State::init(manifest_path, project_config, true)
             .wrap_err_with(|| {
                 format!("initialize the rebuild state for {}", project_dir.display())
             })?;
@@ -220,7 +225,8 @@ fn resolve_selection(
 fn pending_entry_is_project(lockfile_dir: &Path, active_importer_id: &str, entry: &str) -> bool {
     !Path::new(entry).is_absolute()
         && (entry == active_importer_id
-            || project_manifest_path(&lockfile_dir.join(entry)).is_file())
+            || project_manifest_path(&lockfile_dir.join(entry), ManifestFormat::default())
+                .is_file())
 }
 
 /// Drive a forced rebuild of the selected packages (or every build-needing

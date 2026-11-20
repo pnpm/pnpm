@@ -69,7 +69,9 @@ pub fn load_projects(
     hierarchies
         .into_iter()
         .map(|(dir, hierarchy)| {
-            let manifest = safe_read_project_manifest_from_dir(&dir).into_diagnostic()?;
+            let manifest =
+                safe_read_project_manifest_from_dir(&dir, config.preferred_manifest_format)
+                    .into_diagnostic()?;
             Ok(ProjectDependencies { dir, manifest, dependencies: merged_dependencies(hierarchy) })
         })
         .collect()

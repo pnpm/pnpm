@@ -504,6 +504,7 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
                     .get("private")
                     .and_then(serde_json::Value::as_bool)
                     .unwrap_or(false),
+                manifest_path: project.manifest.path().to_path_buf(),
                 name: manifest
                     .get("name")
                     .and_then(|name| name.as_str())

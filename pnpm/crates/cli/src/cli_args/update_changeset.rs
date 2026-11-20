@@ -33,6 +33,7 @@ use pnpm_matcher::{
     create_matcher,
 };
 use pnpm_package_manifest::{
+    ManifestFormat,
     PackageManifest,
     PackageManifestError,
 };
@@ -182,6 +183,7 @@ pub(super) struct UpdateChangesetContext {
     catalogs_before: Catalogs,
     has_versioning: bool,
     versioning_ignore: Vec<String>,
+    manifest_format: ManifestFormat,
 }
 
 impl UpdateChangesetContext {
@@ -195,7 +197,7 @@ impl UpdateChangesetContext {
         let CapturedManifests {
             dep_specs: dep_specs_before,
             name_counts,
-        } = capture_dep_specs(&root_dirs)?;
+        } = capture_dep_specs(&root_dirs, config.preferred_manifest_format)?;
         let workspace_manifest =
             read_workspace_manifest(&workspace_dir).map_err(UpdateChangesetError::ReadWorkspace)?;
         let catalogs_before = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())?;
@@ -210,6 +212,7 @@ impl UpdateChangesetContext {
             catalogs_before,
             has_versioning,
             versioning_ignore,
+            manifest_format: config.preferred_manifest_format,
         })
     }
 
@@ -261,7 +264,7 @@ impl UpdateChangesetContext {
     ) -> Result<BTreeMap<String, IntentBumpType>, UpdateChangesetError> {
         let mut releases = BTreeMap::new();
         for root_dir in &self.root_dirs {
-            let Some(manifest) = safe_read_project_manifest_only(root_dir)
+            let Some(manifest) = safe_read_project_manifest_only(root_dir, self.manifest_format)
                 .map_err(UpdateChangesetError::ReadProject)?
             else {
                 continue;
@@ -335,12 +338,15 @@ struct CapturedManifests {
     name_counts: HashMap<String, usize>,
 }
 
-fn capture_dep_specs(root_dirs: &[PathBuf]) -> Result<CapturedManifests, UpdateChangesetError> {
+fn capture_dep_specs(
+    root_dirs: &[PathBuf],
+    manifest_format: ManifestFormat,
+) -> Result<CapturedManifests, UpdateChangesetError> {
     let mut dep_specs = BTreeMap::new();
     let mut name_counts = HashMap::new();
     for root_dir in root_dirs {
-        let manifest =
-            safe_read_project_manifest_only(root_dir).map_err(UpdateChangesetError::ReadProject)?;
+        let manifest = safe_read_project_manifest_only(root_dir, manifest_format)
+            .map_err(UpdateChangesetError::ReadProject)?;
         if let Some(name) = manifest
             .as_ref()
             .map(PackageManifest::value)

@@ -23,6 +23,7 @@ fn opts(patterns: &[&str]) -> FindWorkspaceProjectsOpts {
                 .collect(),
         ),
         ignored_directories: vec![PathBuf::from("node_modules")],
+        ..Default::default()
     }
 }
 

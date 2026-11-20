@@ -16,10 +16,7 @@ use pnpm_injected_deps_syncer::{
     sync_injected_deps,
     watch_injected_edits,
 };
-use pnpm_workspace::{
-    FindWorkspaceProjectsOpts,
-    find_workspace_projects,
-};
+use pnpm_workspace::find_workspace_projects;
 
 pub(super) fn start_injected_edit_watch(
     ctx: &RunContext<'_>,
@@ -52,10 +49,7 @@ pub(crate) fn project_modules_dirs(config: &Config) -> miette::Result<Vec<Projec
     }
     let projects = find_workspace_projects(
         workspace_dir,
-        &FindWorkspaceProjectsOpts {
-            patterns: config.workspace_package_patterns.clone(),
-            ignored_directories: config.managed_directories(),
-        },
+        &config.find_workspace_projects_opts(config.workspace_package_patterns.clone()),
     )
     .map_err(miette::Report::new)?;
     Ok(projects

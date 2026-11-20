@@ -18,6 +18,7 @@ use super::{
     LinkWorkspacePackages,
     LoadWorkspaceYamlError,
     LockfileSetting,
+    ManifestFormat,
     NodeLinkerSetting,
     NodePackageMapMode,
     NodePackageMapType,
@@ -742,6 +743,10 @@ pub struct WorkspaceSettings {
     /// `catalogPrune`'s former name, still accepted. [`Self::catalog_prune`]
     /// wins when a file carries both.
     pub cleanup_unused_catalogs: Option<bool>,
+
+    /// `preferredManifestFormat` from `pnpm-workspace.yaml`. See
+    /// [`Config::preferred_manifest_format`](crate::settings::Config::preferred_manifest_format).
+    pub preferred_manifest_format: Option<ManifestFormat>,
 
     /// `saveCatalogName` from `pnpm-workspace.yaml`. See
     /// [`Config::save_catalog_name`].

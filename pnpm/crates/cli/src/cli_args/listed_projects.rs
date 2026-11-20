@@ -21,7 +21,7 @@ pub fn listed_projects(
     recursive: bool,
 ) -> miette::Result<Vec<(PathBuf, Option<String>)>> {
     if !recursive {
-        let name = safe_read_project_manifest_from_dir(dir)
+        let name = safe_read_project_manifest_from_dir(dir, config.preferred_manifest_format)
             .into_diagnostic()?
             .and_then(|manifest| {
                 manifest

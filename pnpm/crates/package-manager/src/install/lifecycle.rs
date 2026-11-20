@@ -46,26 +46,13 @@ use std::sync::Mutex;
 pub(crate) fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
-    ignored_directories: &[std::path::PathBuf],
+    config: &Config,
 ) -> Result<Option<Vec<pnpm_workspace::Project>>, pnpm_workspace::FindWorkspaceProjectsError> {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    pnpm_workspace::find_workspace_projects(
-        workspace_root,
-        &workspace_projects_opts(manifest, ignored_directories),
-    )
-    .map(Some)
-}
-
-/// How [`load_workspace_projects`] discovers the projects of the workspace
-/// `workspace_manifest` declares.
-pub(super) fn workspace_projects_opts(
-    workspace_manifest: &pnpm_workspace::WorkspaceManifest,
-    ignored_directories: &[std::path::PathBuf],
-) -> pnpm_workspace::FindWorkspaceProjectsOpts {
-    pnpm_workspace::FindWorkspaceProjectsOpts {
-        patterns: Some(pnpm_workspace::workspace_package_patterns(workspace_manifest)),
-        ignored_directories: ignored_directories.to_vec(),
-    }
+    let opts = config.find_workspace_projects_opts(Some(
+        pnpm_workspace::workspace_package_patterns(manifest),
+    ));
+    pnpm_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 
 /// [`load_workspace_projects`] for the repeat-install checks, which read the
@@ -110,10 +97,7 @@ pub(crate) fn checked_projects_opts(
     let patterns = config.workspace_package_patterns
         .clone()
         .unwrap_or_else(|| pnpm_workspace::workspace_package_patterns(workspace_manifest));
-    pnpm_workspace::FindWorkspaceProjectsOpts {
-        patterns: Some(patterns),
-        ignored_directories: config.managed_directories(),
-    }
+    config.find_workspace_projects_opts(Some(patterns))
 }
 
 /// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for

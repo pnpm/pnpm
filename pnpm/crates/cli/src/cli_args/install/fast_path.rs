@@ -5,7 +5,7 @@ use super::{
     install_already_up_to_date,
     install_already_up_to_date_from_records,
     install_already_up_to_date_per_project,
-    read_root_manifest_json,
+    read_root_manifest,
     warn_deprecated_override_version_references,
     warn_ignored_pnpm_manifest_fields,
 };
@@ -212,11 +212,12 @@ impl InstallArgs {
         attempt: Attempt,
     ) -> Result<(), &'static str> {
         let config_root = config.root_project_manifest_dir(dir);
-        let root_manifest = read_root_manifest_json(config_root);
+        let root_manifest = read_root_manifest(config_root, config.preferred_manifest_format);
         if converts_yarn_workspaces(config, dir, root_manifest.as_ref()) {
             return Err("the manifest's workspaces field is converted");
         }
-        let manifest_path = dir.join("package.json");
+        let manifest_path =
+            pnpm_workspace::project_manifest_path(dir, config.preferred_manifest_format);
         if !manifest_path.is_file() {
             return Err("there is no package.json");
         }

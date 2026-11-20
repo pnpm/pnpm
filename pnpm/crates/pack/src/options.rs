@@ -3,6 +3,7 @@ use super::{
     Catalogs,
     HashMap,
     HashSet,
+    ManifestFormat,
     NodeLinker,
     Path,
     PathBuf,
@@ -53,6 +54,8 @@ pub struct PackManifestOptions {
     /// Keep `packageManager` and publish-lifecycle scripts in the packed
     /// manifest.
     pub skip_obfuscation: bool,
+    /// Which project manifest is packed when several coexist.
+    pub format: ManifestFormat,
     /// Loaded pnpmfiles whose `beforePacking` hook runs against the
     /// published manifest before the file list is computed, in
     /// application order (config-dependency plugin pnpmfiles first, then

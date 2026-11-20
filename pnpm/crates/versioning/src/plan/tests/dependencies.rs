@@ -187,6 +187,7 @@ fn two_same_named_projects_releasing_to_the_same_version_is_a_hard_error() {
         WorkspaceProject {
             root_dir: PathBuf::from("/ws/a/util"),
             private: false,
+            manifest_path: PathBuf::from("/ws/a/util").join("package.json"),
             name: Some("@scope/util".to_string()),
             version: Some("1.0.0".to_string()),
             prod_dependencies: Vec::new(),
@@ -194,6 +195,7 @@ fn two_same_named_projects_releasing_to_the_same_version_is_a_hard_error() {
         WorkspaceProject {
             root_dir: PathBuf::from("/ws/b/util"),
             private: false,
+            manifest_path: PathBuf::from("/ws/b/util").join("package.json"),
             name: Some("@scope/util".to_string()),
             version: Some("1.0.0".to_string()),
             prod_dependencies: Vec::new(),

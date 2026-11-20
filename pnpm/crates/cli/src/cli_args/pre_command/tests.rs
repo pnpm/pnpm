@@ -32,6 +32,7 @@ use crate::{
 };
 use pnpm_config::{
     Config,
+    ManifestFormat,
     PNPM_VERSION,
     PmOnFail,
 };
@@ -55,7 +56,7 @@ fn switch_target(
     roots: &PinRoots,
     frozen_lockfile: bool,
 ) -> miette::Result<Option<SwitchTarget>> {
-    let manifest = read_root_manifest(&roots.manifest);
+    let manifest = read_root_manifest(&roots.manifest, roots.manifest_format);
     let wanted = manifest.as_ref().and_then(wanted_package_manager);
     let locked_env = if config.lockfile { read_env_lockfile(&roots.env)? } else { None };
     let pin = PinInput {
@@ -857,7 +858,11 @@ fn fetch_picks_the_pnpm_the_lockfile_pins_when_a_command_would_switch_to_it() {
 }
 
 fn pin_roots(dir: &Path) -> PinRoots {
-    PinRoots { manifest: dir.to_path_buf(), env: dir.to_path_buf() }
+    PinRoots {
+        manifest: dir.to_path_buf(),
+        env: dir.to_path_buf(),
+        manifest_format: ManifestFormat::default(),
+    }
 }
 
 fn config_overrides(argv: &[&str]) -> ConfigOverrides {

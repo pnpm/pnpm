@@ -149,6 +149,7 @@ pub(super) fn collect_components(
             include,
             exclude_peers,
             root_purl: &root.purl,
+            manifest_format: state.config.preferred_manifest_format,
             ctx: &ctx,
         },
         &mut stores,
@@ -250,7 +251,8 @@ fn read_sbom_manifests(
         }
     };
     let root_manifest =
-        safe_read_project_manifest_from_dir(lockfile_dir)?.unwrap_or_else(|| fallback("."));
+        safe_read_project_manifest_from_dir(lockfile_dir, state.config.preferred_manifest_format)?
+            .unwrap_or_else(|| fallback("."));
 
     let single_id = match filter_importer_ids {
         Some(&[single_id]) if single_id != "." => single_id,
@@ -259,7 +261,8 @@ fn read_sbom_manifests(
 
     let project_manifest = match confined_importer_dir(lockfile_dir, single_id) {
         Some(dir) => {
-            safe_read_project_manifest_from_dir(&dir)?.unwrap_or_else(|| fallback(single_id))
+            safe_read_project_manifest_from_dir(&dir, state.config.preferred_manifest_format)?
+                .unwrap_or_else(|| fallback(single_id))
         }
         None => fallback(single_id),
     };

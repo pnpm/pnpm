@@ -8,6 +8,7 @@
 
 use pnpm_config::{
     Host,
+    ManifestFormat,
     PackageConfigsSetting,
     workspace_root_or,
 };
@@ -167,6 +168,7 @@ struct ModulesDirSettings {
     /// Empty when the workspace shares one lockfile, as install ignores
     /// them then.
     project_modules_dirs: HashMap<String, String>,
+    manifest_format: ManifestFormat,
 }
 
 impl ModulesDirSettings {
@@ -179,6 +181,7 @@ impl ModulesDirSettings {
             lockfile_dir: Option<String>,
             modules_dir: Option<String>,
             package_configs: Option<PackageConfigsSetting>,
+            preferred_manifest_format: Option<ManifestFormat>,
             shared_workspace_lockfile: Option<bool>,
         }
         let Some(document) =
@@ -206,6 +209,7 @@ impl ModulesDirSettings {
                 env_replace_lossy::<Host>(&modules_dir).0
             }),
             project_modules_dirs,
+            manifest_format: settings.preferred_manifest_format.unwrap_or_default(),
         })
     }
 
@@ -215,7 +219,8 @@ impl ModulesDirSettings {
         let project_modules_dir = if self.project_modules_dirs.is_empty() {
             None
         } else {
-            let manifest = safe_read_project_manifest_from_dir(project).map_err(io::Error::other)?;
+            let manifest = safe_read_project_manifest_from_dir(project, self.manifest_format)
+                .map_err(io::Error::other)?;
             manifest
                 .as_ref()
                 .and_then(|manifest| manifest.get("name")?.as_str())

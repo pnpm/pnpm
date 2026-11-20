@@ -14,7 +14,10 @@ use crate::cli_args::{
     sanitize::sanitize_inline,
 };
 use pnpm_network_web_auth::OpenUrl;
-use pnpm_package_manifest::safe_read_project_manifest_from_dir;
+use pnpm_package_manifest::{
+    ManifestFormat,
+    safe_read_project_manifest_from_dir,
+};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::Value;
 use std::{
@@ -55,7 +58,10 @@ pub fn open_package_funding<Sys: OpenUrl>(
 /// name. Like `npm fund`, a version in `spec` is ignored.
 fn package_funding(spec: &str, dir: &Path, projects: &[ProjectDependencies]) -> Option<Value> {
     if is_directory_spec(spec) {
-        let manifest = safe_read_project_manifest_from_dir(&dir.join(spec)).ok().flatten()?;
+        let manifest =
+            safe_read_project_manifest_from_dir(&dir.join(spec), ManifestFormat::default())
+                .ok()
+                .flatten()?;
         return manifest.get("funding").cloned();
     }
     let name = parse_wanted_dependency(spec).alias.unwrap_or_else(|| spec.to_string());

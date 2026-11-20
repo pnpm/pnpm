@@ -52,6 +52,7 @@ pub use manifest::{
     workspace_package_patterns,
 };
 pub use project_manifest::{
+    ManifestFormat,
     ReadProjectManifestError,
     ReadProjectManifestOnlyError,
     project_manifest_path,

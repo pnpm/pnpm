@@ -25,6 +25,7 @@ use pnpm_lockfile::{
     LockfileResolution,
 };
 use pnpm_package_manifest::{
+    ManifestFormat,
     PackageManifestError,
     publishes_from_directory,
     safe_read_package_json_from_dir,
@@ -379,7 +380,9 @@ fn publishing_project_manifest(
         .skip(1)
         .take_while(|dir| dir.starts_with(&root))
         .find_map(|dir| {
-            let manifest = safe_read_project_manifest_from_dir(dir).ok().flatten()?;
+            let manifest = safe_read_project_manifest_from_dir(dir, ManifestFormat::default())
+                .ok()
+                .flatten()?;
             publishes_from_directory(dir, &manifest, &target).then_some(manifest)
         })
 }

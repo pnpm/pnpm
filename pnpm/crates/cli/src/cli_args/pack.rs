@@ -257,6 +257,7 @@ impl PackArgs {
                     self.no_skip_manifest_obfuscation,
                     config.skip_manifest_obfuscation,
                 ),
+                format: config.preferred_manifest_format,
                 before_packing_hooks: shared.before_packing_hooks,
                 workspace_packages,
                 bumped_workspace_packages: None,

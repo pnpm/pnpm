@@ -257,7 +257,7 @@ fn resolved_package_dirs(packages: &[PackageToCheck]) -> miette::Result<HashMap<
 fn project_modules_dir(config: &Config, project_dir: &Path) -> PathBuf {
     let name = config
         .applies_package_configs()
-        .then(|| pnpm_workspace::read_project_name(project_dir))
+        .then(|| pnpm_workspace::read_project_name(project_dir, config.preferred_manifest_format))
         .flatten();
     config.project_modules_dir(project_dir, name.as_deref())
 }

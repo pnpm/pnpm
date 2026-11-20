@@ -164,6 +164,7 @@ mod pnpm_compatibility;
 mod pnpr_install;
 mod pnpx_alias;
 mod pre_resolution_hook;
+mod preferred_manifest_format;
 mod prefix;
 mod process_lifetime;
 mod profile;

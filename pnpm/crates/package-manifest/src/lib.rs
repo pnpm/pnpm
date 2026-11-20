@@ -56,6 +56,7 @@ pub use metadata::{
     extract_license,
 };
 pub use project::{
+    ManifestFormat,
     PROJECT_MANIFEST_BASENAMES,
     find_parent_publish_manifest,
     project_manifest_path,

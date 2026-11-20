@@ -1,6 +1,7 @@
 use miette::IntoDiagnostic;
 use pnpm_config::{
     Config,
+    ManifestFormat,
     PNPM_VERSION,
     PmOnFail,
 };
@@ -49,6 +50,7 @@ pub(crate) struct WantedPackageManager {
 pub(crate) struct PinRoots {
     pub(crate) manifest: PathBuf,
     pub(crate) env: PathBuf,
+    pub(crate) manifest_format: ManifestFormat,
 }
 
 impl PinRoots {
@@ -57,12 +59,13 @@ impl PinRoots {
         Self {
             manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf()),
             env: config.root_project_manifest_dir(dir).to_path_buf(),
+            manifest_format: config.preferred_manifest_format,
         }
     }
 
     /// The manifest declaring the pin, whichever supported basename it uses.
     pub(crate) fn read_manifest(&self) -> miette::Result<Option<PackageManifest>> {
-        pnpm_workspace::try_read_project_manifest(&self.manifest)
+        pnpm_workspace::try_read_project_manifest(&self.manifest, self.manifest_format)
             .map(|found| found.map(|(_, manifest)| manifest))
             .map_err(miette::Report::new)
     }
@@ -127,15 +130,6 @@ pub(crate) fn package_manager_to_sync_for_version(
     })
 }
 
-/// The root project's `package.json` as raw JSON, for the config-load
-/// warnings that inspect it before the install path reads the manifest
-/// properly. A manifest that is missing, unreadable, or malformed yields
-/// `None`: a warning has nothing to say about one, and the install path
-/// reports it with far more context.
-pub(crate) fn read_root_manifest_json(root_dir: &Path) -> Option<Value> {
-    read_manifest_json(&root_dir.join("package.json")).ok().flatten()
-}
-
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
@@ -151,14 +145,30 @@ pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
 /// path reports it with far more context.
 ///
 /// [`pnpm_workspace::try_read_project_manifest`] decides between
-/// `package.json`, `package.json5`, and `package.yaml`, the same way the
-/// install pipeline does, so a pin recorded from the pre-command checks is
-/// the one the install reads.
-pub(crate) fn read_root_manifest(root_dir: &Path) -> Option<Value> {
-    pnpm_workspace::try_read_project_manifest(root_dir)
+/// `package.json`, `package.json5`, and `package.yaml` in `manifest_format`'s
+/// precedence order, the same way the install pipeline does, so a pin
+/// recorded from the pre-command checks is the one the install reads.
+pub(crate) fn read_root_manifest(
+    root_dir: &Path,
+    manifest_format: ManifestFormat,
+) -> Option<Value> {
+    pnpm_workspace::try_read_project_manifest(root_dir, manifest_format)
         .ok()
         .flatten()
         .map(|(_, manifest)| manifest.value().clone())
+}
+
+/// Every project manifest in `root_dir`, whichever basename it uses. For
+/// checks that run before config, and so before `preferredManifestFormat`
+/// says which of several manifests is the project's. A manifest that is
+/// unreadable or malformed is skipped, as [`read_root_manifest`] skips it.
+pub(crate) fn read_every_root_manifest(root_dir: &Path) -> impl Iterator<Item = Value> + '_ {
+    ManifestFormat::default()
+        .precedence()
+        .map(|basename| root_dir.join(basename))
+        .filter(|path| path.is_file())
+        .filter_map(|path| pnpm_workspace::read_exact_project_manifest(&path).ok())
+        .map(|manifest| manifest.value().clone())
 }
 
 pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {

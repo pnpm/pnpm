@@ -90,7 +90,11 @@ pub(super) fn resolve_link_version(
     link_target: &str,
 ) -> Option<String> {
     let target_dir = roots.canonical_target(&base_dir.join(link_target))?;
-    let manifest = pnpm_workspace::read_project_manifest_only(&target_dir).ok()?;
+    let manifest = pnpm_workspace::read_project_manifest_only(
+        &target_dir,
+        pnpm_workspace::ManifestFormat::default(),
+    )
+    .ok()?;
     package_manifest_version(&manifest)
 }
 

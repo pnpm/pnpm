@@ -26,6 +26,7 @@ use pnpm_package_manifest::{
     InitAuthor,
     InitOptions,
     PackageManifest,
+    project_manifest_path,
 };
 
 // `init` looks the version it pins up on the registry, so unlike the other
@@ -35,7 +36,8 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
     let config: &Config = (ctx.loaders.config)()?;
     let es_module = args.effective_init_type(config) == InitType::Module;
     let bare = args.bare;
-    let manifest_path = pnpm_workspace::project_manifest_path(ctx.locations.cli_dir);
+    let manifest_path =
+        project_manifest_path(ctx.locations.cli_dir, config.preferred_manifest_format);
     if manifest_path.exists() {
         let filename = manifest_path
             .file_name()
@@ -73,22 +75,25 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
     }))
 }
 
-// `set-script` only rewrites `package.json#scripts`; it never touches the
+// `set-script` only rewrites the manifest's `scripts`; it never touches the
 // lockfile or runs the install pipeline, so it dispatches synchronously off
 // the canonicalized `--dir` like `init`.
 pub(super) fn set_script<'a>(
     ctx: &RunCtx<'a>,
     args: SetScriptArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    let result = args.run(ctx.locations.manifest_path);
+    let config = (ctx.loaders.config)()?;
+    let manifest_path = project_manifest_path(ctx.locations.dir, config.preferred_manifest_format);
+    let result = args.run(&manifest_path);
     Ok(Box::pin(std::future::ready(result)))
 }
 
 pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.config)()?;
     let result = if ctx.workspace.recursive {
-        args.run_recursive((ctx.loaders.config)()?, ctx.locations.dir)
+        args.run_recursive(config, ctx.locations.dir)
     } else {
-        args.run(ctx.locations.manifest_path)
+        args.run(&project_manifest_path(ctx.locations.dir, config.preferred_manifest_format))
     };
     Ok(Box::pin(std::future::ready(result)))
 }

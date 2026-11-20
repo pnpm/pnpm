@@ -173,7 +173,8 @@ pub(super) fn init_dedicated_project_state(
     let mut project_config = cfg.clone();
     project_config.anchor_dedicated_project(project_dir, project_name);
     let project_config = Config::leak(project_config);
-    let manifest_path = project_dir.join("package.json");
+    let manifest_path =
+        pnpm_workspace::project_manifest_path(project_dir, cfg.preferred_manifest_format);
     match http_client {
         Some(http_client) => {
             let lockfile = State::lazy_lockfile(project_config, &manifest_path, require_lockfile);
@@ -289,7 +290,8 @@ pub(super) fn discover_dedicated_workspace_projects(
     let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut dependencies = IndexMap::with_capacity(projects.len() + 1);
     let mut other_dirs = Vec::new();
-    if pnpm_package_manifest::project_manifest_path(workspace_root).is_file()
+    if pnpm_package_manifest::project_manifest_path(workspace_root, cfg.preferred_manifest_format)
+        .is_file()
         && !projects
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
@@ -302,7 +304,8 @@ pub(super) fn discover_dedicated_workspace_projects(
             names.insert(workspace_root.to_path_buf(), name);
         }
     }
-    let injected_source_dirs = dedicated_injected_source_dirs(&projects, &other_dirs)?;
+    let injected_source_dirs =
+        dedicated_injected_source_dirs(&projects, &other_dirs, cfg.preferred_manifest_format)?;
     let selection =
         select_recursive_projects(&projects, cfg, workspace_root, AutoExcludeRoot::Disabled)?;
     dependencies.extend(project_dependencies(&selection, cfg.sort));
@@ -322,11 +325,12 @@ pub(super) fn discover_dedicated_workspace_projects(
 fn dedicated_injected_source_dirs(
     projects: &[pnpm_workspace::Project],
     other_dirs: &[PathBuf],
+    manifest_format: pnpm_package_manifest::ManifestFormat,
 ) -> miette::Result<HashSet<PathBuf>> {
     let other_manifests = other_dirs
         .iter()
         .map(|dir| {
-            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir)
+            pnpm_package_manifest::safe_read_project_manifest_from_dir(dir, manifest_format)
                 .map_err(miette::Report::new)
         })
         .collect::<miette::Result<Vec<_>>>()?;

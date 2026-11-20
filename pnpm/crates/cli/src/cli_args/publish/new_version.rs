@@ -25,7 +25,10 @@ use miette::{
     Diagnostic,
 };
 use pnpm_config::Config;
-use pnpm_package_manifest::PackageManifest;
+use pnpm_package_manifest::{
+    ManifestFormat,
+    PackageManifest,
+};
 use pnpm_publish::is_tarball_path;
 use pnpm_workspace::Project;
 use serde_json::Value;
@@ -76,18 +79,23 @@ impl PublishArgs {
     /// published from `dir`. Runs after the git checks: like
     /// `pnpm version --no-git-tag-version`, the rewrite leaves the working
     /// tree dirty on purpose.
-    pub(super) fn apply_new_version(&self, dir: &Path) -> miette::Result<Option<BumpedPackages>> {
+    pub(super) fn apply_new_version(
+        &self,
+        dir: &Path,
+        manifest_format: ManifestFormat,
+    ) -> miette::Result<Option<BumpedPackages>> {
         let Some(new_version) = self.new_version()? else { return Ok(None) };
         let project_dir = self.package
             .as_deref()
             .map(|path| dir.join(path))
             .unwrap_or_else(|| dir.to_path_buf());
-        let manifest_path = pnpm_workspace::project_manifest_path(&project_dir);
+        let manifest_path = pnpm_workspace::project_manifest_path(&project_dir, manifest_format);
         let mut bumped = HashSet::new();
         if manifest_path.exists() {
             let mut manifest = PackageManifest::from_path(manifest_path.clone())
                 .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;
-            if let Some(name) = write_package_version(&mut manifest, &new_version)? {
+            if let Some(name) = write_package_version(&mut manifest, &new_version, manifest_format)?
+            {
                 bumped.insert(name);
             }
         }
@@ -113,7 +121,14 @@ impl PublishArgs {
                 .selected_dirs();
         let bumped = self
             .new_version()?
-            .map(|new_version| set_projects_version(&mut projects, &selected_dirs, &new_version))
+            .map(|new_version| {
+                set_projects_version(
+                    &mut projects,
+                    &selected_dirs,
+                    &new_version,
+                    config.preferred_manifest_format,
+                )
+            })
             .transpose()?;
         Ok((projects, selected_dirs, bumped))
     }
@@ -128,13 +143,16 @@ pub(super) fn set_projects_version(
     projects: &mut [Project],
     selected: &SelectedProjectDirs,
     new_version: &str,
+    manifest_format: ManifestFormat,
 ) -> miette::Result<BumpedPackages> {
     let mut unbumped = HashSet::new();
     let mut bumped = HashSet::new();
     for project in projects.iter_mut() {
         if !selected.contains(&project.root_dir) {
             unbumped.extend(package_name(&project.manifest));
-        } else if let Some(name) = write_package_version(&mut project.manifest, new_version)? {
+        } else if let Some(name) =
+            write_package_version(&mut project.manifest, new_version, manifest_format)?
+        {
             bumped.insert(name);
         }
     }
@@ -149,6 +167,7 @@ pub(super) fn set_projects_version(
 fn write_package_version(
     manifest: &mut PackageManifest,
     new_version: &str,
+    manifest_format: ManifestFormat,
 ) -> miette::Result<Option<String>> {
     let Some(name) = package_name(manifest) else { return Ok(None) };
     set_manifest_version(manifest, new_version);
@@ -162,7 +181,7 @@ fn write_package_version(
         .zip(manifest.path().parent())
         .map(|(directory, project_dir)| project_dir.join(directory));
     if let Some(publish_dir) = publish_dir {
-        let manifest_path = pnpm_workspace::project_manifest_path(&publish_dir);
+        let manifest_path = pnpm_workspace::project_manifest_path(&publish_dir, manifest_format);
         if manifest_path.exists() {
             let mut published = PackageManifest::from_path(manifest_path.clone())
                 .wrap_err_with(|| format!("reading {}", manifest_path.display()))?;

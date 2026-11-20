@@ -61,7 +61,6 @@ use pnpm_config::{
 };
 use pnpm_reporter::LogEvent;
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts,
     GraphPkg,
     Project,
     find_workspace_projects,
@@ -159,10 +158,7 @@ pub fn discover_workspace_projects(
     };
     let projects = find_workspace_projects(
         workspace_root,
-        &FindWorkspaceProjectsOpts {
-            patterns: patterns.clone(),
-            ignored_directories: config.managed_directories(),
-        },
+        &config.find_workspace_projects_opts(patterns.clone()),
     )
     .wrap_err("finding workspace projects")?;
     Ok((projects, patterns))

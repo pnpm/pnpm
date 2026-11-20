@@ -63,6 +63,10 @@ define_workspace_only_groups! {
         only_built_dependencies,
         never_built_dependencies,
         ignored_built_dependencies,
+        // Which manifest a project is read from is part of the repository's
+        // layout. A machine-local value would make one developer read and
+        // write a different file than their collaborators.
+        preferred_manifest_format,
     }
     clear_workspace_layout_fields {
         hoist,

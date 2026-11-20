@@ -18,6 +18,7 @@ use crate::{
 };
 use flate2::read::GzDecoder;
 use pnpm_config::NodeLinker;
+use pnpm_package_manifest::ManifestFormat;
 use pnpm_reporter::{
     LogEvent,
     Reporter,
@@ -67,6 +68,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
+            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,
@@ -838,6 +840,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
+            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,
@@ -902,6 +905,7 @@ fn symlinked_workspace_license_is_not_injected() {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
+            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,
@@ -956,6 +960,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
             embed_readme: false,
             node_linker: NodeLinker::Isolated,
             skip_obfuscation: false,
+            format: ManifestFormat::default(),
             before_packing_hooks: Vec::new(),
             workspace_packages: None,
             bumped_workspace_packages: None,

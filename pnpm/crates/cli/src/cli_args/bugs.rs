@@ -16,7 +16,10 @@ use miette::{
 };
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
-use pnpm_package_manifest::safe_read_project_manifest_from_dir;
+use pnpm_package_manifest::{
+    ManifestFormat,
+    safe_read_project_manifest_from_dir,
+};
 use pnpm_registry::{
     PackageTag,
     PackageVersion,
@@ -55,7 +58,7 @@ pub struct BugsArgs {
 impl BugsArgs {
     pub async fn run<Sys: OpenUrl>(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         if self.packages.is_empty() {
-            let url = get_bugs_url_from_current_project(dir)?;
+            let url = get_bugs_url_from_current_project(dir, config.preferred_manifest_format)?;
             open_url::<Sys>(&url);
             return Ok(());
         }
@@ -103,8 +106,11 @@ fn resolve_package_target_registry(
     resolve_target_registry_for_package(registries, registry_override, package_name, Some(spec))
 }
 
-fn get_bugs_url_from_current_project(dir: &Path) -> miette::Result<String> {
-    let manifest = safe_read_project_manifest_from_dir(dir)
+fn get_bugs_url_from_current_project(
+    dir: &Path,
+    manifest_format: ManifestFormat,
+) -> miette::Result<String> {
+    let manifest = safe_read_project_manifest_from_dir(dir, manifest_format)
         .wrap_err("read project manifest")?
         .ok_or_else(|| {
             let display_path = dir.display();

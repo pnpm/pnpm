@@ -23,7 +23,6 @@ use modules_overlap::{
 };
 use pnpm_config::Config;
 use pnpm_workspace::{
-    FindWorkspaceProjectsOpts,
     Project,
     find_workspace_projects,
 };
@@ -91,10 +90,7 @@ fn select_filtered_clean_targets(
     } else {
         find_workspace_projects(
             ctx.locations.dir,
-            &FindWorkspaceProjectsOpts {
-                patterns: Some(vec![".".to_string()]),
-                ignored_directories: config.managed_directories(),
-            },
+            &config.find_workspace_projects_opts(Some(vec![".".to_string()])),
         )
         .wrap_err("finding workspace projects")?
     };

@@ -286,7 +286,7 @@ fn run_release_lifecycle_hooks<Reporter: pnpm_reporter::Reporter>(
             current_version: release.version.current.clone(),
             new_version: new_version.clone(),
             path: release.root_dir.clone(),
-            manifest_path: pnpm_workspace::project_manifest_path(&release.root_dir),
+            manifest_path: release.manifest_path.clone(),
         };
         run_version_lifecycle_hook::<Reporter>(stage, &change, config, init_cwd, false)?;
     }

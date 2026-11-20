@@ -78,6 +78,7 @@ pub use node_linker::{
 };
 pub use override_version_references::resolve_version_references as resolve_override_version_references;
 pub use pnpm_matcher as matcher;
+pub use pnpm_package_manifest::ManifestFormat;
 pub use pnpm_resolving_resolver_base::{
     BUILTIN_REGISTRIES_BY_PREFIX,
     DEFAULT_JSR_REGISTRY,

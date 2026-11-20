@@ -56,11 +56,7 @@ pub fn check_deps_status_before_run_at(
     // and single-importer list, so the gate reads the manifest of the
     // project the command runs in.
     let manifest_dir = if config.shares_one_lockfile() { workspace_root } else { dir };
-    let manifest = match read_gate_manifest(
-        manifest_dir,
-        workspace_dir_opt.is_some(),
-        config.shares_one_lockfile(),
-    ) {
+    let manifest = match read_gate_manifest(manifest_dir, workspace_dir_opt.is_some(), config) {
         GateManifest::Found(mut manifest) => {
             crate::apply_runtime_on_fail(config, &mut manifest);
             manifest
@@ -441,12 +437,13 @@ pub(super) enum GateManifest {
 pub(super) fn read_gate_manifest(
     manifest_dir: &Path,
     in_workspace: bool,
-    shares_one_lockfile: bool,
+    config: &Config,
 ) -> GateManifest {
-    match pnpm_workspace::read_project_manifest_only(manifest_dir) {
+    match pnpm_workspace::read_project_manifest_only(manifest_dir, config.preferred_manifest_format)
+    {
         Ok(manifest) => GateManifest::Found(Box::new(manifest)),
         Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
-            if !in_workspace || !shares_one_lockfile =>
+            if !in_workspace || !config.shares_one_lockfile() =>
         {
             GateManifest::NoManifest
         }

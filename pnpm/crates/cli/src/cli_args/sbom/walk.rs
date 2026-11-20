@@ -5,6 +5,7 @@ use super::{
     IncludeFilter,
     IndexMap,
     InstallabilityOptions,
+    ManifestFormat,
     PackageKey,
     PackageMetadata,
     Path,
@@ -121,6 +122,7 @@ pub(super) struct ImporterComponents<'a> {
     pub(super) include: IncludeFilter,
     pub(super) exclude_peers: bool,
     pub(super) root_purl: &'a str,
+    pub(super) manifest_format: ManifestFormat,
     pub(super) ctx: &'a WalkContext<'a>,
 }
 
@@ -183,7 +185,7 @@ fn importer_peer_names(
     let Some(dir) = confined_importer_dir(inputs.lockfile_dir, importer_id) else {
         return Ok(HashSet::new());
     };
-    Ok(safe_read_project_manifest_from_dir(&dir)?
+    Ok(safe_read_project_manifest_from_dir(&dir, inputs.manifest_format)?
         .map(|manifest| peer_names_from_manifest(&manifest))
         .unwrap_or_default())
 }
@@ -212,7 +214,8 @@ fn collect_linked_workspace_component(
     let Some(ws_dir) = confined_importer_dir(inputs.lockfile_dir, &target_id) else {
         return Ok(false);
     };
-    let Some(ws_manifest) = safe_read_project_manifest_from_dir(&ws_dir)? else {
+    let Some(ws_manifest) = safe_read_project_manifest_from_dir(&ws_dir, inputs.manifest_format)?
+    else {
         return Ok(false);
     };
     let ws_name = ws_manifest

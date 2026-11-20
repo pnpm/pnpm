@@ -272,7 +272,8 @@ pub(super) fn modules_leaf_for_project<'a>(
     default_leaf: &'a Path,
 ) -> Cow<'a, Path> {
     if config.applies_package_configs()
-        && let Some(project_name) = pnpm_workspace::read_project_name(project_dir)
+        && let Some(project_name) =
+            pnpm_workspace::read_project_name(project_dir, config.preferred_manifest_format)
         && let Some(raw_modules_dir) = config.package_configs
             .as_ref()
             .and_then(|configs| configs.get(&project_name))

@@ -75,6 +75,7 @@ use pnpm_package_manager::{
     validate_importer_id,
 };
 use pnpm_package_manifest::{
+    ManifestFormat,
     extract_author,
     extract_homepage,
     extract_license,

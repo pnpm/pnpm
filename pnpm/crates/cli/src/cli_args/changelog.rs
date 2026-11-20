@@ -80,7 +80,9 @@ pub async fn compose_registry_changelog(
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
         return Ok(None);
     };
-    let Some((name, published, version)) = read_name_version(project_dir) else {
+    let Some((name, published, version)) =
+        read_name_version(project_dir, config.preferred_manifest_format)
+    else {
         return Ok(None);
     };
     if notes_registry_of_dir(config, project_dir).is_some() {
@@ -156,8 +158,10 @@ impl ReleaseProbe<'_> {
             .get(key)
             .and_then(pnpm_versioning::LedgerEntry::dir)
             .and_then(|dir| {
-                let path =
-                    pnpm_package_manifest::project_manifest_path(&self.workspace_dir.join(dir));
+                let path = pnpm_package_manifest::project_manifest_path(
+                    &self.workspace_dir.join(dir),
+                    self.config.preferred_manifest_format,
+                );
                 pnpm_package_manifest::PackageManifest::from_path(path).ok()
             });
         match manifest {
@@ -237,7 +241,7 @@ pub fn notes_registries_by_name(
 /// to, read from its manifest.
 pub fn notes_registry_of_dir(config: &Config, project_dir: &Path) -> Option<String> {
     let manifest = pnpm_package_manifest::PackageManifest::from_path(
-        pnpm_package_manifest::project_manifest_path(project_dir),
+        pnpm_package_manifest::project_manifest_path(project_dir, config.preferred_manifest_format),
     )
     .ok()?;
     notes_registry_of_manifest(config, manifest.value())
@@ -463,9 +467,12 @@ pub(crate) fn extract_entry(tarball: &[u8], entry_name: &str) -> Option<String> 
 /// `publishConfig.name`: the workspace (and so the parked section, the
 /// ledger, and every intent) keys on the manifest name, while the registry
 /// only ever sees the published one.
-fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
-    let manifest =
-        pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json")).ok()?;
+fn read_name_version(
+    project_dir: &Path,
+    manifest_format: pnpm_package_manifest::ManifestFormat,
+) -> Option<(String, String, String)> {
+    let manifest_path = pnpm_package_manifest::project_manifest_path(project_dir, manifest_format);
+    let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path).ok()?;
     let value = manifest.value();
     let name = value.get("name")?.as_str()?.to_string();
     let published = published_name(value).map(ToString::to_string).unwrap_or_else(|| name.clone());

@@ -186,8 +186,12 @@ impl OutdatedRun {
             return Ok(Cow::Borrowed(overrides));
         }
         let mut resolved = overrides.clone();
-        pnpm_config::resolve_override_version_references(&mut resolved, workspace_dir)
-            .map_err(miette::Report::new)?;
+        pnpm_config::resolve_override_version_references(
+            &mut resolved,
+            workspace_dir,
+            self.config.preferred_manifest_format,
+        )
+        .map_err(miette::Report::new)?;
         Ok(Cow::Owned(resolved))
     }
 

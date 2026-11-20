@@ -432,14 +432,11 @@ fn is_uninitialized_workspace_project_dir(
     {
         return Ok(false);
     }
-    let opts = pnpm_workspace::FindWorkspaceProjectsOpts {
-        patterns: Some(
-            patterns
-                .map(<[String]>::to_vec)
-                .unwrap_or_else(|| vec![".".to_string()]),
-        ),
-        ignored_directories: config.managed_directories(),
-    };
+    let opts = config.find_workspace_projects_opts(Some(
+        patterns
+            .map(<[String]>::to_vec)
+            .unwrap_or_else(|| vec![".".to_string()]),
+    ));
     pnpm_workspace::is_workspace_project_dir(workspace_dir, cli_dir, &opts).into_diagnostic()
 }
 

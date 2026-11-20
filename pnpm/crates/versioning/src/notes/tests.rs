@@ -43,6 +43,7 @@ fn make_workspace(dir: &Path, names: &[&str]) -> Vec<WorkspaceProject> {
             fs::write(root_dir.join("package.json"), manifest.to_string())
                 .expect("write package.json");
             WorkspaceProject {
+                manifest_path: root_dir.join("package.json"),
                 root_dir,
                 private: false,
                 name: Some((*name).to_string()),

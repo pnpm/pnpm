@@ -160,6 +160,11 @@ pub(super) fn linked_manifest<'m>(
 ) -> Option<Cow<'m, PackageManifest>> {
     match project_manifests.get(importer_id) {
         Some(&manifest) => Some(Cow::Borrowed(manifest)),
-        None => pnpm_workspace::read_project_manifest_only(dir).ok().map(Cow::Owned),
+        None => pnpm_workspace::read_project_manifest_only(
+            dir,
+            pnpm_workspace::ManifestFormat::default(),
+        )
+        .ok()
+        .map(Cow::Owned),
     }
 }

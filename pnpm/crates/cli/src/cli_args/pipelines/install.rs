@@ -47,7 +47,8 @@ pub(crate) fn ensure_project_manifest(
     let dir = manifest_path.parent().expect("manifest path always has a parent dir");
     if cfg.recursive
         || cfg.workspace_dir.is_some()
-        || pnpm_package_manifest::project_manifest_path(dir).is_file()
+        || pnpm_package_manifest::project_manifest_path(dir, cfg.preferred_manifest_format)
+            .is_file()
     {
         return Ok(());
     }
