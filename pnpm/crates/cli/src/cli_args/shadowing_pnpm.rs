@@ -190,7 +190,10 @@ impl ShadowingPnpm {
     /// which is the fix the warning would ask for, unless it leaves `PATH`
     /// alone.
     pub(crate) fn outlives_setup(&self, path_entry: SetupPathEntry) -> bool {
-        self.global_bin_on_path || path_entry == SetupPathEntry::LeftAlone
+        match path_entry {
+            SetupPathEntry::Prepended => self.global_bin_on_path,
+            SetupPathEntry::LeftAlone => true,
+        }
     }
 
     pub(crate) fn emit_warning<Logger: Reporter>(&self, global_bin: &Path, prefix: &str) {
