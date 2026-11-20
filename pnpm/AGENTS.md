@@ -460,7 +460,7 @@ are part of the public contract, not implementation detail. See
   whole suite on three platforms anyway. See
   [`CONTRIBUTING.md`](./CONTRIBUTING.md#automated-checks) and the
   [`testing-changes`](../.agents/skills/testing-changes/SKILL.md) skill.
-- The repo-wide husky `pre-push` hook runs `pnpm run pre-push:rust`
+- The repo-wide `pre-push` git hook (`.config/githooks/pre-push`) runs `pnpm run pre-push:rust`
   (`pnpm/scripts/pre-push-rust.sh`), which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
   warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
   dylint`. Make sure your environment

@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "bump": "node pnpm11/__utils__/scripts/src/bump.ts",
-    "prepare": "husky .config/husky",
+    "prepare": "node .config/githooks/install.mjs",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
     "lint": "pn spellcheck && pn lint:meta && pn check:versioning && pn lint:ts",
@@ -62,9 +62,6 @@
     "ci:build-pnpr": "cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare"
   },
   "devDependencies": {
-    "@commitlint/cli": "catalog:",
-    "@commitlint/config-conventional": "catalog:",
-    "@commitlint/prompt-cli": "catalog:",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
@@ -79,7 +76,6 @@
     "cspell": "catalog:",
     "eslint": "catalog:",
     "eslint-plugin-regexp": "catalog:",
-    "husky": "catalog:",
     "jest": "catalog:",
     "keyv": "catalog:",
     "lcov-result-merger": "catalog:",

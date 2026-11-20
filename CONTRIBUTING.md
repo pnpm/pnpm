@@ -73,7 +73,7 @@ Every crate reaches the build this way, in CI as well as locally. Cargo resolves
 
 The block is a function of `Cargo.lock`, so an install regenerates it byte for byte and leaves `git status` clean. It changes only when a git-sourced dependency moves to a new revision, and that change belongs in the same commit as the lockfile. Rust CI fails if the two drift apart.
 
-Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above wires up husky. Its `pre-commit` hook formats the Rust files being committed, as described under [Rust formatting](#rust-formatting), and its `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
+Make sure `~/.cargo/bin` is on your `PATH`, ahead of any system-wide Rust in `/usr/bin`. `rustup`'s installer adds this entry through `~/.cargo/env`; ensure your shell sources it. This matters for the git hooks. The `pnpm install` step above points git at the hooks in `.config/githooks/`. The `pre-commit` hook formats the Rust files being committed, as described under [Rust formatting](#rust-formatting), and the `pre-push` hook runs the Rust checks in `pnpm/scripts/pre-push-rust.sh` (format, doc, dylint, typos) alongside the TypeScript compile and lint. That script locates `cargo`, `rustup`, `taplo`, `typos`, and `cargo-dylint` through `PATH`, and it **skips** a check when the tool is not found rather than failing. A push that appears to pass locally with the tools off `PATH` has silently skipped the format, doc, and dylint checks, so those problems surface only in CI.
 
 For the full Rust development workflow (checks, tests, benchmarks, and the code style guide), see [`pnpm/CONTRIBUTING.md`](./pnpm/CONTRIBUTING.md).
 
@@ -156,11 +156,13 @@ One-time setup:
    cd ~/src/pnpm/pnpm
    ```
 
-2. Point Husky at a path that exists inside every worktree (not inside the bare repo's gitdir),
-   so commit and push hooks run when you commit from any worktree:
+2. Point git at the tracked `.config/githooks` directory so the git hooks run when you
+   commit from any worktree. The path is relative, so git resolves it inside whichever
+   worktree you commit from. (`pnpm install` does this for you in the next step; run it
+   yourself if you want the hooks active before the first install.)
 
    ```shell
-   git config core.hooksPath .config/husky/_
+   git config core.hooksPath .config/githooks
    ```
 
 3. Create the first worktree for `main` and install dependencies:
