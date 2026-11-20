@@ -116,6 +116,8 @@ impl<'a> InstallFrozenLockfile<'a> {
                     requires_build_by_snapshot: Some(&phase.fetched.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: phase.cas_paths_by_pkg_id,
                     cas_paths_by_snapshot: phase.fetched.cas_paths_by_snapshot.clone(),
+                    // A frozen install reads no registry metadata.
+                    latest_versions: None,
                 },
                 prior: install.prior.link_state(),
                 projects: crate::LinkProjects {

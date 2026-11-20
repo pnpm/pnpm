@@ -168,7 +168,7 @@ fn hoisted_install_does_not_report_an_optional_dependency_it_skipped() {
     let output = install_output(pacquet_at(&workspace));
     assert_eq!(
         summary_of(&output, "dependencies:").as_deref(),
-        Some("dependencies:\n+ @pnpm.e2e/foo 100.0.0"),
+        Some("dependencies:\n+ @pnpm.e2e/foo 100.0.0 (100.1.0 is available)"),
     );
     assert_eq!(summary_of(&output, "optionalDependencies:"), None);
 

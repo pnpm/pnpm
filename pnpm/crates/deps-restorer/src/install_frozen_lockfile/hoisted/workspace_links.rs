@@ -42,6 +42,8 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
             importers: inputs.projects.importers,
             packages: lockfile.packages.as_ref(),
             skipped,
+            // `link:` siblings never carry a registry `latest`.
+            latest_versions: None,
         },
         policy: crate::DirectLinkPolicy {
             public_hoist_targets: None,

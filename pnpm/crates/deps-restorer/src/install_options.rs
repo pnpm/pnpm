@@ -112,6 +112,13 @@ pub struct ImporterLinkContext<'a> {
     pub link_options: &'a LinkBinsOptions,
 }
 
+/// The registry's `latest` dist-tag of each direct dependency the resolver
+/// picked from registry metadata, keyed by its peer-less snapshot key.
+/// Holds only versions that differ from the resolved one. Carried as
+/// `latest` on the `pnpm:root added` event, which the install summary
+/// renders as "(X is available)".
+pub type LatestVersions = HashMap<PackageKey, String>;
+
 #[derive(Clone, Copy)]
 pub struct ImporterDependencyGraph<'a> {
     pub importers: &'a HashMap<String, ProjectSnapshot>,
@@ -124,6 +131,9 @@ pub struct ImporterDependencyGraph<'a> {
     /// omitted from `node_modules/<name>` (no symlink, no
     /// `pnpm:root added` event, no bin linking).
     pub skipped: &'a SkippedSnapshots,
+    /// `None` when this install resolved nothing against registry metadata,
+    /// a frozen-lockfile install among them.
+    pub latest_versions: Option<&'a LatestVersions>,
 }
 
 #[derive(Clone, Copy)]

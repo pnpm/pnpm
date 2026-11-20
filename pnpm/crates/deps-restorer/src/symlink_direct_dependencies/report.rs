@@ -2,6 +2,7 @@ use super::resolve::{
     ResolvedEntry,
     fallback_version,
 };
+use crate::ImporterDependencyGraph;
 use pnpm_lockfile::{
     ImporterDepVersion,
     PackageKey,
@@ -25,12 +26,13 @@ use std::collections::HashMap;
 /// except for an alias, whose resolved package name it carries. A
 /// `link:` dep carries its resolved target in `linkedFrom`, so the
 /// reporter renders `<- <path>` and an embedder's `hideLinkedPkgsDiff`
-/// can recognize it. The optional `id` / `latest`
-/// fields are out of pacquet's reach today and skip from the wire shape
-/// rather than serializing as JSON `null`.
+/// can recognize it. `latest` comes from
+/// [`ImporterDependencyGraph::latest_versions`]. The optional `id` field is
+/// out of pacquet's reach today and skips from the wire shape rather than
+/// serializing as JSON `null`.
 pub(super) fn emit_root_added<Reporter: self::Reporter>(
     entry: &ResolvedEntry<'_>,
-    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+    graph: &ImporterDependencyGraph<'_>,
     prefix: &str,
 ) {
     let ResolvedEntry { name, spec, group, name_str, .. } = entry;
@@ -41,7 +43,13 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
         // Filtered upfront. See the comment on the `entries` builder.
         DependencyGroup::Peer => unreachable!("peers are filtered out before this point"),
     };
-    let (version, linked_from) = version_and_linked_from(entry, packages);
+    let resolved_key = spec.version.resolved_key(name).map(|key| key.without_peer());
+    let (version, linked_from) =
+        version_and_linked_from(entry, resolved_key.as_ref(), graph.packages);
+    let latest = resolved_key
+        .as_ref()
+        .and_then(|key| graph.latest_versions?.get(key))
+        .cloned();
     let real_name = match &spec.version {
         ImporterDepVersion::Alias(alias) => alias.name.to_string(),
         ImporterDepVersion::Regular(_)
@@ -58,7 +66,7 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
                 version,
                 dependency_type: Some(dependency_type),
                 id: None,
-                latest: None,
+                latest,
                 linked_from,
             },
         },
@@ -73,15 +81,15 @@ pub(super) fn emit_root_added<Reporter: self::Reporter>(
 /// version-without-peer of the alias's resolved suffix).
 fn version_and_linked_from(
     entry: &ResolvedEntry<'_>,
+    resolved_key: Option<&PackageKey>,
     packages: Option<&HashMap<PackageKey, PackageMetadata>>,
 ) -> (Option<String>, Option<String>) {
-    let ResolvedEntry { name, spec, target, .. } = entry;
+    let ResolvedEntry { spec, target, .. } = entry;
     if matches!(spec.version, ImporterDepVersion::Link(_)) {
         return (None, Some(target.display().to_string()));
     }
-    let manifest_version = spec.version
-        .resolved_key(name)
-        .and_then(|key| packages?.get(&key.without_peer()))
+    let manifest_version = resolved_key
+        .and_then(|key| packages?.get(key))
         .and_then(|metadata| metadata.version.clone());
     (manifest_version.or_else(|| Some(fallback_version(&spec.version))), None)
 }
