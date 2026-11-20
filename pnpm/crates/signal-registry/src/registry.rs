@@ -12,18 +12,18 @@ use std::sync::atomic::{
 /// A value is registered for as long as the returned [`Registration`]
 /// lives. Registering allocates; walking does not, so a handler can read
 /// the registry while another thread registers or releases.
-pub struct SignalRegistry<Value: 'static> {
+pub struct SignalRegistry<Value: Send + Sync + 'static> {
     slots: SignalList<Slot<Value>>,
     walks: AtomicUsize,
 }
 
-struct Slot<Value: 'static> {
+struct Slot<Value: Send + Sync + 'static> {
     /// The registered value, or null while the slot is free. The pointer
     /// comes from `Box::into_raw`, so the slot owns what it points at.
     value: AtomicPtr<Value>,
 }
 
-impl<Value: 'static> SignalRegistry<Value> {
+impl<Value: Send + Sync + 'static> SignalRegistry<Value> {
     /// An empty registry, for a `static`.
     #[must_use]
     pub const fn new() -> Self {
@@ -93,7 +93,7 @@ impl<Value: 'static> SignalRegistry<Value> {
     }
 }
 
-impl<Value: 'static> Default for SignalRegistry<Value> {
+impl<Value: Send + Sync + 'static> Default for SignalRegistry<Value> {
     fn default() -> Self {
         Self::new()
     }
@@ -102,12 +102,12 @@ impl<Value: 'static> Default for SignalRegistry<Value> {
 /// A registered value's claim on its slot. Dropping it unregisters the
 /// value.
 #[must_use = "the value is registered only while the guard is held"]
-pub struct Registration<'registry, Value: 'static> {
+pub struct Registration<'registry, Value: Send + Sync + 'static> {
     registry: &'registry SignalRegistry<Value>,
     slot: &'static Slot<Value>,
 }
 
-impl<Value: 'static> Drop for Registration<'_, Value> {
+impl<Value: Send + Sync + 'static> Drop for Registration<'_, Value> {
     fn drop(&mut self) {
         self.registry.release(self.slot);
     }

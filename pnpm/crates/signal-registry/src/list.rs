@@ -14,16 +14,19 @@ use std::sync::atomic::{
 ///
 /// Entries are leaked, so an entry handed out stays valid for the life of
 /// the process and a walk can hold one across anything.
-pub struct SignalList<Entry: 'static> {
+///
+/// `AtomicPtr` is `Send` and `Sync` whatever it points at, so the bounds
+/// on `Entry` are what stop a list from sharing an entry that is not.
+pub struct SignalList<Entry: Send + Sync + 'static> {
     head: AtomicPtr<Node<Entry>>,
 }
 
-struct Node<Entry: 'static> {
+struct Node<Entry: Send + Sync + 'static> {
     entry: Entry,
     next: AtomicPtr<Node<Entry>>,
 }
 
-impl<Entry: 'static> SignalList<Entry> {
+impl<Entry: Send + Sync + 'static> SignalList<Entry> {
     /// An empty list, for a `static`.
     #[must_use]
     pub const fn new() -> Self {
@@ -112,7 +115,7 @@ impl<Entry: 'static> SignalList<Entry> {
     }
 }
 
-impl<Entry: 'static> Default for SignalList<Entry> {
+impl<Entry: Send + Sync + 'static> Default for SignalList<Entry> {
     fn default() -> Self {
         Self::new()
     }
