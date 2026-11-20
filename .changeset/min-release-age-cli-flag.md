@@ -1,4 +1,5 @@
 ---
+"@pnpm/config.reader": patch
 "@pnpm/config.version-policy": patch
 "@pnpm/resolving.npm-resolver": patch
 "@pnpm/installing.commands": minor
