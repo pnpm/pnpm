@@ -35,6 +35,7 @@ export type {
   UninstallSomeDepsMutation,
   UpdatedProject,
 } from './mutationTypes.js'
+export { runDevPreinstall } from './rootProjectHooks.js'
 export { type ValidatedFrozenInstall, validateFrozenInstall } from './validateFrozenInstall.js'
 
 export async function install (

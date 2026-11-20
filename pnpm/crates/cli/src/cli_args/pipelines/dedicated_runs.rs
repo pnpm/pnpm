@@ -34,7 +34,10 @@ use crate::{
     },
     state::DedicatedCaches,
 };
-use pnpm_package_manager::WorkspaceDependenciesInstalled;
+use pnpm_package_manager::{
+    InstallError,
+    WorkspaceDependenciesInstalled,
+};
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions,
     TaskCompletion,
@@ -193,13 +196,23 @@ pub(super) fn record_dedicated_result(
     match result {
         Ok(()) => TaskCompletion::Passed,
         Err(error) => {
-            first_error
-                .lock()
-                .expect("dedicated install error lock is not poisoned")
-                .get_or_insert(error);
+            let mut first_error =
+                first_error.lock().expect("dedicated install error lock is not poisoned");
+            if first_error.as_ref().is_none_or(stopped_at_another_failure) {
+                *first_error = Some(error);
+            }
             TaskCompletion::Failed
         }
     }
+}
+
+/// Whether `error` only reports that another project's failure stopped
+/// this install. The failure that stopped it replaces it when it arrives
+/// later, so the command reports the cause.
+fn stopped_at_another_failure(error: &miette::Report) -> bool {
+    error
+        .chain()
+        .any(|cause| matches!(cause.downcast_ref(), Some(InstallError::WorkspaceDependencyFailed)))
 }
 
 pub(super) async fn run_dedicated_projects<Reporter: self::Reporter + 'static>(

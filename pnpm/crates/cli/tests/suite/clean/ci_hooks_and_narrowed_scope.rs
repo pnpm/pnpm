@@ -391,13 +391,22 @@ fn ci_dedicated_workspace_carries_verified_lockfile_into_install() {
             "dependencies": {
                 "dep-a": "file:../../deps/dep-a",
             },
-            "scripts": {
-                "pnpm:devPreinstall": r#"node -e "if (process.env.TAMPER_LOCK === '1') { const fs = require('node:fs'); const p = 'pnpm-lock.yaml'; fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replaceAll('dep-a', 'dep-b')); }""#,
-            },
         })
         .to_string(),
     )
     .expect("write pkg-a manifest");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "scripts": {
+                "pnpm:devPreinstall": r#"node -e "if (process.env.TAMPER_LOCK === '1') { const fs = require('node:fs'); const p = 'packages/pkg-a/pnpm-lock.yaml'; fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replaceAll('dep-a', 'dep-b')); }""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the root manifest");
 
     let initial = run_pnpm(&workspace, &["install"]);
     assert!(initial.status.success(), "{initial:?}");

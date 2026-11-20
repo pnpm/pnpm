@@ -38,6 +38,7 @@ use super::{
     },
     up_to_date_scripts::finish_prepared,
 };
+use pnpm_config::Config;
 use pnpm_reporter::{
     SkippedOptionalDependencyLog,
     SkippedOptionalPackage,
@@ -212,6 +213,19 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
     let script_options = (options.selection.as_ref(), options.rebuild.as_ref());
     finish_prepared::<Reporter>(settled, script_options, decided, prepared).await
 }
+/// `@pnpm/cli.default-reporter` renders these fields in the install header;
+/// `currentLockfileExists` flips after the virtual-store lockfile is written.
+fn emit_context_log<Reporter: self::Reporter>(config: &Config, current_lockfile_exists: bool) {
+    Reporter::emit(&LogEvent::Context(ContextLog {
+        level: LogLevel::Debug,
+        current_lockfile_exists,
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config
+            .virtual_store_dir()
+            .to_string_lossy()
+            .into_owned(),
+    }));
+}
 /// Announce the install and run `pnpm:devPreinstall`. Returns whether the
 /// root's `preinstall` is taken care of.
 pub(super) fn announce_import<Reporter: self::Reporter>(
@@ -220,22 +234,13 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
 ) -> Result<bool, InstallError> {
     let Settled {
         install,
+        owned,
         mode,
         loaded,
         projects: SettledProjects { workspace, project_manifests, .. },
         ..
     } = settled;
-    // `@pnpm/cli.default-reporter` renders these fields in the install header;
-    // `currentLockfileExists` flips after the virtual-store lockfile is written.
-    Reporter::emit(&LogEvent::Context(ContextLog {
-        level: LogLevel::Debug,
-        current_lockfile_exists: loaded.current.is_some(),
-        store_dir: install.context.config.store_dir.display().to_string(),
-        virtual_store_dir: install.context.config
-            .virtual_store_dir()
-            .to_string_lossy()
-            .into_owned(),
-    }));
+    emit_context_log::<Reporter>(install.context.config, loaded.current.is_some());
     // `pnpm:devPreinstall` runs ahead of everything the install does
     // with the lockfile (including the frozen path's freshness
     // check) because what it prepares is an input to resolution and
@@ -266,6 +271,9 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
             rebuild: options.rebuild.as_ref(),
             include_dev: mode.included.dev_dependencies,
         },
+        dedicated_dev_preinstall: owned.projects.dedicated
+            .as_ref()
+            .map(|dedicated| &dedicated.dev_preinstall),
     })?;
     Reporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
