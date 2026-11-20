@@ -989,3 +989,11 @@ test('--minimum-release-age-exclude is parsed as an array for the install comman
   expect(options['minimum-release-age']).toBe(1440)
   expect(options['minimum-release-age-exclude']).toStrictEqual(['foo', 'bar'])
 })
+
+test('a single --minimum-release-age-exclude is parsed as a one-element array', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: () => ({ 'minimum-release-age-exclude': [String, Array] }),
+  }, ['install', '--minimum-release-age-exclude', 'foo'])
+  expect(options['minimum-release-age-exclude']).toStrictEqual(['foo'])
+})

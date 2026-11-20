@@ -65,6 +65,11 @@ fn extract_accepts_the_install_settings_as_bare_flags() {
         "--trust-policy=no-downgrade",
         "--trust-policy-exclude=lodash",
         "--trust-policy-ignore-after=5",
+        "--minimum-release-age",
+        "1440",
+        "--minimum-release-age-exclude",
+        "is-odd",
+        "--minimum-release-age-exclude=is-even",
         "--no-lockfile",
     ]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
@@ -80,6 +85,11 @@ fn extract_accepts_the_install_settings_as_bare_flags() {
     assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
     assert_eq!(config.trust_policy_exclude, Some(vec!["lodash".to_string()]));
     assert_eq!(config.trust_policy_ignore_after, Some(5));
+    assert_eq!(config.minimum_release_age, Some(1440));
+    assert_eq!(
+        config.minimum_release_age_exclude,
+        Some(vec!["is-odd".to_string(), "is-even".to_string()]),
+    );
     assert!(!config.lockfile);
 }
 

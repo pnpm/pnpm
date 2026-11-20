@@ -1,10 +1,6 @@
 import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { namedRegistryTarballPrefixes } from '@pnpm/config.pick-registry-for-package'
-import {
-  coerceExcludeToArray,
-  createPackageVersionPolicy,
-  validateMinimumReleaseAge,
-} from '@pnpm/config.version-policy'
+import { createPackageVersionPolicy, validateMinimumReleaseAge } from '@pnpm/config.version-policy'
 import { isError, PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import {
@@ -55,12 +51,7 @@ export interface CreateNpmResolutionVerifierOptions {
    * (the lowest-version fallback) and tests forward both fields together.
    */
   minimumReleaseAgeStrict?: boolean
-  /**
-   * May arrive as a bare `string` when a single `--minimum-release-age-exclude`
-   * flag is passed on the CLI (`[String, Array]` coercion); normalized to
-   * `string[]` before use so the policy matcher iterates packages, not chars.
-   */
-  minimumReleaseAgeExclude?: string[] | string
+  minimumReleaseAgeExclude?: string[]
   /**
    * When the registry's metadata lacks the per-version `time` field
    * (some self-hosted registries strip it), the verifier can't apply
@@ -175,10 +166,7 @@ function createVerifierSettings (opts: CreateNpmResolutionVerifierOptions): Veri
   const cutoff = ageCheckActive
     ? (opts.now ?? Date.now()) - opts.minimumReleaseAge! * 60 * 1000
     : 0
-  const normalizedMinAgeExcludes = opts.minimumReleaseAgeExclude != null && opts.minimumReleaseAgeExclude !== ''
-    ? coerceExcludeToArray(opts.minimumReleaseAgeExclude)
-    : undefined
-  const excludePolicy = createOptionalExcludePolicy(normalizedMinAgeExcludes, 'minimumReleaseAgeExclude')
+  const excludePolicy = createOptionalExcludePolicy(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
   const trustExcludePolicy = createOptionalExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
   const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(opts.registriesByPrefix)
   return {

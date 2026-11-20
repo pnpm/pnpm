@@ -11,7 +11,7 @@ import delay from 'delay'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeJsonFile } from 'write-json-file'
 
-import { DEFAULT_OPTS } from './utils/index.js'
+import { DEFAULT_OPTS, minimumReleaseAgeRejectingIsOdd011 } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
@@ -214,7 +214,7 @@ test('do not install Node.js when devEngines runtime is not set to onFail=downlo
   expect(lockfile.importers['.'].devDependencies).toBeUndefined()
 })
 
-test('install respects --minimum-release-age passed as a CLI option', async () => {
+test('install fails when a dependency is newer than minimumReleaseAge', async () => {
   prepareEmpty()
 
   await writeJsonFile('package.json', {
@@ -223,10 +223,7 @@ test('install respects --minimum-release-age passed as a CLI option', async () =
     },
   })
 
-  const isOdd011ReleaseDate = new Date('2016-12-07T07:18:01.205Z')
-  const diffMinutes = (Date.now() - isOdd011ReleaseDate.getTime()) / (60 * 1000)
-  // Add a small buffer so the computed cutoff is guaranteed to be before the known publish time.
-  const minimumReleaseAge = Math.ceil(diffMinutes) + 1
+  const minimumReleaseAge = minimumReleaseAgeRejectingIsOdd011()
   await expect(install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -235,7 +232,7 @@ test('install respects --minimum-release-age passed as a CLI option', async () =
   })).rejects.toThrow(/does not meet the minimumReleaseAge constraint/)
 })
 
-test('install respects --minimum-release-age-exclude passed as a CLI option', async () => {
+test('install skips the minimumReleaseAge check for packages in minimumReleaseAgeExclude', async () => {
   prepareEmpty()
 
   await writeJsonFile('package.json', {
@@ -244,9 +241,7 @@ test('install respects --minimum-release-age-exclude passed as a CLI option', as
     },
   })
 
-  const isOdd011ReleaseDate = new Date('2016-12-07T07:18:01.205Z')
-  const diff = Date.now() - isOdd011ReleaseDate.getTime()
-  const minimumReleaseAge = diff / (60 * 1000)
+  const minimumReleaseAge = minimumReleaseAgeRejectingIsOdd011()
 
   await install.handler({
     ...DEFAULT_OPTS,

@@ -165,24 +165,6 @@ test('getPublishedByPolicy() accepts zero as a no-op (publishedBy undefined)', (
   expect(publishedByExclude).toBeUndefined()
 })
 
-test('getPublishedByPolicy() coerces a single-string minimumReleaseAgeExclude to an array', () => {
-  const { publishedByExclude } = getPublishedByPolicy({
-    minimumReleaseAge: 24 * 60,
-    minimumReleaseAgeExclude: 'is-odd',
-  })
-  expect(publishedByExclude!('is-odd')).toBe(true)
-  expect(publishedByExclude!('axios')).toBe(false)
-})
-
-test('getPublishedByPolicy() coerces a single-string exclude with a version to an array', () => {
-  const { publishedByExclude } = getPublishedByPolicy({
-    minimumReleaseAge: 24 * 60,
-    minimumReleaseAgeExclude: 'pnpm@9.1.0',
-  })
-  expect(publishedByExclude!('pnpm')).toStrictEqual(['9.1.0'])
-  expect(publishedByExclude!('axios')).toBe(false)
-})
-
 test('mergePackageVersionSpecs() combines versions of the same package into one sorted entry', () => {
   expect(mergePackageVersionSpecs([
     'axios@0.21.2',

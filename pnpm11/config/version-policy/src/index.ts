@@ -36,7 +36,7 @@ export function createPackageVersionPolicyOrThrow (patterns: string[] | string, 
 
 export interface PublishedByPolicyOptions {
   minimumReleaseAge?: number
-  minimumReleaseAgeExclude?: string[] | string
+  minimumReleaseAgeExclude?: string[]
 }
 
 export interface PublishedByPolicy {
@@ -61,17 +61,6 @@ export function validateMinimumReleaseAge (value: number): void {
 }
 
 /**
- * Normalize a `minimumReleaseAgeExclude` value to `string[]`. The CLI passes a
- * bare `string` when the flag is given once (`[String, Array]` coercion), while
- * config and repeated flags yield `string[]`; without normalization the policy
- * matcher would iterate the string character-by-character. Shared by both the
- * resolver-time and lockfile-verifier paths.
- */
-export function coerceExcludeToArray (value: string[] | string): string[] {
-  return Array.isArray(value) ? value : [value]
-}
-
-/**
  * Derives the resolver's `publishedBy` cutoff date and `publishedByExclude`
  * policy from the user's `minimumReleaseAge` / `minimumReleaseAgeExclude`
  * config. Centralized so every call site computes the cutoff at the same
@@ -85,8 +74,8 @@ export function getPublishedByPolicy (opts: PublishedByPolicyOptions, now: numbe
     publishedBy: opts.minimumReleaseAge
       ? new Date(now - opts.minimumReleaseAge * 60 * 1000)
       : undefined,
-    publishedByExclude: opts.minimumReleaseAgeExclude != null && opts.minimumReleaseAgeExclude !== ''
-      ? createPackageVersionPolicyOrThrow(coerceExcludeToArray(opts.minimumReleaseAgeExclude), 'minimumReleaseAgeExclude')
+    publishedByExclude: opts.minimumReleaseAgeExclude
+      ? createPackageVersionPolicyOrThrow(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
       : undefined,
   }
 }
