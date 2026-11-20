@@ -531,13 +531,14 @@ async fn declared_tarball_redirect_to_disallowed_target_is_blocked_without_conta
     assert!(!debug.contains("AKIA_BODY_CRED"), "{debug}");
     forbidden.assert_async().await;
 
-    // Escaped JSON URLs (`\/` and `\u002f`), including malformed/truncated JSON,
-    // are also redacted while keeping status 403 intact for refresh detection.
+    // Valid JSON 403 bodies with escaped URLs in both object keys and string
+    // values, plus malformed/truncated JSON fallbacks, redact credentials while
+    // keeping status 403 intact for refresh detection.
     let escaped_forbidden = cdn
         .mock("GET", "/escaped.tgz")
         .with_status(403)
         .with_body(
-            r#"{"url":"https:\/\/cdn.corp.example\/escaped.tgz?signature=ESCAPED_JSON_SIG\u0026X-Amz-Signature=ESCAPED_AMZ_SIG","partial":"https:\u002f\u002fcdn.corp.example\u002fpart.tgz?token=TRUNCATED_SIG"#,
+            r#"{"https:\/\/cdn.corp.example\/key.tgz?signature=KEY_JSON_SIG":"https:\/\/cdn.corp.example\/escaped.tgz?signature=ESCAPED_JSON_SIG\u0026X-Amz-Signature=ESCAPED_AMZ_SIG"}"#,
         )
         .expect(1)
         .create_async()
@@ -547,10 +548,37 @@ async fn declared_tarball_redirect_to_disallowed_target_is_blocked_without_conta
         .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &escaped_route)
         .await
         .unwrap_err();
-    assert!(matches!(escaped_err, pnpr_error::RegistryError::UpstreamStatus { status: 403, .. }));
+    assert!(
+        matches!(
+            &escaped_err,
+            pnpr_error::RegistryError::UpstreamStatus { status: 403, body, .. }
+                if !body.contains("KEY_JSON_SIG")
+                    && !body.contains("ESCAPED_JSON_SIG")
+                    && !body.contains("ESCAPED_AMZ_SIG")
+        ),
+        "{escaped_err:?}",
+    );
     let escaped_debug = format!("{escaped_err:?}");
+    assert!(!escaped_debug.contains("KEY_JSON_SIG"), "{escaped_debug}");
     assert!(!escaped_debug.contains("ESCAPED_JSON_SIG"), "{escaped_debug}");
     assert!(!escaped_debug.contains("ESCAPED_AMZ_SIG"), "{escaped_debug}");
-    assert!(!escaped_debug.contains("TRUNCATED_SIG"), "{escaped_debug}");
     escaped_forbidden.assert_async().await;
+
+    let truncated_forbidden = cdn
+        .mock("GET", "/truncated.tgz")
+        .with_status(403)
+        .with_body(
+            r#"{"partial":"https:\u002f\u002fcdn.corp.example\u002fpart.tgz?token=TRUNCATED_SIG"#,
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let truncated_route = crate::UpstreamTarballRoute::Url(format!("{}/truncated.tgz", cdn.url()));
+    let truncated_err = client
+        .fetch_declared_tarball_response(&pkg, "split-1.0.0.tgz", &truncated_route)
+        .await
+        .unwrap_err();
+    let truncated_debug = format!("{truncated_err:?}");
+    assert!(!truncated_debug.contains("TRUNCATED_SIG"), "{truncated_debug}");
+    truncated_forbidden.assert_async().await;
 }

@@ -9,7 +9,10 @@ use pnpm_resolving_npm_resolver::{
     DistStats, ObservedDistStats, VerificationRegistryRoutes, observed_dist_stats_key,
 };
 
-use super::{MAX_NDJSON_FRAME_BYTES, TarballRouter, ndjson_line, routed_package_frame};
+use super::{
+    LockfileOrigin, MAX_NDJSON_FRAME_BYTES, TarballRouter, ndjson_line, routed_package_frame,
+    tarball_router::LockfileRoutingContext,
+};
 
 /// `package` frames for every tarball-fetchable entry of a verified
 /// frozen lockfile, deduplicated by tarball URL. Mirrors what the
@@ -98,7 +101,7 @@ fn frozen_package_frame(
     };
     let (name, id, bare_version) = frozen_package_coordinates(inputs.package_key);
     let tarball_url = inputs.router.route_lockfile_tarball_with_routes(
-        inputs.routes,
+        LockfileRoutingContext { routes: inputs.routes, origin: LockfileOrigin::VerifiedInput },
         inputs.package_key,
         &inputs.snapshot.resolution,
         &upstream_tarball_url,

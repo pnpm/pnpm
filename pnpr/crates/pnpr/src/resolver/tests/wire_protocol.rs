@@ -783,8 +783,17 @@ fn frozen_frames_and_lockfile_routing_isolate_multi_registry_stats_and_routed_en
         "https://pub.east.example/".to_string(),
     );
     let router_pub = router.with_registries_by_prefix(pnpm_config.registries_by_prefix.clone());
+    let signed_under_pub =
+        lockfile_with_tarball("https://pub.east.example/acme/-/acme-1.0.0.tgz?X-Amz-Signature=SIG");
+    assert_eq!(
+        lockfile_tarball_url(
+            &router_pub.route_lockfile(&pnpm_config, &signed_under_pub),
+            "acme@1.0.0",
+        ),
+        "http://127.0.0.1:7677/npm/~west/acme/-/acme-1.0.0.tgz",
+    );
     let raw_pub = lockfile_with_tarball("https://pub.east.example/acme/-/acme-1.0.0.tgz");
-    let routed_pub = router_pub.route_lockfile(&pnpm_config, &raw_pub);
+    let routed_pub = router_pub.route_verified_lockfile(&pnpm_config, &raw_pub);
     assert_eq!(
         lockfile_tarball_url(&routed_pub, "acme@1.0.0"),
         "https://pub.east.example/acme/-/acme-1.0.0.tgz",

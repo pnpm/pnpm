@@ -55,7 +55,7 @@ fn sanitize_upstream_error_body(body: &str) -> String {
     if let Ok(mut parsed) = serde_json::from_str::<serde_json::Value>(body) {
         sanitize_json_strings(&mut parsed);
         if let Ok(serialized) = serde_json::to_string(&parsed) {
-            return serialized;
+            return pnpr_error::redact_url_credentials(&serialized);
         }
     }
     sanitize_error_text(body)
@@ -72,9 +72,14 @@ fn sanitize_json_strings(value: &mut serde_json::Value) {
             }
         }
         serde_json::Value::Object(entries) => {
-            for entry in entries.values_mut() {
-                sanitize_json_strings(entry);
-            }
+            let sanitized = std::mem::take(entries)
+                .into_iter()
+                .map(|(key, mut entry)| {
+                    sanitize_json_strings(&mut entry);
+                    (sanitize_error_text(&key), entry)
+                })
+                .collect();
+            *entries = sanitized;
         }
         serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
     }

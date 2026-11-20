@@ -13,6 +13,34 @@ use super::{
 mod endpoints;
 mod verdict_salt;
 
+#[derive(Clone, Copy)]
+pub(in super::super) enum LockfileOrigin<'a> {
+    Resolved { verified_input: Option<&'a Lockfile> },
+    VerifiedInput,
+}
+
+impl LockfileOrigin<'_> {
+    fn has_established_tarball(self, package_key: &PackageKey, tarball_url: &str) -> bool {
+        match self {
+            Self::VerifiedInput => true,
+            Self::Resolved { verified_input: None } => false,
+            Self::Resolved { verified_input: Some(input) } => input.packages
+                .as_ref()
+                .and_then(|packages| packages.get(package_key))
+                .is_some_and(|meta| match &meta.resolution {
+                    LockfileResolution::Tarball(existing) => existing.tarball == tarball_url,
+                    _ => false,
+                }),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct LockfileRoutingContext<'a> {
+    pub(super) routes: &'a VerificationRegistryRoutes,
+    pub(super) origin: LockfileOrigin<'a>,
+}
+
 #[derive(Clone)]
 pub(in super::super) struct TarballRouter {
     pub(super) context: Arc<RouteContext>,
@@ -102,7 +130,7 @@ impl TarballRouter {
     /// are classified by their own URL.
     pub(super) fn route_lockfile_tarball_with_routes(
         &self,
-        routes: &VerificationRegistryRoutes,
+        ctx: LockfileRoutingContext<'_>,
         package_key: &PackageKey,
         resolution: &LockfileResolution,
         tarball_url: &str,
@@ -120,14 +148,14 @@ impl TarballRouter {
             .to_string();
         if let Some((registry_name, _)) = package_key.suffix.registry_qualified() {
             let Some(registry) =
-                routes.select_registry(&package_key.name, Some(registry_name), None)
+                ctx.routes.select_registry(&package_key.name, Some(registry_name), None)
             else {
                 return sanitize_registry_tarball_url(effective_url);
             };
             return self.route_for_registry(&registry, &name, &version, effective_url);
         }
         let registry = self.select_unprefixed_lockfile_registry(
-            routes,
+            ctx,
             package_key,
             resolution,
             reversed.as_deref(),
@@ -137,28 +165,28 @@ impl TarballRouter {
 
     fn select_unprefixed_lockfile_registry(
         &self,
-        routes: &VerificationRegistryRoutes,
+        ctx: LockfileRoutingContext<'_>,
         package_key: &PackageKey,
         resolution: &LockfileResolution,
         reversed_endpoint_url: Option<&str>,
     ) -> String {
         let name = package_key.name.to_string();
         if let Some(reversed) = reversed_endpoint_url {
-            return routes
+            return ctx.routes
                 .select_registry(&package_key.name, None, Some(reversed))
                 .expect("unprefixed entries always select a scope or default registry");
         }
         if let LockfileResolution::Tarball(tarball) = resolution
+            && ctx.origin.has_established_tarball(package_key, &tarball.tarball)
             && let Some(candidate) =
-                routes.select_registry(&package_key.name, None, Some(&tarball.tarball))
-            && matches!(
-                self.context.classify(&self.identity, &candidate, Some(&name)),
-                RouteClass::Public | RouteClass::Hosted { .. },
-            )
+                ctx.routes.select_registry(&package_key.name, None, Some(&tarball.tarball))
         {
-            return candidate;
+            match self.context.classify(&self.identity, &candidate, Some(&name)) {
+                RouteClass::Public | RouteClass::Hosted { .. } => return candidate,
+                RouteClass::Proxied { .. } => {}
+            }
         }
-        routes
+        ctx.routes
             .select_registry(&package_key.name, None, None)
             .expect("unprefixed entries always select a scope or default registry")
     }
@@ -276,7 +304,22 @@ impl TarballRouter {
         config: &PacquetConfig,
         lockfile: &Lockfile,
     ) -> Lockfile {
-        self.route_lockfile_until(config, lockfile, &|| false)
+        self.route_lockfile_until(
+            config,
+            lockfile,
+            LockfileOrigin::Resolved { verified_input: None },
+            &|| false,
+        )
+        .expect("unconditional tarball routing cannot cancel")
+    }
+
+    #[cfg(test)]
+    pub(in super::super) fn route_verified_lockfile(
+        &self,
+        config: &PacquetConfig,
+        lockfile: &Lockfile,
+    ) -> Lockfile {
+        self.route_lockfile_until(config, lockfile, LockfileOrigin::VerifiedInput, &|| false)
             .expect("unconditional tarball routing cannot cancel")
     }
 
@@ -284,12 +327,14 @@ impl TarballRouter {
         &self,
         config: &PacquetConfig,
         lockfile: &Lockfile,
+        origin: LockfileOrigin<'_>,
         should_cancel: &dyn Fn() -> bool,
     ) -> Option<Lockfile> {
         if should_cancel() {
             return None;
         }
         let routes = self.build_verification_routes(config);
+        let ctx = LockfileRoutingContext { routes: &routes, origin };
         let mut routed = lockfile.clone();
         let Some(packages) = routed.packages.as_mut() else {
             return Some(routed);
@@ -298,7 +343,7 @@ impl TarballRouter {
             if should_cancel() {
                 return None;
             }
-            self.route_package_metadata(config, &routes, package_key, metadata);
+            self.route_package_metadata(config, ctx, package_key, metadata);
         }
         Some(routed)
     }
@@ -306,7 +351,7 @@ impl TarballRouter {
     fn route_package_metadata(
         &self,
         config: &PacquetConfig,
-        routes: &VerificationRegistryRoutes,
+        ctx: LockfileRoutingContext<'_>,
         package_key: &PackageKey,
         metadata: &mut PackageMetadata,
     ) {
@@ -328,7 +373,7 @@ impl TarballRouter {
             return;
         }
         let routed_url = self.route_lockfile_tarball_with_routes(
-            routes,
+            ctx,
             package_key,
             &metadata.resolution,
             &tarball_url,

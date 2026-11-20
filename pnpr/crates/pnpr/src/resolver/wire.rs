@@ -2,7 +2,7 @@ pub(super) mod osv;
 
 pub(super) use frozen_frames::frozen_package_frames_until;
 pub(super) use osv::{osv_violations_for_lockfile_until, verify_done_frame};
-pub(super) use tarball_router::TarballRouter;
+pub(super) use tarball_router::{LockfileOrigin, TarballRouter};
 
 mod frozen_frames;
 mod tarball_router;
