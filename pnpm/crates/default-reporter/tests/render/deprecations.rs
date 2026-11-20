@@ -130,3 +130,18 @@ fn warnings_do_not_close_a_summary_a_manifest_edit_still_fills() {
     );
     assert_eq!(frame, "[WARN] deprecated: express@0.14.1\n\ndependencies:\n+ express 0.14.1\n");
 }
+
+#[test]
+fn every_notice_of_a_package_on_a_summary_line_is_carried_by_it() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            deprecation("left-pad", "1.0.0", 0, "/repo/packages/a"),
+            deprecation("left-pad", "1.0.0", 0, CWD),
+            added_root("left-pad", "1.0.0", DependencyType::Prod),
+            summary(),
+        ],
+    );
+    assert_eq!(frame, "\ndependencies:\n+ left-pad 1.0.0 deprecated\n");
+}

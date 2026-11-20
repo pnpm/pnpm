@@ -121,7 +121,7 @@ impl ReporterState {
 
     /// The dependency sections, and the held deprecation warnings their
     /// lines carry.
-    fn render_summary_sections(&self) -> (String, HashSet<usize>) {
+    fn render_summary_sections(&self) -> (String, HashSet<String>) {
         let mut msg = String::new();
         let mut shown_deprecations = HashSet::new();
         let workspace = self.summary.workspace
@@ -141,7 +141,7 @@ impl ReporterState {
                 lines
                     .iter()
                     .filter(|(_, diff)| diff.added)
-                    .filter_map(|(_, diff)| self.deprecation_of(diff)),
+                    .filter_map(|(_, diff)| self.deprecated_label_of(diff)),
             );
             msg.push('\n');
             msg.push_str(&self.rendering.colors.cyan_bright(&format!("{}:", kind.header())));

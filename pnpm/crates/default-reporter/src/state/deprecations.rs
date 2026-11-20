@@ -28,6 +28,12 @@ impl ReporterState {
             .position(|log| log.pkg_name == name && log.pkg_version == version)
     }
 
+    /// The `name@version` of the deprecated package a summary line names.
+    pub(super) fn deprecated_label_of(&self, diff: &PackageDiff) -> Option<String> {
+        self.deprecation_of(diff)
+            .map(|index| pkg_label(&self.notices.deprecations[index]))
+    }
+
     /// What a summary line of a deprecated package ends with.
     pub(super) fn deprecation_marker(&self, diff: &PackageDiff) -> String {
         self.deprecation_of(diff)
@@ -41,22 +47,23 @@ impl ReporterState {
             .unwrap_or_default()
     }
 
-    /// The warnings for the held deprecations that no summary line in
-    /// `shown` carries: one line per deprecated direct dependency, then one
-    /// for every deprecated subdependency.
-    pub(super) fn deprecation_warnings(&self, shown: &HashSet<usize>) -> Vec<String> {
+    /// The warnings for the held deprecations of packages that no summary
+    /// line in `shown` (by `name@version`) carries: one line per deprecated
+    /// direct dependency, then one for every deprecated subdependency.
+    pub(super) fn deprecation_warnings(&self, shown: &HashSet<String>) -> Vec<String> {
         let mut direct: BTreeMap<String, (&DeprecationLog, Vec<String>)> = BTreeMap::new();
         let mut subdependencies: Vec<String> = Vec::new();
-        for (index, log) in self.notices.deprecations.iter().enumerate() {
-            if shown.contains(&index) {
+        for log in &self.notices.deprecations {
+            let label = pkg_label(log);
+            if shown.contains(&label) {
                 continue;
             }
             if log.depth != 0 {
-                subdependencies.push(pkg_label(log));
+                subdependencies.push(label);
                 continue;
             }
             direct
-                .entry(pkg_label(log))
+                .entry(label)
                 .or_insert_with(|| (log, Vec::new()))
                 .1
                 .push(normalized_prefix(&self.rendering.cwd, &log.prefix));
