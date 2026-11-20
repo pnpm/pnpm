@@ -1,6 +1,6 @@
 use super::{
     InstallFrozenLockfileError, LocalLockfileInstall, Lockfile, LockfileVerificationOverride,
-    PnprClient, PnprClientError, PnprLink, Reporter, State, VerifiedOfflineLockfile,
+    PnprClient, PnprClientError, PnprLink, PnprSession, Reporter, State, VerifiedOfflineLockfile,
     VerifyLockfileOptions, VerifyLockfileResolutionsOptions, build_resolution_verifiers,
     record_lockfile_verified, verify_lockfile_resolutions,
 };
@@ -13,7 +13,12 @@ pub(super) fn verify_pnpr_input_lockfile<'a>(
     link: &PnprLink<'_>,
     lockfile: &'a Lockfile,
 ) -> miette::Result<VerifiedOfflineLockfile<'a>> {
-    VerifiedOfflineLockfile::verify(lockfile, link.lockfile.fix).map_err(miette::Report::new)
+    let result = if link.lockfile.fix {
+        VerifiedOfflineLockfile::verify_for_repair(lockfile)
+    } else {
+        VerifiedOfflineLockfile::verify(lockfile)
+    };
+    result.map_err(miette::Report::new)
 }
 
 /// Verify the settled lockfile returned by the pnpr server (and merged locally
@@ -22,12 +27,12 @@ pub(super) fn verify_pnpr_input_lockfile<'a>(
 pub(super) async fn verify_settled_pnpr_lockfile<Reporter: self::Reporter + 'static>(
     state: &State,
     link: &PnprLink<'_>,
-    partial_selection: bool,
+    session: &PnprSession<'_>,
     lockfile: &Lockfile,
 ) -> miette::Result<Option<Vec<std::sync::Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>>>
 {
-    let verified = VerifiedOfflineLockfile::verify(lockfile, false).map_err(miette::Report::new)?;
-    if !(link.lockfile.fix && partial_selection) {
+    let verified = VerifiedOfflineLockfile::verify(lockfile).map_err(miette::Report::new)?;
+    if !(link.lockfile.fix && session.partial_selection) {
         return Ok(None);
     }
     let verifiers =

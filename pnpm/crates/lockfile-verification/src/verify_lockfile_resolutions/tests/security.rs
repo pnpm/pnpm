@@ -132,7 +132,7 @@ snapshots:
   safe-pkg@1.0.0: {}
 ";
     let lockfile = parse(yaml);
-    let err = crate::VerifiedOfflineLockfile::verify(&lockfile, false)
+    let err = crate::VerifiedOfflineLockfile::verify(&lockfile)
         .expect_err("offline lockfile proof must reject shape mismatch");
     assert!(matches!(err, VerifyError::ResolutionShapeMismatch { .. }), "got {err:?}");
 

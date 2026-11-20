@@ -89,18 +89,26 @@ impl std::fmt::Debug for ReplacedEntries<'_> {
 }
 
 /// Proof that `lockfile` passed offline dependency-name, importer-snapshot
-/// link (unless `repairs_lockfile`), and resolution-shape validation, allowing
-/// a subsequent verification-cache lookup to skip repeating those scans.
+/// link (except in [`Self::verify_for_repair`]), and resolution-shape
+/// validation, allowing a subsequent verification-cache lookup to skip
+/// repeating those scans.
 #[derive(Debug, Clone, Copy)]
 pub struct VerifiedOfflineLockfile<'a>(&'a Lockfile);
 
 impl<'a> VerifiedOfflineLockfile<'a> {
-    /// Validate offline structure and resolution shapes of `lockfile`.
-    pub fn verify(lockfile: &'a Lockfile, repairs_lockfile: bool) -> Result<Self, VerifyError> {
-        verify_structure_before_install(
-            lockfile,
-            &VerifyLockfileResolutionsOptions { repairs_lockfile, ..Default::default() },
-        )?;
+    /// Validate offline dependency names, importer-snapshot links, and
+    /// resolution shapes of `lockfile`.
+    pub fn verify(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
+        verify_offline_structural_checks(lockfile)?;
+        verify_lockfile_resolution_shapes(lockfile)?;
+        Ok(Self(lockfile))
+    }
+
+    /// Validate offline dependency names and resolution shapes of `lockfile`
+    /// while allowing missing importer-snapshot links that `--fix-lockfile`
+    /// re-resolves.
+    pub fn verify_for_repair(lockfile: &'a Lockfile) -> Result<Self, VerifyError> {
+        verify_lockfile_dependency_names(lockfile)?;
         verify_lockfile_resolution_shapes(lockfile)?;
         Ok(Self(lockfile))
     }
@@ -246,7 +254,8 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    let (candidates, skipped_replaced) = collect_candidates_to_verify(lockfile, opts.replaced);
+    let CandidatesToVerify { candidates, skipped_replaced } =
+        collect_candidates_to_verify(lockfile, opts.replaced);
     let cache_inputs = cache_inputs.filter(|_| !skipped_replaced);
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
@@ -265,15 +274,21 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     Err(build_verification_error(violations))
 }
 
+struct CandidatesToVerify {
+    candidates: Vec<Candidate>,
+    skipped_replaced: bool,
+}
+
 /// The lockfile entries the policy verifiers check, after the offline
-/// shape check passes. Entries `replaced` matches are left out, and the
-/// returned flag tells whether any was.
+/// shape check passes. Entries `replaced` matches are left out.
 fn collect_candidates_to_verify(
     lockfile: &Lockfile,
     replaced: Option<ReplacedEntries<'_>>,
-) -> (Vec<Candidate>, bool) {
+) -> CandidatesToVerify {
     let mut candidates = collect_candidates(lockfile);
-    let Some(ReplacedEntries(is_replaced)) = replaced else { return (candidates, false) };
+    let Some(ReplacedEntries(is_replaced)) = replaced else {
+        return CandidatesToVerify { candidates, skipped_replaced: false };
+    };
     let entries = candidates.len();
     candidates.retain(|candidate| {
         !is_replaced(ReplacedCandidate {
@@ -283,7 +298,7 @@ fn collect_candidates_to_verify(
         })
     });
     let skipped_replaced = candidates.len() < entries;
-    (candidates, skipped_replaced)
+    CandidatesToVerify { candidates, skipped_replaced }
 }
 
 /// Run the verifiers over every candidate, reporting the run to the
