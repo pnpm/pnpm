@@ -29,4 +29,5 @@ windows-sys = { workspace = true, features = [
 workspace = true
 
 [dev-dependencies]
+command-extra = { workspace = true }
 text-block-macros = { workspace = true }

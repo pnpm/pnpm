@@ -2,15 +2,17 @@ use super::{
     effective_user_id,
     real_user_id,
 };
+use command_extra::CommandExtra;
 
 /// Pins that the two identity calls agree with the `id` the shell reports,
 /// which is the only independent source of the answer available in a test.
 #[test]
 fn identities_match_the_shell() {
     let reported = |flag: &str| {
-        let mut command = std::process::Command::new("id");
-        command.arg(flag);
-        let output = command.output().expect("run id");
+        let output = std::process::Command::new("id")
+            .with_arg(flag)
+            .output()
+            .expect("run id");
         assert!(output.status.success(), "id {flag} failed: {output:?}");
         String::from_utf8(output.stdout)
             .expect("id prints UTF-8")
