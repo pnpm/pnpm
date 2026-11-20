@@ -265,6 +265,7 @@ The format differs from today's in these ways:
 
 - The workspace projects are listed under `projects`.
 - There is one `packages` entry per package version and no `snapshots` section. The entry holds the package's metadata, its resolved dependencies, and under `peerDependencies` each peer's declared range beside the version it resolved to.
+- An ordinary dependency on a peer's provider under another name stays in the dependency map for that name.
 - A peer that a dependency below the package needs, rather than the package itself, is recorded as `{version: 1.2.3, below: true}`. A peer the package marks optional is written as `{specifier: '*', optional: true}`. There is no `peerDependenciesMeta` field.
 - The tarball's `integrity` is a field of the entry. A registry package and an injected workspace package have no `resolution` field.
 - A local directory package records the dependencies its manifest declares, after hooks, in its `dependencies` and `optionalDependencies`. A dependency is its specifier alone when the specifier is also the version. Otherwise it is `{specifier: ^1.0.0, version: 1.2.3}`, without `version` when the package does not link the dependency in every snapshot. Frozen installs compare these specifiers with the current manifest. Changed ranges invalidate the lockfile even when the locked versions still satisfy them. A lockfile converted from the `v9` format records no specifiers and keeps the existing freshness checks.

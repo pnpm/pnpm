@@ -1791,3 +1791,47 @@ snapshots:
         written_and_read(&parse(&yaml));
     }
 }
+
+#[test]
+fn ordinary_alias_of_a_peer_provider_round_trips() {
+    for alias_version in ["1.0.0", "2.0.0"] {
+        let lockfile = parse(&format!(
+            r"lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      provider:
+        specifier: 1.0.0
+        version: 1.0.0
+      wrapper:
+        specifier: 1.0.0
+        version: 1.0.0(provider@1.0.0)
+packages:
+  provider@1.0.0:
+    resolution: {{integrity: sha512-AAAA}}
+  provider@2.0.0:
+    resolution: {{integrity: sha512-DDDD}}
+  consumer@1.0.0:
+    resolution: {{integrity: sha512-BBBB}}
+    peerDependencies:
+      provider: '*'
+  wrapper@1.0.0:
+    resolution: {{integrity: sha512-CCCC}}
+snapshots:
+  provider@1.0.0: {{}}
+  provider@2.0.0: {{}}
+  consumer@1.0.0(provider@1.0.0):
+    dependencies:
+      provider: 1.0.0
+      provider-copy: provider@{alias_version}
+  wrapper@1.0.0(provider@1.0.0):
+    dependencies:
+      consumer: 1.0.0(provider@1.0.0)
+      provider-copy: provider@{alias_version}
+    transitivePeerDependencies:
+      - provider
+",
+        ));
+        written_and_read(&lockfile);
+    }
+}

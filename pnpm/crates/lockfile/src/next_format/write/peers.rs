@@ -231,7 +231,13 @@ pub(super) fn own_peer_names<'a>(
         })
         .filter(|(alias, reference)| {
             if let Some(segments) = &segments {
-                return names_provider(segments, alias, reference);
+                // A group carries the provider's name, so an aliased edge
+                // needs a peer declaration under its installed name.
+                let ordinary_alias = matches!(reference, SnapshotDepRef::Alias(_))
+                    && metadata.is_some_and(|metadata| {
+                        !declares_peer(metadata, &alias.to_string())
+                    });
+                return !ordinary_alias && names_provider(segments, alias, reference);
             }
             is_own_hashed_peer(entry, metadata, recovered, alias, reference)
         })
@@ -247,10 +253,7 @@ fn is_own_hashed_peer(
     reference: &SnapshotDepRef,
 ) -> bool {
     let name = alias.to_string();
-    if !metadata
-        .and_then(|metadata| metadata.peer_dependencies.as_ref())
-        .is_some_and(|declared| declared.contains_key(&name))
-    {
+    if !metadata.is_some_and(|metadata| declares_peer(metadata, &name)) {
         return false;
     }
     if let Some(recovered) = recovered.filter(|recovered| !recovered.is_hashed()) {
@@ -264,6 +267,12 @@ fn is_own_hashed_peer(
         || entry.optional_dependencies
             .as_ref()
             .is_some_and(|deps| deps.contains_key(alias))
+}
+
+fn declares_peer(metadata: &PackageMetadata, name: &str) -> bool {
+    metadata.peer_dependencies
+        .as_ref()
+        .is_some_and(|declared| declared.contains_key(name))
 }
 
 /// The provider groups of a peer suffix, or `None` when it is hashed.
