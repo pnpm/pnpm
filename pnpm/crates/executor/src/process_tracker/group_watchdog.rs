@@ -350,7 +350,7 @@ impl WatchdogAddress {
         let pinned = match pnpm_ffi_signal::PinnedTarget::pin(pid) {
             pnpm_ffi_signal::Pin::Target(pinned) => pinned,
             pnpm_ffi_signal::Pin::Gone => return Self::Gone,
-            pnpm_ffi_signal::Pin::Unpinnable => return Self::Pid,
+            pnpm_ffi_signal::Pin::Unsupported | pnpm_ffi_signal::Pin::Refused => return Self::Pid,
         };
         match pinned.exited(Waiting::Poll, Reaping::Leave) {
             Some(false) => Self::Pidfd(pinned),

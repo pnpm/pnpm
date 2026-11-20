@@ -943,6 +943,197 @@ mod dev_preinstall {
 
         drop((root, mock_instance));
     }
+
+    fn write_dedicated_workspace_with_hooks(
+        workspace: &std::path::Path,
+    ) -> Vec<std::path::PathBuf> {
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+        fs::write(
+            &yaml_path,
+            format!(
+                "{}\npackages:\n  - 'packages/*'\nsharedWorkspaceLockfile: false\n",
+                yaml.trim_end(),
+            ),
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        let manifest = |name: &str, scripts: serde_json::Value| {
+            serde_json::json!({ "name": name, "version": "1.0.0", "scripts": scripts }).to_string()
+        };
+        fs::write(
+            workspace.join("package.json"),
+            manifest(
+                "root",
+                serde_json::json!({ "pnpm:devPreinstall": append_order_script("root") }),
+            ),
+        )
+        .expect("write the root package.json");
+        ["member-a", "member-b"]
+            .into_iter()
+            .map(|name| {
+                let member_dir = workspace.join("packages").join(name);
+                fs::create_dir_all(&member_dir).expect("create the member dir");
+                fs::write(member_dir.join("package.json"), manifest(
+                        name,
+                        serde_json::json!({
+                            "pnpm:devPreinstall": append_order_script(name),
+                            "preinstall": r#"node -e "require('fs').accessSync('../../order.txt')""#,
+                        }),
+                    ))
+                    .expect("write the member package.json");
+                member_dir
+            })
+            .collect()
+    }
+
+    fn assert_only_the_root_ran(workspace: &std::path::Path, member_dirs: &[std::path::PathBuf]) {
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        assert_eq!(order.lines().collect::<Vec<&str>>(), ["root"]);
+        for member_dir in member_dirs {
+            assert!(
+                !member_dir.join("order.txt").exists(),
+                "member order.txt exists with: {:?}",
+                fs::read_to_string(member_dir.join("order.txt")),
+            );
+        }
+    }
+
+    #[test]
+    fn runs_once_for_the_workspace_root_when_shared_workspace_lockfile_is_false() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let member_dirs = write_dedicated_workspace_with_hooks(&workspace);
+
+        pacquet
+            .with_arg("install")
+            .assert()
+            .success();
+
+        assert_only_the_root_ran(&workspace, &member_dirs);
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn runs_for_the_workspace_root_when_a_filtered_install_excludes_it() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let member_dirs = write_dedicated_workspace_with_hooks(&workspace);
+
+        pacquet
+            .with_args(["--filter", "member-a", "install"])
+            .assert()
+            .success();
+
+        assert_only_the_root_ran(&workspace, &member_dirs);
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn runs_the_workspace_roots_script_with_the_roots_bin_dir_when_a_member_reaches_it_first() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let member_dirs = write_dedicated_workspace_with_hooks(&workspace);
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "name": "root",
+                "version": "1.0.0",
+                "scripts": {
+                    "pnpm:devPreinstall": r#"node -e "require('fs').writeFileSync('order.txt', process.env.PATH)""#,
+                },
+            })
+            .to_string(),
+        )
+        .expect("write the root package.json");
+
+        pacquet
+            .with_args(["--filter", "member-a", "install"])
+            .assert()
+            .success();
+
+        let path = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        let entries: Vec<std::path::PathBuf> = std::env::split_paths(&path).collect();
+        // Compared by trailing components: the PATH may spell the temp dir
+        // differently, such as through `/private` on macOS.
+        let root_bin = std::path::Path::new("workspace").join("node_modules").join(".bin");
+        let member_bin = member_dirs[0].join("node_modules").join(".bin");
+        let member_bin =
+            member_bin.strip_prefix(&workspace).expect("the member is inside the workspace");
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.ends_with(&root_bin)),
+            "PATH: {path}",
+        );
+        assert!(
+            !entries
+                .iter()
+                .any(|entry| entry.ends_with(member_bin)),
+            "PATH: {path}",
+        );
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn reports_the_failure_of_the_workspace_roots_script_when_shared_workspace_lockfile_is_false() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        write_dedicated_workspace_with_hooks(&workspace);
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "name": "root",
+                "version": "1.0.0",
+                "scripts": { "pnpm:devPreinstall": r#"node -e "process.exit(7)""# },
+            })
+            .to_string(),
+        )
+        .expect("write the root package.json");
+
+        let output = pacquet
+            .with_arg("install")
+            .output()
+            .expect("run pacquet install");
+
+        assert!(!output.status.success());
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert!(
+            combined.contains("ERR_PNPM_EXECUTOR_LIFECYCLE_SCRIPT_FAILED")
+                && combined.contains("process.exit(7)")
+                && !combined.contains("stopped at another workspace project's failure"),
+            "{combined}",
+        );
+        drop((root, mock_instance));
+    }
 }
 
 /// The root project's `preinstall` runs before any dependency is

@@ -19,10 +19,7 @@ use super::{
     naming_cases::to_camel_case,
     note_declared_registries,
     resolve_configured_state_dir,
-    workspace_yaml::{
-        parse_settings_file,
-        read_workspace_document,
-    },
+    workspace_yaml::read_workspace_document,
 };
 
 impl Config {
@@ -291,7 +288,7 @@ fn read_env_workspace_yaml<Sys: EnvVar>(
         return Ok((env_dir, None));
     };
     let settings = WorkspaceSettings::read_document(document, settings_read, |text, path| {
-        parse_settings_file::<Sys, WorkspaceSettings>(text, path)
+        WorkspaceSettings::read_valid_with::<Sys>(text, path)
     })?;
     Ok((env_dir, Some(settings)))
 }

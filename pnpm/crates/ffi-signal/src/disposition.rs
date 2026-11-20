@@ -2,10 +2,13 @@
 //! handler replaced.
 
 use crate::Interrupt;
-use std::sync::atomic::{
-    AtomicBool,
-    AtomicUsize,
-    Ordering,
+use std::{
+    marker::PhantomData,
+    sync::atomic::{
+        AtomicBool,
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 /// A handler for one interrupt.
@@ -20,7 +23,7 @@ use std::sync::atomic::{
 /// installed. A handler that decides pnpm should go on running does
 /// nothing with it; one that decides pnpm should stop passes the signal on
 /// with [`Replaced::pass_on`].
-pub type Handler = fn(Interrupt, Replaced);
+pub type Handler = for<'delivery> fn(Interrupt, Replaced<'delivery>);
 
 /// Install `handler` for each of `interrupts`.
 ///
@@ -56,14 +59,16 @@ pub fn carries_handler(interrupt: Interrupt) -> bool {
 /// What an interrupt did before pnpm installed a handler for it.
 ///
 /// Handed to a [`Handler`], which is the only place it can be used: the
-/// disposition it names is only correct for the signal being delivered.
-pub struct Replaced {
+/// pointers it carries are the delivery's own, and `'delivery` keeps it
+/// from outliving the handler call they were handed to.
+pub struct Replaced<'delivery> {
     slot: &'static Slot,
     siginfo: *mut libc::siginfo_t,
     context: *mut libc::c_void,
+    delivery: PhantomData<&'delivery ()>,
 }
 
-impl Replaced {
+impl Replaced<'_> {
     /// Whether the replaced disposition ends the process.
     ///
     /// A handler that only has cleanup to do checks this: where it is
@@ -234,7 +239,7 @@ extern "C" fn trampoline(
     // which is an ordinary `fn` item of exactly this signature and lives
     // for the whole program.
     let handler: Handler = unsafe { std::mem::transmute(handler) };
-    handler(interrupt, Replaced { slot, siginfo, context });
+    handler(interrupt, Replaced { slot, siginfo, context, delivery: PhantomData });
 }
 
 fn interrupt_of(number: libc::c_int) -> Option<Interrupt> {

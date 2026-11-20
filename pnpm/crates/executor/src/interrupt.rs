@@ -308,7 +308,7 @@ fn install_handler() {
 /// end it, and one that decides pnpm dies goes through
 /// `die_from_signal`, which ends the process itself.
 #[cfg(unix)]
-fn relay_signal(interrupt: pnpm_ffi_signal::Interrupt, _replaced: pnpm_ffi_signal::Replaced) {
+fn relay_signal(interrupt: pnpm_ffi_signal::Interrupt, _replaced: pnpm_ffi_signal::Replaced<'_>) {
     let signal = signal_number(interrupt);
     INTERRUPTS.fetch_add(1, Ordering::Relaxed);
     let shared_with_group =

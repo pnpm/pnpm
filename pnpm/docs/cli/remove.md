@@ -13,6 +13,18 @@ pnpm remove <pkg>...
 
 Without a `--save-*` option, the package is removed from every dependency field.
 
+## Patterns
+
+Added in: v12.23.0
+
+A selector can be a glob pattern. A selector that starts with `!` excludes the dependencies it matches, even ones named exactly. Quote patterns so the shell does not expand them.
+
+```sh
+pnpm remove "eslint-*" "!eslint-plugin-import"
+```
+
+A pattern that matches no dependency removes nothing and does not fail. An exact name that is not a dependency still fails with `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS`.
+
 ## Options
 
 ### --recursive, -r

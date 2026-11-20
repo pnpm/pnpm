@@ -87,11 +87,7 @@ pub fn try_lock_file(
         crate::LockMode::Exclusive => pnpm_ffi_webcontainer::fs::Exclusivity::Exclusive,
         crate::LockMode::Shared => pnpm_ffi_webcontainer::fs::Exclusivity::Shared,
     };
-    match pnpm_ffi_webcontainer::fs::try_lock(file, exclusivity) {
-        0 => Ok(()),
-        libc::EAGAIN => Err(std::fs::TryLockError::WouldBlock),
-        errno => Err(std::fs::TryLockError::Error(io::Error::from_raw_os_error(errno))),
-    }
+    pnpm_ffi_webcontainer::fs::try_lock(file, exclusivity)
 }
 
 /// Acquire a host file lease, failing after 30 seconds of contention.

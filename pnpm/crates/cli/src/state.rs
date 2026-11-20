@@ -26,6 +26,7 @@ use pnpm_package_manager::{
     CommandLockfile,
     DedicatedProjectInstall,
     ResolvedPackages,
+    SharedDevPreinstall,
     SharedInstallCaches,
     WorkspaceDependenciesInstalled,
 };
@@ -44,12 +45,13 @@ use std::{
 };
 
 /// What the per-project installs of a workspace whose projects keep their
-/// own lockfiles share: the tarball cache every [`State`] carries, and the
-/// rest of [`SharedInstallCaches`].
+/// own lockfiles share: the tarball cache every [`State`] carries, the rest
+/// of [`SharedInstallCaches`], and the workspace root's [`SharedDevPreinstall`].
 #[derive(Default, Clone)]
 pub(crate) struct DedicatedCaches {
     pub(crate) tarballs: Arc<MemCache>,
     pub(crate) install: SharedInstallCaches,
+    pub(crate) dev_preinstall: SharedDevPreinstall,
 }
 
 /// Application state when running `pacquet run` or `pacquet install`.
@@ -159,6 +161,7 @@ impl State {
             dedicated: Some(DedicatedProjectInstall {
                 caches: caches.install.clone(),
                 dependencies_installed,
+                dev_preinstall: caches.dev_preinstall.clone(),
             }),
             discovered_workspace: workspace,
             ..self

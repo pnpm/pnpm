@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -34,6 +35,9 @@ export function cliOptionsTypes (): Record<string, unknown> {
 export function help (): string {
   return renderHelp({
     description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json, yarn.lock) file.`,
+    descriptionLists: [
+      OUTPUT_OPTIONS,
+    ],
     url: docsUrl('import'),
     usages: [
       'pnpm import',

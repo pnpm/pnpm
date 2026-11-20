@@ -64,9 +64,7 @@ fn render_resolution(resolution: &LockfileResolution) -> String {
         .join("\n")
 }
 
-// -----------------------------------------------------------------------------
 // `select_platform_variant` / `libc_matches`. Slice B
-// -----------------------------------------------------------------------------
 
 fn binary_resolution(url: &str) -> LockfileResolution {
     LockfileResolution::Binary(BinaryResolution {

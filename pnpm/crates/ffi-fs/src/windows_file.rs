@@ -221,11 +221,15 @@ pub fn short_path(path: &Path) -> Option<PathBuf> {
 /// The current user's local application-data directory, the per-user
 /// location Windows offers for state that does not roam.
 ///
-/// `None` carries the `HRESULT`, because a caller has nowhere else to look
-/// and the code is what tells a configuration problem from a transient
-/// one.
-pub fn local_app_data_directory() -> Result<PathBuf, i32> {
-    let folder = CoTaskMemPath::known(&FOLDERID_LocalAppData)?;
+/// The error names the `HRESULT`, which is what tells a configuration
+/// problem from a transient one.
+pub fn local_app_data_directory() -> io::Result<PathBuf> {
+    let folder = CoTaskMemPath::known(&FOLDERID_LocalAppData)
+        .map_err(|result| {
+            io::Error::other(format!(
+                "failed to resolve the local application data directory: HRESULT {result:#x}",
+            ))
+        })?;
     Ok(folder.to_path_buf())
 }
 

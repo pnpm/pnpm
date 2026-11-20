@@ -35,12 +35,20 @@ export function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: bo
 
 /**
  * `pnpm:devPreinstall` prepares a development checkout, so an install that
- * leaves out `devDependencies`, such as `pnpm install --prod`, skips it.
+ * leaves out `devDependencies`, such as `pnpm install --prod`, skips it, and
+ * so does a check-only install, which writes nothing.
  */
 export function installRunsDevPreinstall (
-  opts: { ignoreScripts?: boolean, ignorePackageManifest?: boolean, include?: IncludedDependencies }
+  opts: {
+    dryRun?: boolean
+    ignorePackageManifest?: boolean
+    ignoreScripts?: boolean
+    include?: IncludedDependencies
+    lockfileCheck?: unknown
+  }
 ): boolean {
-  return !opts.ignoreScripts && !opts.ignorePackageManifest && opts.include?.devDependencies !== false
+  return !opts.ignoreScripts && !opts.ignorePackageManifest && opts.include?.devDependencies !== false &&
+    !isCheckOnlyInstall(opts)
 }
 
 /**
