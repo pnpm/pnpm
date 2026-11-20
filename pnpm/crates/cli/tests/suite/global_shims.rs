@@ -269,7 +269,7 @@ fn version_file_runtime_pin_requires_global_runtime(file_name: &str) {
         !root
             .path()
             .join("state/pnpm/global-shim-runtimes/pnpm-lock.yaml")
-            .exists()
+            .exists(),
     );
 }
 
