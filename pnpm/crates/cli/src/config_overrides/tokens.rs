@@ -162,7 +162,7 @@ pub(super) enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 49] = [
+pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 51] = [
     ("allow-unused-patches", SettingArity::Boolean),
     ("auto-dedupe", SettingArity::Boolean),
     ("cache-dir", SettingArity::Text),
@@ -188,6 +188,8 @@ pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 49] = [
     ("local-address", SettingArity::Text),
     ("merge-git-branch-lockfiles", SettingArity::Boolean),
     ("merge-git-branch-lockfiles-branch-pattern", SettingArity::Text),
+    ("minimum-release-age", SettingArity::Parsed(is_u64)),
+    ("minimum-release-age-exclude", SettingArity::Text),
     ("modules-dir", SettingArity::Text),
     ("node-experimental-package-map", SettingArity::Boolean),
     ("node-linker", SettingArity::Parsed(is_node_linker)),

@@ -23,6 +23,7 @@ export async function applyInstallSettingsFromAllSources (
   warnAboutUnmatchedRegistryOptions(pnpmConfig, state.warnings)
 
   foldMaxSockets(state, maxSocketsFromEnv)
+  normalizeMinimumReleaseAgeSettings(pnpmConfig)
 
   // When the user explicitly sets `minimumReleaseAge`, treat it as strict by
   // default. Without this, a user-set value would silently fall back to
@@ -122,6 +123,23 @@ function assertSavePeerIsExclusive (cliOptions: CliOptions): void {
   if (cliOptions['save-optional']) {
     throw new PnpmError('CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP',
       'A package cannot be a peer dependency and an optional dependency at the same time')
+  }
+}
+
+/**
+ * A `--config.<key>` token is typed only by a command that declares the key as
+ * an option, so `install` reads `--config.minimum-release-age=1` as `1` while
+ * `run` reads it as `"1"`. Normalizing both settings keeps the value recorded
+ * in the workspace state equal to the one a later command compares it with.
+ */
+function normalizeMinimumReleaseAgeSettings (pnpmConfig: PnpmConfigInProgress): void {
+  const minimumReleaseAge: unknown = pnpmConfig.minimumReleaseAge
+  if (typeof minimumReleaseAge === 'string') {
+    pnpmConfig.minimumReleaseAge = Number(minimumReleaseAge)
+  }
+  const minimumReleaseAgeExclude: unknown = pnpmConfig.minimumReleaseAgeExclude
+  if (typeof minimumReleaseAgeExclude === 'string') {
+    pnpmConfig.minimumReleaseAgeExclude = [minimumReleaseAgeExclude]
   }
 }
 

@@ -1,6 +1,6 @@
 import { normalizeRegistriesByPrefix } from '@pnpm/config.normalize-registries'
 import { namedRegistryTarballPrefixes } from '@pnpm/config.pick-registry-for-package'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import { createPackageVersionPolicy, validateMinimumReleaseAge } from '@pnpm/config.version-policy'
 import { isError, PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import {
@@ -159,6 +159,9 @@ interface PolicyCheckScope {
 }
 
 function createVerifierSettings (opts: CreateNpmResolutionVerifierOptions): VerifierSettings {
+  if (opts.minimumReleaseAge != null) {
+    validateMinimumReleaseAge(opts.minimumReleaseAge)
+  }
   const ageCheckActive = Boolean(opts.minimumReleaseAge)
   const cutoff = ageCheckActive
     ? (opts.now ?? Date.now()) - opts.minimumReleaseAge! * 60 * 1000

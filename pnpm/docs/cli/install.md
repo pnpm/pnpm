@@ -190,6 +190,22 @@ Skip verifying the lockfile against supply-chain policies. `--no-trust-lockfile`
 
 Deduplicate compatible dependency versions during installation. `--no-auto-dedupe` turns it off when the configuration turns it on. See [`autoDedupe`](../settings/dependency-resolution.md#autodedupe).
 
+### --minimum-release-age &lt;minutes\>
+
+Added in: v12.23.0
+
+Sets [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) for this run, overriding the configured value. The value is in minutes. As with a configured value, it turns on [`minimumReleaseAgeStrict`](../settings/dependency-resolution.md#minimumreleaseagestrict) unless that setting is configured. A value that is not a non-negative number is an error.
+
+### --minimum-release-age-exclude &lt;package-spec\>
+
+Added in: v12.23.0
+
+Sets [`minimumReleaseAgeExclude`](../settings/dependency-resolution.md#minimumreleaseageexclude) for this run, replacing the configured list. Repeat the option to exclude several packages:
+
+```sh
+pnpm install --minimum-release-age 1440 --minimum-release-age-exclude react --minimum-release-age-exclude webpack@5.98.0
+```
+
 ### --merge-git-branch-lockfiles
 
 Merge all git branch lockfiles.

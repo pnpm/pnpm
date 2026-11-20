@@ -274,6 +274,12 @@ Added in: v12.3.0
 
 `pnpm update` accepts the same policy overrides as `pnpm install` and `pnpm add`: `--trust-lockfile`, `--no-trust-lockfile`, [`--trust-policy`](../settings/dependency-resolution.md#trustpolicy), [`--trust-policy-exclude`](../settings/dependency-resolution.md#trustpolicyexclude), and [`--trust-policy-ignore-after`](../settings/dependency-resolution.md#trustpolicyignoreafter), so a policy can be relaxed or tightened for a single run without editing `pnpm-workspace.yaml`.
 
+### --minimum-release-age &lt;minutes\>, --minimum-release-age-exclude &lt;package-spec\>
+
+Added in: v12.23.0
+
+Set [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) and [`minimumReleaseAgeExclude`](../settings/dependency-resolution.md#minimumreleaseageexclude) for this run, as they do for [`pnpm install`](./install.md).
+
 ### --cpu, --os, --libc, --ignore-scripts, --ignore-pnpmfile
 
 These work as they do for [`pnpm install`](./install.md).

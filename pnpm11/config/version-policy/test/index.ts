@@ -144,6 +144,27 @@ test('getPublishedByPolicy() rewraps invalid exclude patterns as ERR_PNPM_INVALI
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE' }))
 })
 
+test('getPublishedByPolicy() throws INVALID_MINIMUM_RELEASE_AGE for NaN', () => {
+  expect(() => getPublishedByPolicy({ minimumReleaseAge: NaN }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('getPublishedByPolicy() throws INVALID_MINIMUM_RELEASE_AGE for Infinity', () => {
+  expect(() => getPublishedByPolicy({ minimumReleaseAge: Infinity }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('getPublishedByPolicy() throws INVALID_MINIMUM_RELEASE_AGE for a negative value', () => {
+  expect(() => getPublishedByPolicy({ minimumReleaseAge: -1 }))
+    .toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE' }))
+})
+
+test('getPublishedByPolicy() accepts zero as a no-op (publishedBy undefined)', () => {
+  const { publishedBy, publishedByExclude } = getPublishedByPolicy({ minimumReleaseAge: 0 })
+  expect(publishedBy).toBeUndefined()
+  expect(publishedByExclude).toBeUndefined()
+})
+
 test('mergePackageVersionSpecs() combines versions of the same package into one sorted entry', () => {
   expect(mergePackageVersionSpecs([
     'axios@0.21.2',
