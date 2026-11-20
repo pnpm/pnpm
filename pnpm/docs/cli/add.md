@@ -224,7 +224,7 @@ pnpm add my-bundler --allow-build=esbuild,sharp
 
 Pass a git or tarball key in its own `--allow-build`. A value that contains one is not split at its commas.
 
-### --lockfile-only
+### --lockfile-only, --package-lock-only
 
 Update `package.json` and `pnpm-lock.yaml` without downloading dependencies or writing `node_modules`.
 

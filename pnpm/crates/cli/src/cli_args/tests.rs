@@ -536,6 +536,22 @@ fn dedupe_args(argv: &[&str]) -> DedupeArgs {
     }
 }
 
+#[test]
+fn package_lock_only_is_an_alias_of_lockfile_only() {
+    assert!(install_args(&["pacquet", "install", "--package-lock-only"]).lockfile.only);
+    assert!(add_args(&["pacquet", "add", "foo", "--package-lock-only"]).install.lockfile_only);
+    assert!(remove_args(&["pacquet", "remove", "foo", "--package-lock-only"]).lockfile_only);
+    assert!(dedupe_args(&["pacquet", "dedupe", "--package-lock-only"]).lockfile_only);
+    let CliCommand::Update(update) =
+        CliArgs::try_parse_from(["pacquet", "update", "--package-lock-only"])
+            .expect("parses update --package-lock-only")
+            .command
+    else {
+        panic!("expected update command");
+    };
+    assert!(update.install.lockfile_only);
+}
+
 fn unlink_args(argv: &[&str]) -> UnlinkArgs {
     match CliArgs::try_parse_from(argv).expect("parses").command {
         CliCommand::Unlink(unlink) => unlink,

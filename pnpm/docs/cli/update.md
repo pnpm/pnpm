@@ -220,7 +220,7 @@ Also update packages in `peerDependencies`. It cannot be combined with `--intera
 
 With `--latest` or `--tag`, write the resolved version to `package.json` without a range operator. A dependency that already declares a `^`, `~`, or exact range keeps that operator.
 
-### --lockfile-only
+### --lockfile-only, --package-lock-only
 
 Update `pnpm-lock.yaml` without downloading dependencies or changing `node_modules`.
 

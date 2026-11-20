@@ -39,7 +39,7 @@ Only remove the dependency from `optionalDependencies`.
 
 Only remove the dependency from `dependencies`.
 
-### --lockfile-only
+### --lockfile-only, --package-lock-only
 
 Update `package.json` and `pnpm-lock.yaml` without changing `node_modules`.
 

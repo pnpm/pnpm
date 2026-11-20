@@ -121,7 +121,7 @@ pub struct UpdateSaveArgs {
 #[derive(Debug, Clone, clap::Args)]
 pub struct UpdateInstallArgs {
     /// Dependencies are not downloaded; only `pnpm-lock.yaml` is updated.
-    #[clap(long = "lockfile-only")]
+    #[clap(long = "lockfile-only", visible_alias = "package-lock-only")]
     pub lockfile_only: bool,
     #[clap(flatten)]
     pub lockfile_dir: LockfileDirArg,

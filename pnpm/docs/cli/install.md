@@ -120,7 +120,7 @@ Don't prefer cached data even when the `preferOffline` setting is `true`.
 
 Don't read or generate a `pnpm-lock.yaml` file.
 
-### --lockfile-only
+### --lockfile-only, --package-lock-only
 
 * Default: **false**
 * Type: **Boolean**

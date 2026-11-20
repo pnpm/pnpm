@@ -13,7 +13,7 @@ pub struct InstallLockfileArgs {
     pub no_frozen: bool,
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
     /// `node_modules`.
-    #[clap(long = "lockfile-only")]
+    #[clap(long = "lockfile-only", visible_alias = "package-lock-only")]
     #[clap(id = "lockfile_only")]
     pub only: bool,
     /// Repair broken lockfile entries by re-resolving their metadata while

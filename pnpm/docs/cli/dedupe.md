@@ -19,7 +19,7 @@ The check ignores registry metadata that changed after the lockfile was written:
 
 The check still installs [`configDependencies`](../config-dependencies.md). If they changed since the last install, it also records them in the lockfile, as `pnpm install` does, and reports the change.
 
-### `--lockfile-only`
+### `--lockfile-only`, `--package-lock-only`
 
 Only update `pnpm-lock.yaml`. Packages are not downloaded and `node_modules` is not written.
 

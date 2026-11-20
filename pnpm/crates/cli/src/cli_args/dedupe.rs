@@ -45,7 +45,7 @@ pub struct DedupeArgs {
     pub check: bool,
     /// Only update `pnpm-lock.yaml`. Don't download packages or write
     /// `node_modules`.
-    #[clap(long = "lockfile-only")]
+    #[clap(long = "lockfile-only", visible_alias = "package-lock-only")]
     pub lockfile_only: bool,
     /// Don't install runtime dependencies (`node`, `deno`, `bun`). Their
     /// archives aren't fetched and their bins aren't linked.

@@ -51,7 +51,7 @@ pub struct RemoveArgs {
     pub dependency_options: RemoveDependencyOptions,
     /// Dependencies are not removed from `node_modules`. Only the manifest
     /// and `pnpm-lock.yaml` are updated.
-    #[clap(long = "lockfile-only")]
+    #[clap(long = "lockfile-only", visible_alias = "package-lock-only")]
     pub lockfile_only: bool,
     #[clap(flatten)]
     pub lockfile_dir: LockfileDirArg,
