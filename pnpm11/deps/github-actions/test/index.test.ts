@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 
 import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { safeExeca as execa } from 'execa'
+import YAML from 'yaml'
 
 jest.unstable_mockModule('@pnpm/logger', () => ({
   globalWarn: jest.fn(),
@@ -262,7 +263,8 @@ active_jobs: &active_jobs
     steps:
       - "<<": *inactive_step
         !!merge <<: *active_step
-      - <<: *plain_merge_step
+      - "<<": *inactive_step
+        <<: *plain_merge_step
       - '<<': *inactive_step
         run: echo single-quoted
       - !!str <<: *inactive_step
@@ -401,6 +403,68 @@ ${activeJobsCycle.join('\n')}
     const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
     expect(content).toContain(`uses: actions/checkout@${shaNew} # v4.2.0`)
     expect(content).toContain(`uses: actions/setup-node@${shaNew} # v4.2.0`)
+  })
+
+  test('updates escaped double-quoted uses scalars and skips block scalars', async () => {
+    const shaOld = 'a'.repeat(40)
+    const shaNew = 'b'.repeat(40)
+    const sharedJobs = Array.from({ length: 50 }, (_, index) => (
+      `  job_${index}:\n    runs-on: ubuntu-latest\n    steps: *shared_steps`
+    )).join('\n')
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `escaped_pin: &escaped_pin "actions\\/checkout\\u0040${shaOld}" # v4.1.0 keep
+block_folded: &block_folded >-
+  actions/cache@${shaOld}
+block_literal: &block_literal |-
+  actions/setup-python@${shaOld}
+shared_steps: &shared_steps
+  - uses: *escaped_pin
+  - uses: "actions/setup-node\\u0040v4.1.0"
+  - uses: *block_folded
+  - uses: *block_literal
+  - uses: >-
+      actions/upload-artifact@${shaOld}
+jobs:
+${sharedJobs}
+`,
+    })
+
+    const updated = await updateGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', shaOld],
+        ['v4.2.0', shaNew],
+      ]),
+    })
+    expect(updated.map((action) => action.name).sort()).toEqual(['actions/checkout', 'actions/setup-node'])
+
+    const content = await fs.readFile(path.join(dir, '.github/workflows/ci.yml'), 'utf8')
+    expect(content).toContain(`escaped_pin: &escaped_pin "actions/checkout@${shaNew}" # v4.2.0 keep\n`)
+    expect(content).toContain(`  - uses: "actions/setup-node@${shaNew}" # v4.2.0\n`)
+    const parsed = YAML.parse(content, { maxAliasCount: 1000, merge: true }) as {
+      jobs: Record<string, { steps: Array<{ uses: string }> }>
+    }
+    expect(parsed.jobs.job_0.steps.map((step) => step.uses)).toEqual([
+      `actions/checkout@${shaNew}`,
+      `actions/setup-node@${shaNew}`,
+      `actions/cache@${shaOld}`,
+      `actions/setup-python@${shaOld}`,
+      `actions/upload-artifact@${shaOld}`,
+    ])
+  })
+
+  test('rejects duplicate ordinary mapping keys when merge keys are enabled', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: actions/cache@v4
+        uses: actions/checkout@v4
+`,
+    })
+    await expect(findOutdatedGitHubActions({ dir })).rejects.toMatchObject({
+      code: 'ERR_PNPM_GITHUB_ACTIONS_WORKFLOW_PARSE',
+    })
   })
 
   test('finds actions in workflows and referenced local composite actions', async () => {

@@ -48,6 +48,7 @@ struct WorkflowValue {
     indentation: String,
     original_value: String,
     range: Range<usize>,
+    scalar_len: usize,
 }
 
 #[derive(Clone)]

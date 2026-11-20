@@ -6,51 +6,71 @@ use std::collections::HashMap;
 
 const MAX_MERGE_STEPS: usize = 4_096;
 
-pub(super) fn uses_spans(text: &str) -> Result<Vec<Range<usize>>, QueryError> {
+pub(super) struct UsesScalar {
+    pub(super) decoded: String,
+    pub(super) span: Range<usize>,
+}
+
+pub(super) fn uses_scalars(text: &str) -> Result<Vec<UsesScalar>, QueryError> {
     let graph = YamlGraph::parse(text)?;
     let Some(root_id) = graph.root else {
         return Ok(Vec::new());
     };
-    let mut spans = Vec::new();
+    let mut scalars = Vec::new();
+    let mut seen_step_sequences = HashSet::new();
     if let Some(jobs_id) = find_map_entry(&graph, root_id, "jobs") {
-        add_jobs_spans(&graph, &mut spans, jobs_id);
+        add_jobs_scalars(&graph, &mut scalars, &mut seen_step_sequences, jobs_id);
     }
     if let Some(runs_id) = find_map_entry(&graph, root_id, "runs")
         && let Some(steps_id) = find_map_entry(&graph, runs_id, "steps")
     {
-        add_step_spans(&graph, &mut spans, steps_id);
+        add_step_scalars(&graph, &mut scalars, &mut seen_step_sequences, steps_id);
     }
-    Ok(spans)
+    Ok(scalars)
 }
 
-fn add_jobs_spans(graph: &YamlGraph, spans: &mut Vec<Range<usize>>, jobs_id: NodeId) {
+fn add_jobs_scalars(
+    graph: &YamlGraph,
+    scalars: &mut Vec<UsesScalar>,
+    seen_step_sequences: &mut HashSet<NodeId>,
+    jobs_id: NodeId,
+) {
     for job_id in collect_map_entries(graph, jobs_id) {
         if !matches!(graph.deref(job_id), Some((_, YamlNode::Mapping(_)))) {
             continue;
         }
-        if let Some(span) = find_uses_span(graph, job_id) {
-            spans.push(span);
+        if let Some(scalar) = find_uses_scalar(graph, job_id) {
+            scalars.push(scalar);
         }
         if let Some(steps_id) = find_map_entry(graph, job_id, "steps") {
-            add_step_spans(graph, spans, steps_id);
+            add_step_scalars(graph, scalars, seen_step_sequences, steps_id);
         }
     }
 }
 
-fn add_step_spans(graph: &YamlGraph, spans: &mut Vec<Range<usize>>, steps_id: NodeId) {
-    let Some((_, YamlNode::Sequence(items))) = graph.deref(steps_id) else {
+fn add_step_scalars(
+    graph: &YamlGraph,
+    scalars: &mut Vec<UsesScalar>,
+    seen_step_sequences: &mut HashSet<NodeId>,
+    steps_id: NodeId,
+) {
+    let Some((resolved_steps_id, YamlNode::Sequence(items))) = graph.deref(steps_id) else {
         return;
     };
+    if !seen_step_sequences.insert(resolved_steps_id) {
+        return;
+    }
     for &step_id in items {
-        if let Some(span) = find_uses_span(graph, step_id) {
-            spans.push(span);
+        if let Some(scalar) = find_uses_scalar(graph, step_id) {
+            scalars.push(scalar);
         }
     }
 }
 
-fn find_uses_span(graph: &YamlGraph, node_id: NodeId) -> Option<Range<usize>> {
+fn find_uses_scalar(graph: &YamlGraph, node_id: NodeId) -> Option<UsesScalar> {
     let value_id = find_map_entry(graph, node_id, "uses")?;
-    graph.inline_string_span_at(value_id)
+    let (decoded, span) = graph.inline_string_at(value_id)?;
+    Some(UsesScalar { decoded: decoded.to_owned(), span })
 }
 
 struct CycleTracker {

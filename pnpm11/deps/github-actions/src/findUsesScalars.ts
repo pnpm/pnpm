@@ -1,4 +1,4 @@
-import { type Document, isAlias, isMap, isNode, isScalar, isSeq, type Node, type Scalar, type YAMLMap } from 'yaml'
+import { type Document, isAlias, isMap, isNode, isScalar, isSeq, type Node, type Scalar, type YAMLMap, type YAMLSeq } from 'yaml'
 
 const MAX_MERGE_DEPTH = 64
 const MAX_MERGE_STEPS = 4096
@@ -90,30 +90,39 @@ function exitCycleComplete (tracker: CycleTracker, node: YAMLMap, myPos: number,
   return externalMask
 }
 
-export function findUsesScalars (document: Document, root: Node | null | undefined): Array<Scalar<string>> {
+export function findUsesScalars (
+  document: Document,
+  root: Node | null | undefined,
+  source: string
+): Array<Scalar<string>> {
   const resolvedRoot = derefNode(document, root)
   if (!isMap(resolvedRoot)) return []
-  const found: Array<Scalar<string>> = []
+  const found = new Set<Scalar<string>>()
+  const seenStepSequences = new Set<YAMLSeq>()
   const jobs = findMapValue(document, resolvedRoot, 'jobs')
   if (isMap(jobs)) {
-    found.push(...findJobsUses(document, jobs))
+    addJobsUses(document, source, jobs, found, seenStepSequences)
   }
   const runs = findMapValue(document, resolvedRoot, 'runs')
   if (isMap(runs)) {
-    found.push(...findStepUses(document, findMapValue(document, runs, 'steps')))
+    addStepUses(document, source, findMapValue(document, runs, 'steps'), found, seenStepSequences)
   }
-  return [...new Set(found)]
+  return [...found]
 }
 
-function findJobsUses (document: Document, jobs: YAMLMap): Array<Scalar<string>> {
-  const found: Array<Scalar<string>> = []
+function addJobsUses (
+  document: Document,
+  source: string,
+  jobs: YAMLMap,
+  found: Set<Scalar<string>>,
+  seenStepSequences: Set<YAMLSeq>
+): void {
   for (const jobValue of collectMapValues(document, jobs)) {
     if (!isMap(jobValue)) continue
-    const jobUses = findStringScalar(document, jobValue, 'uses')
-    if (jobUses != null) found.push(jobUses)
-    found.push(...findStepUses(document, findMapValue(document, jobValue, 'steps')))
+    const jobUses = findStringScalar(document, source, jobValue, 'uses')
+    if (jobUses != null) found.add(jobUses)
+    addStepUses(document, source, findMapValue(document, jobValue, 'steps'), found, seenStepSequences)
   }
-  return found
 }
 
 function collectMapValues (document: Document, rootMap: YAMLMap): Array<Node | null> {
@@ -202,7 +211,8 @@ function isMergeKey (document: Document, key: unknown): boolean {
   const resolved = derefNode(document, key)
   if (!isScalar(resolved)) return false
   if (resolved.tag === YAML_MERGE_TAG) return true
-  return resolved.tag === undefined && resolved.type === 'PLAIN' && resolved.value === '<<'
+  if (resolved.tag !== undefined || resolved.type !== 'PLAIN') return false
+  return resolved.value === '<<' || (typeof resolved.value === 'symbol' && resolved.value.description === '<<')
 }
 
 function stringKeyName (document: Document, key: unknown): string | null {
@@ -211,15 +221,22 @@ function stringKeyName (document: Document, key: unknown): string | null {
   return isScalar(resolved) && typeof resolved.value === 'string' ? resolved.value : null
 }
 
-function findStepUses (document: Document, node: Node | null): Array<Scalar<string>> {
+function addStepUses (
+  document: Document,
+  source: string,
+  node: Node | null,
+  found: Set<Scalar<string>>,
+  seenStepSequences: Set<YAMLSeq>
+): void {
   const resolved = derefNode(document, node)
-  if (!isSeq(resolved)) return []
-  return resolved.items.flatMap((item) => {
+  if (!isSeq(resolved) || seenStepSequences.has(resolved)) return
+  seenStepSequences.add(resolved)
+  for (const item of resolved.items) {
     const step = derefNode(document, isNode(item) ? item : null)
-    if (!isMap(step)) return []
-    const uses = findStringScalar(document, step, 'uses')
-    return uses == null ? [] : [uses]
-  })
+    if (!isMap(step)) continue
+    const uses = findStringScalar(document, source, step, 'uses')
+    if (uses != null) found.add(uses)
+  }
 }
 
 function derefNode (document: Document, node: unknown): Node | null {
@@ -230,9 +247,19 @@ function derefNode (document: Document, node: unknown): Node | null {
   return isNode(current) && !isAlias(current) ? current : null
 }
 
-function findStringScalar (document: Document, node: Node, key: string): Scalar<string> | null {
+function findStringScalar (document: Document, source: string, node: Node, key: string): Scalar<string> | null {
   const value = findMapValue(document, node, key)
-  return isScalar(value) && typeof value.value === 'string' ? value as Scalar<string> : null
+  return isInlineStringScalar(value, source) ? value : null
+}
+
+function isInlineStringScalar (node: unknown, source: string): node is Scalar<string> {
+  if (!isScalar(node) || typeof node.value !== 'string') return false
+  if (node.type !== 'PLAIN' && node.type !== 'QUOTE_SINGLE' && node.type !== 'QUOTE_DOUBLE') {
+    return false
+  }
+  if (node.range == null || node.range[0] >= node.range[1]) return false
+  const raw = source.slice(node.range[0], node.range[1])
+  return !raw.includes('\n') && !raw.includes('\r')
 }
 
 function findMapValue (document: Document, node: Node, key: string): Node | null {

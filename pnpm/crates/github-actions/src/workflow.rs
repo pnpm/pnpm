@@ -77,17 +77,16 @@ async fn scan_workflow_file(
     for uses_value in uses_values(&text)
         .map_err(|error| miette::miette!("Failed to parse {real_file_display}: {error}"))?
     {
-        let (value, comment) = split_uses_value(uses_value.value);
-        if let Some(local) = value
+        if let Some(local) = uses_value.decoded
             .strip_prefix("./")
-            .or_else(|| value.strip_prefix("$/"))
+            .or_else(|| uses_value.decoded.strip_prefix("$/"))
         {
             if let Some(candidate) = resolve_local_reference(root, canonical_root, local).await? {
                 scan.local_references.push(candidate);
             }
             continue;
         }
-        if let Some(action) = action_reference(uses_value, value, comment, real_file) {
+        if let Some(action) = action_reference(uses_value, real_file) {
             scan.actions.push(action);
         }
     }
@@ -96,25 +95,29 @@ async fn scan_workflow_file(
 
 /// The action a `uses:` value pins, or `None` when it names a docker image
 /// or is not spelled `owner/repository@ref`.
-fn action_reference(
+pub(super) fn action_reference(
     uses_value: UsesValue<'_>,
-    value: &str,
-    comment: Option<&str>,
     real_file: &Path,
 ) -> Option<ActionReference> {
-    let (name, ref_and_comment) = value.rsplit_once('@')?;
-    if name.starts_with("docker://") {
+    if uses_value.decoded.chars().any(char::is_control) {
+        return None;
+    }
+    let (name, ref_) = uses_value.decoded.rsplit_once('@')?;
+    if ref_.is_empty() || name.starts_with("docker://") {
         return None;
     }
     let mut parts = name.split('/');
     let (Some(owner), Some(repository)) = (parts.next(), parts.next()) else {
         return None;
     };
-    let comment_version = comment_version_token(comment);
+    if owner.is_empty() || repository.is_empty() {
+        return None;
+    }
+    let comment_version = comment_version_token(uses_value.trailing_comment());
     Some(ActionReference {
         file: real_file.to_path_buf(),
         name: name.to_string(),
-        ref_: ref_and_comment.to_string(),
+        ref_: ref_.to_string(),
         repo: format!("{owner}/{repository}"),
         source: crate::WorkflowValue {
             comment_version,
@@ -122,6 +125,7 @@ fn action_reference(
             indentation: uses_value.indentation,
             original_value: uses_value.value.to_string(),
             range: uses_value.range,
+            scalar_len: uses_value.scalar_len,
         },
     })
 }
@@ -164,57 +168,37 @@ async fn existing_file(path: &Path) -> miette::Result<bool> {
     }
 }
 
-pub(super) fn comment_version_token(comment: Option<&str>) -> Option<String> {
+fn comment_version_token(comment: Option<&str>) -> Option<String> {
     comment
         .and_then(|comment| comment.split_whitespace().next())
         .filter(|candidate| parse_comment_version(candidate).is_some())
         .map(str::to_string)
 }
 
-pub(super) fn split_uses_value(value: &str) -> (&str, Option<&str>) {
-    let value = value.trim();
-    if let Some(quote) = value
-        .chars()
-        .next()
-        .filter(|quote| matches!(quote, '\'' | '"'))
-        && let Some(end) = value[1..].find(quote)
-    {
-        let end = end + 1;
-        let comment = value[end + quote.len_utf8()..]
-            .trim()
-            .strip_prefix('#')
-            .map(str::trim);
-        return (&value[1..end], comment);
-    }
-    match unquoted_comment_offset(value) {
-        Some(offset) => (value[..offset].trim_end(), Some(value[offset + 1..].trim())),
-        None => (value, None),
-    }
-}
-
-fn unquoted_comment_offset(value: &str) -> Option<usize> {
-    let bytes = value.as_bytes();
-    bytes
-        .iter()
-        .enumerate()
-        .skip(1)
-        .find_map(|(index, &byte)| {
-            (byte == b'#' && bytes[index - 1].is_ascii_whitespace()).then_some(index)
-        })
-}
-
-struct UsesValue<'a> {
+pub(super) struct UsesValue<'a> {
+    decoded: String,
     flow_style: bool,
     indentation: String,
     range: Range<usize>,
+    scalar_len: usize,
     value: &'a str,
 }
 
-fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
+impl<'a> UsesValue<'a> {
+    fn trailing_comment(&self) -> Option<&'a str> {
+        self.value
+            .get(self.scalar_len..)?
+            .trim_start()
+            .strip_prefix('#')
+            .map(str::trim)
+    }
+}
+
+pub(super) fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
     let mut seen_ranges = HashSet::new();
     let mut values = Vec::new();
-    for scalar_span in routes::uses_spans(text)? {
-        if let Some(uses) = uses_value_at(text, scalar_span)
+    for scalar in routes::uses_scalars(text)? {
+        if let Some(uses) = uses_value_at(text, scalar)
             && seen_ranges.insert(uses.range.clone())
         {
             values.push(uses);
@@ -223,20 +207,23 @@ fn uses_values(text: &str) -> Result<Vec<UsesValue<'_>>, QueryError> {
     Ok(values)
 }
 
-/// The single-line `uses:` scalar at `scalar_span` with any trailing same-line
+/// The single-line `uses:` scalar at `scalar.span` with any trailing same-line
 /// comment included in its byte range.
-fn uses_value_at(text: &str, scalar_span: Range<usize>) -> Option<UsesValue<'_>> {
-    let before_start = text.get(..scalar_span.start)?;
-    let end_info = uses_scalar_end(text, scalar_span.end)?;
-    let value = text.get(scalar_span.start..end_info.end)?;
+fn uses_value_at(text: &str, scalar: routes::UsesScalar) -> Option<UsesValue<'_>> {
+    let before_start = text.get(..scalar.span.start)?;
+    let end_info = uses_scalar_end(text, scalar.span.end)?;
+    let value = text.get(scalar.span.start..end_info.end)?;
+    let scalar_len = scalar.span.end.checked_sub(scalar.span.start)?;
     let line_start = before_start
         .rfind('\n')
         .map(|line_break| line_break + 1)
         .unwrap_or(0);
     Some(UsesValue {
+        decoded: scalar.decoded,
         flow_style: end_info.flow_style,
-        indentation: " ".repeat(scalar_span.start - line_start),
-        range: scalar_span.start..end_info.end,
+        indentation: " ".repeat(scalar.span.start - line_start),
+        range: scalar.span.start..end_info.end,
+        scalar_len,
         value,
     })
 }

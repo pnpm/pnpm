@@ -770,3 +770,83 @@ fn bounds_cyclic_shared_yaml_merge_graphs_in_lookup_and_collection() {
         "{updated}",
     );
 }
+
+#[tokio::test]
+async fn updates_escaped_double_quoted_uses_scalars_and_skips_block_scalars() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    let workflow = workflows.join("ci.yml");
+    let shared_jobs = (0..50)
+        .map(|index| {
+            format!("  job_{index}:\n    runs-on: ubuntu-latest\n    steps: *shared_steps")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let source = format!(
+        concat!(
+            "escaped_pin: &escaped_pin \"actions\\/checkout\\u0040{0}\" # v4.1.0 keep\n",
+            "block_folded: &block_folded >-\n",
+            "  actions/cache@{0}\n",
+            "block_literal: &block_literal |-\n",
+            "  actions/setup-python@{0}\n",
+            "shared_steps: &shared_steps\n",
+            "  - uses: *escaped_pin\n",
+            "  - uses: \"actions/setup-node\\u0040v4.1.0\"\n",
+            "  - uses: *block_folded\n",
+            "  - uses: *block_literal\n",
+            "  - uses: >-\n",
+            "      actions/upload-artifact@{0}\n",
+            "jobs:\n",
+            "{1}\n",
+        ),
+        SHA_V4_1_0, shared_jobs,
+    );
+    fs::write(&workflow, &source).expect("write workflow");
+
+    let updated_actions = update_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+        None,
+    )
+    .await
+    .expect("update escaped and block scalar workflow");
+    let mut names = updated_actions
+        .into_iter()
+        .map(|action| action.name)
+        .collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["actions/checkout".to_string(), "actions/setup-node".to_string()]);
+
+    let updated = fs::read_to_string(&workflow).expect("read updated workflow");
+    assert!(
+        updated.contains(&format!(
+            "escaped_pin: &escaped_pin \"actions/checkout@{SHA_V4_2_0}\" # v4.2.0 keep\n",
+        )),
+        "{updated}",
+    );
+    assert!(
+        updated.contains(&format!("  - uses: \"actions/setup-node@{SHA_V4_2_0}\" # v4.2.0\n")),
+        "{updated}",
+    );
+    let parsed: yaml_serde::Value =
+        yaml_serde::from_str(&updated).expect("updated YAML must remain valid");
+    let steps = parsed["jobs"]["job_0"]["steps"].as_sequence().expect("steps sequence");
+    assert_eq!(steps[0]["uses"].as_str(), Some(format!("actions/checkout@{SHA_V4_2_0}").as_str()));
+    assert_eq!(
+        steps[1]["uses"].as_str(),
+        Some(format!("actions/setup-node@{SHA_V4_2_0}").as_str()),
+    );
+    assert_eq!(steps[2]["uses"].as_str(), Some(format!("actions/cache@{SHA_V4_1_0}").as_str()));
+    assert_eq!(
+        steps[3]["uses"].as_str(),
+        Some(format!("actions/setup-python@{SHA_V4_1_0}").as_str()),
+    );
+    assert_eq!(
+        steps[4]["uses"].as_str(),
+        Some(format!("actions/upload-artifact@{SHA_V4_1_0}").as_str()),
+    );
+}

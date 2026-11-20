@@ -130,9 +130,11 @@ impl YamlGraph {
         }
     }
 
-    pub(super) fn inline_string_span_at(&self, node_id: NodeId) -> Option<Range<usize>> {
+    pub(super) fn inline_string_at(&self, node_id: NodeId) -> Option<(&str, Range<usize>)> {
         match self.deref(node_id)?.1 {
-            YamlNode::StringScalar(scalar) => scalar.inline_span.clone(),
+            YamlNode::StringScalar(scalar) => {
+                Some((scalar.decoded.as_str(), scalar.inline_span.clone()?))
+            }
             _ => None,
         }
     }
