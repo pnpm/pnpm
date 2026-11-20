@@ -273,6 +273,23 @@ async fn purge_cached_package(
     name: &CanonicalPackageName,
     fetch_seq: u64,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
+    purge_cached_package_with(state, namespace, name, fetch_seq, || {
+        state.inner.storage.remove_upstream_package(namespace, name)
+    })
+    .await
+}
+
+pub(in crate::server) async fn purge_cached_package_with<Remove, Fut>(
+    state: &AppState,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    fetch_seq: u64,
+    remove: Remove,
+) -> Result<Option<Vec<u8>>, RegistryError>
+where
+    Remove: FnOnce() -> Fut,
+    Fut: Future<Output = Result<bool, RegistryError>>,
+{
     let _guard = lock_upstream_package(state, namespace, name).await;
     match state.inner.proxy.packument_writes.check(namespace, name, fetch_seq) {
         WriteVerdict::SupersededByStored => {
@@ -283,7 +300,7 @@ async fn purge_cached_package(
     }
     state.inner.proxy.packument_writes.commit_purged(namespace, name, fetch_seq);
     invalidate_upstream_package(state, namespace, name);
-    if let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await {
+    if let Err(err) = remove().await {
         tracing::warn!(
             ?err,
             package = %name.as_str(),

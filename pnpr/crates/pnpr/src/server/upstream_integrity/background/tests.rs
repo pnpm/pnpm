@@ -522,9 +522,10 @@ async fn refresh_cached_packument_rejects_older_fetch_completion_after_newer_wri
 
 #[tokio::test]
 async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
-    let server = mockito::Server::new_async().await;
+    let mut server = mockito::Server::new_async().await;
+    let server_url = server.url();
     let tmp = tempfile::tempdir().unwrap();
-    let state = state(tmp.path(), &server.url());
+    let state = state(tmp.path(), &server_url);
     let routing = state.routing();
     let upstream = &routing.upstream_clients["mirror"];
     let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
@@ -533,7 +534,7 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
             "versions": {
                 "1.0.0": {
                     "dist": {
-                        "tarball": format!("{}/example/-/example-1.0.0.tgz?sig={sig}", server.url()),
+                        "tarball": format!("{server_url}/example/-/example-1.0.0.tgz?sig={sig}"),
                         "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
                     }
                 }
@@ -542,34 +543,32 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
         .unwrap()
     };
 
-    let older_fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
-    let purge_seq = state.inner.proxy.packument_writes.begin_fetch();
-
-    // Block `cache_dir/fail-ns` with a regular file so `remove_upstream_package`
-    // deterministically fails with `NotADirectory` on every OS.
-    let blocker = state.inner.config.storage.cache_dir.join("fail-ns");
-    std::fs::create_dir_all(&state.inner.config.storage.cache_dir).unwrap();
-    std::fs::write(&blocker, b"blocker").unwrap();
-    assert!(state.inner.storage.remove_upstream_package("fail-ns", &name).await.is_err());
-
-    let purged = crate::server::upstream_packuments::cache_upstream_packument(
-        &state,
-        "fail-ns",
-        upstream,
-        &name,
-        pnpr_upstream::PackumentFetch::NotFound,
-        purge_seq,
-    )
-    .await
-    .unwrap();
-    assert!(purged.is_none());
-
-    // Simulate unremoved stale bytes remaining on disk after the failed removal.
-    std::fs::remove_file(&blocker).unwrap();
     state.inner.storage
         .write_upstream_document("fail-ns", &name, &doc("stale"))
         .await
         .unwrap();
+
+    let older_fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let purge_seq = state.inner.proxy.packument_writes.begin_fetch();
+
+    let purged = crate::server::upstream_packuments::purge_cached_package_with(
+        &state,
+        "fail-ns",
+        &name,
+        purge_seq,
+        || async { Err(std::io::Error::other("simulated removal failure").into()) },
+    )
+    .await
+    .unwrap();
+    assert!(purged.is_none());
+    // The stale file genuinely remains on disk after the failed removal.
+    assert!(
+        state.inner.storage
+            .read_upstream_document_any("fail-ns", &name)
+            .await
+            .unwrap()
+            .is_some(),
+    );
 
     // An older pre-404 fetch completion is rejected without restoring or returning metadata.
     assert!(
@@ -585,6 +584,27 @@ async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
         .is_none(),
     );
     assert!(state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+
+    // A cached read also ignores the unremoved disk copy and re-checks upstream (404).
+    let not_found_mock = server
+        .mock("GET", "/example")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    assert!(
+        crate::server::load_upstream_packument(
+            &state,
+            "fail-ns",
+            upstream,
+            &name,
+            Duration::from_secs(3600),
+        )
+        .await
+        .unwrap()
+        .is_none(),
+    );
+    not_found_mock.assert_async().await;
 
     // A later republish (`republished_seq > purge_seq`) clears the purge marker.
     let republished_seq = state.inner.proxy.packument_writes.begin_fetch();
