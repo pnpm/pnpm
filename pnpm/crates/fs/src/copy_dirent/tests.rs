@@ -2,6 +2,7 @@ use crate::copy_dirent::{
     copy_dir_contents,
     copy_dirent,
 };
+#[cfg(unix)]
 use command_extra::CommandExtra;
 use std::fs;
 use tempfile::tempdir;

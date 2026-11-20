@@ -499,7 +499,8 @@ fn windows_failed_junction_leaves_no_staging_directory() {
     assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput, "{error}");
     let leftovers: Vec<_> = fs::read_dir(&parent)
         .expect("read link parent")
-        .map(|entry| entry.expect("read entry").file_name())
+        .map(|entry| entry.expect("read entry"))
+        .map(|entry| entry.file_name())
         .collect();
     assert!(leftovers.is_empty(), "no staging directory may remain: {leftovers:?}");
 }

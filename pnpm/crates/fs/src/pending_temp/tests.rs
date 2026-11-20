@@ -3,6 +3,7 @@ use super::{
     remove_pending_temp_files,
     track_temp_file,
 };
+#[cfg(unix)]
 use command_extra::CommandExtra;
 use std::{
     fs,

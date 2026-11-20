@@ -103,7 +103,8 @@ fn same_file(file: &File, expected: &crate::wasi_fs::FileIdentity) -> bool {
 #[cfg(windows)]
 fn same_file(file: &File, expected: &same_file::Handle) -> bool {
     file.metadata()
-        .is_ok_and(|handle_meta| handle_meta.file_type().is_file())
+        .map(|handle_meta| handle_meta.file_type())
+        .is_ok_and(|file_type| file_type.is_file())
         && file
             .try_clone()
             .and_then(same_file::Handle::from_file)

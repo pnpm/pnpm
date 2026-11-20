@@ -35,8 +35,7 @@ pub fn canonicalize_preserving_mapped_drive(path: &Path) -> std::io::Result<Path
 pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
-    is_unc_path(path)
-        || drive_letter(path).is_some_and(|drive| is_mapped_drive(drive) == Some(true))
+    is_unc_path(path) || drive_letter(path).and_then(is_mapped_drive).unwrap_or(false)
 }
 
 /// The network share a path is on.
@@ -224,19 +223,17 @@ fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
         CompareStringOrdinal,
     };
 
+    let is_separator = |unit: &u16| matches!(*unit, 0x2f | 0x5c);
     let path: Vec<u16> = path.as_os_str().encode_wide().collect();
     let mut remote: Vec<u16> = remote
         .as_os_str()
         .encode_wide()
         .collect();
-    while remote
-        .last()
-        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
-    {
+    while remote.last().is_some_and(is_separator) {
         remote.pop();
     }
     if path.len() < remote.len()
-        || (path.len() > remote.len() && !matches!(path[remote.len()], 0x2f | 0x5c))
+        || (path.len() > remote.len() && !is_separator(&path[remote.len()]))
     {
         return None;
     }
@@ -254,10 +251,7 @@ fn mapped_path_suffix(path: &Path, remote: &Path) -> Option<PathBuf> {
         return None;
     }
     let mut suffix = remote.len();
-    while path
-        .get(suffix)
-        .is_some_and(|unit| matches!(*unit, 0x2f | 0x5c))
-    {
+    while path.get(suffix).is_some_and(is_separator) {
         suffix += 1;
     }
     Some(PathBuf::from(std::ffi::OsString::from_wide(&path[suffix..])))

@@ -5,6 +5,7 @@ use super::{
     get_current_branch,
     is_head_detached,
 };
+#[cfg(unix)]
 use command_extra::CommandExtra;
 use std::{
     fs,

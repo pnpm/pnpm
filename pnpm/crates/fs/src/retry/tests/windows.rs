@@ -3,6 +3,7 @@ use crate::{
     remove_file_with_retry,
     rename_with_retry,
 };
+use command_extra::CommandExtra;
 use std::{
     fs,
     io,
@@ -69,8 +70,8 @@ fn readonly_destination_rename_fails_promptly() {
 
 fn icacls(path: &Path, arguments: &[&str]) {
     let output = Command::new("icacls")
-        .arg(path)
-        .args(arguments)
+        .with_arg(path)
+        .with_args(arguments)
         .output()
         .unwrap();
     eprintln!("icacls {path:?} {arguments:?}: {output:?}");
