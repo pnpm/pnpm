@@ -194,13 +194,16 @@ fn collect_overridden_direct(
     config: &Config,
 ) -> Vec<OverriddenDirect> {
     let matcher = overrider.dependency_matcher(manifest.value());
+    let project_overrides = project_overrides(manifest, config);
     let matched = direct
         .iter()
         .filter(|(name, group, previous)| matcher.matches(*group, name, previous))
         .map(|(name, group, previous)| {
             let bare_override = matcher
                 .governing_override(*group, name, previous)
-                .and_then(|governing| bare_override_entry(name, governing, config));
+                .and_then(|governing| {
+                    bare_override_entry(name, governing, config, project_overrides)
+                });
             (name.clone(), *group, bare_override)
         })
         .collect::<Vec<_>>();
@@ -238,6 +241,7 @@ fn bare_override_entry(
     name: &str,
     governing: &pnpm_config_parse_overrides::VersionOverride,
     config: &Config,
+    project_overrides: Option<&indexmap::IndexMap<String, String>>,
 ) -> Option<BareOverrideEntry> {
     if governing.parent_pkg.is_some()
         || governing.target_pkg.bare_specifier.is_some()
@@ -245,6 +249,15 @@ fn bare_override_entry(
         || governing.target_pkg.name != name
     {
         return None;
+    }
+    if let Some(project_overrides) = project_overrides {
+        return project_overrides
+            .get(&governing.selector)
+            .map(|value| BareOverrideEntry {
+                key: governing.selector.clone(),
+                value: value.clone(),
+                writable: false,
+            });
     }
     let written = config.explicit_settings
         .get("overrides")
@@ -263,6 +276,21 @@ fn bare_override_entry(
             value,
             writable: governing.target_pkg.dep_type.is_none(),
         })
+}
+/// The `overrides` a project's `packageConfigs` entry sets for it. They
+/// replace the workspace-wide map for that project, and the workspace
+/// manifest writer edits only the workspace-wide map, so an entry from them
+/// is reported rather than moved.
+fn project_overrides<'config>(
+    manifest: &PackageManifest,
+    config: &'config Config,
+) -> Option<&'config indexmap::IndexMap<String, String>> {
+    let name = manifest.value().get("name")?.as_str()?;
+    config.package_configs
+        .as_ref()?
+        .get(name)?
+        .overrides
+        .as_ref()
 }
 /// The direct dependencies of the groups the update covers, as
 /// `(name, group, specifier)`.

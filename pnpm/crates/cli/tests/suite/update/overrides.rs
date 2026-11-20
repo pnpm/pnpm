@@ -545,3 +545,41 @@ fn update_latest_is_quiet_when_a_dependency_type_override_admits_the_latest() {
 
     drop((root, anchor));
 }
+
+/// A project's `packageConfigs` overrides replace the workspace-wide map for
+/// it. The workspace manifest writer edits only that map, so the update
+/// reports the project's entry rather than writing a workspace-wide one.
+#[test]
+fn update_latest_warns_when_a_package_configs_override_governs_the_dependency() {
+    let (root, workspace, anchor) = setup();
+    add_workspace_package(&workspace, "pkg", "1.0.0");
+    let project = workspace.join("pkg");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "pkg", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    yaml.push_str(
+        "sharedWorkspaceLockfile: false\npackageConfigs:\n  pkg:\n    overrides:\n      \"",
+    );
+    yaml.push_str(DEP);
+    yaml.push_str("\": 100.0.0\n");
+    fs::write(&yaml_path, yaml).expect("write yaml");
+    pacquet(&project, ["install"]).assert().success();
+    let before_yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+
+    let output =
+        pacquet(&project, ["update", "--latest", DEP]).output().expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("is controlled by an override"), "warned: {stdout}");
+    assert_eq!(fs::read_to_string(&yaml_path).expect("read yaml"), before_yaml);
+    let lockfile = read_lockfile(&project.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", DEP), "100.0.0");
+
+    drop((root, anchor));
+}

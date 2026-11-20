@@ -34,8 +34,9 @@ pub(super) struct BareOverrideEntry {
     pub(super) key: String,
     pub(super) value: String,
     /// Whether the workspace manifest writer can edit the entry. It cannot
-    /// address a dependency-type key such as `foo:prod`, so such an entry is
-    /// reported rather than moved.
+    /// address a dependency-type key such as `foo:prod`, nor an entry from a
+    /// project's `packageConfigs`, so such an entry is reported rather than
+    /// moved.
     pub(super) writable: bool,
 }
 
