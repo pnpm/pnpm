@@ -36,8 +36,8 @@ pub fn selected_removable_names(
 /// Expands glob and negation selectors against `available` dependency names.
 ///
 /// The matcher decides which available names are removed, so an exclusion
-/// also overrides an exact name. Exact names missing from `available` are
-/// kept, so validation reports them. Selectors without an include rule
+/// also overrides an exact name. Exact names missing from `available` and
+/// not excluded are kept, so validation reports them. Selectors without an include rule
 /// expand to nothing.
 pub fn expand_remove_patterns(available: &[String], package_names: &[String]) -> Vec<String> {
     if !has_remove_patterns(package_names) {
@@ -50,7 +50,8 @@ pub fn expand_remove_patterns(available: &[String], package_names: &[String]) ->
     let missing_exact = package_names
         .iter()
         .filter(|name| !is_remove_pattern(name))
-        .filter(|name| !available.contains(name));
+        .filter(|name| !available.contains(name))
+        .filter(|name| matcher.matches(name));
     let matched = available
         .iter()
         .filter(|name| matcher.matches(name));
@@ -60,14 +61,22 @@ pub fn expand_remove_patterns(available: &[String], package_names: &[String]) ->
         .collect()
 }
 
-/// Exact selectors not present in `available_lookup`.
+/// Exact selectors, not excluded by a `!` pattern, that are missing from
+/// `available_lookup`.
 pub fn missing_selected_dependencies<'a>(
     package_names: &'a [String],
     available_lookup: &HashSet<String>,
 ) -> Vec<&'a String> {
+    let matcher =
+        has_remove_patterns(package_names).then(|| pnpm_matcher::create_matcher(package_names));
     package_names
         .iter()
         .filter(|name| !is_remove_pattern(name))
         .filter(|name| !available_lookup.contains(name.as_str()))
+        .filter(|name| {
+            matcher
+                .as_ref()
+                .is_none_or(|matcher| matcher.matches(name))
+        })
         .collect()
 }

@@ -294,6 +294,25 @@ fn remove_exclusion_overrides_exact_dependency_name() {
 }
 
 #[test]
+fn remove_exclusion_drops_exact_name_missing_from_save_field() {
+    let available = strings(&["eslint-plugin-import"]);
+
+    assert_eq!(
+        expand_remove_patterns(&available, &strings(&["eslint", "eslint-*", "!eslint"])),
+        strings(&["eslint-plugin-import"]),
+    );
+}
+
+#[test]
+fn selected_remove_skips_validation_of_excluded_exact_names() {
+    let dir = tempfile::tempdir().expect("create tempdir");
+    let projects = vec![project_with_dependencies(dir.path(), "a", &["eslint-plugin-import"])];
+    let package_names = strings(&["eslint", "eslint-*", "!eslint"]);
+
+    assert!(validate_selected_remove(&projects, &[0], &package_names, None).is_ok());
+}
+
+#[test]
 fn selected_remove_glob_matches_peer_only_dependencies() {
     let dir = tempfile::tempdir().expect("create tempdir");
     let root_dir = dir.path().join("a");
