@@ -164,7 +164,7 @@ pub(super) async fn override_owned_latest_rewrite<Reporter: self::Reporter>(
     // `workspace:` or `catalog:` reference, a `$` reference) has no version
     // the update can move, so moving it is the user's call.
     if names_another_dependency(&entry.value) {
-        if !resolved_range_admits_latest(rewrite_ctx, latest_chain, name, &entry.resolved).await? {
+        if !resolved_range_admits_latest(rewrite_ctx, latest_chain, name, &entry.resolved).await {
             warn_unmovable_override::<Reporter>(rewrite_ctx, name, &entry.value);
         }
         return Ok(MatchedRewrite::Target(None));
@@ -209,12 +209,17 @@ async fn resolved_range_admits_latest(
     latest_chain: &mut Option<LatestResolverChain>,
     name: &str,
     resolved: &str,
-) -> Result<bool, UpdateError> {
+) -> bool {
     if names_another_dependency(resolved) || range_of_specifier(resolved).is_none() {
-        return Ok(false);
+        return false;
     }
-    let latest = latest_version_for_spec(rewrite_ctx, latest_chain, name, resolved).await?;
-    Ok(latest.is_some_and(|latest| override_admits(resolved, &latest)))
+    // The answer only decides whether to warn, so a lookup that fails (no
+    // metadata offline, for instance) is no reason to stop the update.
+    let latest = latest_version_for_spec(rewrite_ctx, latest_chain, name, resolved)
+        .await
+        .ok()
+        .flatten();
+    latest.is_some_and(|latest| override_admits(resolved, &latest))
 }
 
 /// Whether an override value names a dependency of its own rather than

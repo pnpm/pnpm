@@ -643,3 +643,30 @@ fn update_latest_is_quiet_when_a_catalog_override_admits_the_latest() {
 
     drop((root, anchor));
 }
+
+/// Deciding whether to warn about a reference override asks the registry for
+/// the latest version. A workspace package the registry does not know fails
+/// that lookup, which must not stop the update: the install links it.
+#[test]
+fn update_latest_survives_a_failed_lookup_for_a_reference_override() {
+    let (root, workspace, anchor) = setup();
+    add_workspace_package(&workspace, "local-only-dep", "1.0.0");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "test-update", "version": "1.0.0", "dependencies": { "local-only-dep": "^1.0.0" } }"#,
+    )
+    .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    yaml.push_str("linkWorkspacePackages: true\ncatalog:\n  local-only-dep: ^1.0.0\n");
+    fs::write(&yaml_path, yaml).expect("write yaml");
+    set_overrides(&workspace, &[("local-only-dep", "catalog:")]);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output = pacquet(&workspace, ["update", "--latest", "local-only-dep"])
+        .output()
+        .expect("run update --latest");
+    assert!(output.status.success(), "update failed: {output:?}");
+
+    drop((root, anchor));
+}
