@@ -111,11 +111,6 @@ fn handler<Reporter: self::Reporter + 'static>(
             .into_diagnostic()
             .wrap_err("create the pnpm alias scripts")?;
     }
-    if let Some(shadowing) = find_shadowing_pnpm_on_path(&bin_dir)
-        && shadowing.outlives_setup(!no_modify_path)
-    {
-        shadowing.emit_warning::<Reporter>(&bin_dir, &dir.to_string_lossy());
-    }
 
     let output = if no_modify_path {
         render_unmodified_path_output(&pnpm_home_dir, &ManualSetupShell::current())
@@ -123,6 +118,11 @@ fn handler<Reporter: self::Reporter + 'static>(
         add_pnpm_home_to_env::<Reporter>(force, &pnpm_home_dir, &bin_dir, dir)?
     };
     remove_legacy_homedir_shims(&pnpm_home_dir);
+    if let Some(shadowing) = find_shadowing_pnpm_on_path(&bin_dir)
+        && shadowing.outlives_setup(!no_modify_path)
+    {
+        shadowing.emit_warning::<Reporter>(&bin_dir, &dir.to_string_lossy());
+    }
     Ok(output)
 }
 

@@ -183,7 +183,7 @@ fn install_method_warns_about_a_pnpm_ahead_of_the_global_bin() {
         fs::set_permissions(&other_pnpm, fs::Permissions::from_mode(0o755))
             .expect("make the other pnpm executable");
     }
-    let path = std::env::join_paths([other.clone(), pnpm_home.join("bin")]).expect("join PATH");
+    let path = std::env::join_paths([&other, &pnpm_home.join("bin")]).expect("join PATH");
 
     let output = Command::cargo_bin("pnpm")
         .expect("find pnpm binary")
