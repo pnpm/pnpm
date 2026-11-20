@@ -146,6 +146,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
                     &preferred_versions_seeds_by_importer,
                     own_manifest_specifiers.as_ref(),
                 ),
+                installed: self.install.prior.lockfile,
             })
             .await?;
             if !self.install.drivers.config.auto_dedupe

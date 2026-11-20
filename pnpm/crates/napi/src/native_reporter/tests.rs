@@ -227,6 +227,7 @@ fn held_deprecation_warnings_print_when_the_renderer_is_dropped() {
         prefix: DIR.to_string(),
         depth: 0,
         non_deprecated_alternative: None,
+        already_installed: false,
     }));
     renderer.handle(&summary());
     assert_eq!(written(&buffer), "");

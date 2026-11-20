@@ -1,10 +1,12 @@
 //! Deprecation warnings. They are held until the install summary renders:
 //! a summary line of a deprecated package carries the warning, and the
-//! deprecated packages no line names follow the summary's sections. What no
-//! summary carries is printed when the command ends.
+//! deprecated packages no line names follow the summary's sections, named
+//! when this install added them and counted when it did not. What no summary
+//! carries is printed when the command ends.
 
 use super::{
     BTreeMap,
+    BTreeSet,
     BlockPlacement,
     DeprecationLog,
     HashSet,
@@ -48,33 +50,40 @@ impl ReporterState {
     }
 
     /// The warnings for the held deprecations of packages that no summary
-    /// line in `shown` (by `name@version`) carries: one line per deprecated
-    /// direct dependency, then one for every deprecated subdependency.
+    /// line in `shown` (by `name@version`) carries. Packages this install
+    /// added get one line per direct dependency, then one listing the
+    /// subdependencies. Packages the previous install already had are only
+    /// counted.
     pub(super) fn deprecation_warnings(&self, shown: &HashSet<String>) -> Vec<String> {
         let mut direct: BTreeMap<String, (&DeprecationLog, Vec<String>)> = BTreeMap::new();
-        let mut subdependencies: Vec<String> = Vec::new();
+        let mut subdependencies: BTreeSet<String> = BTreeSet::new();
+        let mut still_installed: BTreeSet<String> = BTreeSet::new();
         for log in &self.notices.deprecations {
             let label = pkg_label(log);
             if shown.contains(&label) {
                 continue;
             }
-            if log.depth != 0 {
-                subdependencies.push(label);
-                continue;
+            if log.already_installed {
+                still_installed.insert(label);
+            } else if log.depth != 0 {
+                subdependencies.insert(label);
+            } else {
+                direct
+                    .entry(label)
+                    .or_insert_with(|| (log, Vec::new()))
+                    .1
+                    .push(normalized_prefix(&self.rendering.cwd, &log.prefix));
             }
-            direct
-                .entry(label)
-                .or_insert_with(|| (log, Vec::new()))
-                .1
-                .push(normalized_prefix(&self.rendering.cwd, &log.prefix));
         }
         let mut warnings: Vec<String> = direct
             .into_iter()
             .map(|(label, (log, projects))| self.direct_deprecation_warning(&label, log, &projects))
             .collect();
         if !subdependencies.is_empty() {
-            subdependencies.sort();
             warnings.push(self.subdependencies_warning(&subdependencies));
+        }
+        if !still_installed.is_empty() {
+            warnings.push(self.still_installed_warning(still_installed.len()));
         }
         warnings
     }
@@ -102,14 +111,27 @@ impl ReporterState {
         )
     }
 
-    fn subdependencies_warning(&self, labels: &[String]) -> String {
+    fn subdependencies_warning(&self, labels: &BTreeSet<String>) -> String {
         let found = format!("{} deprecated subdependencies found:", labels.len());
+        let labels: Vec<&str> = labels
+            .iter()
+            .map(String::as_str)
+            .collect();
         format!(
             "{} {} {}",
             self.rendering.colors.warn_label(),
             self.rendering.colors.red(&found),
             labels.join(", "),
         )
+    }
+
+    fn still_installed_warning(&self, count: usize) -> String {
+        let message = if count == 1 {
+            "1 deprecated package is still installed".to_string()
+        } else {
+            format!("{count} deprecated packages are still installed")
+        };
+        format!("{} {}", self.rendering.colors.warn_label(), self.rendering.colors.red(&message))
     }
 
     /// Print the held warnings no summary carried.
