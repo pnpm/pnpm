@@ -528,6 +528,8 @@ const SETTINGS_NOT_READ_FROM_ENV: &[&str] = &[
     // A section of the global `config.yaml`, which `PNPM_CONFIG_*` overrides
     // setting by setting.
     "globalPackagesConfig",
+    // Part of the repository layout, read from `pnpm-workspace.yaml` only.
+    "preferredManifestFormat",
     // Read with the auth files, not through the overlay.
     "_auth",
     "npmrcAuthFile",

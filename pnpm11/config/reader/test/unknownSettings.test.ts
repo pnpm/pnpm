@@ -18,6 +18,7 @@ test('quoteAndAnnotateUnknown() names the pnpm version that reads a setting this
     'permissions',
     'pipelineBase',
     'pipelines',
+    'preferredManifestFormat',
     'publishWaitTimeout',
     'python',
     'remoteCache',
