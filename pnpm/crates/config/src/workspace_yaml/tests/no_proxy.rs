@@ -1,12 +1,24 @@
 use super::{
-    Config, EnvVar, GetHomeDir, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings, fs,
+    Config,
+    EnvVar,
+    GetHomeDir,
+    LoadWorkspaceYamlError,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    fs,
 };
-use crate::api::{EnvVarOs, GetCurrentDir, LinkProbe};
+use crate::api::{
+    EnvVarOs,
+    GetCurrentDir,
+    LinkProbe,
+};
 use std::{
     ffi::OsString,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 
