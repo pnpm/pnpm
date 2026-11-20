@@ -164,14 +164,9 @@ fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
 pub(crate) enum SetupPathEntry {
     /// Writes the global bin directory first on `PATH`.
     Prepended,
-    /// `--no-modify-path`: prints the settings for the user to add.
+    /// Prints the settings for the user to add, under `--no-modify-path` or
+    /// when the shell configuration cannot be written.
     LeftAlone,
-}
-
-impl SetupPathEntry {
-    pub(crate) fn for_no_modify_path(no_modify_path: bool) -> Self {
-        if no_modify_path { Self::LeftAlone } else { Self::Prepended }
-    }
 }
 
 /// A `pnpm` that a `PATH` lookup finds ahead of the one in the global bin
@@ -180,10 +175,10 @@ impl SetupPathEntry {
 pub(crate) struct ShadowingPnpm {
     pub(crate) executable: PathBuf,
     pub(crate) origin: InstallOrigin,
-    /// Whether the global bin directory or the pnpm home directory is on
-    /// `PATH` at all, behind `executable`. When neither is, `PATH` has yet to
-    /// be set up, and the right pnpm runs once the global bin directory is
-    /// added ahead of `executable`.
+    /// Whether the global bin directory is on `PATH` at all, behind
+    /// `executable`. When it is not, `PATH` has yet to be set up, and the
+    /// right pnpm runs once the global bin directory is added ahead of
+    /// `executable`.
     pub(crate) global_bin_on_path: bool,
 }
 
@@ -233,6 +228,20 @@ impl ShadowingPnpm {
     }
 }
 
+/// Warn about a `pnpm` ahead of `global_bin` that `pnpm setup` leaves in
+/// place, given what it did to `PATH`.
+pub(crate) fn warn_if_shadowed_after_setup<Logger: Reporter>(
+    global_bin: &Path,
+    path_entry: SetupPathEntry,
+    prefix: &str,
+) {
+    if let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
+        && shadowing.outlives_setup(path_entry)
+    {
+        shadowing.emit_warning::<Logger>(global_bin, prefix);
+    }
+}
+
 /// Where pnpm links its own `pnpm`.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct OwnDirs<'a> {
@@ -264,13 +273,8 @@ pub(crate) fn find_shadowing_pnpm(
     if is_own_pnpm(&executable, own) {
         return None;
     }
-    let global_bin_on_path = pnpm_fs::split_paths(path_env)
-        .any(|dir| {
-            [Some(own.global_bin), own.pnpm_home]
-                .into_iter()
-                .flatten()
-                .any(|own_dir| same_dir(&dir, own_dir))
-        });
+    let global_bin_on_path =
+        pnpm_fs::split_paths(path_env).any(|dir| same_dir(&dir, own.global_bin));
     Some(ShadowingPnpm {
         origin: InstallOrigin::detect(&executable),
         executable,

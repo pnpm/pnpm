@@ -124,6 +124,20 @@ fn a_global_bin_without_pnpm_still_counts_as_on_the_path() {
     assert!(shadowing.global_bin_on_path);
 }
 
+/// Setup prepends the global bin directory itself, so the pnpm home
+/// directory on `PATH` does not put it there.
+#[test]
+fn the_pnpm_home_on_the_path_does_not_count_as_the_global_bin() {
+    let home = tempfile::tempdir().unwrap();
+    let global_bin = home.path().join("bin");
+    let other = home.path().join("other");
+    write_executable(&other, PNPM, "");
+
+    let path = path_env(&[&other, home.path()]);
+    let shadowing = find_shadowing_pnpm(own(&global_bin), Some(&path)).unwrap();
+    assert!(!shadowing.global_bin_on_path);
+}
+
 #[test]
 fn a_pnpm_in_the_pnpm_home_directory_is_pnpm_itself() {
     let home = tempfile::tempdir().unwrap();
