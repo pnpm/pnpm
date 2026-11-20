@@ -330,7 +330,8 @@ fn global_group_runtime_bin(
     }
     let installed = pnpm_global::get_global_package_details(group)
         .into_iter()
-        .find(|package| package.alias == name && package.version == version)?;
+        .filter(|package| package.alias == name)
+        .find(|package| package.version == version)?;
     let package_dir =
         dunce::canonicalize(group.install_dir.join("node_modules").join(&installed.alias)).ok()?;
     if !is_within_global_runtime_roots(&package_dir, global_dir, global_virtual_store_dir) {
@@ -346,8 +347,11 @@ fn is_within_global_runtime_roots(
 ) -> bool {
     [global_dir, global_virtual_store_dir]
         .into_iter()
-        .filter_map(|root| dunce::canonicalize(root).ok())
-        .any(|root| package_dir.starts_with(root))
+        .any(|root| is_within_canonical_root(package_dir, root))
+}
+
+fn is_within_canonical_root(package_dir: &Path, root: &Path) -> bool {
+    dunce::canonicalize(root).is_ok_and(|root| package_dir.starts_with(root))
 }
 
 fn runtime_bin_in_package(package_dir: &Path, name: &str) -> Option<PathBuf> {

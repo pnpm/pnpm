@@ -8,7 +8,7 @@
 //! For a runtime pin, the dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, `.node-version`, or `.nvmrc`,
 //! then runs an exactly matching globally installed runtime. It fails when
-//! that runtime is not installed — never through the project's
+//! that runtime is not installed. It never runs through the project's
 //! `node_modules/.bin`. A
 //! publisher-signature-verified stable Node release runs without prompting.
 //!
