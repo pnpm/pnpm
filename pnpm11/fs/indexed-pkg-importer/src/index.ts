@@ -1,6 +1,5 @@
 import assert from 'node:assert'
 import { chmodSync, constants, existsSync, type Stats } from 'node:fs'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
@@ -176,9 +175,10 @@ function tryClonePkg (
   opts: ImportOptions
 ): 'clone' | undefined {
   if (!shouldImportPkg(to, opts)) return undefined
-  const rawClone = alignedClone(createCloneFunction())
+  let rawClone: CloneFunction | undefined
   let importedFile = false
   const clone: CloneFunction = (src, dest) => {
+    rawClone ??= alignedClone(createCloneFunction())
     rawClone(src, dest)
     importedFile = true
   }
@@ -262,7 +262,8 @@ function pickFileFromFilesMap (filesMap: FilesMap): string {
 let _cloneFunction: CloneFunction | undefined
 
 function createNativeReflinkClone (): CloneFunction {
-  const { reflinkFileSync } = createRequire(import.meta.url)('@reflink/reflink') as typeof import('@reflink/reflink')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- loads the native addon only on the platforms that use it
+  const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
   return (fr, to) => {
     try {
       reflinkFileSync(fr, to)
