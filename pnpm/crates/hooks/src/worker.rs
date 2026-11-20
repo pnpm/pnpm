@@ -174,7 +174,7 @@ impl NodeWorker {
             |message: String| HookError::Execution { pnpmfile: pnpmfile.clone(), message };
 
         let file_escaped =
-            serde_json::to_string(&pnpmfile).map_err(|err| exec_err(err.to_string()))?;
+            serde_json::to_string(&pnpmfile).map_err(|err| err.to_string()).map_err(exec_err)?;
         let runner = build_runner(&file_escaped);
 
         let mut command = Command::new("node");
@@ -188,7 +188,10 @@ impl NodeWorker {
             .kill_on_drop(true);
         #[cfg(target_vendor = "apple")]
         command.inherit_only_stdio();
-        let mut child = command.spawn().map_err(|err| exec_err(err.to_string()))?;
+        let mut child = command
+            .spawn()
+            .map_err(|err| err.to_string())
+            .map_err(exec_err)?;
 
         let stdin = Arc::new(Mutex::new(child.stdin.take().expect("worker stdin is piped")));
         let stdout = child.stdout.take().expect("worker stdout is piped");
