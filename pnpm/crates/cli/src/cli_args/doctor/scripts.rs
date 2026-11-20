@@ -62,7 +62,8 @@ struct UnusableNode {
 pub(super) fn check_node_on_path(path: Option<&OsStr>) -> CheckResult {
     let title = "Node.js on PATH";
     let dirs: Vec<PathBuf> = path
-        .map(|path| env::split_paths(path).collect())
+        .map(env::split_paths)
+        .map(Iterator::collect)
         .unwrap_or_default();
     let (usable, unusable) = find_node_entries(&dirs);
     let found = describe_usable_nodes(&usable);
@@ -90,7 +91,8 @@ fn describe_usable_nodes(usable: &[PathBuf]) -> Option<String> {
     if !rest.is_empty() {
         let rest: Vec<String> = rest
             .iter()
-            .map(|path| path.display().to_string())
+            .map(|path| path.display())
+            .map(|path| path.to_string())
             .collect();
         let _ = write!(detail, " (also on PATH: {})", rest.join(", "));
     }
