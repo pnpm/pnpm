@@ -102,7 +102,7 @@ Relink every package the lockfile names, including packages that an earlier inst
 
 Added in: v12.23.0
 
-Install dependencies whose `os`, `cpu`, `libc`, or `engines` do not match the host instead of skipping them. Under [`engineStrict`](../settings/cli.md#enginestrict), a required dependency whose `engines` do not match the host is installed with a warning instead of failing the install.
+Install dependencies whose `os`, `cpu`, `libc`, or `engines` do not match the host instead of skipping them, even under [`engineStrict`](../settings/cli.md#enginestrict).
 
 ### --offline
 
