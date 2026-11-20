@@ -1,16 +1,17 @@
-//! `lockfile.includeResolutionSettings` records the settings that shape a
-//! resolution in the lockfile's `settings`, and holds later installs to them.
+//! `lockfile.includeResolutionSettings` and `lockfile.format: v13` record the
+//! settings that shape a resolution in the lockfile's `settings`, and hold
+//! later installs to them.
 
-use crate::{
-    _utils::read_lockfile,
-    auto_dedupe::{
-        pnpm_at,
-        write_project,
-        write_settings,
-    },
+use crate::auto_dedupe::{
+    pnpm_at,
+    write_project,
+    write_settings,
 };
 use command_extra::CommandExtra;
-use pnpm_lockfile::ResolutionSettings;
+use pnpm_lockfile::{
+    Lockfile,
+    ResolutionSettings,
+};
 use pnpm_testing_utils::bin::{
     AddMockedRegistry,
     CommandTempCwd,
@@ -22,10 +23,15 @@ use std::{
 };
 
 const RECORDING: &str = "lockfile:\n  includeResolutionSettings: true\n";
+const V13: &str = "lockfile:\n  format: v13\n";
 const NOT_RECORDED: &str = "The lockfile does not record that it was resolved with autoDedupe";
 
 fn recorded(workspace: &Path) -> ResolutionSettings {
-    read_lockfile(&workspace.join("pnpm-lock.yaml")).settings.expect("the lockfile has settings")
+    Lockfile::load_wanted_from_dir(workspace)
+        .unwrap()
+        .expect("the lockfile exists")
+        .settings
+        .expect("the lockfile has settings")
         .resolution
 }
 
@@ -77,17 +83,17 @@ fn the_lockfile_records_resolution_settings_only_when_asked() {
     install(&workspace, &["install"]);
     assert_eq!(recorded(&workspace), ResolutionSettings::default());
 
-    write_injected_workspace(&workspace, RECORDING);
-    install(&workspace, &["install"]);
-    assert_eq!(
-        recorded(&workspace),
-        ResolutionSettings {
-            auto_dedupe: Some(false),
-            dedupe_injected_deps: Some(true),
-            dedupe_peer_dependents: Some(true),
-            link_workspace_packages: Some(Value::Bool(false)),
-        },
-    );
+    let defaults = ResolutionSettings {
+        auto_dedupe: Some(false),
+        dedupe_injected_deps: Some(true),
+        dedupe_peer_dependents: Some(true),
+        link_workspace_packages: Some(Value::Bool(false)),
+    };
+    for settings in [V13, RECORDING] {
+        write_injected_workspace(&workspace, settings);
+        install(&workspace, &["install"]);
+        assert_eq!(recorded(&workspace), defaults, "{settings}");
+    }
     drop((root, mock_instance));
 }
 
@@ -149,13 +155,22 @@ fn write_project_with_script(workspace: &Path, version: &str) {
 /// re-resolves it ([pnpm/pnpm#16583](https://github.com/pnpm/pnpm/issues/16583)).
 #[test]
 fn a_frozen_install_of_a_recorded_dedupe_needs_no_further_resolution() {
+    a_frozen_install_of_a_recorded_dedupe_needs_no_further_resolution_with(RECORDING);
+}
+
+#[test]
+fn a_frozen_install_of_a_v13_lockfile_with_dedupe_needs_no_further_resolution() {
+    a_frozen_install_of_a_recorded_dedupe_needs_no_further_resolution_with(V13);
+}
+
+fn a_frozen_install_of_a_recorded_dedupe_needs_no_further_resolution_with(recording: &str) {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#).unwrap();
     write_settings(
         &workspace,
-        format!("packages:\n  - low\n  - high\nautoDedupe: true\n{RECORDING}"),
+        format!("packages:\n  - low\n  - high\nautoDedupe: true\n{recording}"),
     )
     .unwrap();
     write_project_with_script(&workspace, "100.0.0");
@@ -216,15 +231,17 @@ fn a_resolving_install_suggests_recording_auto_dedupe() {
 fn recording_resolution_settings_rejects_delegated_resolution() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    write_settings(&workspace, format!("packages:\n  - low\n{RECORDING}")).unwrap();
     write_project(&workspace, "low", "100.0.0");
-    let output = pnpm_at(&workspace)
-        .with_args(["install", "--pnpr-server", "http://127.0.0.1:1", "--lockfile-only"])
-        .output()
-        .unwrap();
-    assert!(!output.status.success(), "{output:?}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("ERR_PNPM_RESOLUTION_SETTINGS_WITH_PNPR_SERVER"), "{stderr}");
+    for settings in [RECORDING, V13] {
+        write_settings(&workspace, format!("packages:\n  - low\n{settings}")).unwrap();
+        let output = pnpm_at(&workspace)
+            .with_args(["install", "--pnpr-server", "http://127.0.0.1:1", "--lockfile-only"])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("ERR_PNPM_RESOLUTION_SETTINGS_WITH_PNPR_SERVER"), "{stderr}");
+    }
     drop((root, npmrc_info));
 }
 
@@ -243,6 +260,21 @@ fn turning_the_setting_on_records_the_settings_on_the_next_install() {
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
+    assert_eq!(recorded(&workspace).dedupe_injected_deps, Some(true));
+    drop((root, mock_instance));
+}
+
+#[test]
+fn switching_to_the_v13_format_records_the_settings() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_injected_workspace(&workspace, "");
+    install(&workspace, &["install"]);
+    write_injected_workspace(&workspace, V13);
+    install(&workspace, &["install"]);
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(lockfile.contains("13.0"), "{lockfile}");
     assert_eq!(recorded(&workspace).dedupe_injected_deps, Some(true));
     drop((root, mock_instance));
 }

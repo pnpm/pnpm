@@ -686,7 +686,9 @@ pub struct Config {
     /// Record `autoDedupe`, `dedupeInjectedDeps`, `dedupePeerDependents` and
     /// `linkWorkspacePackages` in the lockfile's `settings`, so a lockfile
     /// resolved under other values counts as outdated. The
-    /// `lockfile.includeResolutionSettings` setting.
+    /// `lockfile.includeResolutionSettings` setting. Read it through
+    /// [`Self::lockfile_records_resolution_settings`], which the `v13` format
+    /// also turns on.
     pub lockfile_include_resolution_settings: bool,
 
     /// Which hash the `integrity` of a package tarball entry in the lockfile

@@ -438,6 +438,8 @@ pub(super) fn lockfile_with_settings(
         Some(settings.peers_suffix_max_length.try_into().unwrap());
     options.catalogs = &fixture.catalogs;
     options.metadata_sources.lockfile_format = settings.format;
+    options.settings.resolution =
+        crate::fast_update_settings::resolution_settings_from_config(&fixture.config(settings));
     options.importers = fixture.manifests
         .iter()
         .map(|(id, manifest)| {

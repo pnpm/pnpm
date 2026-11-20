@@ -402,7 +402,7 @@ fn recorded_allow_builds(
 fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
     WorkspaceStateSettings {
         lockfile_include_resolution_settings: config
-            .lockfile_include_resolution_settings
+            .lockfile_records_resolution_settings()
             .then_some(true),
         lockfile_integrity_target: (config.lockfile_integrity_target
             != pnpm_lockfile::IntegrityTarget::Resource)
