@@ -185,4 +185,16 @@ async fn corrupt_purge_marker_suppresses_only_its_own_package_across_restart() {
             .unwrap()
             .is_none(),
     );
+
+    // Querying more distinct missing package names than the cache budget
+    // evicts old negative entries without losing durable purge suppression.
+    for index in 0..(super::purged::OBSERVED_MARKER_CACHE_CAPACITY + 256) {
+        let missing = pkg(&format!("missing-{index}"));
+        assert!(!restarted.is_upstream_package_purged("corp-ns", &missing).await.unwrap());
+    }
+    assert!(
+        restarted.purged_upstream.observed_len_for_test()
+            <= super::purged::OBSERVED_MARKER_CACHE_CAPACITY,
+    );
+    assert!(restarted.is_upstream_package_purged("corp-ns", &corrupt).await.unwrap());
 }

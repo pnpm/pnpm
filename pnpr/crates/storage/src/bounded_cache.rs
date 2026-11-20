@@ -32,6 +32,18 @@ impl<Key: Clone + Eq + Hash, Value> BoundedCache<Key, Value> {
         self.entries.get(key).map(|entry| &entry.value)
     }
 
+    /// Number of entries currently retained.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Whether the cache retains no entries.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     /// Insert an entry no heavier than `budget`, evicting oldest entries to fit.
     pub fn insert(&mut self, key: Key, value: Value, weight: usize, budget: usize) {
         if weight > budget {
