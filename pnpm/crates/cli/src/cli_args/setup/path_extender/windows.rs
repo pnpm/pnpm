@@ -12,7 +12,10 @@ use super::{
     PathExtenderError,
 };
 use crate::process::Command;
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The change made to one environment variable, used to render the
 /// before/after report.
@@ -25,28 +28,38 @@ pub(super) struct EnvVariableChange {
 
 const REG_KEY: &str = r"HKEY_CURRENT_USER\Environment";
 
+const MACHINE_REG_KEY: &str =
+    r"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
+
 const UTF8_CODEPAGE: u32 = 65001;
 
 pub(super) fn add_dir_to_windows_env_path(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
-    // The UTF-8 code page makes `reg` use UTF-8 for output. Otherwise
-    // non-ASCII characters in environment variables become garbled. The code
-    // page is switched with `mode con cp select=` rather than `chcp`: both
-    // set the same console code page, but `chcp` clears the visible terminal
-    // whenever it changes it.
+    with_utf8_codepage(|| {
+        let report = add_dir_to_windows_env_path_inner(dir, opts)?;
+        refresh_env_vars()?;
+        Ok(report)
+    })
+}
+
+/// Run `body` under the UTF-8 code page, which makes `reg` use UTF-8 for
+/// output. Otherwise non-ASCII characters in environment variables become
+/// garbled. The code page is switched with `mode con cp select=` rather than
+/// `chcp`: both set the same console code page, but `chcp` clears the visible
+/// terminal whenever it changes it.
+fn with_utf8_codepage<Output, Body>(body: Body) -> Result<Output, PathExtenderError>
+where
+    Body: FnOnce() -> Result<Output, PathExtenderError>,
+{
     let codepage_output =
         query_codepage().map_err(|err| PathExtenderError::CodePage { message: err.to_string() })?;
     let cp_bak = first_number(&codepage_output)
         .ok_or_else(|| PathExtenderError::CodePage { message: codepage_output.clone() })?;
     select_codepage(UTF8_CODEPAGE)?;
 
-    let result = (|| {
-        let report = add_dir_to_windows_env_path_inner(dir, opts)?;
-        refresh_env_vars()?;
-        Ok(report)
-    })();
+    let result = body();
 
     // Restore the saved code page even when the body failed.
     let _ = select_codepage(cp_bak);
@@ -325,6 +338,103 @@ fn first_number(text: &str) -> Option<u32> {
         .take_while(char::is_ascii_digit)
         .collect();
     digits.parse().ok()
+}
+
+/// The `Path` directories a new process gets: the machine `Path` followed by
+/// the user `Path`, with `%NAME%` references expanded from the user's
+/// registry values first. `None` when the registry cannot be read.
+pub(in crate::cli_args::setup) fn persisted_path_dirs() -> Option<Vec<PathBuf>> {
+    with_utf8_codepage(|| Ok(read_persisted_path_dirs())).ok().flatten()
+}
+
+fn read_persisted_path_dirs() -> Option<Vec<PathBuf>> {
+    let machine = run_capture("reg", &["query", MACHINE_REG_KEY]).ok()?;
+    let user = get_registry_output().ok()?;
+    persisted_path_from_registry(&machine, &user, |name| std::env::var(name).ok())
+}
+
+/// The saved `Path` directories from the `reg query` output of the machine
+/// and user environment keys. Windows builds a new process's environment
+/// from the machine values, expanded against the process environment, and
+/// then the user values, expanded against everything before them. Only
+/// `REG_EXPAND_SZ` values are expanded. `Path` is the machine value followed
+/// by the user value.
+fn persisted_path_from_registry<ProcessEnv>(
+    machine: &str,
+    user: &str,
+    process_env: ProcessEnv,
+) -> Option<Vec<PathBuf>>
+where
+    ProcessEnv: Fn(&str) -> Option<String>,
+{
+    let scoped = |output: &str, name: &str, outer: &dyn Fn(&str) -> Option<String>| {
+        let entry = get_env_value_with_type_from_registry(output, name)?;
+        Some(if entry.value_type == "REG_EXPAND_SZ" {
+            expand_env_references(&entry.data, &outer)
+        } else {
+            entry.data
+        })
+    };
+    let machine_lookup =
+        |name: &str| scoped(machine, name, &process_env).or_else(|| process_env(name));
+    // A `%Path%` in the user `Path` is the machine `Path` it is appended to.
+    let user_lookup = |name: &str| {
+        if name.eq_ignore_ascii_case("Path") {
+            return machine_lookup(name);
+        }
+        scoped(user, name, &machine_lookup).or_else(|| machine_lookup(name))
+    };
+    let mut dirs = split_registry_path(&scoped(machine, "Path", &machine_lookup)?);
+    if let Some(user_path) = scoped(user, "Path", &user_lookup) {
+        dirs.extend(split_registry_path(&user_path));
+    }
+    Some(dirs)
+}
+
+/// Split an expanded `Path` value into directories the way Windows does: on
+/// `;` outside double quotes, dropping the quotes.
+fn split_registry_path(expanded: &str) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    for character in expanded.chars() {
+        match character {
+            '"' => in_quotes = !in_quotes,
+            ';' if !in_quotes => dirs.push(std::mem::take(&mut current)),
+            _ => current.push(character),
+        }
+    }
+    dirs.push(current);
+    dirs.into_iter()
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
+
+fn expand_env_references<Lookup>(entry: &str, lookup: &Lookup) -> String
+where
+    Lookup: Fn(&str) -> Option<String>,
+{
+    let mut parts = entry.split('%');
+    let mut expanded = parts
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    let rest: Vec<&str> = parts.collect();
+    for pair in rest.chunks(2) {
+        match pair {
+            [name, tail] => {
+                expanded.push_str(&lookup(name).unwrap_or_else(|| format!("%{name}%")));
+                expanded.push_str(tail);
+            }
+            [unclosed] => {
+                expanded.push('%');
+                expanded.push_str(unclosed);
+            }
+            _ => {}
+        }
+    }
+    expanded
 }
 
 #[cfg(test)]

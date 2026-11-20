@@ -9,6 +9,10 @@
 mod gh_actions_env;
 mod path_extender;
 
+use super::shadowing_pnpm::{
+    SetupPathEntry,
+    warn_if_shadowed_after_setup,
+};
 use crate::process::Command;
 use clap::Args;
 use miette::{
@@ -111,12 +115,14 @@ fn handler<Reporter: self::Reporter + 'static>(
             .wrap_err("create the pnpm alias scripts")?;
     }
 
-    let output = if no_modify_path {
-        render_unmodified_path_output(&pnpm_home_dir, &ManualSetupShell::current())
+    let (output, path_entry) = if no_modify_path {
+        let shell = ManualSetupShell::current();
+        (render_unmodified_path_output(&pnpm_home_dir, &shell), SetupPathEntry::LeftAlone)
     } else {
         add_pnpm_home_to_env::<Reporter>(force, &pnpm_home_dir, &bin_dir, dir)?
     };
     remove_legacy_homedir_shims(&pnpm_home_dir);
+    warn_if_shadowed_after_setup::<Reporter>(&bin_dir, &path_entry, &dir.to_string_lossy());
     Ok(output)
 }
 
@@ -132,17 +138,20 @@ fn env_path_opts(force: bool) -> AddDirToEnvPathOpts<'static> {
 }
 
 /// Add `PNPM_HOME` and its `bin` directory to the user's environment and, on
-/// GitHub Actions, to the rest of the job.
+/// GitHub Actions, to the rest of the job. A setup that falls back to manual
+/// instructions leaves `PATH` alone.
 fn add_pnpm_home_to_env<Reporter: self::Reporter + 'static>(
     force: bool,
     pnpm_home_dir: &Path,
     bin_dir: &Path,
     dir: &Path,
-) -> miette::Result<String> {
+) -> miette::Result<(String, SetupPathEntry)> {
     let env_path_result = path_extender::add_dir_to_env_path(pnpm_home_dir, &env_path_opts(force));
+    let path_entry =
+        SetupPathEntry::after_env_update(&env_path_result, path_extender::persisted_path_dirs);
     let output = render_env_path_outcome(env_path_result, pnpm_home_dir)?;
     gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, pnpm_home_dir, bin_dir);
-    Ok(output)
+    Ok((output, path_entry))
 }
 
 /// The output of a setup whose CLI install succeeded.
