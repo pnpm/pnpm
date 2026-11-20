@@ -1,4 +1,4 @@
-use crate::State;
+use crate::{State, state::resolutions::promoted_resolution_overrides};
 use clap::Args;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -100,7 +100,7 @@ impl LinkArgs {
 
         let root_dir = config.workspace_dir.clone().unwrap_or_else(|| manifest_dir.clone());
 
-        let mut new_overrides = IndexMap::<String, String>::new();
+        let mut new_overrides = promoted_resolution_overrides(cli_dir, config).unwrap_or_default();
         for path_str in &self.package_paths {
             let (target_dir, package_name, target_manifest) = link_target(cli_dir, path_str)?;
 

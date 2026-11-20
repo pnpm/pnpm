@@ -375,3 +375,46 @@ fn run_gate_accepts_promoted_resolutions_extended_by_update_config() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn link_keeps_promoted_resolutions_for_the_next_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "resolutions-link-host",
+            "version": "1.0.0",
+            "resolutions": { "@pnpm.e2e/foo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json with resolutions");
+    let target_dir = root.path().join("link-target");
+    fs::create_dir_all(&target_dir).expect("create link target");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "link-target", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write link target package.json");
+
+    let link = pnpm_at(&workspace)
+        .with_args(["link", "../link-target"])
+        .output()
+        .expect("spawn pnpm link");
+    assert!(link.status.success(), "{}", String::from_utf8_lossy(&link.stderr));
+    let workspace_yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    assert!(workspace_yaml.contains("'@pnpm.e2e/foo': 1.0.0"), "{workspace_yaml}");
+    assert!(workspace_yaml.contains("link-target: link:../link-target"), "{workspace_yaml}");
+
+    let install = pnpm_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("spawn pnpm install");
+    assert!(install.status.success(), "{}", String::from_utf8_lossy(&install.stderr));
+
+    drop((root, mock_instance));
+}

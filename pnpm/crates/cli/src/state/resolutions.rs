@@ -36,6 +36,20 @@ pub fn promote_root_resolutions(dir: &Path, config: &mut Config) -> Option<Vec<S
     apply_resolutions_to_config(config, &manifest).ok()
 }
 
+/// The overrides promoted from the root project's resolutions, when they are
+/// what `config.overrides` holds. A command that saves overrides to
+/// `pnpm-workspace.yaml` has to save these too: once the file has overrides,
+/// the next config read ignores the resolutions.
+pub fn promoted_resolution_overrides(
+    dir: &Path,
+    config: &Config,
+) -> Option<IndexMap<String, String>> {
+    let mut probe = config.clone();
+    probe.overrides = None;
+    promote_root_resolutions(dir, &mut probe)?;
+    probe.overrides.filter(|promoted| config.overrides.as_ref() == Some(promoted))
+}
+
 pub fn emit_resolutions_warnings(emit: fn(&LogEvent), dir: &Path, warnings: Vec<String>) {
     let prefix = dir.to_string_lossy().to_string();
     for message in warnings {
