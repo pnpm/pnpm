@@ -71,7 +71,9 @@ fn decode_ini_value(value: &str) -> Cow<'_, str> {
                 .unwrap_or(""),
         )
     } else if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
-        serde_json::from_str::<String>(value).map_or(Cow::Borrowed(value), Cow::Owned)
+        serde_json::from_str::<String>(value)
+            .map(Cow::Owned)
+            .unwrap_or(Cow::Borrowed(value))
     } else {
         Cow::Borrowed(value)
     }

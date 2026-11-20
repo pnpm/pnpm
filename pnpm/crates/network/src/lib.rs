@@ -170,7 +170,7 @@ pub const DEFAULT_USER_AGENT: &str = "pnpm";
 /// explicit one. Marks the request as latency class (packument and
 /// other metadata fetches that gate resolution progress) served FIFO
 /// and preferred over size-prioritized downloads beyond the downloads'
-/// reserved share of the pool (see the `priority_semaphore` module
+/// reserved share of the pool (see the priority semaphore module
 /// docs for the grant policy).
 pub const UNPRIORITIZED: u64 = u64::MAX;
 
@@ -180,7 +180,7 @@ pub const UNPRIORITIZED: u64 = u64::MAX;
 /// granted a slot only when no [`UNPRIORITIZED`] (latency-class)
 /// request is queued, so bulk verification never queue-jumps the
 /// resolver's critical-path packument fetches (see the
-/// `priority_semaphore` module docs for the full grant policy).
+/// priority semaphore module docs for the full grant policy).
 pub const BACKGROUND: u64 = u64::MAX - 1;
 
 /// Highest priority a throughput-class (download) request may carry.
@@ -261,7 +261,7 @@ impl Default for NetworkSettings {
 }
 
 /// Wrapper around [`Client`] with a concurrent request limit enforced
-/// by a priority-ordered semaphore (`priority_semaphore` module).
+/// by a priority-ordered semaphore.
 ///
 /// Holds a default [`Client`] for the top-level proxy / TLS config
 /// plus an optional map of per-registry clients keyed by nerf-darted
@@ -273,7 +273,7 @@ impl Default for NetworkSettings {
 /// targets.
 ///
 /// When the pool saturates, freed slots are granted by the class policy
-/// in the `priority_semaphore` module docs.
+/// in the priority semaphore module docs.
 #[derive(Debug)]
 pub struct ThrottledClient {
     semaphore: PrioritySemaphore,

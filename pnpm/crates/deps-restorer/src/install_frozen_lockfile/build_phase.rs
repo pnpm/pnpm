@@ -234,6 +234,27 @@ fn finish_dependency_bin_links(
     Ok(())
 }
 
+/// No rebuild or patch was asked for, and every installed snapshot is known
+/// not to require a build.
+fn nothing_to_build(
+    inputs: &BuildPhaseInputs<'_>,
+    patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
+) -> bool {
+    inputs.policy.rebuild.is_none()
+        && patches.is_none_or(HashMap::is_empty)
+        && inputs.graph.snapshots.is_none_or(|snapshots| {
+            snapshots
+                .keys()
+                .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
+                .all(|snapshot_key| {
+                    !inputs.cache.requires_build_by_snapshot
+                        .get(snapshot_key)
+                        .copied()
+                        .unwrap_or(true)
+                })
+        })
+}
+
 fn build_or_defer<Reporter: self::Reporter>(
     inputs: &BuildPhaseInputs<'_>,
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
@@ -264,20 +285,7 @@ fn build_or_defer<Reporter: self::Reporter>(
             mutated_slots: false,
             mutated_snapshot_keys: std::collections::HashSet::default(),
         }
-    } else if inputs.policy.rebuild.is_none()
-        && patches.is_none_or(HashMap::is_empty)
-        && inputs.graph.snapshots.is_none_or(|snapshots| {
-            snapshots
-                .keys()
-                .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
-                .all(|snapshot_key| {
-                    !inputs.cache.requires_build_by_snapshot
-                        .get(snapshot_key)
-                        .copied()
-                        .unwrap_or(true)
-                })
-        })
-    {
+    } else if nothing_to_build(inputs, patches) {
         crate::BuildModulesOutput::default()
     } else {
         let variations_platform = crate::runtime_platform_selector(inputs.supported_architectures);

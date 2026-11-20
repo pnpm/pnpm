@@ -46,7 +46,7 @@ pub struct TokenHelperOutput {
 /// Runs a `tokenHelper` command line (`[program, ...args]`) and captures
 /// its output. Injected into [`AuthHeaders`](crate::AuthHeaders) so tests
 /// can drive the execution branches without spawning a real process;
-/// production uses `run_token_helper_command`.
+/// production runs the configured command.
 pub type TokenHelperRunner = fn(&[String]) -> io::Result<TokenHelperOutput>;
 
 /// Failure while turning a `tokenHelper` into a header. The `Display`

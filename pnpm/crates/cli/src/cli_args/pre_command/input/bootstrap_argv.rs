@@ -88,7 +88,8 @@ impl BootstrapTokens {
     fn offer_long(&mut self, token: &str, long: &str, next: Option<&OsStr>) -> Option<usize> {
         let (name, value_attached) = long
             .split_once('=')
-            .map_or((long, false), |(name, _)| (name, true));
+            .map(|(name, _)| (name, true))
+            .unwrap_or((long, false));
         let consumes_value = BootstrapArgv::options().long_consumes_value(name)?;
         if !consumes_value || value_attached {
             self.0.push(vec![OsString::from(token)]);
@@ -223,7 +224,8 @@ pub(super) fn declared_option_width(token: &str, options: &ArgTable) -> Option<u
 fn declared_long_width(name: &str, options: &ArgTable) -> Option<usize> {
     let (name, value_attached) = name
         .split_once('=')
-        .map_or((name, false), |(name, _)| (name, true));
+        .map(|(name, _)| (name, true))
+        .unwrap_or((name, false));
     let consumes_value = options.long_consumes_value(name)?;
     Some(if consumes_value && !value_attached { 2 } else { 1 })
 }

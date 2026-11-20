@@ -1015,7 +1015,7 @@ fn read_package_hook_applied(workspace: &Path) -> bool {
         .packages
         .expect("packages")
         .keys()
-        .map(|key| key.to_string())
+        .map(std::string::ToString::to_string)
         .any(|text| text.starts_with("is-positive@"))
 }
 

@@ -43,7 +43,9 @@ pub fn belongs_to_workspace(
     if !needs_package_patterns(workspace_dir, dir) {
         return Ok(true);
     }
-    let patterns = patterns.map_or_else(|| vec![".".to_string()], <[String]>::to_vec);
+    let patterns = patterns
+        .map(<[String]>::to_vec)
+        .unwrap_or_else(|| vec![".".to_string()]);
     is_workspace_project_dir(
         workspace_dir,
         dir,

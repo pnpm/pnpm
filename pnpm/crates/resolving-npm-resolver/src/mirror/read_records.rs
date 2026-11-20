@@ -200,7 +200,9 @@ pub(super) fn held_mirror_file_cap() -> usize {
     static CAP: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *CAP.get_or_init(|| {
         raise_open_file_limit_once();
-        soft_open_file_limit().map_or(1 << 19, |soft| (soft / 2).min(1 << 19))
+        soft_open_file_limit()
+            .map(|soft| (soft / 2).min(1 << 19))
+            .unwrap_or(1 << 19)
     })
 }
 

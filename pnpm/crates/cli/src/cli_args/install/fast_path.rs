@@ -171,8 +171,9 @@ impl InstallArgs {
         // pnpmfile declares custom fetchers, which may serve a directory that
         // changed with the lockfile unchanged. Asking means loading the hooks,
         // which is the install's job.
-        let node_linker =
-            self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let node_linker = self.materialization.node_linker
+            .map(NodeLinkerArg::into_config)
+            .unwrap_or(config.node_linker);
         if node_linker == pnpm_config::NodeLinker::Hoisted && uses_pnpmfile(config, config_root) {
             return false;
         }
@@ -221,8 +222,9 @@ impl InstallArgs {
         }
         let manifest = pnpm_package_manifest::PackageManifest::from_path(manifest_path.clone())
             .map_err(|_| "package.json cannot be parsed")?;
-        let node_linker =
-            self.materialization.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
+        let node_linker = self.materialization.node_linker
+            .map(NodeLinkerArg::into_config)
+            .unwrap_or(config.node_linker);
         // Each project keeps its own lockfile and state, so each is decided
         // from its own record.
         let per_project = !config.shares_one_lockfile() && config.workspace_dir.is_some();

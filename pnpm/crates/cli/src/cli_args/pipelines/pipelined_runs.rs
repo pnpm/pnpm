@@ -146,7 +146,8 @@ impl DedicatedProjectRuns<'_> {
         run.first_error
             .into_inner()
             .expect("dedicated install error lock is not poisoned")
-            .map_or(Ok(()), Err)
+            .map(Err)
+            .unwrap_or(Ok(()))
     }
 }
 

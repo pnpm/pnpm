@@ -75,10 +75,9 @@ fn build_layout_overlay(
         enable_modules_dir: if fetch_shaped { Some(true) } else { options.enable_modules_dir },
         registry: None,
         registries: options.registries
-            .as_ref()
-            .map(|map| map.clone())
-            .map(|value| value.into_iter())
-            .map(|value| value.collect()),
+            .clone()
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         proxy: options.proxy_config
             .as_ref()
             .map(build_proxy_config)
@@ -204,8 +203,8 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
         strict_dep_builds: Some(options.strict_dep_builds.unwrap_or(false)),
         allow_builds: options.allow_builds
             .clone()
-            .map(|map| map.into_iter())
-            .map(|value| value.collect()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         dangerously_allow_all_builds: options.dangerously_allow_all_builds,
         ignore_scripts: options.ignore_scripts,
         trust_lockfile: options.trust_lockfile,
@@ -219,15 +218,14 @@ fn build_policy_overlay(options: &InstallOptions, overlay: ConfigOverlay) -> Con
                 ignore_missing: rules.ignore_missing.clone(),
                 allow_any: rules.allow_any.clone(),
                 allowed_versions: rules.allowed_versions
-                    .as_ref()
-                    .map(|map| map.clone())
-                    .map(|value| value.into_iter())
-                    .map(|value| value.collect()),
+                    .clone()
+                    .map(std::iter::IntoIterator::into_iter)
+                    .map(std::iter::Iterator::collect),
             }),
         auth_header_by_uri: options.auth_header_by_uri
             .clone()
-            .map(|map| map.into_iter())
-            .map(|value| value.collect()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         ..overlay
     }
 }

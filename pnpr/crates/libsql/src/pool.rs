@@ -66,7 +66,7 @@ const IDLE_EXPIRY: Duration = Duration::from_secs(5);
 /// still inside a transaction would pull the next operation into it. A
 /// connection therefore returns to the pool only after its operation succeeded
 /// outside a transaction; any other is closed, and a later checkout opens a
-/// fresh one. A connection idle for `IDLE_EXPIRY` is closed as well.
+/// fresh one. A connection idle past the expiry is closed as well.
 ///
 /// A stream can still be gone when its connection is checked out, such as
 /// after the server restarted. The server rejects the stream's request

@@ -354,10 +354,9 @@ impl InstallArgs {
             supported_architectures: self.supported_architectures.apply_to(
                 config.supported_architectures.clone(),
             ),
-            node_linker: self.materialization.node_linker.map_or(
-                config.node_linker,
-                NodeLinkerArg::into_config,
-            ),
+            node_linker: self.materialization.node_linker
+                .map(NodeLinkerArg::into_config)
+                .unwrap_or(config.node_linker),
             skip_runtimes: config.skip_runtimes || self.materialization.no_runtime,
             lockfile_path: Some(lockfile_path),
             use_state_lockfile: true,

@@ -60,7 +60,7 @@ impl InitArgs {
 
     /// `--init-type` layered over the `initType` setting.
     pub(crate) fn effective_init_type(&self, config: &Config) -> InitType {
-        self.init_type.map_or(config.init_type, InitTypeArg::into_config)
+        self.init_type.map(InitTypeArg::into_config).unwrap_or(config.init_type)
     }
 
     /// Whether `pnpm init` records a package-manager pin in the manifest it

@@ -186,7 +186,8 @@ pub(crate) fn closing_bracket_across_lines(text: &str, open: usize) -> Option<us
             b'#' if idx > open && bytes[idx - 1].is_ascii_whitespace() => {
                 idx = text[idx..]
                     .find('\n')
-                    .map_or(bytes.len(), |offset| idx + offset + 1);
+                    .map(|offset| idx + offset + 1)
+                    .unwrap_or(bytes.len());
             }
             b'{' | b'[' => {
                 depth += 1;

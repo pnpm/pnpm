@@ -71,7 +71,7 @@ pub(crate) fn apply_published_by_policy(
 /// document, whose version manifests are the ones `meta` holds.
 ///
 /// Panics if `meta.time` is `None`. Go through
-/// `apply_published_by_policy`, which reports abbreviated metadata as
+/// the published-by policy, which reports abbreviated metadata as
 /// `needs_full_metadata` rather than filtering it.
 #[must_use]
 pub fn filter_pkg_metadata_by_publish_date(

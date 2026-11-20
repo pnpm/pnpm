@@ -94,7 +94,10 @@ fn parse_token(source: &str) -> Result<(Token, &str), ParsePropertyPathError> {
     // Unexpected: a single (char-boundary-safe) unit.
     let mut indices = source.char_indices();
     indices.next();
-    let split = indices.next().map_or(source.len(), |(i, _)| i);
+    let split = indices
+        .next()
+        .map(|(i, _)| i)
+        .unwrap_or(source.len());
     let (head, tail) = source.split_at(split);
     Ok((Token::Unexpected(head.to_string()), tail))
 }

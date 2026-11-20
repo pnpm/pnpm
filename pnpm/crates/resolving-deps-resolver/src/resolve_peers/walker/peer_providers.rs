@@ -15,8 +15,6 @@ use super::{
     TreeChildren,
     Walker,
 };
-use crate::DependenciesTreeNode;
-
 use crate::peer_provider::{
     LockedProvider,
     PeerScope,
@@ -244,7 +242,7 @@ impl Walker<'_> {
             || (source.declared_direct_dependencies.contains(alias)
                 && self.tree.dependencies_tree
                     .get(peer_node_id)
-                    .map(DependenciesTreeNode::previous_dep_path)
+                    .map(crate::DependenciesTreeNode::previous_dep_path)
                     .is_none_or(|previous_dep_path| previous_dep_path.is_none()))
     }
 

@@ -56,9 +56,9 @@ fn check_sudo_as(
     if euid != 0 {
         return Ok(());
     }
-    if !sudo_user
+    if sudo_user
         .filter(|user| !user.is_empty())
-        .is_some_and(|user| user != "root")
+        .is_none_or(|user| user == "root")
     {
         return Ok(());
     }

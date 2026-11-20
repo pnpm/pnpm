@@ -395,7 +395,8 @@ fn long_option_width(long: &str, next: Option<&str>, arity: &ArgTable) -> usize 
     // An inline value is self-contained whatever the option's arity.
     let Some(name) = long
         .split_once('=')
-        .map_or(Some(long), |_| None)
+        .map(|_| None)
+        .unwrap_or(Some(long))
     else {
         return 1;
     };

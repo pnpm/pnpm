@@ -294,8 +294,8 @@ fn default_rule_gate_rejects_ordinary_paths() {
         "build/other.js",
         "x.swp",
         "config.gypi.bak",
-        "archived-pacKages/data.json",
-        ".locK-wscript",
+        "archived-pacKages/data.json",
+        ".locK-wscript",
     ] {
         assert!(!gate_passes(path), "{path:?}");
     }

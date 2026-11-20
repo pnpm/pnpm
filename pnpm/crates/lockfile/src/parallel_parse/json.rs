@@ -122,7 +122,8 @@ pub(super) fn next_entry_start(body: &str, from: usize) -> usize {
     }
     body[from..]
         .find("\n\t\t\"")
-        .map_or(body.len(), |offset| from + offset + 1)
+        .map(|offset| from + offset + 1)
+        .unwrap_or(body.len())
 }
 
 /// The document with each section's entries removed, and the entries of

@@ -260,7 +260,7 @@ fn override_keys_in_text(text: &str) -> Vec<String> {
         .ok()
         .and_then(|parsed| parsed.overrides)
         .map(IndexMap::into_keys)
-        .map(|keys| keys.collect())
+        .map(std::iter::Iterator::collect)
         .unwrap_or_default()
 }
 

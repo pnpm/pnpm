@@ -121,7 +121,7 @@ pub(super) fn pin_locked_version(
         && wanted.bare_specifier
             .as_deref()
             .filter(|spec| !spec.trim().is_empty())
-            .is_some_and(|spec| is_valid_semver_range(spec))
+            .is_some_and(is_valid_semver_range)
     {
         wanted.bare_specifier = Some(version.to_string());
     }

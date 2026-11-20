@@ -7,7 +7,7 @@
 //! - `workspace:1.2.3` / `workspace:^1.2.3`, exact / range against
 //!   workspace siblings.
 //! - `workspace:<alias>@<version>` / `workspace:@scope/<alias>@<version>`,
-//! npm-alias form, used when the importer wants to install a
+//!   npm-alias form, used when the importer wants to install a
 //!   workspace package under a different local name.
 //!
 //! The parser is deliberately permissive; it just splits the

@@ -313,7 +313,8 @@ pub(super) async fn run_dependency_pass<Reporter: pnpm_reporter::Reporter>(
             .collect();
     let modules_basename = per_importer.config.modules_dir
         .file_name()
-        .map_or_else(|| std::ffi::OsString::from("node_modules"), std::ffi::OsStr::to_os_string);
+        .map(std::ffi::OsStr::to_os_string)
+        .unwrap_or_else(|| std::ffi::OsString::from("node_modules"));
     pnpm_resolving_deps_resolver::resolve_workspace_dependencies(
         resolver,
         &workspace_importers,

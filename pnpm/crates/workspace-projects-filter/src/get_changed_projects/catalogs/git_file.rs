@@ -97,8 +97,8 @@ fn first_git_symlink(
     let symlinks: HashSet<&str> = listing
         .split('\0')
         .filter(|entry| entry.starts_with(SYMLINK_MODE))
-        .map(|entry| entry.split_once('\t'))
-        .filter_map(|parts| parts.map(|(_, entry_path)| entry_path))
+        .filter_map(|entry| entry.split_once('\t'))
+        .map(|(_, entry_path)| entry_path)
         .collect();
     Ok(prefixes
         .into_iter()

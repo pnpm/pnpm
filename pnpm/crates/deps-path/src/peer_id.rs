@@ -19,7 +19,7 @@ impl PeerId {
     /// leading `/` stripped (the `/`-prefix fast path for the absolute /
     /// relative depPath distinction).
     #[must_use]
-    pub fn as_segment(&self) -> String {
+    pub fn to_segment(&self) -> String {
         match self {
             PeerId::Pair { name, version } => format!("{name}@{version}"),
             PeerId::DepPath(dep_path) => match dep_path.as_str().strip_prefix('/') {

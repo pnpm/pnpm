@@ -162,7 +162,8 @@ fn find_hoisted_dirs<'a>(
 fn legacy_dep_path(dep_path: &str) -> String {
     dep_path
         .strip_prefix('/')
-        .map_or_else(|| format!("/{dep_path}"), str::to_string)
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("/{dep_path}"))
 }
 
 /// The hoisted linker places a dependency under its alias, so an

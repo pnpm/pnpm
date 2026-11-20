@@ -15,9 +15,8 @@ pub(super) fn staged_record(
 ) -> StagedRecord {
     let (version, dist) = validated.prepared
         .first()
-        .map_or((None, Value::Null), |attachment| {
-            (Some(attachment.version.clone()), attachment.dist.clone())
-        });
+        .map(|attachment| (Some(attachment.version.clone()), attachment.dist.clone()))
+        .unwrap_or((None, Value::Null));
     let (actor, actor_type) = actor_of(identity);
     StagedRecord {
         format_version: STAGED_RECORD_FORMAT_VERSION,

@@ -475,7 +475,9 @@ fn assert_standard_workspace_pnpr_from(project: Option<&str>) {
     let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
-    let cwd = project.map_or_else(|| workspace.clone(), |project| workspace.join(project));
+    let cwd = project
+        .map(|project| workspace.join(project))
+        .unwrap_or_else(|| workspace.clone());
     pacquet_at(&cwd)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--pnpr-server", &pnpr_url])

@@ -169,12 +169,12 @@ fn default_rules_match_ascii_case_only() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
-    touch(root, ".locK-wscript");
-    touch(root, "archived-pacKages/data.json");
+    touch(root, ".locK-wscript");
+    touch(root, "archived-pacKages/data.json");
 
     assert_eq!(
         packed(root, &manifest()),
-        names(&[".locK-wscript", "archived-pacKages/data.json", "package.json"]),
+        names(&[".locK-wscript", "archived-pacKages/data.json", "package.json"]),
     );
 }
 
@@ -183,13 +183,13 @@ fn default_rules_match_ascii_case_only_below_a_candidate_directory() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "package.json");
-    touch(root, "config.gypi/.locK-wscript");
-    touch(root, "config.gypi/.wafpicKle-1");
+    touch(root, "config.gypi/.locK-wscript");
+    touch(root, "config.gypi/.wafpicKle-1");
     touch(root, "config.gypi/.lock-wscript");
 
     assert_eq!(
         packed(root, &manifest()),
-        names(&["config.gypi/.locK-wscript", "config.gypi/.wafpicKle-1", "package.json",]),
+        names(&["config.gypi/.locK-wscript", "config.gypi/.wafpicKle-1", "package.json",]),
     );
 }
 

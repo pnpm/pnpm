@@ -186,7 +186,8 @@ pub(super) fn report_discovered_scope<Reporter: self::Reporter>(
 ) {
     let workspace_projects = options.selection
         .as_ref()
-        .map_or_else(|| loaded_workspace_projects, |selection| Some(selection.all_projects));
+        .map(|selection| Some(selection.all_projects))
+        .unwrap_or_else(|| loaded_workspace_projects);
     if options.selection.is_none() {
         emit_scope_log::<Reporter>(
             install.context.config,

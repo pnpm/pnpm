@@ -445,7 +445,8 @@ fn revision_package_body(tarball: &str, revision: &serde_json::Value) -> String 
         "H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ";
     let original_tarball = tarball
         .rsplit_once("+r")
-        .map_or_else(|| tarball.to_string(), |(base, _)| format!("{base}+r0"));
+        .map(|(base, _)| format!("{base}+r0"))
+        .unwrap_or_else(|| tarball.to_string());
     let original = json!({
         "revision": 0,
         "integrity": format!("sha512-{}==", original_digest.replace('_', "/").replace('-', "+")),

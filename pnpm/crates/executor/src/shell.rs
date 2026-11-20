@@ -109,7 +109,8 @@ pub fn select_shell(
     if is_windows {
         let comspec = env::var_os("ComSpec")
             .or_else(|| env::var_os("COMSPEC"))
-            .map_or_else(|| PathBuf::from("cmd"), PathBuf::from);
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("cmd"));
         return Ok(SelectedShell {
             program: comspec,
             args: cmd_exe_args(),

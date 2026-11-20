@@ -92,12 +92,11 @@ fn cargo_check(root: &TempDir) {
 }
 
 fn pnpm(root: &TempDir) -> Command {
-    let command = Command::cargo_bin("pnpm")
+    Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(root.path())
         .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
-        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"));
-    command
+        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
 }
 
 fn registry_cargo_home(registry: &mockito::ServerGuard) -> TempDir {

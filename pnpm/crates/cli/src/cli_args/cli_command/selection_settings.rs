@@ -93,7 +93,8 @@ fn matched_arity_table(command: &clap::Command, matches: &clap::ArgMatches) -> A
     matches
         .subcommand_name()
         .and_then(|name| command.find_subcommand(name))
-        .map_or_else(|| ArgTable::top_level(command), |sub| ArgTable::for_subcommand(command, sub))
+        .map(|sub| ArgTable::for_subcommand(command, sub))
+        .unwrap_or_else(|| ArgTable::top_level(command))
 }
 
 fn classify_filter_token(token: &OsStr, arity: &ArgTable) -> Option<pnpm_config::FilterSource> {

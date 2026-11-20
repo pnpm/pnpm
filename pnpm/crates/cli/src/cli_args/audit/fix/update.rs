@@ -32,6 +32,7 @@ use crate::cli_args::audit::{
     patched_range_for_style,
     report::AdvisoryId,
 };
+use miette::WrapErr;
 use pnpm_resolving_deps_resolver::UpdateTargets;
 
 /// The advisories of a `--fix update` run, partitioned by how the update can
@@ -111,9 +112,8 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
     // A missing lockfile here means the update couldn't be verified; mirror
     // pnpm's `fixWithUpdate`, which errors rather than reporting everything
     // fixed against an empty installed set.
-    let Some(updated) = Lockfile::load_wanted_from_dir(lockfile_dir)
-        .map_err(miette::Report::new)
-        .map_err(|value| value.wrap_err("re-read the lockfile after update"))?
+    let Some(updated) =
+        Lockfile::load_wanted_from_dir(lockfile_dir).wrap_err("re-read the lockfile after update")?
     else {
         return Err(AuditError::NoLockfileAfterUpdate.into());
     };

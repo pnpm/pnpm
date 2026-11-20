@@ -191,7 +191,8 @@ fn get_pkg_version(
 pub(super) fn extract_peer_version(ver_peer: &PkgVerPeer) -> String {
     ver_peer
         .registry_qualified()
-        .map_or_else(|| ver_peer.version().to_string(), |(_, version)| version.to_string())
+        .map(|(_, version)| version.to_string())
+        .unwrap_or_else(|| ver_peer.version().to_string())
 }
 
 pub(super) fn satisfies(version: &str, range: &str) -> bool {

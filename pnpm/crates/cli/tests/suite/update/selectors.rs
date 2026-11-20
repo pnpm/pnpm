@@ -762,7 +762,7 @@ fn update_preserves_unrelated_transitives_without_peer_dedupe() {
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
     assert_eq!(
         lockfile_after, lockfile_before,
-        "a no-op update of an unrelated package must leave the lockfile — and the reused parent's transitive edges — untouched",
+        "a no-op update of an unrelated package must leave the lockfile and the reused parent's transitive edges untouched",
     );
 
     drop((root, anchor));

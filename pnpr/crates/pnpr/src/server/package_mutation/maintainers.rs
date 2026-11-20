@@ -75,7 +75,7 @@ async fn try_update_package_maintainers(
     update_modified_time(&mut hosted);
     let bytes = serde_json::to_vec_pretty(&hosted)
         .map_err(RegistryError::Json)
-        .map_err(|value| value.into_response())?;
+        .map_err(axum::response::IntoResponse::into_response)?;
     let storage = hosted_storage(state, Some(&target.namespace));
     match storage
         .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())

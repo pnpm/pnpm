@@ -235,7 +235,8 @@ pub(super) fn redact_sensitive_query_values(candidate: &str) -> Option<String> {
     let query_start = candidate.find('?')?;
     let fragment_start = candidate[query_start + 1..]
         .find('#')
-        .map_or(candidate.len(), |offset| query_start + 1 + offset);
+        .map(|offset| query_start + 1 + offset)
+        .unwrap_or(candidate.len());
     let query = &candidate[query_start + 1..fragment_start];
     let mut redacted = String::with_capacity(candidate.len());
     redacted.push_str(&candidate[..=query_start]);
@@ -243,7 +244,8 @@ pub(super) fn redact_sensitive_query_values(candidate: &str) -> Option<String> {
     for segment in query.split_inclusive('&') {
         let (pair, separator) = segment
             .strip_suffix('&')
-            .map_or((segment, ""), |pair| (pair, "&"));
+            .map(|pair| (pair, "&"))
+            .unwrap_or((segment, ""));
         if let Some(value_start) = pair.find('=') {
             let key = &pair[..value_start];
             if is_sensitive_query_key(key) {

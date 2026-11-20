@@ -136,10 +136,9 @@ impl VerifierLookups {
     /// The context a verifier looks up through: the one `lookups` shares, or
     /// one of its own.
     pub(crate) fn context_or_new(lookups: Option<&Self>) -> Arc<PublishedAtLookupContext> {
-        lookups.map_or_else(
-            || Arc::new(PublishedAtLookupContext::new()),
-            |lookups| Arc::clone(&lookups.0),
-        )
+        lookups
+            .map(|lookups| Arc::clone(&lookups.0))
+            .unwrap_or_else(|| Arc::new(PublishedAtLookupContext::new()))
     }
 }
 

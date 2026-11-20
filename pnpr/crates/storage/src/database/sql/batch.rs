@@ -69,7 +69,7 @@ impl<'conn> Batch<'conn> {
         let mut results = transaction.query_all(&queries)?.into_iter();
         let (current, cdn_enabled) = results
             .next()
-            .map(|rows| rows.into_iter())
+            .map(std::iter::IntoIterator::into_iter)
             .and_then(|mut rows| rows.next())
             .map(|mut row| {
                 Ok::<_, RegistryError>((to_generation(row.get(0)?), row.get::<i64>(1)? != 0))

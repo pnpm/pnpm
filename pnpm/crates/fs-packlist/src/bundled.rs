@@ -118,7 +118,8 @@ impl BundleWalk<'_> {
         let AdmittedBundle { dir, real_dir } = dependency;
         let dir = dir
             .strip_prefix(self.real_pkg_dir)
-            .map_or_else(|_| dir.clone(), |rel| self.pkg_dir.join(rel));
+            .map(|rel| self.pkg_dir.join(rel))
+            .unwrap_or_else(|_| dir.clone());
         let prefix = packed_dir(&packed);
         let manifest = safe_read_package_json_from_dir(&dir)
             .ok()

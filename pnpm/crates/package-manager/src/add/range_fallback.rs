@@ -59,7 +59,11 @@ impl VersionlessSelector {
         };
         match ProtocolSelector::parse(&specifier).ok().flatten()? {
             ProtocolSelector::Npm { name, spec } if spec.as_deref().is_none_or(str::is_empty) => {
-                Some(parsed.alias.map_or(Self::Registry(name), Self::NpmAlias))
+                Some(
+                    parsed.alias
+                        .map(Self::NpmAlias)
+                        .unwrap_or(Self::Registry(name)),
+                )
             }
             _ => None,
         }

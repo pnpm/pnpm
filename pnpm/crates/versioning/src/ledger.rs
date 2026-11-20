@@ -152,7 +152,7 @@ pub fn append_to_ledger(
         let mut merged: Vec<String> = ledger
             .get(key)
             .map(LedgerEntry::intent_ids)
-            .map(|intent_ids| intent_ids.to_vec())
+            .map(<[std::string::String]>::to_vec)
             .unwrap_or_default();
         for id in ids {
             if !merged.contains(id) {

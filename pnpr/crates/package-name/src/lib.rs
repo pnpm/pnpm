@@ -150,8 +150,10 @@ impl CanonicalPackageName {
             Ecosystem::Oci => {
                 let canonical = canonicalize_oci_name(raw)
                     .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?;
-                let basename =
-                    canonical.rsplit_once('/').map_or(canonical.as_str(), |(_, last)| last);
+                let basename = canonical
+                    .rsplit_once('/')
+                    .map(|(_, last)| last)
+                    .unwrap_or(canonical.as_str());
                 let basename = basename.to_string();
                 return Ok(Self { raw: canonical, basename, ecosystem });
             }

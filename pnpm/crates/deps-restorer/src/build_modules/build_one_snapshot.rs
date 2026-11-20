@@ -286,7 +286,8 @@ fn reject_frozen_store_build<Reporter: self::Reporter>(
             id: context
                 .pkg_roots()
                 .canonical(snapshot_key)
-                .map_or_else(|| snapshot_key.to_string(), |dir| dir.to_string_lossy().into_owned()),
+                .map(|dir| dir.to_string_lossy().into_owned())
+                .unwrap_or_else(|| snapshot_key.to_string()),
             name: name.to_string(),
             version: version.to_string(),
         },

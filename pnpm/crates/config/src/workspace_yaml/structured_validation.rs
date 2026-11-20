@@ -91,7 +91,8 @@ fn validate_global_packages(value: &Value) -> Result<(), String> {
     require_object(value)?;
     let settings = parse_yaml_setting::<MachineSettings>("globalPackagesConfig", value)?;
     settings.global_packages_config
-        .map_or(Ok(()), |section| section.validate_all_sections())
+        .map(|section| section.validate_all_sections())
+        .unwrap_or(Ok(()))
         .map_err(|error| error.to_string())
 }
 

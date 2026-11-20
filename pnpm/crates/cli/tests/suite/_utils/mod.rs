@@ -1178,7 +1178,7 @@ fn declared_dependencies(manifest: &Value, groups: &[&str]) -> Vec<String> {
         .iter()
         .filter_map(|group| manifest[*group].as_object())
         .map(Map::keys)
-        .flat_map(|keys| keys.cloned())
+        .flat_map(std::iter::Iterator::cloned)
         .collect::<Vec<_>>();
     names.sort();
     names.dedup();
@@ -1202,7 +1202,10 @@ pub fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> 
 /// it: native, forward-slashed, or the `/mnt/<drive>` form Windows shims use.
 pub fn assert_shim_omits_path(shim: &str, path: &Path) {
     let path = path.to_string_lossy().replace('\\', "/");
-    let without_drive = path.split_once(':').map_or(path.as_str(), |(_, rest)| rest);
+    let without_drive = path
+        .split_once(':')
+        .map(|(_, rest)| rest)
+        .unwrap_or(path.as_str());
     assert!(
         !shim.replace('\\', "/").contains(without_drive),
         "the shim must not contain {path:?}: {shim:?}",

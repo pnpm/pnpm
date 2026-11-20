@@ -81,7 +81,7 @@ async fn login(
     };
     redirect_to_provider(&state.inner.identity.oidc, &provider, returns_to)
         .await
-        .map_err(|err| err.into_response())
+        .map_err(axum::response::IntoResponse::into_response)
         .unwrap_or_else(protect)
 }
 

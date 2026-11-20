@@ -540,7 +540,8 @@ fn namespace_generation(connection: &dyn Connection, namespace: &str) -> Result<
         "SELECT generation FROM namespaces WHERE namespace = ?1",
         params![namespace],
     )?;
-    row.map_or(Ok(0), |mut row| Ok(to_generation(row.get(0)?)))
+    row.map(|mut row| Ok(to_generation(row.get(0)?)))
+        .unwrap_or(Ok(0))
 }
 
 const ADVANCE_NAMESPACE: DialectSql = DialectSql::with_mysql(

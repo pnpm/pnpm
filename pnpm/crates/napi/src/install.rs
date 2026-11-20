@@ -235,8 +235,8 @@ fn take_deps_requiring_build(
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
-            .map(|deps| deps.into_iter())
-            .map(|value| value.collect()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         None => (!ignored_builds.is_empty()).then_some(ignored_builds),
     }
 }

@@ -97,7 +97,7 @@ fn rebase_ignores_escaping_publish_directory_absent_from_project_manifest() {
     assert!(
         !packages
             .keys()
-            .map(|key| key.to_string())
+            .map(std::string::ToString::to_string)
             .any(|text| text.contains("outside")),
         "a publishDirectory only the lockfile records must not synthesize a directory package: {packages:?}",
     );

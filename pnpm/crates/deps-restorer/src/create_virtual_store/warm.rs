@@ -65,6 +65,19 @@ pub(super) fn enforce_cached_git_prepare_policy(
     }
     Ok(())
 }
+fn snapshot_metadata<'a>(
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+    snapshot_key: &PackageKey,
+    metadata_key: &PackageKey,
+) -> Result<&'a PackageMetadata, CreateVirtualStoreError> {
+    packages
+        .get(metadata_key)
+        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
+            snapshot_key: snapshot_key.to_string(),
+            metadata_key: metadata_key.to_string(),
+        })
+}
+
 /// Whether the warm slot of one git-hosted snapshot may be reused. `false`
 /// drops the cache key so the snapshot is fetched and prepared afresh.
 pub(super) fn cached_git_prepare_allowed(
@@ -77,12 +90,7 @@ pub(super) fn cached_git_prepare_allowed(
     let Some(key) = cache_key else { return Ok(true) };
     let Some(cas_paths) = prefetch.cas_paths.get(key) else { return Ok(true) };
     let metadata_key = snapshot_key.without_peer();
-    let metadata = packages
-        .get(&metadata_key)
-        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
-            snapshot_key: snapshot_key.to_string(),
-            metadata_key: metadata_key.to_string(),
-        })?;
+    let metadata = snapshot_metadata(packages, snapshot_key, &metadata_key)?;
     if !is_git_hosted_resolution(&metadata.resolution)
         || !prefetch.requires_prepare
             .get(key)

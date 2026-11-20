@@ -93,7 +93,8 @@ pub(super) fn catalog_snapshot_version(
         resolved.version
             .ver_peer()
             .map(PkgVerPeer::version)
-            .map_or_else(|| entry_specifier.to_string(), |text| text.to_string()),
+            .map(std::string::ToString::to_string)
+            .unwrap_or_else(|| entry_specifier.to_string()),
     )
 }
 /// Build an importer's [`ProjectSnapshot`] from its on-disk manifest

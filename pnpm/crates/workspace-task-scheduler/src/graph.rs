@@ -144,17 +144,16 @@ pub fn resume_task_graph_from(
         // nothing to skip.
         return graph;
     }
-    let dropped = completed_tasks.map_or_else(
-        || transitive_dependencies(&graph, &anchors),
-        |completed| {
+    let dropped = completed_tasks
+        .map(|completed| {
             completed
                 .iter()
                 .filter(|key| !anchors.contains(*key))
                 .filter(|key| graph.contains_key(*key))
                 .cloned()
                 .collect()
-        },
-    );
+        })
+        .unwrap_or_else(|| transitive_dependencies(&graph, &anchors));
     graph
         .into_iter()
         .filter(|(key, _)| !dropped.contains(key))

@@ -216,7 +216,9 @@ pub fn update_workspace_manifest(
     if !manifests.has_includes() {
         let target = manifests.root_target();
         let edited = edit_manifest_file(&target, opts, None)?;
-        return edited.map_or(Ok(()), |manifest| write_or_remove_manifest(&target, manifest));
+        return edited
+            .map(|manifest| write_or_remove_manifest(&target, manifest))
+            .unwrap_or(Ok(()));
     }
     routing::update_included_manifests(&manifests, opts)
 }

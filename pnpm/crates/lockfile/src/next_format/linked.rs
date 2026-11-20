@@ -36,7 +36,8 @@ pub(super) fn linked_importers(importers: &HashMap<String, NextImporter>) -> Lin
             if !importers.contains_key(&target_id) {
                 continue;
             }
-            let name = workspace_name(target).map_or_else(|| alias.to_string(), str::to_string);
+            let name =
+                workspace_name(target).map(str::to_string).unwrap_or_else(|| alias.to_string());
             claim(&mut linked, name, target_id);
         }
     }

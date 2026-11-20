@@ -132,7 +132,7 @@ impl EnvArgs {
             .iter()
             .skip(1)
             .map(|version| version.trim())
-            .map(|trimmed| trimmed.to_string())
+            .map(std::string::ToString::to_string)
             .filter(|version| !version.is_empty())
             .collect();
         if versions.is_empty() {

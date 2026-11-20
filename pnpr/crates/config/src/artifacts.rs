@@ -86,7 +86,8 @@ pub(super) fn parse_artifact_quota(
 ) -> Result<ArtifactQuota, RegistryError> {
     let default = ArtifactQuota::default();
     let bytes = |raw: Option<&ByteSize>, default: u64, field: &str| {
-        raw.map_or(Ok(default), |raw| parse_positive_byte_size(field, raw))
+        raw.map(|raw| parse_positive_byte_size(field, raw))
+            .unwrap_or(Ok(default))
     };
     let quota = ArtifactQuota {
         owner: bytes(file.per_owner.as_ref(), default.owner, "artifacts.quota.perOwner")?,

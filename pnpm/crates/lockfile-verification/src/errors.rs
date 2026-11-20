@@ -49,7 +49,7 @@ pub struct RenderedViolation {
 /// Errors raised by [`crate::verify_lockfile_resolutions()`]. Each
 /// variant carries its own stable `PnpmError` code. The formatted
 /// message includes the count + per-entry breakdown, trimmed to
-/// `MAX_VIOLATIONS_TO_PRINT`.
+/// the print limit.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum VerifyError {
@@ -155,7 +155,7 @@ pub enum VerifyError {
 impl VerifyError {
     /// Build the [`VerifyError::InvalidDependencyAlias`] variant from a
     /// list of offending aliases. Sorts for determinism and caps the
-    /// printed breakdown at `MAX_VIOLATIONS_TO_PRINT`. Empty input is
+    /// printed breakdown at the print limit. Empty input is
     /// a logic error, callers must check before constructing.
     #[must_use]
     pub fn invalid_dependency_aliases(aliases: &[String]) -> Self {

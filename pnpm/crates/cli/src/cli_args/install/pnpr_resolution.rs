@@ -39,6 +39,7 @@ use super::{
     verify_pnpr_input_lockfile,
     wanted_lockfile_satisfies_workspace,
 };
+use miette::WrapErr;
 
 /// Resolve the active project or selected workspace projects through a
 /// `pnpr` server, then link them.
@@ -394,8 +395,7 @@ fn merge_source<'a>(
     }
     MaybeLazyLockfile::Repair(&state.lockfile)
         .get_for_merge()
-        .map_err(miette::Report::new)
-        .map_err(|value| value.wrap_err("load the lockfile for filtered merge"))
+        .wrap_err("load the lockfile for filtered merge")
 }
 
 /// Whether the on-disk lockfile already describes this install, so the

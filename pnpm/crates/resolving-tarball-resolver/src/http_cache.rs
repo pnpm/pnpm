@@ -127,7 +127,8 @@ impl CacheControl {
         for directive in header.split(',') {
             let (name, value) = directive
                 .split_once('=')
-                .map_or((directive, None), |(name, value)| (name, Some(value)));
+                .map(|(name, value)| (name, Some(value)))
+                .unwrap_or((directive, None));
             match name
                 .trim()
                 .to_ascii_lowercase()

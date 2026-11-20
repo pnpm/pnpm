@@ -74,7 +74,8 @@ fn token_span(token: &str, top_level: &ArgTable, subcommand_union: &ArgTable) ->
     if let Some(long) = rest.strip_prefix('-') {
         let (name, has_inline_value) = long
             .split_once('=')
-            .map_or((long, false), |(name, _)| (name, true));
+            .map(|(name, _)| (name, true))
+            .unwrap_or((long, false));
         let consumes_value = top_level
             .long_consumes_value(name)
             .or_else(|| subcommand_union.long_consumes_value(name))

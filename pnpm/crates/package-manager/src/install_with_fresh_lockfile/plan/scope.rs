@@ -195,5 +195,7 @@ fn project_anchor_importer_ids(
     real_importer_ids: Option<&HashSet<String>>,
     materialized: &HashSet<String>,
 ) -> HashSet<String> {
-    real_importer_ids.map_or_else(|| materialized.clone(), |real| materialized & real)
+    real_importer_ids
+        .map(|real| materialized & real)
+        .unwrap_or_else(|| materialized.clone())
 }

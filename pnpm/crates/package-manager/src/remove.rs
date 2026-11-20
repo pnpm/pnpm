@@ -58,7 +58,7 @@ pub struct Remove<'a> {
 /// The up-front validation failures of `pacquet remove`, raised before
 /// the manifest is mutated or any install runs.
 ///
-/// Kept separate from [`RemoveError`] so the `validate_removable` guard
+/// Kept separate from [`RemoveError`] so the removability guard
 /// returns a small `Result`, folding these into [`RemoveError`] (which
 /// carries the large [`InstallError`]) trips `clippy::result_large_err`
 /// on the non-async validator.

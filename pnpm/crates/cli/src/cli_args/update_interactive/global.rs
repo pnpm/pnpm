@@ -17,6 +17,7 @@ use super::{
     sanitize_inline,
     selected_packages,
 };
+use miette::WrapErr;
 
 pub(crate) async fn select_global_package_groups<Reporter: self::Reporter>(
     base_config: &'static Config,
@@ -85,12 +86,8 @@ async fn outdated_group_rows(
     let mut rows = Vec::new();
     for pkg in matched_packages {
         let state = crate::State::init(pkg.install_dir.join("package.json"), config, false)
-            .map_err(miette::Report::new)
-            .map_err(|value| value.wrap_err("initialize global state"))?;
-        let lockfile = state.lockfile
-            .get()
-            .map_err(miette::Report::new)
-            .map_err(|value| value.wrap_err("load the lockfile"))?;
+            .wrap_err("initialize global state")?;
+        let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
         let mut outdated = collect_outdated_for_importer(
             &state.manifest,
             lockfile,

@@ -274,5 +274,5 @@ fn skeleton_hash_equates_case_diacritics_and_homoglyphs() {
     }
 
     assert_ne!(username_skeleton_hash("alice"), username_skeleton_hash("allce"));
-    assert_ne!(username_skeleton_hash("한글"), username_skeleton_hash("혼글"),);
+    assert_ne!(username_skeleton_hash("한글"), username_skeleton_hash("혼글"));
 }

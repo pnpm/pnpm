@@ -209,7 +209,9 @@ fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
 /// The directory a workspace dependency is installed under: the caller's, or
 /// the project's own `node_modules`.
 fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
-    modules_dir.map_or_else(|| dir.join("node_modules"), Path::to_path_buf)
+    modules_dir
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| dir.join("node_modules"))
 }
 
 /// The specifier a published manifest records for a workspace dependency: the

@@ -12,7 +12,7 @@ use crate::peer_id::PeerId;
 pub fn create_peer_dep_graph_hash(peer_ids: &[PeerId], max_length: usize) -> String {
     let mut segments: Vec<String> = peer_ids
         .iter()
-        .map(PeerId::as_segment)
+        .map(PeerId::to_segment)
         .collect();
     segments.sort();
     let body = segments.join(")(");

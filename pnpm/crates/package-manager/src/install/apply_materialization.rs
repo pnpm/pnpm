@@ -100,16 +100,14 @@ fn applied_groups(inputs: &ApplyMaterializationInputs<'_, '_>) -> crate::GroupSe
     inputs.materialized.fresh_lockfile
         .as_ref()
         .or(inputs.resolution.loaded)
-        .map_or_else(
-            || crate::GroupSelection::following_every_edge(included),
-            |lockfile| {
-                crate::GroupSelection::classify(
-                    lockfile,
-                    included,
-                    inputs.completion.config.peer_edge_options(),
-                )
-            },
-        )
+        .map(|lockfile| {
+            crate::GroupSelection::classify(
+                lockfile,
+                included,
+                inputs.completion.config.peer_edge_options(),
+            )
+        })
+        .unwrap_or_else(|| crate::GroupSelection::following_every_edge(included))
 }
 
 async fn link_apply_projects<Reporter: self::Reporter + 'static>(

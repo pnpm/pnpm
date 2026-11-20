@@ -72,7 +72,7 @@ pub fn with_boolean_negations(mut cmd: Command) -> Command {
     let subcommand_names: Vec<String> = cmd
         .get_subcommands()
         .map(Command::get_name)
-        .map(|name| name.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     for name in subcommand_names {
         cmd = cmd.mut_subcommand(name, with_boolean_negations);

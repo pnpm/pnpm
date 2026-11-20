@@ -190,7 +190,8 @@ fn engine_failure(
     let stderr = stderr.trim();
     let code = output.status
         .code()
-        .map_or_else(|| "a signal".to_string(), |code| format!("code {code}"));
+        .map(|code| format!("code {code}"))
+        .unwrap_or_else(|| "a signal".to_string());
     Ok(Some(if stderr.is_empty() {
         format!("it exited with {code}")
     } else {

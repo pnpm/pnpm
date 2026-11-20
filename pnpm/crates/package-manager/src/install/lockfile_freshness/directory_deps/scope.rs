@@ -21,7 +21,7 @@ impl Visited {
             .flat_map(|packages| packages.values())
             .filter_map(|metadata| metadata.peer_dependencies.as_ref())
             .map(std::collections::HashMap::keys)
-            .flat_map(|keys| keys.cloned())
+            .flat_map(std::iter::Iterator::cloned)
             .collect();
         Visited { checked: HashSet::new(), recorded_peers }
     }

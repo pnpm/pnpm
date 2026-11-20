@@ -135,7 +135,9 @@ fn comparators(alternative: &str) -> Option<Vec<Comparator>> {
             (text.into(), !names_a_prerelease(tokens[index]), 3)
         } else {
             let token = tokens[index];
-            let text = npm_upper_bound(token).map_or(Cow::Borrowed(token), Cow::Owned);
+            let text = npm_upper_bound(token)
+                .map(Cow::Owned)
+                .unwrap_or(Cow::Borrowed(token));
             (text, omits_a_component(token), 1)
         };
         if let Ok(bounds) = text.parse::<Range>() {

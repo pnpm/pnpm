@@ -333,7 +333,8 @@ fn stat_lockfile(lockfile_path: &Path) -> Option<LockfileStat> {
         .map(|modified| modified.duration_since(SystemTime::UNIX_EPOCH))
         .and_then(Result::ok)
         .map(|duration| duration.as_nanos())
-        .map_or_else(|| "0".to_string(), |text| text.to_string());
+        .map(|text| text.to_string())
+        .unwrap_or_else(|| "0".to_string());
     let inode = inode_of(&metadata);
     Some(LockfileStat { size, mtime_ns, inode })
 }

@@ -33,7 +33,7 @@ fn list(items: &[&str]) -> toml::Value {
     toml::Value::Array(
         items
             .iter()
-            .map(|item| item.to_string())
+            .map(std::string::ToString::to_string)
             .map(toml::Value::String)
             .collect(),
     )

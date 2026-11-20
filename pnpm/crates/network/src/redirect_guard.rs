@@ -58,7 +58,9 @@ where
 {
     let origins: HashSet<String> = allowed_urls
         .into_iter()
-        .filter_map(|url| reqwest::Url::parse(url).ok().and_then(|u| origin_of_url(&u)))
+        .map(reqwest::Url::parse)
+        .filter_map(Result::ok)
+        .filter_map(|url| origin_of_url(&url))
         .collect();
     Arc::new(move |target: &reqwest::Url| -> bool {
         origin_of_url(target).is_some_and(|origin| origins.contains(&origin))

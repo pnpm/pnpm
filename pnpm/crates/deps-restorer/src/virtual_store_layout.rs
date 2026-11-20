@@ -607,7 +607,8 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
         Some(version) => version.to_string(),
         None => suffix
             .registry_version()
-            .map_or_else(|| suffix.version().to_string(), ToString::to_string),
+            .map(ToString::to_string)
+            .unwrap_or_else(|| suffix.version().to_string()),
     }
 }
 

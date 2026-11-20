@@ -181,8 +181,6 @@ pub(super) fn manifest_for_installability(
 pub(super) fn path_relative_to_lockfile_dir(dir: &Path, lockfile_dir: &Path) -> String {
     dir.strip_prefix(lockfile_dir)
         .map(Path::to_string_lossy)
-        .map_or_else(
-            |_| dir.to_string_lossy().replace('\\', "/"),
-            |replace| replace.replace('\\', "/"),
-        )
+        .map(|replace| replace.replace('\\', "/"))
+        .unwrap_or_else(|_| dir.to_string_lossy().replace('\\', "/"))
 }

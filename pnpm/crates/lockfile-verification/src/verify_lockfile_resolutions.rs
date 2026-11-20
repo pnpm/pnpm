@@ -67,7 +67,7 @@ const DEFAULT_CONCURRENCY: usize = 64;
 #[derive(Debug, Default, Clone)]
 pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
-    /// the internal `DEFAULT_CONCURRENCY` (`64`).
+    /// an internal default of `64`.
     pub concurrency: Option<usize>,
     /// Absolute path of the lockfile being verified. Required for
     /// the on-disk verification cache (the stat shortcut + per-path

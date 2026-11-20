@@ -267,14 +267,14 @@ fn lookup_typed_config(config: &Config, kebab: &str) -> Value {
     }
     config.raw_auth_config
         .get(kebab)
-        .map(|value| value.clone())
+        .cloned()
         .map_or(Value::Null, Value::String)
 }
 
 fn auth_value(config: &Config, key: &str) -> Value {
     config.raw_auth_config
         .get(key)
-        .map(|value| value.clone())
+        .cloned()
         .map_or(Value::Null, Value::String)
 }
 

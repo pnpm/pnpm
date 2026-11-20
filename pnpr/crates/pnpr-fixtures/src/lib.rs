@@ -198,7 +198,9 @@ fn workspace_root() -> PathBuf {
 }
 
 fn target_dir(workspace: &Path) -> PathBuf {
-    env::var_os("CARGO_TARGET_DIR").map_or_else(|| workspace.join("target"), PathBuf::from)
+    env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace.join("target"))
 }
 
 fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &Path) {

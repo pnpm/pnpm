@@ -30,7 +30,7 @@ fn enumerates_keys_longest_to_shortest() {
     let keys: Vec<_> = all_registry_config_keys(&info.longest_config_key)
         .iter()
         .map(RegistryConfigKey::as_str)
-        .map(|text| text.to_owned())
+        .map(std::borrow::ToOwned::to_owned)
         .collect();
     assert_eq!(keys, vec!["//host/a/b/", "//host/a/", "//host/"]);
 }
@@ -41,7 +41,7 @@ fn single_key_for_bare_host() {
     let keys: Vec<_> = all_registry_config_keys(&info.longest_config_key)
         .iter()
         .map(RegistryConfigKey::as_str)
-        .map(|text| text.to_owned())
+        .map(std::borrow::ToOwned::to_owned)
         .collect();
     assert_eq!(keys, vec!["//host/"]);
 }

@@ -284,11 +284,11 @@ fn skipped_parent(id: &Arc<str>, pkg: Option<&ResolvedPackage>) -> SkippedOption
         id: id.to_string(),
         name: pkg
             .map(ResolvedPackage::name)
-            .map(|name| name.to_string())
+            .map(std::string::ToString::to_string)
             .unwrap_or_default(),
         version: pkg
             .map(ResolvedPackage::version)
-            .map(|version| version.to_string())
+            .map(std::string::ToString::to_string)
             .unwrap_or_default(),
     }
 }

@@ -184,16 +184,15 @@ fn resolve_overlay(options: &ResolveDependencyOptions) -> ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
         registries: options.registries
-            .as_ref()
-            .map(|map| map.clone())
-            .map(|value| value.into_iter())
-            .map(|value| value.collect()),
+            .clone()
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         offline: options.offline,
         prefer_offline: options.prefer_offline,
         auth_header_by_uri: options.auth_header_by_uri
             .clone()
-            .map(|map| map.into_iter())
-            .map(|value| value.collect()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect),
         ..ConfigOverlay::default()
     }
 }

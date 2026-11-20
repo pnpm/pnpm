@@ -1353,7 +1353,9 @@ fn build_zip(name: &str, target_os: &str, prefix: Option<&str>, node_extras: boo
             .compression_method(zip::CompressionMethod::Stored)
             .unix_permissions(0o100755);
         let path = |relative: &str| {
-            prefix.map_or_else(|| relative.to_string(), |p| format!("{p}/{relative}"))
+            prefix
+                .map(|p| format!("{p}/{relative}"))
+                .unwrap_or_else(|| relative.to_string())
         };
         writer
             .start_file(path(runtime_bin_path(name, target_os).as_str()), options)

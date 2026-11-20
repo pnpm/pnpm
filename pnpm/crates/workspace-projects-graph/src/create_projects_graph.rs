@@ -152,7 +152,7 @@ where
     ProjectFields {
         node_keys: projects
             .iter()
-            .map(|project| project.root_dir())
+            .map(super::base_project::BaseProject::root_dir)
             .map(Path::to_path_buf)
             .collect(),
         names: projects

@@ -27,7 +27,7 @@ use pnpr_policy::PackageRules;
 /// [`Self::headers`] is resolved once, at config load, from the YAML
 /// `auth:` block (an `Authorization` header derived from
 /// `type`/`token`/`tokenEnv`) merged with the `headers:` map. The
-/// parse-time shape lives in `UpstreamConfigFile`; `resolve_upstream_config` turns
+/// parse-time shape lives in a private file type, which the loader turns
 /// one into the other. Verdaccio fields pnpr doesn't model yet
 /// (agent options, `strict_ssl`, ...) are accepted and dropped.
 #[derive(Clone)]

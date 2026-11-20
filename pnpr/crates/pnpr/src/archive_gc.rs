@@ -266,7 +266,9 @@ impl Tally {
     }
 
     fn finish(self) -> Result<GcReport> {
-        self.failure.map_or(Ok(self.report), Err)
+        self.failure
+            .map(Err)
+            .unwrap_or(Ok(self.report))
     }
 }
 

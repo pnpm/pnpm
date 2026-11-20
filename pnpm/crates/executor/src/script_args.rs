@@ -112,7 +112,8 @@ fn ends_with_batch_file(script: &str, search_path: &OsStr, cwd: &Path) -> bool {
     let resolved = pnpm_fs::join_paths(dirs)
         .ok()
         .and_then(|dirs| which::which_in(&command, Some(dirs), cwd).ok())
-        .map_or_else(|| command.to_lowercase(), |path| path.to_string_lossy().to_lowercase());
+        .map(|path| path.to_string_lossy().to_lowercase())
+        .unwrap_or_else(|| command.to_lowercase());
     resolved.ends_with(".cmd") || resolved.ends_with(".bat")
 }
 

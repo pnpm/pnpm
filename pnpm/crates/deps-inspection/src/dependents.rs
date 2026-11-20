@@ -457,7 +457,8 @@ fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
     match parent {
         TreeNodeId::Importer(importer_id) => ctx.importer_info
             .get(importer_id)
-            .map_or_else(|| importer_id.clone(), |info| info.name.clone()),
+            .map(|info| info.name.clone())
+            .unwrap_or_else(|| importer_id.clone()),
         TreeNodeId::Package(dep_path) => {
             if ctx.lockfile.snapshots
                 .as_ref()

@@ -77,7 +77,7 @@ impl StreamedScript<'_> {
     }
 
     /// Drain `child`'s piped stdout and stderr into one event per line,
-    /// then wait for it. The pumps get `OUTPUT_DRAIN_AFTER_EXIT` after
+    /// then wait for it. The pumps get a short grace period after
     /// the child exits to reach the end of its output, so every line the
     /// child wrote is emitted before the caller's [`Self::finished`], the
     /// ordering pnpm's reporter renders against. Whatever reaches the pipes
@@ -263,7 +263,8 @@ fn streamed_chunk_len(buffered: &[u8], accumulated: usize) -> usize {
     let through_newline = buffered
         .iter()
         .position(|byte| *byte == b'\n')
-        .map_or(buffered.len(), |i| i + 1);
+        .map(|i| i + 1)
+        .unwrap_or(buffered.len());
     through_newline.min(STREAMED_OUTPUT_CHUNK_BYTES - accumulated)
 }
 

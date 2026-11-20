@@ -221,7 +221,7 @@ fn replace_scalar_at(
         .iter()
         .copied()
         .chain(std::iter::once(dep))
-        .map(|key| key.into())
+        .map(std::convert::Into::into)
         .map(Component::Key)
         .collect();
     let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };

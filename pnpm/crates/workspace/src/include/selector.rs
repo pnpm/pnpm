@@ -96,7 +96,7 @@ pub(super) fn defined_slots(key: &str, value: &Value) -> Vec<SettingSlot> {
             Value::Mapping(catalogs) => catalogs
                 .keys()
                 .filter_map(Value::as_str)
-                .map(|name| name.to_string())
+                .map(std::string::ToString::to_string)
                 .map(SettingSlot::Catalog)
                 .collect(),
             _ => Vec::new(),

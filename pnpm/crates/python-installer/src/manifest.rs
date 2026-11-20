@@ -402,7 +402,7 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
     let table = document.get(table_name);
     let existing_array = table
         .map(toml::Spanned::get_ref)
-        .and_then(|value| value.get(key));
+        .and_then(|table| table.get(key));
     let mut entries = existing_array
         .map(|array| {
             array
@@ -469,7 +469,8 @@ fn insert_key_into_table(
     if original[span.clone()].trim_start().starts_with('[') {
         let end = original[span.end..]
             .find('\n')
-            .map_or(original.len(), |end| span.end + end + 1);
+            .map(|end| span.end + end + 1)
+            .unwrap_or(original.len());
         updated.insert_str(end, &format!("\n{key} = {array}\n"));
         return Ok(());
     }

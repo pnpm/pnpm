@@ -28,7 +28,8 @@ pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
     let files_field = publish_manifest
         .get("files")
         .and_then(Value::as_array)
-        .map_or(&[][..], Vec::as_slice);
+        .map(Vec::as_slice)
+        .unwrap_or(&[][..]);
     let is_listed = named_in_files(files_field);
     let unlisted: Vec<&str> = files_map
         .keys()

@@ -7,7 +7,10 @@ use derive_more::{
     Display,
     Error,
 };
-use miette::Diagnostic;
+use miette::{
+    Diagnostic,
+    WrapErr,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_lockfile::{
@@ -93,10 +96,7 @@ pub(crate) fn command_lockfile<'a>(
     path: &'a Path,
 ) -> miette::Result<CommandLockfile<'a>> {
     let source = MaybeLazyLockfile::Lazy(lockfile);
-    let document = source
-        .get()
-        .map_err(miette::Report::new)
-        .map_err(|value| value.wrap_err("load the lockfile"))?;
+    let document = source.get().wrap_err("load the lockfile")?;
     Ok(CommandLockfile { document, source, path: Some(path) })
 }
 

@@ -588,7 +588,7 @@ impl TreeCtx {
                     .get(name)
                     .into_iter()
                     .map(std::collections::BTreeMap::keys)
-                    .flat_map(|keys| keys.cloned())
+                    .flat_map(std::iter::Iterator::cloned)
                     .collect();
                 (!versions.is_empty()).then(|| (name.to_string(), versions))
             })

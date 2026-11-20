@@ -50,7 +50,7 @@ impl RecordedPeerBindings {
         }
         let mut segments: Vec<_> = peers
             .iter()
-            .map(PeerId::as_segment)
+            .map(PeerId::to_segment)
             .collect();
         segments.sort();
         let peer_keys: Vec<_> = PeerBindings::Explicit(segments).providers().collect();
@@ -242,7 +242,7 @@ impl PeerBindings {
         if !providers.is_empty() {
             let peer_ids: Vec<PeerId> = providers
                 .into_iter()
-                .map(|segment| segment.clone())
+                .cloned()
                 .map(DepPath::from)
                 .map(PeerId::DepPath)
                 .collect();

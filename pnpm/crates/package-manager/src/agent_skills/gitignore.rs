@@ -135,7 +135,8 @@ fn updated_gitignore(existing: &str, rules: &BTreeSet<String>) -> String {
 fn end_of_line(text: &str, offset: usize) -> usize {
     text[offset..]
         .find('\n')
-        .map_or(text.len(), |position| offset + position + 1)
+        .map(|position| offset + position + 1)
+        .unwrap_or(text.len())
 }
 
 /// The `.gitignore` rule that matches exactly the entry `name` of its

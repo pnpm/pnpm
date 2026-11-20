@@ -309,11 +309,15 @@ pub(super) fn link_slots_mean(summary: &PhaseSummary, batch: &str) -> Option<f64
         .map(|metric| metric.mean_ms)
 }
 pub(super) fn format_seconds(value: Option<f64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| format!("{value:.3}s"))
+    value
+        .map(|value| format!("{value:.3}s"))
+        .unwrap_or_else(|| "-".to_string())
 }
 pub(super) fn format_ms(value: Option<f64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| format!("{value:.1}ms"))
+    value
+        .map(|value| format!("{value:.1}ms"))
+        .unwrap_or_else(|| "-".to_string())
 }
 pub(super) fn format_u64(value: Option<u64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| value.to_string())
+    value.map(|value| value.to_string()).unwrap_or_else(|| "-".to_string())
 }

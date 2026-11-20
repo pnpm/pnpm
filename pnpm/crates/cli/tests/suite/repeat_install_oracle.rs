@@ -14,10 +14,10 @@
 //!
 //! Right after an install, every gate it satisfied reports the tree up to
 //! date without installing again.
-use command_extra::CommandExtra;
-
 pub use _utils::*;
 pub use inputs::Input;
+
+use command_extra::CommandExtra;
 
 use crate::_utils;
 
@@ -1469,10 +1469,7 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
 
     let run_in_ci = |v11_bundle: Option<&OsStr>, args: &[&str]| {
         let command = if let Some(bundle) = v11_bundle {
-            let cmd = Command::new("node")
-                .with_arg(bundle)
-                .with_arg("--config.confirm-modules-purge=false");
-            cmd
+            Command::new("node").with_arg(bundle).with_arg("--config.confirm-modules-purge=false")
         } else {
             pacquet_in(scenario.workspace())
         };

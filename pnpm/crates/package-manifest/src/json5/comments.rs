@@ -88,7 +88,8 @@ fn token_length(source: &str) -> usize {
     if source.starts_with("/*") {
         return source
             .find("*/")
-            .map_or(source.len(), |end| end + 2);
+            .map(|end| end + 2)
+            .unwrap_or(source.len());
     }
     let mut characters = source.char_indices();
     let Some((_, first)) = characters.next() else { return 0 };

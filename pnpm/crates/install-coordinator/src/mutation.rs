@@ -83,7 +83,7 @@ impl MetadataMutation {
                 first_error = Some(error);
             }
         }
-        first_error.map_or(Ok(()), Err)
+        first_error.map(Err).unwrap_or(Ok(()))
     }
 }
 

@@ -71,7 +71,7 @@ impl SourceKeys {
                     let canonical = self.canonical
                         .get(&route_id(&parent))
                         .and_then(|keys| keys.get(key.as_ref()));
-                    value.get(canonical.map_or_else(|| key.as_ref(), String::as_str))?
+                    value.get(canonical.map(String::as_str).unwrap_or_else(|| key.as_ref()))?
                 }
                 Component::Index(index) => value.get(*index)?,
             };

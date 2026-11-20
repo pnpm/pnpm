@@ -34,7 +34,7 @@
 //! pruning can discard the cache without project reachability information.
 //!
 //! The cache is strictly best-effort: a per-install capability probe
-//! (`dir_clone_supported`) declines the whole cache up front when the
+//! declines the whole cache up front when the
 //! canonical root and the project's virtual store can't share clones
 //! (cross-volume stores, non-APFS filesystems), so no canonical slot is
 //! ever populated that the clone step can't use. Past the probe, any

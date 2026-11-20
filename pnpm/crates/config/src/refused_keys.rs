@@ -112,8 +112,9 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
         return "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead"
             .to_string();
     }
-    let kebab_key =
-        global_equivalent_key(camel_key).map_or_else(|| to_kebab_case(camel_key), str::to_string);
+    let kebab_key = global_equivalent_key(camel_key)
+        .map(str::to_string)
+        .unwrap_or_else(|| to_kebab_case(camel_key));
     if is_config_file_key(&kebab_key) {
         format!("Set it for the machine instead: pnpm config set --global {kebab_key}")
     } else {

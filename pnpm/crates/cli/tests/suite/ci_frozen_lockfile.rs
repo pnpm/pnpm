@@ -16,22 +16,16 @@ const OUTDATED_LOCKFILE: &str = "lockfileVersion: '9.0'\nimporters:\n  .:\n    d
 const EMPTY_LOCKFILE: &str = "lockfileVersion: '9.0'\nimporters:\n  .: {}\n";
 
 fn pacquet_in_ci(workspace: &Path) -> Command {
-    let command = pacquet_without_ci(workspace).with_env("CI", "true");
-    command
+    pacquet_without_ci(workspace).with_env("CI", "true")
 }
 
 fn pacquet_in_github_actions(workspace: &Path) -> Command {
-    let command = pacquet_without_ci(workspace).with_env("GITHUB_ACTIONS", "true");
-    command
+    pacquet_without_ci(workspace).with_env("GITHUB_ACTIONS", "true")
 }
 
 fn pacquet_in_aws_codebuild(workspace: &Path) -> Command {
-    let command = pacquet_without_ci(workspace)
-        .with_env(
-            "CODEBUILD_BUILD_ARN",
-            "arn:aws:codebuild:us-east-1:000000000000:build/project:1",
-        );
-    command
+    pacquet_without_ci(workspace)
+        .with_env("CODEBUILD_BUILD_ARN", "arn:aws:codebuild:us-east-1:000000000000:build/project:1")
 }
 
 fn pacquet_without_ci(workspace: &Path) -> Command {

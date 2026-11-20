@@ -44,7 +44,7 @@ pub fn coarsen_time_map(
             }
             Some(format_coarsened_timestamp(parsed, rounded, horizon))
         });
-        out.insert(key.clone(), coarsened.map_or_else(|| value.clone(), Value::String));
+        out.insert(key.clone(), coarsened.map(Value::String).unwrap_or_else(|| value.clone()));
     }
     out
 }

@@ -296,7 +296,7 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
 
     let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
     if !status.success() {
-        let code = status.code().map_or_else(|| "unknown".to_string(), |code| code.to_string());
+        let code = exit_code_label(status.code());
         return Err(miette::miette!("Failed to install pnpm globally (exit code {code})"));
     }
     cleanup
@@ -345,6 +345,10 @@ fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
     create_shell_script(target_dir, "pnpx", " dlx")?;
     create_shell_script(target_dir, "pnx", " dlx")?;
     Ok(())
+}
+
+fn exit_code_label(code: Option<i32>) -> String {
+    code.map(|code| code.to_string()).unwrap_or_else(|| "unknown".to_string())
 }
 
 /// Write one alias, `subcommand` being the shell text it appends to the pnpm

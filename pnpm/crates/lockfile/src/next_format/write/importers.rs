@@ -98,7 +98,8 @@ pub(super) fn importer_version_without_groups(version: &ImporterDepVersion) -> I
                     .without_peer()
                     .to_string()
                     .strip_prefix("file:")
-                    .map_or_else(|| payload.clone(), str::to_string),
+                    .map(str::to_string)
+                    .unwrap_or_else(|| payload.clone()),
                 Err(_) => payload.clone(),
             })
         }

@@ -543,7 +543,7 @@ async fn root_dep_named_only_by_its_manifest_still_provides_the_peer() {
         result.peers.graph
             .keys()
             .map(crate::DepPath::as_str)
-            .map(|text| text.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>(),
     );
 }
@@ -685,7 +685,7 @@ async fn a_workspace_range_root_dep_is_offered_as_a_peer_provider() {
         result.peers.graph
             .keys()
             .map(crate::DepPath::as_str)
-            .map(|text| text.to_string())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>(),
     );
 }

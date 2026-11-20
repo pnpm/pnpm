@@ -153,20 +153,27 @@ struct Checker<'a> {
     indeterminate: bool,
 }
 
+/// The recorded patch keys that group on their own, and the package names
+/// of the ones that do not.
+fn group_recorded_patches(lockfile: &Lockfile) -> (PatchGroupRecord, HashSet<String>) {
+    let mut usable = Vec::new();
+    let mut unusable = HashSet::new();
+    for (key, hash) in lockfile.patched_dependencies.iter().flatten() {
+        let entry = (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None });
+        if group_patched_dependencies([entry.clone()]).is_ok() {
+            usable.push(entry);
+        } else {
+            unusable.insert(parse_key(key).name.unwrap_or(key).to_string());
+        }
+    }
+    let groups = group_patched_dependencies(usable)
+        .expect("every key was grouped on its own without an error");
+    (groups, unusable)
+}
+
 impl<'a> Checker<'a> {
     fn new(lockfile: &'a Lockfile) -> Self {
-        let mut usable = Vec::new();
-        let mut unusable = HashSet::new();
-        for (key, hash) in lockfile.patched_dependencies.iter().flatten() {
-            let entry = (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None });
-            if group_patched_dependencies([entry.clone()]).is_ok() {
-                usable.push(entry);
-            } else {
-                unusable.insert(parse_key(key).name.unwrap_or(key).to_string());
-            }
-        }
-        let groups = group_patched_dependencies(usable)
-            .expect("every key was grouped on its own without an error");
+        let (groups, unusable) = group_recorded_patches(lockfile);
         let patched_names = groups
             .keys()
             .chain(&unusable)

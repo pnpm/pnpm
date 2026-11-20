@@ -122,7 +122,7 @@ pub(super) fn stored_registries(connection: &dyn Connection) -> Result<Option<Ve
         registries
             .into_iter()
             .map(serde_json::Map::keys)
-            .flat_map(|keys| keys.cloned())
+            .flat_map(std::iter::Iterator::cloned)
             .collect(),
     ))
 }

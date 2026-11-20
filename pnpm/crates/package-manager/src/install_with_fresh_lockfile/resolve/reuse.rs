@@ -107,8 +107,9 @@ fn apply_importer_lockfile_pins(
     for (importer_id, pins) in pins_by_importer {
         let mut seed = by_importer
             .get(importer_id)
-            .map(|seed| seed.as_ref())
-            .map_or_else(|| workspace_seed.clone(), |value| value.clone());
+            .map(std::convert::AsRef::as_ref)
+            .cloned()
+            .unwrap_or_else(|| workspace_seed.clone());
         replace_version_pins(&mut seed, pins);
         by_importer.insert(importer_id.clone(), Arc::new(seed));
     }
@@ -373,7 +374,9 @@ pub(super) async fn reuse_or_rewrite_overrides(
             // `lockfile` is `wanted_lockfile` narrowed by the filter
             // above, so the loader's handle to it reuses the parsed
             // document verbatim.
-            None => inputs.lockfile.shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone),
+            None => {
+                inputs.lockfile.shared.map(Arc::clone).unwrap_or_else(|| Arc::new(lockfile.clone()))
+            }
         });
     }
     if !inputs.fast_override_eligible {

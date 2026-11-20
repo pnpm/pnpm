@@ -198,8 +198,7 @@ impl ConfigKeyInputs {
             request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
         let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
         let overrides = request.overrides
-            .as_ref()
-            .map(|value| value.clone())
+            .clone()
             .map(serde_json::from_value)
             .and_then(Result::ok);
         ConfigKeyInputs {

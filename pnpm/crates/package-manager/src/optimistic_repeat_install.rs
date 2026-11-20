@@ -394,7 +394,9 @@ fn pnpmfiles_drift(
             let then = recorded.and_then(|recorded| recorded.files.get(path));
             let Some(then) = then else {
                 // A state without validation records has no digests.
-                let mtime = file_mtime(Path::new(path)).map_or_else(|| Err(removed()), Ok);
+                let mtime = file_mtime(Path::new(path))
+                    .map(Ok)
+                    .unwrap_or_else(|| Err(removed()));
                 return match mtime {
                     Err(removed) => Some(removed),
                     Ok(mtime) => {

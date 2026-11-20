@@ -243,7 +243,7 @@ pub fn link_file<Reporter: self::Reporter>(
 ///
 /// A concurrent install (or a sibling rayon worker writing the same
 /// CAFS path) can race past the freshness guarantee;
-/// `recover_from_concurrent_import` decides which import failures mean
+/// The concurrent-import recovery decides which import failures mean
 /// that and adopts the file it placed.
 pub fn import_into_fresh_target<Reporter: self::Reporter>(
     logged: &AtomicU8,

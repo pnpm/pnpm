@@ -222,7 +222,8 @@ fn bundled_package_dir(path: &str) -> Option<&str> {
     let end = name
         .match_indices('/')
         .nth(segments - 1)
-        .map_or(name.len(), |(index, _)| index);
+        .map(|(index, _)| index)
+        .unwrap_or(name.len());
     let package_dir = &path[..("node_modules/".len() + end)];
     (package_dir.matches('/').count() == segments).then_some(package_dir)
 }

@@ -294,7 +294,8 @@ fn consumed_ledger(
         .filter(|(key, entry)| {
             let entry_storage = entry
                 .dir()
-                .map_or(storage.configured, |dir| storage.of(&normalize_project_dir(dir)));
+                .map(|dir| storage.of(&normalize_project_dir(dir)))
+                .unwrap_or(storage.configured);
             entry_storage == ChangelogStorage::Repository || confirmed_published.contains(key)
         })
         .collect()

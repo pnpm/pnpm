@@ -31,11 +31,11 @@ impl fmt::Debug for ReleaseRecordsConfig {
         let key = self.log_signing_key
             .as_ref()
             .map(|signer| signer.verifier_key())
-            .map(|verifier_key| verifier_key.to_string());
+            .map(std::string::ToString::to_string);
         let statement_key = self.statement_signing_key
             .as_ref()
             .map(|signer| signer.verifier_key())
-            .map(|verifier_key| verifier_key.to_string());
+            .map(std::string::ToString::to_string);
         formatter
             .debug_struct("ReleaseRecordsConfig")
             .field("log_signing_key", &key)

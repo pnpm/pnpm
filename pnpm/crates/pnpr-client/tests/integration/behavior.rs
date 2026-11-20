@@ -46,7 +46,7 @@ async fn resolves_a_package() {
     assert!(
         packages
             .keys()
-            .map(|key| key.to_string())
+            .map(std::string::ToString::to_string)
             .any(|text| text.starts_with("@foo/no-deps@1.0.0")),
         "lockfile should contain @foo/no-deps@1.0.0, got: {:?}",
         packages
@@ -419,7 +419,7 @@ async fn resolves_a_scope_from_the_registry_declared_for_it() {
     assert!(
         packages
             .keys()
-            .map(|key| key.to_string())
+            .map(std::string::ToString::to_string)
             .any(|text| text.starts_with("@foo/no-deps@1.0.0")),
         "the declared registry should have served the scope, got: {:?}",
         packages
@@ -451,7 +451,7 @@ async fn a_declared_registry_the_resolve_never_reaches_is_not_rejected() {
     assert!(
         packages
             .keys()
-            .map(|key| key.to_string())
+            .map(std::string::ToString::to_string)
             .any(|text| text.starts_with("@foo/no-deps@1.0.0")),
     );
 }

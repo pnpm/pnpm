@@ -182,15 +182,17 @@ pub fn mtime_ms(path: &Path) -> i64 {
         .unwrap_or_else(|error| panic!("stat {path:?}: {error}"));
     modified
         .duration_since(SystemTime::UNIX_EPOCH)
-        .map_or_else(
-            |error| panic!("mtime of {path:?} predates the Unix epoch: {error}"),
-            |elapsed| {
-                let millis = elapsed.as_millis();
-                millis.pipe(i64::try_from).unwrap_or_else(|_| {
-                panic!("mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp")
-            })
-            },
-        )
+        .map(|elapsed| {
+            let millis = elapsed.as_millis();
+            millis
+                .pipe(i64::try_from)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "mtime of {path:?} is {millis} ms past the epoch, beyond an i64 timestamp",
+                    )
+                })
+        })
+        .unwrap_or_else(|error| panic!("mtime of {path:?} predates the Unix epoch: {error}"))
 }
 
 /// Set `path`'s mtime to `ms` milliseconds since the Unix epoch.

@@ -134,7 +134,7 @@ pub(super) fn extend_with_indexes(
 /// machine and the repository from disagreeing about what one URL serves.
 /// Merging the lookups field by field would then leave the URL in both roles
 /// at once: `cargo_index_url` and `python_indexes` could answer with the same
-/// URL, `extend_with_indexes` would fold two ecosystems into one declaration,
+/// URL, extending with the indexes would fold two ecosystems into one declaration,
 /// and an npm route declared later would be deleted as though it were stale.
 ///
 /// Applied before the layer's own lookups are merged in, so only the earlier

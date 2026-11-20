@@ -334,7 +334,8 @@ fn live_project_dir(
     } else {
         link_path
             .parent()
-            .map_or_else(|| target.to_path_buf(), |parent| parent.join(target))
+            .map(|parent| parent.join(target))
+            .unwrap_or_else(|| target.to_path_buf())
     };
 
     match fs::metadata(&absolute_target) {
@@ -409,7 +410,8 @@ fn canonicalize_or_join(link_path: &Path, target: &Path) -> PathBuf {
     } else {
         link_path
             .parent()
-            .map_or_else(|| target.to_path_buf(), |p| p.join(target))
+            .map(|p| p.join(target))
+            .unwrap_or_else(|| target.to_path_buf())
     };
     dunce::canonicalize(&absolute).unwrap_or(absolute)
 }

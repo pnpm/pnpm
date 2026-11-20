@@ -47,7 +47,9 @@ fn is_package_selector(selector: &str) -> bool {
         .char_indices()
         .skip(1)
         .find_map(|(index, ch)| (ch == '@').then_some(index));
-    let (name, version) = version_at.map_or((spec, ""), |index| spec.split_at(index));
+    let (name, version) = version_at
+        .map(|index| spec.split_at(index))
+        .unwrap_or((spec, ""));
     let name_slashes = name.matches('/').count();
     let name_is_plain = if name.starts_with('@') { name_slashes == 1 } else { name_slashes == 0 };
     name_is_plain && !spec.contains([':', '#']) && !version.contains('/')

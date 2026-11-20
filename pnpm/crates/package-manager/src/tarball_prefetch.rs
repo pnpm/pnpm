@@ -344,7 +344,7 @@ impl TarballPrefetcher {
     /// Fetch every registry package of the lockfile that the store lacks,
     /// and wait for the downloads. This is the fetch itself rather than an
     /// overlap with other work, so it reports each package the way an
-    /// install does (`resolved`, then `found_in_store` or `fetched`) and a
+    /// install does (resolved, then found in the store or fetched) and a
     /// failed download is an error.
     pub async fn fetch_lockfile<Reporter: self::Reporter + 'static>(
         &self,
@@ -468,10 +468,9 @@ impl PrefetchHttpClient {
     ) -> Self {
         Self {
             http_client: Arc::clone(http_client),
-            auth_headers: auth_override.map_or_else(
-                || Arc::clone(&config.auth_headers),
-                Arc::clone,
-            ),
+            auth_headers: auth_override
+                .map(Arc::clone)
+                .unwrap_or_else(|| Arc::clone(&config.auth_headers)),
             retry_opts: config.retry_opts(),
             offline: config.offline,
             tar_limits: pnpm_tarball::TarLimits::new(config.max_tarball_unpacked_size),

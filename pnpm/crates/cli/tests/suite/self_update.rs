@@ -178,13 +178,12 @@ fn install_into_homebrew_keg(pacquet: &Command, root: &Path) -> PathBuf {
 }
 
 fn command_with_env_of(template: &Command, program: &Path) -> Command {
-    let command = Command::new(program)
+    Command::new(program)
         .with_envs(
             template
                 .get_envs()
                 .filter_map(|(key, value)| Some((key, value?))),
-        );
-    command
+        )
 }
 
 #[test]

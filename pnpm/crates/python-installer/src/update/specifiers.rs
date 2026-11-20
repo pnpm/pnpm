@@ -183,6 +183,6 @@ fn updated_single_specifier(
     };
     formatted
         .map(|text| text.parse())
-        .map(|parsed| parsed.into_diagnostic())
+        .map(miette::IntoDiagnostic::into_diagnostic)
         .transpose()
 }

@@ -146,7 +146,7 @@ pub struct WorkspaceSettings {
     pub use_beta_cli: Option<bool>,
     pub hoist: Option<bool>,
 
-    /// Tri-state `hoistPattern`; see `deserialize_double_option`.
+    /// Tri-state `hoistPattern`: absent, `null`, or a value.
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub hoist_pattern: Option<Option<Vec<String>>>,
 
@@ -488,7 +488,7 @@ pub struct WorkspaceSettings {
     /// onto the merged config, so an explicit `scriptShell: null`
     /// clears a value inherited from global `config.yaml`, while an
     /// absent key inherits. The extra `Option` layer preserves that
-    /// distinction (same `deserialize_double_option` shape as
+    /// distinction (same absent / `null` / value shape as
     /// `hoist_pattern`).
     ///
     /// See [`Config::script_shell`](crate::settings::Config::script_shell).

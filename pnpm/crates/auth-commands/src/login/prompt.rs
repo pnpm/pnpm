@@ -7,7 +7,7 @@ use pnpm_network_web_auth::PromptError;
 /// capability seam, and nothing more: the production impl is that bare chain.
 ///
 /// The surrounding algorithm deliberately does *not* live here or in
-/// [`PromptPassword`]. It lives in `prompt_line`, so each provider stays a
+/// [`PromptPassword`]. It lives in one shared prompt helper, so each provider stays a
 /// bare builder chain while a test fakes only the read and that real
 /// algorithm still runs.
 pub trait PromptInput {

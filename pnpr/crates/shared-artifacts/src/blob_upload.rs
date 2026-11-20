@@ -219,18 +219,12 @@ impl SharedArtifactStore {
     ) -> std::result::Result<bool, WriteFailure> {
         let mut received = ReceivedBlob { integrity, size, hasher: Sha512::new(), bytes: 0 };
         if size <= SINGLE_WRITE_LIMIT {
-            let mut collected = Vec::with_capacity(usize::try_from(size).unwrap_or_default());
-            while let Some(chunk) = body.next().await {
-                let chunk = received.accept(chunk).map_err(WriteFailure::Rejected)?;
-                collected.extend_from_slice(&chunk);
-            }
-            received.finish().map_err(WriteFailure::Rejected)?;
-            return self.create_object(path, collected).await.map_err(WriteFailure::Store);
+            return self.write_whole_blob(path, received, body).await;
         }
         let upload = self.store
             .put_multipart(&self.object_path(path))
             .await
-            .map_err(|error| error.into())
+            .map_err(Into::into)
             .map_err(WriteFailure::Rejected)?;
         let mut writer = WriteMultipart::new(upload);
         let streamed = async {
@@ -258,9 +252,25 @@ impl SharedArtifactStore {
         writer
             .finish()
             .await
-            .map_err(|error| error.into())
+            .map_err(Into::into)
             .map_err(WriteFailure::Store)?;
         Ok(true)
+    }
+
+    /// Write a blob small enough to collect in memory with one store write.
+    async fn write_whole_blob<StreamError: Display>(
+        &self,
+        path: &str,
+        mut received: ReceivedBlob<'_>,
+        mut body: impl Stream<Item = std::result::Result<Bytes, StreamError>> + Unpin,
+    ) -> std::result::Result<bool, WriteFailure> {
+        let mut collected = Vec::with_capacity(usize::try_from(received.size).unwrap_or_default());
+        while let Some(chunk) = body.next().await {
+            let chunk = received.accept(chunk).map_err(WriteFailure::Rejected)?;
+            collected.extend_from_slice(&chunk);
+        }
+        received.finish().map_err(WriteFailure::Rejected)?;
+        self.create_object(path, collected).await.map_err(WriteFailure::Store)
     }
 
     pub(super) async fn stored_size(&self, relative: &str) -> Result<Option<u64>> {

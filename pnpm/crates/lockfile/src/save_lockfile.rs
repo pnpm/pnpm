@@ -445,6 +445,14 @@ fn carry_mode_across(_file: &fs::File, _target: &Path) -> io::Result<()> {
     Ok(())
 }
 
+fn lockfile_file_name(target: &Path) -> String {
+    target
+        .file_name()
+        .unwrap_or_else(|| OsStr::new("lock.yaml"))
+        .to_string_lossy()
+        .into_owned()
+}
+
 /// Write `content` to `target` via a temp file in the same directory
 /// followed by `rename`. The rename is atomic on Unix and replaces
 /// in-place on Windows, so an observer never sees a torn file, and a
@@ -467,10 +475,7 @@ fn write_atomic(target: &Path, content: &[u8]) -> Result<(), SaveLockfileError> 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let pid = pnpm_fs::process_id();
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = target
-        .file_name()
-        .map(OsStr::to_string_lossy)
-        .map_or_else(|| String::from("lock.yaml"), Cow::into_owned);
+    let file_name = lockfile_file_name(target);
 
     let mut last_already_exists: Option<io::Error> = None;
     for _ in 0..MAX_TEMP_ATTEMPTS {

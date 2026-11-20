@@ -182,7 +182,10 @@ impl PrefetchResult {
             .into_par_iter()
             .filter_map(|(cache_key, check)| {
                 let no_files = pnpm_store_dir::FilesMap::new();
-                let files = self.cas_paths.get(&cache_key).map_or(&no_files, |files| &**files);
+                let files = self.cas_paths
+                    .get(&cache_key)
+                    .map(|files| &**files)
+                    .unwrap_or(&no_files);
                 let overlays = self.side_effects_maps.get(&cache_key).map(|maps| &**maps);
                 let passed =
                     check.verify(store_dir, verified_files_cache, &files_maps(files, overlays));

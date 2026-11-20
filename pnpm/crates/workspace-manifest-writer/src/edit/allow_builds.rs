@@ -246,7 +246,7 @@ fn allow_builds_keys_in_text(text: &str) -> Vec<String> {
         .ok()
         .and_then(|parsed| parsed.allow_builds)
         .map(IndexMap::into_keys)
-        .map(|keys| keys.collect())
+        .map(std::iter::Iterator::collect)
         .unwrap_or_default()
 }
 

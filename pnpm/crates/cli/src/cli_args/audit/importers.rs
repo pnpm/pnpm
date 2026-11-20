@@ -19,6 +19,7 @@ use crate::cli_args::recursive::{
     selected_workspace_importer_ids,
     selectors_narrow_the_run,
 };
+use miette::WrapErr;
 use std::{
     borrow::Cow,
     collections::BTreeSet,
@@ -65,10 +66,7 @@ pub(super) fn load_audited_lockfiles<'lockfile>(
     state: &'lockfile State,
     lockfile_dir: &std::path::Path,
 ) -> miette::Result<Option<(Cow<'lockfile, Lockfile>, Option<EnvLockfile>)>> {
-    let lockfile = state.lockfile
-        .get()
-        .map_err(miette::Report::new)
-        .map_err(|value| value.wrap_err("load the lockfile"))?;
+    let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
     let Some(lockfile) = lockfile else {
         return Err(AuditError::NoLockfile.into());
     };
@@ -183,9 +181,7 @@ fn signature_package_for_key(
 }
 
 fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
-    EnvLockfile::read(lockfile_dir)
-        .map_err(miette::Report::new)
-        .map_err(|value| value.wrap_err("load the env lockfile"))
+    EnvLockfile::read(lockfile_dir).wrap_err("load the env lockfile")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -25,10 +25,8 @@ pub(crate) fn render_upgrade_notes(notes: &UpgradeNotes) -> String {
             let publication = &notes.publications[index];
             let title = publication.name
                 .as_deref()
-                .map_or_else(
-                    || "Release notes of the publication".to_owned(),
-                    |name| format!("Release {}", sanitize_inline(name)),
-                );
+                .map(|name| format!("Release {}", sanitize_inline(name)))
+                .unwrap_or_else(|| "Release notes of the publication".to_owned());
             blocks.push(block(&title, &publication.text));
         }
         if let Some(text) = &version.text {

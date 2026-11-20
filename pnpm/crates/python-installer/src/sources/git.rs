@@ -76,7 +76,9 @@ impl Registry<'_> {
 }
 
 fn project_root(checkout: &Path, subdirectory: Option<&str>) -> Result<PathBuf> {
-    let root = subdirectory.map_or_else(|| checkout.to_path_buf(), |path| checkout.join(path));
+    let root = subdirectory
+        .map(|path| checkout.join(path))
+        .unwrap_or_else(|| checkout.to_path_buf());
     let canonical = dunce::canonicalize(&root).into_diagnostic()?;
     if !canonical.starts_with(dunce::canonicalize(checkout).into_diagnostic()?) {
         bail!("Python git subdirectory escapes its repository");

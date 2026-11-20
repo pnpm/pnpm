@@ -21,6 +21,7 @@ use super::{
     selectors_narrow_the_run,
     validate_importer_id,
 };
+use miette::WrapErr;
 
 /// The selected importer ids the lockfile has no entry for, sorted so the
 /// error names them in a stable order.
@@ -302,10 +303,7 @@ pub(super) fn select_importer_ids(
 }
 
 pub(super) fn required_sbom_lockfile(state: &State) -> miette::Result<&Lockfile> {
-    let lockfile = state.lockfile
-        .get()
-        .map_err(miette::Report::new)
-        .map_err(|value| value.wrap_err("load the lockfile"))?;
+    let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
 
     let Some(lockfile) = lockfile else {
         return Err(miette::miette!(

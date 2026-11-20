@@ -173,7 +173,7 @@ pub enum BuildModulesError {
 
     /// Re-materializing a cached build's side-effects overlay into the
     /// already-linked slot failed. Fired from the `is_built` gate in
-    /// `build_one_snapshot` when the warm reinstall has to apply the
+    /// the per-snapshot build when the warm reinstall has to apply the
     /// stored `added` / `deleted` diff on top of the pristine files.
     #[diagnostic(transparent)]
     MaterializeSideEffects(#[error(source)] ImportIndexedDirError),

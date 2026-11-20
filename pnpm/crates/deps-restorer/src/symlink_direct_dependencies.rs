@@ -430,7 +430,7 @@ pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDepend
 
 /// Collect the direct-dependency *names* for `snapshot`, applying
 /// the same first-wins / skipped / link-vs-regular filters that
-/// `link_one_importer` (private to this module) uses to drive the
+/// The per-importer linker uses to drive the
 /// symlink + bin-link pass. Public so the post-`BuildModules`
 /// top-level bin pass in [`crate::InstallFrozenLockfile::run`]
 /// can run with the same per-importer name set the symlink phase

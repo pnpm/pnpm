@@ -102,10 +102,8 @@ pub(super) async fn run_pre_resolution_hook<Reporter: self::Reporter>(
 fn lockfile_json(lockfile: Option<&Lockfile>) -> Result<Value, InstallError> {
     lockfile
         .map(serde_json::to_value)
-        .map_or_else(
-            || Ok(Value::Object(serde_json::Map::new())),
-            |value| value.map_err(InstallError::PreResolutionSerialize),
-        )
+        .map(|value| value.map_err(InstallError::PreResolutionSerialize))
+        .unwrap_or_else(|| Ok(Value::Object(serde_json::Map::new())))
 }
 
 fn parse_hooked_lockfile(field: &'static str, value: Value) -> Result<Lockfile, InstallError> {

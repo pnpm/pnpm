@@ -178,7 +178,7 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
         let mut keys: Vec<String> = result.graph
             .keys()
             .map(crate::DepPath::as_str)
-            .map(|text| text.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
         keys.sort_unstable();
         keys

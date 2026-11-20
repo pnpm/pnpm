@@ -210,7 +210,8 @@ impl Walker<'_> {
         let provider_edge_indices = self.caches.peer_providers
             .children_by_pkg_id
             .get(&*lazy.pkg_id)
-            .map_or(&[][..], |providers| providers.relevant_edge_indices.as_slice());
+            .map(|providers| providers.relevant_edge_indices.as_slice())
+            .unwrap_or(&[][..]);
         let canonical_scc = self.canonical_scc();
         let mut providers = BTreeMap::new();
         let mut newly_inserted = Vec::new();
@@ -282,7 +283,8 @@ impl Walker<'_> {
         // package id, defensive empty case.
         let children_spec = self.tree.children_by_id
             .get(&pkg_id)
-            .map_or_else(|| Arc::new(Vec::new()), Arc::clone);
+            .map(Arc::clone)
+            .unwrap_or_else(|| Arc::new(Vec::new()));
         let canonical_scc = self.canonical_scc();
         let context = EdgeRealization {
             canonical_scc: &canonical_scc,

@@ -247,7 +247,8 @@ pub(super) fn update_target_name(
         })
         .find(|name| name.as_ref() != matched)
         .or_else(|| real_package_name_of(Some(matched), Some(previous)))
-        .map_or_else(|| matched.to_string(), std::borrow::Cow::into_owned)
+        .map(std::borrow::Cow::into_owned)
+        .unwrap_or_else(|| matched.to_string())
 }
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned

@@ -52,8 +52,8 @@ impl Config {
     ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
         Ok(self
             .patched_dependency_hashes_in_config_order()?
-            .map(|hashes| hashes.into_iter())
-            .map(|value| value.collect()))
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect))
     }
 
     /// Return patch hashes in configured selector order.

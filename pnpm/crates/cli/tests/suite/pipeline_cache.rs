@@ -21,13 +21,12 @@ fn configured_environment_changes_invalidate_task_outputs() {
     fs::write(project.path().join(".pnpmfile.cjs"), r"module.exports = { hooks: { updateConfig(config) { const fs = require('fs'); const file = require('path').join(__dirname, 'hook-count'); fs.appendFileSync(file, 'called\n'); config.extraEnv = { ...config.extraEnv, BUILD_MODE: process.env.PIPELINE_TEST_MODE }; return config; } } }").unwrap();
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let command = Command::cargo_bin("pnpm")
+        Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()
             .with_current_dir(project.path())
             .with_env("XDG_CACHE_HOME", storage.path())
-            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
-        command
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
     };
     for (index, value) in ["one", "two", "two"].into_iter().enumerate() {
         fs::write(project.path().join("pnpm-workspace.yaml"), String::from("packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    inputs: ['src/**']\n    outputs: ['out/**']\n    env: [BUILD_MODE]\n")).unwrap();
@@ -129,13 +128,12 @@ fn empty_selection_dry_run_prints_empty_graph_without_a_report() {
         .join("pnpm")
         .join("pipeline");
     let command = || {
-        let command = Command::cargo_bin("pnpm")
+        Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()
             .with_current_dir(project.path())
             .with_env("XDG_CACHE_HOME", storage.path())
-            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
-        command
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
     };
     let result = command()
         .with_args(["pipeline", "--full", "--dry-run", "--json"])
@@ -201,13 +199,12 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
     fs::remove_file(workspace.join("packages/producer/a-unreadable-input")).unwrap();
     fs::create_dir(workspace.join("packages/producer/a-unreadable-input")).unwrap();
     let command = || {
-        let command = Command::cargo_bin("pnpm")
+        Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()
             .with_current_dir(&workspace)
             .with_env("XDG_CACHE_HOME", root.path().join("cache"))
-            .with_env("XDG_CONFIG_HOME", root.path().join("config"));
-        command
+            .with_env("XDG_CONFIG_HOME", root.path().join("config"))
     };
     command()
         .with_arg("install")
@@ -278,13 +275,12 @@ fn projects_rooted_in_submodules_bypass_task_caching() {
         .success();
     let _ = repo.commit("workspace with submodule package");
     let command = || {
-        let command = Command::cargo_bin("pnpm")
+        Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()
             .with_current_dir(&workspace)
             .with_env("XDG_CACHE_HOME", root.path().join("cache"))
-            .with_env("XDG_CONFIG_HOME", root.path().join("config"));
-        command
+            .with_env("XDG_CONFIG_HOME", root.path().join("config"))
     };
     command()
         .with_arg("install")
@@ -366,13 +362,12 @@ fn no_cache_runs_tasks_without_hashing_their_inputs() {
     symlink(outside.path(), project.path().join("dir")).unwrap();
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let command = Command::cargo_bin("pnpm")
+        Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()
             .with_current_dir(project.path())
             .with_env("XDG_CACHE_HOME", storage.path())
-            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
-        command
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
     };
     command()
         .with_arg("install")
@@ -402,13 +397,12 @@ fn symlinked_inputs_are_hashed_as_link_targets() {
     symlinked_input_project(project.path(), "    outputs: ['out/**']\n");
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let command = Command::cargo_bin("pnpm")
+        Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()
             .with_current_dir(project.path())
             .with_env("XDG_CACHE_HOME", storage.path())
-            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
-        command
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
     };
     command()
         .with_arg("install")
@@ -452,13 +446,12 @@ fn a_project_outside_a_work_tree_runs_its_tasks_without_the_cache() {
     .unwrap();
     let storage = tempfile::tempdir().unwrap();
     let command = || {
-        let command = Command::cargo_bin("pnpm")
+        Command::cargo_bin("pnpm")
             .unwrap()
             .without_ambient_pnpm_config()
             .with_current_dir(project.path())
             .with_env("XDG_CACHE_HOME", storage.path())
-            .with_env("XDG_CONFIG_HOME", storage.path().join("config"));
-        command
+            .with_env("XDG_CONFIG_HOME", storage.path().join("config"))
     };
     command()
         .with_arg("install")

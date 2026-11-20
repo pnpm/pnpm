@@ -269,30 +269,24 @@ impl OutdatedPackage {
     pub fn current_str(&self) -> Cow<'_, str> {
         self.metadata.display_versions
             .as_ref()
-            .map_or_else(
-                || Cow::Owned(self.current.to_string()),
-                |versions| Cow::Borrowed(versions.current.as_str()),
-            )
+            .map(|versions| Cow::Borrowed(versions.current.as_str()))
+            .unwrap_or_else(|| Cow::Owned(self.current.to_string()))
     }
 
     #[must_use]
     pub fn target_str(&self) -> Cow<'_, str> {
         self.metadata.display_versions
             .as_ref()
-            .map_or_else(
-                || Cow::Owned(self.target.to_string()),
-                |versions| Cow::Borrowed(versions.target.as_str()),
-            )
+            .map(|versions| Cow::Borrowed(versions.target.as_str()))
+            .unwrap_or_else(|| Cow::Owned(self.target.to_string()))
     }
 
     #[must_use]
     pub fn wanted_str(&self) -> Cow<'_, str> {
         self.metadata.display_versions
             .as_ref()
-            .map_or_else(
-                || Cow::Owned(self.wanted.to_string()),
-                |versions| Cow::Borrowed(versions.wanted.as_str()),
-            )
+            .map(|versions| Cow::Borrowed(versions.wanted.as_str()))
+            .unwrap_or_else(|| Cow::Owned(self.wanted.to_string()))
     }
 }
 

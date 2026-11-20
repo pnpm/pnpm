@@ -58,7 +58,8 @@ impl Qualities {
             .find_map(|param| param.trim().strip_prefix("q="))
             .map(str::trim)
             .map(str::parse::<f32>)
-            .map_or(Some(1.0), Result::ok)
+            .map(Result::ok)
+            .unwrap_or(Some(1.0))
             .unwrap_or(0.0);
         let slot = match coding.as_str() {
             "zstd" => &mut self.zstd,

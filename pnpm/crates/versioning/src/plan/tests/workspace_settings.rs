@@ -102,7 +102,7 @@ fn non_ascii_workspace_aliases_do_not_panic() {
         materialize_workspace_range("workspace:édition@^", "1.2.3").as_deref(),
         Some("^1.2.3"),
     );
-    assert_eq!(materialize_workspace_range("workspace:é@1.0.0", "1.2.3").as_deref(), Some("1.0.0"),);
+    assert_eq!(materialize_workspace_range("workspace:é@1.0.0", "1.2.3").as_deref(), Some("1.0.0"));
 }
 
 #[test]

@@ -106,7 +106,7 @@ impl Storage {
             .as_ref()
             .map(NoteSigner::verifier_key)
             .map(pnpm_transparency_log::VerifierKey::name)
-            .map(|name| name.to_string())
+            .map(std::string::ToString::to_string)
             .unwrap_or_else(|| log.path());
         loop {
             let mut target = self.read_reconcile_target(log, &origin, signer.as_ref()).await?;

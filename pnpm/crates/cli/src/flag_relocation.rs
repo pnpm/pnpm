@@ -152,7 +152,8 @@ fn option_token_width(
     if let Some(rest) = token.strip_prefix("--") {
         let (name, has_inline_value) = rest
             .split_once('=')
-            .map_or((rest, false), |(name, _)| (name, true));
+            .map(|(name, _)| (name, true))
+            .unwrap_or((rest, false));
         let consumes_value = top_level
             .long_consumes_value(name)
             .or_else(|| subcommand_union.long_consumes_value(name))
@@ -294,7 +295,8 @@ fn scan_non_utf8_option(
 fn scan_long_option(rest: &str, top_level: &ArgTable, subcommand_table: &ArgTable) -> ScannedToken {
     let (name, has_inline_value) = rest
         .split_once('=')
-        .map_or((rest, false), |(name, _)| (name, true));
+        .map(|(name, _)| (name, true))
+        .unwrap_or((rest, false));
     scan_long_option_parts(name, has_inline_value, top_level, subcommand_table)
 }
 

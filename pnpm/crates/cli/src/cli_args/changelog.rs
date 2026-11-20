@@ -294,7 +294,8 @@ pub async fn unpublished_release_dirs(
             let client = &client;
             let probe = options.published_names
                 .get(&release.name)
-                .map_or(release.name.as_str(), String::as_str);
+                .map(String::as_str)
+                .unwrap_or(release.name.as_str());
             async move {
                 let published =
                     is_version_published(client, options.config, probe, &release.version.current)
@@ -467,7 +468,7 @@ fn read_name_version(project_dir: &Path) -> Option<(String, String, String)> {
         pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json")).ok()?;
     let value = manifest.value();
     let name = value.get("name")?.as_str()?.to_string();
-    let published = published_name(value).map_or_else(|| name.clone(), ToString::to_string);
+    let published = published_name(value).map(ToString::to_string).unwrap_or_else(|| name.clone());
     let version = value
         .get("version")?
         .as_str()?

@@ -3,7 +3,7 @@
 //! Responsibilities, kept in separate private modules while
 //! keeping the public surface flat:
 //!
-//! - `root_finder`, locate the workspace dir (`pnpm-workspace.yaml`).
+//! - Root finding: locate the workspace dir (`pnpm-workspace.yaml`).
 //!   Public entry point: [`find_workspace_dir`].
 //! - `manifest`, parse `packages:` (plus catalog skeletons).
 //!   Public entry point: [`read_workspace_manifest`].

@@ -41,10 +41,9 @@ impl<'a> MaterializationInputs<'a, '_> {
             path: self.lockfiles.verification.derived_lockfile_path.as_deref(),
             current: self.lockfiles.current,
             current_entries: LockfileEntries::of_previous_install(self.lockfiles.current),
-            resolution_verifiers: self.workspace.requested_importer_ids.map_or(
-                self.lockfiles.verification.resolution_verifiers.as_slice(),
-                |_| &[][..],
-            ),
+            resolution_verifiers: self.workspace.requested_importer_ids
+                .map(|_| &[][..])
+                .unwrap_or(self.lockfiles.verification.resolution_verifiers.as_slice()),
             planned_canonical_fetches: Some(&self.lockfiles.verification.planned_canonical_fetches),
         }
     }

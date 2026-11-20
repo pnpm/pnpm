@@ -235,8 +235,8 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     let lockfile_path = state.lockfile_path();
     let rebuild = RebuildOptions {
         selected_names: selection.names
-            .map(|names| names.into_iter())
-            .map(|value| value.collect::<HashSet<_>>()),
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect::<HashSet<_>>),
         pending_projects: selection.projects,
         check_lockfile_patches_only: false,
         skip_if_has_side_effects_cache: false,

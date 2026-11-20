@@ -97,8 +97,12 @@ fn root_rules<Sys: FsRead>(
     options: PackageRules<'_>,
 ) -> io::Result<files_field::FilesMatcher> {
     let files = options.manifest.get("files").and_then(serde_json::Value::as_array);
-    let mut matcher =
-        files_field::compile_files_rules(pkg_dir, files.map_or(&[][..], Vec::as_slice));
+    let mut matcher = files_field::compile_files_rules(
+        pkg_dir,
+        files
+            .map(Vec::as_slice)
+            .unwrap_or(&[][..]),
+    );
     if files.is_none() {
         let own = read_dir_ignore_file::<Sys>(pkg_dir)?;
         matcher.rules = if own.is_npmignore {

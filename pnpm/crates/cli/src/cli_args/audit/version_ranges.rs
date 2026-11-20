@@ -91,7 +91,8 @@ pub(crate) fn patched_range_for_style(patched: &str, style: RangeSpecStyle) -> S
         .map(str::trim)
         .map(str::parse::<Version>)
         .and_then(Result::ok)
-        .map_or_else(|| patched.to_string(), |version| format!("{}{version}", style.range_prefix()))
+        .map(|version| format!("{}{version}", style.range_prefix()))
+        .unwrap_or_else(|| patched.to_string())
 }
 
 pub(crate) fn is_range_subset(sub: &str, dom: &str) -> bool {

@@ -227,7 +227,7 @@ pub(crate) fn parse_package_manager(package_manager: &str) -> (String, Option<St
     let version = reference
         .filter(|reference| is_version_request(reference))
         .map(version_without_build)
-        .map(|version_without_build| version_without_build.to_string());
+        .map(std::string::ToString::to_string);
     (name.to_string(), version)
 }
 

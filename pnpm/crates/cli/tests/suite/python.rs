@@ -292,9 +292,8 @@ async fn a_repository_cannot_name_a_mirror() {
 /// file the run would ignore it in.
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn pacquet_with_python_mirror(root: &Path, mirror: &str) -> Command {
-    let command = pacquet_in(root)
-        .with_env("PNPM_CONFIG_TOOLS", format!(r#"{{"python":{{"mirror":"{mirror}"}}}}"#));
-    command
+    pacquet_in(root)
+        .with_env("PNPM_CONFIG_TOOLS", format!(r#"{{"python":{{"mirror":"{mirror}"}}}}"#))
 }
 
 fn add_supported_architectures(root: &Path, platforms: &[&str]) {
@@ -908,10 +907,10 @@ async fn selects_an_interpreter_the_project_accepts_and_its_python_version_file_
             ),
         )
         .unwrap();
-        let command = pacquet_in(root.path())
+
+        pacquet_in(root.path())
             .with_args(["install", "--offline"])
-            .with_env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()));
-        command
+            .with_env("PATH", format!("{}:{}", shims.display(), std::env::var("PATH").unwrap()))
     };
 
     install("==3.11.9").assert().success();
@@ -1003,9 +1002,7 @@ async fn frozen_lockfile_replays_after_a_kernel_only_marker_change() {
     )
     .unwrap();
     let install = |args: &[&str], kernel: &str| {
-        let command =
-            pacquet_in(root.path()).with_args(args).with_env("PNPM_TEST_KERNEL_RELEASE", kernel);
-        command
+        pacquet_in(root.path()).with_args(args).with_env("PNPM_TEST_KERNEL_RELEASE", kernel)
     };
     install(&["install"], "1.0.0").assert().success();
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();

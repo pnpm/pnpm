@@ -87,7 +87,7 @@ impl Storage {
                 Err(error) => failure = Some(error),
             }
         }
-        failure.map_or(Ok(removed), Err)
+        failure.map(Err).unwrap_or(Ok(removed))
     }
 
     /// The incarnations stored in this namespace, with their sizes and
@@ -130,7 +130,7 @@ impl Storage {
         }
         let (namespace, ecosystem) = (self.metadata.namespace(), self.metadata.ecosystem());
         self.database.finish_reclaims(namespace, ecosystem, removed.clone()).await?;
-        failure.map_or(Ok(removed), Err)
+        failure.map(Err).unwrap_or(Ok(removed))
     }
 
     /// Drop the mappings of `artifacts` of `name`, while the package is still

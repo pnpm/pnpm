@@ -84,8 +84,9 @@ impl TarLimits {
 
     /// The limits for an archive that turned out to be a plain tar.
     pub(crate) fn for_tar(self) -> Self {
-        let max_payload =
-            self.unpacked_size.map_or(self.max_payload, |size| size.min(self.max_payload));
+        let max_payload = self.unpacked_size
+            .map(|size| size.min(self.max_payload))
+            .unwrap_or(self.max_payload);
         Self { max_payload, unpacked_size: None, ..self }
     }
 }

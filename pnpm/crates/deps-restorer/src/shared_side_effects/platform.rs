@@ -146,7 +146,9 @@ pub(super) fn patch_hash(snapshot_key: &PackageKey) -> Option<String> {
     Some(value.split_once(')')?.0.to_string())
 }
 pub(super) fn package_version(package_key: &PackageKey, metadata_version: Option<&str>) -> String {
-    metadata_version.map_or_else(|| package_key.suffix.version().to_string(), ToString::to_string)
+    metadata_version
+        .map(ToString::to_string)
+        .unwrap_or_else(|| package_key.suffix.version().to_string())
 }
 pub(super) fn digest_integrity(digest: &str) -> Result<String, String> {
     if !digest.len().is_multiple_of(2) {

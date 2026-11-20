@@ -71,7 +71,7 @@ pub(crate) async fn blob(
     if let Some(body) = body {
         request = request.header(header::CONTENT_LENGTH, body.len());
     }
-    let body = body.map(|body| body.to_vec()).map_or_else(Body::empty, Body::from);
+    let body = body.map(<[u8]>::to_vec).map_or_else(Body::empty, Body::from);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())

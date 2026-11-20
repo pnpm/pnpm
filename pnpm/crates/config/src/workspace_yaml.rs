@@ -431,7 +431,7 @@ fn explicit_or_default(
 fn explicit_pattern(config: &Config, key: &str) -> Option<Vec<String>> {
     config.explicit_settings
         .get(key)
-        .map(|value| value.clone())
+        .cloned()
         .map(serde_json::from_value)
         .and_then(Result::ok)
 }

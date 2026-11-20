@@ -57,7 +57,8 @@ fn pnpr_binary() -> PathBuf {
         return PathBuf::from(path);
     }
     let target_dir = env::var_os("CARGO_TARGET_DIR")
-        .map_or_else(|| workspace_root().join("target"), PathBuf::from);
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace_root().join("target"));
     let exe = format!("pnpr{}", env::consts::EXE_SUFFIX);
     let release = target_dir.join("release").join(&exe);
     if release.is_file() {
@@ -142,7 +143,7 @@ pub fn pnpr_command_with_home(
     if seeded > 0 {
         eprintln!("info: seeded {seeded} fixture file(s) into runtime storage");
     }
-    let public_url = public_url.map_or_else(|| port_to_url(port), str::to_string);
+    let public_url = public_url.map(str::to_string).unwrap_or_else(|| port_to_url(port));
     // Front pnpr with the registry-mock config from `pnpr/.fixtures/config.yaml`
     // (the fixture namespace served from local hosted storage, everything else
     // proxied through the pattern-less npmjs upstream). We pin the runtime bits

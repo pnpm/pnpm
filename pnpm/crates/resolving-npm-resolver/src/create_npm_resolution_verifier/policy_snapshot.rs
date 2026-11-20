@@ -168,7 +168,7 @@ pub(super) fn policy_patterns_json(patterns: &[String]) -> JsonValue {
     JsonValue::Array(
         patterns
             .iter()
-            .map(|spec| spec.clone())
+            .cloned()
             .map(JsonValue::String)
             .collect(),
     )

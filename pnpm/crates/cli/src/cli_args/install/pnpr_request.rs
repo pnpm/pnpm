@@ -323,7 +323,8 @@ impl PnprBenchmarkRegistryOverride {
     pub(super) fn client_tarball_url(&self, url: &str) -> String {
         self.tarball_rewrite
             .as_ref()
-            .map_or_else(|| url.to_string(), |rewrite| rewrite.url(url))
+            .map(|rewrite| rewrite.url(url))
+            .unwrap_or_else(|| url.to_string())
     }
 
     pub(super) fn rewrite_lockfile(&self, lockfile: &mut Lockfile) {
@@ -361,7 +362,8 @@ impl BenchmarkRegistryRewrite {
         self.from
             .iter()
             .find_map(|from| url.strip_prefix(from))
-            .map_or_else(|| url.to_string(), |suffix| format!("{}{}", self.to, suffix))
+            .map(|suffix| format!("{}{}", self.to, suffix))
+            .unwrap_or_else(|| url.to_string())
     }
 }
 

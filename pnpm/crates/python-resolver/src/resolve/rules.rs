@@ -47,7 +47,7 @@ impl Provider<'_> {
         Ok(matched
             .into_iter()
             .filter(|version| allow_prerelease || !version.any_prerelease())
-            .map(|version| version.clone())
+            .cloned()
             .map(Ranges::singleton)
             .fold(Ranges::empty(), |range, empty| range.union(&empty)))
     }

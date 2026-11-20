@@ -71,12 +71,12 @@ pub(super) fn previous_package_dirs(
     let recorded = inputs.prior.current_hoisted_locations
         .into_iter()
         .map(std::collections::BTreeMap::values)
-        .flat_map(|values| values.flatten())
+        .flat_map(std::iter::Iterator::flatten)
         .map(|location| lockfile_dir.join(location));
     walked.prev_graph
         .iter()
         .map(std::collections::BTreeMap::keys)
-        .flat_map(|keys| keys.cloned())
+        .flat_map(std::iter::Iterator::cloned)
         .chain(recorded)
         .collect()
 }

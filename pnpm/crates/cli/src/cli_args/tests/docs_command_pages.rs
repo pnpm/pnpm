@@ -387,7 +387,8 @@ fn page_for(path: &[&str]) -> Option<String> {
             PAGE_NAMES
                 .iter()
                 .find(|(command, _)| command == name)
-                .map_or(*name, |(_, page)| *page)
+                .map(|(_, page)| *page)
+                .unwrap_or(*name)
         })
         .collect();
     (1..=names.len())

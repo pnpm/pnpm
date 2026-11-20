@@ -102,7 +102,8 @@ impl RouteContext {
         };
         Some(
             split_package_identifier(&identifier)
-                .map_or_else(|| identifier.clone(), |(name, _)| name.to_string()),
+                .map(|(name, _)| name.to_string())
+                .unwrap_or_else(|| identifier.clone()),
         )
     }
 }

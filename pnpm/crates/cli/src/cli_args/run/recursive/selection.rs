@@ -94,7 +94,8 @@ pub(super) fn check_required_script(
 fn project_display_name(graph: &ProjectGraph<GraphPkg<'_>>, project: &Path) -> String {
     graph[project].package
         .manifest_name()
-        .map_or_else(|| project.display().to_string(), str::to_string)
+        .map(str::to_string)
+        .unwrap_or_else(|| project.display().to_string())
 }
 
 pub(super) fn a_project_has_the_script(task_graph: &TaskGraph) -> bool {

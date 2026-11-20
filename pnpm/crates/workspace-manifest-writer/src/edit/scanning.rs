@@ -105,7 +105,8 @@ fn inline_value_start(text: &str, path: &[&str]) -> Option<usize> {
 fn inline_value_on_line(text: &str, line_start: usize) -> Option<usize> {
     let line_end = text[line_start..]
         .find('\n')
-        .map_or(text.len(), |offset| line_start + offset);
+        .map(|offset| line_start + offset)
+        .unwrap_or(text.len());
     let content = &text[line_start..line_end];
     let indent = content.len() - content.trim_start().len();
     let colon = indent + structural_colon_index(&content[indent..])?;
@@ -346,7 +347,8 @@ fn mapping_at(
 ) -> Mapping {
     let body_start = all
         .get(key_idx + 1)
-        .map_or(all[key_idx].end, |line| line.start);
+        .map(|line| line.start)
+        .unwrap_or(all[key_idx].end);
     let entries = collect_entries(all, key_idx + 1, block_end_idx, child_indent);
     Mapping { body_start, entry_indent: child_indent, entries }
 }
@@ -372,7 +374,8 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
             .unwrap_or(to);
         let block_end = all
             .get(block_end_idx)
-            .map_or(all[to - 1].end, |line| line.start);
+            .map(|line| line.start)
+            .unwrap_or(all[to - 1].end);
         entries.push(EntryPos {
             key,
             line_start: all[idx].start,
@@ -398,7 +401,8 @@ pub(super) fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let block_end_idx = leading_comment_start(&all, body_start, next_key_idx);
     let block_end = all
         .get(block_end_idx)
-        .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
+        .map(|line| line.start)
+        .unwrap_or_else(|| all.last().map_or(0, |line| line.end));
     Some(TopLevelSpan { key_line_start: all[key_idx].start, block_end })
 }
 

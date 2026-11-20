@@ -1230,10 +1230,8 @@ fn version_command(root: &Path, workspace: &Path, registry: &str) -> Command {
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .without_ambient_pnpm_config();
-    let command = test_command(command, root)
-        .with_env("PNPM_CONFIG_REGISTRY", registry)
-        .with_arg("--version");
-    command
+
+    test_command(command, root).with_env("PNPM_CONFIG_REGISTRY", registry).with_arg("--version")
 }
 
 fn pacquet_in(workspace: &Path) -> Command {

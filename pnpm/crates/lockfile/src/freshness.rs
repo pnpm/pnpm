@@ -107,7 +107,7 @@ pub enum StalenessReason {
     /// A catalog entry recorded in the lockfile's `catalogs:` snapshot
     /// no longer matches the current workspace catalog config. This is
     /// the first drift branch checked, surfaced when
-    /// `all_catalogs_are_up_to_date` fails.
+    /// the catalog check fails.
     #[display("`catalogs` in the lockfile don't match the current config")]
     CatalogsChanged { lockfile: Option<crate::CatalogSnapshots>, config: Catalogs },
 

@@ -596,7 +596,7 @@ fn peer_cycle_graph_keys(entries: &[(&str, usize, &str)], shape: &PeerCycleShape
     let mut keys: Vec<String> = result.graph
         .keys()
         .map(DepPath::as_str)
-        .map(|text| text.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     keys.sort_unstable();
     keys

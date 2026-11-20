@@ -374,7 +374,7 @@ pub(crate) fn prefixed_calculated_specifier(
 /// falling back to the original URL if parsing fails.
 #[must_use]
 pub fn normalize_tarball_url(url: &str) -> String {
-    reqwest::Url::parse(url).map_or_else(|_| url.to_string(), |parsed| parsed.to_string())
+    reqwest::Url::parse(url).map(|parsed| parsed.to_string()).unwrap_or_else(|_| url.to_string())
 }
 
 /// Emit the tarball URL already supplied by the picker, which the install path

@@ -387,7 +387,8 @@ fn scalar_replacement(
     let literal = &text[definition.value.clone()];
     let start = definition.tag
         .as_ref()
-        .map_or(definition.anchor.start, |tag| tag.start.min(definition.anchor.start));
+        .map(|tag| tag.start.min(definition.anchor.start))
+        .unwrap_or(definition.anchor.start);
     let value: yaml_serde::Value = serde_saphyr::from_str(&text[start..definition.value.end])
         .map_err(|error| error.to_string())
         .map_err(invalid)?;

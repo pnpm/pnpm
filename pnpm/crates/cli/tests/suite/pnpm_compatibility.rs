@@ -642,8 +642,8 @@ fn wipe_workspace_install_outputs(
 
 fn pnpm_command_in(workspace: &Path) -> Command {
     let bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
-    let cmd = v11_in(&bundle, workspace).with_arg("--config.confirm-modules-purge=false");
-    cmd
+
+    v11_in(&bundle, workspace).with_arg("--config.confirm-modules-purge=false")
 }
 
 fn check_differential_row(row: DifferentialRow) {

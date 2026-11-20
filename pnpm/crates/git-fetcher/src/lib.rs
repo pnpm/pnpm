@@ -1,7 +1,7 @@
 //! Fetchers for git-hosted dependencies, plus the `preparePackage`
 //! port both fetchers delegate to.
 //!
-//! Two fetcher entry points, sharing `prepare_package` / `packlist` /
+//! Two fetcher entry points, sharing the package preparation / `packlist` /
 //! the CAS-import helpers:
 //!
 //! - [`GitFetcher`] handles `LockfileResolution::Git`, shells out to
@@ -9,10 +9,10 @@
 //! - [`GitHostedTarballFetcher`] handles
 //!   `TarballResolution { gitHosted: true }`, picks up a tarball the
 //!   pacquet HTTP path has already downloaded into the CAS, materializes
-//!   it into a temp dir, and runs the same `prepare_package` + packlist
+//!   it into a temp dir, and runs the same preparation + packlist
 //!   passes.
 //!
-//! `prepare_package` lives in this crate rather than a sibling because
+//! The preparation lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.
 
 #[cfg(target_family = "wasm")]

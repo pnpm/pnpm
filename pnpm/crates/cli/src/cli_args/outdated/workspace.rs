@@ -31,6 +31,7 @@ use crate::cli_args::{
     },
     recursive::load_project_current_lockfile,
 };
+use miette::WrapErr;
 use std::borrow::Cow;
 
 pub(super) struct OutdatedInWorkspace {
@@ -66,10 +67,7 @@ pub(super) fn loaded_lockfile(state: &State) -> miette::Result<Option<Cow<'_, Lo
 /// Global groups share one [`Config`], so its install state directory is not
 /// theirs to fall back to.
 fn wanted_lockfile(state: &State) -> miette::Result<Option<&Lockfile>> {
-    state.lockfile
-        .get()
-        .map_err(miette::Report::new)
-        .map_err(|value| value.wrap_err("load the lockfile"))
+    state.lockfile.get().wrap_err("load the lockfile")
 }
 
 pub(super) fn isolated_global_config(config: &Config) -> &'static Config {
@@ -91,8 +89,7 @@ pub(super) fn global_states(
         .into_iter()
         .map(|pkg| {
             State::init(pkg.install_dir.join("package.json"), config, false)
-                .map_err(miette::Report::new)
-                .map_err(|value| value.wrap_err("initialize global state"))
+                .wrap_err("initialize global state")
         })
         .collect()
 }

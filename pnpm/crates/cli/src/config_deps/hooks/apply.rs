@@ -63,14 +63,14 @@ impl NodePathRefresh {
 fn hook_execution_changes(delta: &Value) -> Result<HookExecutionChanges> {
     let changed_extra_bin_paths = delta
         .get("extraBinPaths")
-        .map(|value| value.clone())
+        .cloned()
         .map(serde_json::from_value::<Vec<PathBuf>>)
         .transpose()
         .into_diagnostic()
         .wrap_err("the updateConfig hook produced an invalid extraBinPaths value")?;
     let changed_extra_env = delta
         .get("extraEnv")
-        .map(|value| value.clone())
+        .cloned()
         .map(serde_json::from_value::<HashMap<String, String>>)
         .transpose()
         .into_diagnostic()

@@ -6,7 +6,7 @@
 //! serve.
 //!
 //! Specs of known hosts are identities, not transport choices,
-//! `parse_bare_specifier`'s module doc states the rule.
+//! The bare-specifier parser's module doc states the rule.
 //!
 //! Pieces:
 //!

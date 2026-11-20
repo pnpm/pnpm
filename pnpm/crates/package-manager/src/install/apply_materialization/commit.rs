@@ -140,7 +140,9 @@ pub(super) fn prepare_committed_build_state(
     .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
     .map_err(InstallError::WithFreshLockfile)?;
     let pending_builds = merge_pending_builds(
-        inputs.prior.layout.map_or(&[][..], |modules| modules.pending_builds.as_slice()),
+        inputs.prior.layout
+            .map(|modules| modules.pending_builds.as_slice())
+            .unwrap_or(&[][..]),
         deferred_projects(
             inputs.tree.config,
             inputs.materialized.manifests,

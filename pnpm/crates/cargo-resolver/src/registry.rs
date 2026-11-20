@@ -294,7 +294,8 @@ fn registry_version_from_index(package: IndexPackage<'_>) -> Result<Option<Regis
 
 fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<RegistryDependency> {
     let alias = dependency.name.into_owned();
-    let name = dependency.package.map_or_else(|| alias.clone(), std::borrow::Cow::into_owned);
+    let name =
+        dependency.package.map(std::borrow::Cow::into_owned).unwrap_or_else(|| alias.clone());
     let requirement = VersionReq::parse(&dependency.req)
         .into_diagnostic()
         .wrap_err_with(|| format!("parse requirement for {name}"))?;

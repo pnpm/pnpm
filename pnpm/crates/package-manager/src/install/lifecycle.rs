@@ -244,5 +244,6 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     first_error
         .into_inner()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .map_or(Ok(()), Err)
+        .map(Err)
+        .unwrap_or(Ok(()))
 }

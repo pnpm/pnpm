@@ -324,6 +324,13 @@ impl SettingsComparison<'_> {
     }
 }
 
+fn recorded_package_extensions(config: &Config) -> Option<serde_json::Value> {
+    config.package_extensions
+        .as_ref()
+        .map(serde_json::to_value)
+        .and_then(Result::ok)
+}
+
 /// Build the [`WorkspaceStateSettings`] that today's install would
 /// write. Shared with `install::build_workspace_state` so the
 /// freshness check sees the same byte shape the writer produced,
@@ -363,10 +370,7 @@ pub(crate) fn current_settings(
         }),
         optional: Some(included.optional_dependencies),
         overrides: recorded_overrides(config),
-        package_extensions: config.package_extensions
-            .as_ref()
-            .map(serde_json::to_value)
-            .and_then(Result::ok),
+        package_extensions: recorded_package_extensions(config),
         patched_dependencies: config.patched_dependencies.clone(),
         peers_suffix_max_length: Some(
             u32::try_from(config.peers_suffix_max_length).unwrap_or(u32::MAX),

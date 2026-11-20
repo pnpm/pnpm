@@ -213,7 +213,7 @@ fn dropping_a_dependency_from_the_manifest_skips_resolution() {
             .as_ref()
             .expect("packages")
             .keys()
-            .map(|key| key.to_string())
+            .map(std::string::ToString::to_string)
             .any(|text| text.starts_with("is-positive@")),
         "the dropped package is pruned from the lockfile",
     );
@@ -291,7 +291,7 @@ fn remove_command_drops_the_dependency_without_resolving() {
             .as_ref()
             .expect("packages")
             .keys()
-            .map(|key| key.to_string())
+            .map(std::string::ToString::to_string)
             .any(|text| text.starts_with("is-positive@")),
         "the removed package is pruned from the lockfile",
     );
@@ -667,7 +667,7 @@ fn removing_a_workspace_project_prunes_its_importer_without_resolving() {
             .as_ref()
             .expect("packages")
             .keys()
-            .map(|key| key.to_string())
+            .map(std::string::ToString::to_string)
             .any(|text| text.starts_with("@pnpm.e2e/bar@")),
         "and so is what only it depended on",
     );

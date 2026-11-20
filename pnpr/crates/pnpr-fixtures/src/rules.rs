@@ -73,7 +73,7 @@ fn take_registry_rules(key: &str, registry: &mut Map<String, Value>) -> Option<R
         .get("ecosystem")
         .cloned()
         .map(serde_json::from_value)
-        .map(|from_value| from_value.expect("a known ecosystem"))
+        .map(|ecosystem| ecosystem.expect("a known ecosystem"))
         .unwrap_or_default();
     let public = registry
         .get("public")

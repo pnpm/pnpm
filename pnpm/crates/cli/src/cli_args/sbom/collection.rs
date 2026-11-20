@@ -62,7 +62,7 @@ fn importer_roots<'a>(
         .values()
         .map(maps)
         .map(|maps| maps.iter())
-        .flat_map(|maps| maps.flatten())
+        .flat_map(std::iter::Iterator::flatten)
         .flatten()
         .filter_map(|(name, spec)| spec.version.resolved_key(name))
         .collect()

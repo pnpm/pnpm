@@ -233,10 +233,9 @@ impl DeployArgs {
         frozen_lockfile: bool,
         ignore_pnpmfile: bool,
     ) -> miette::Result<&'static Config> {
-        let node_linker = self.install_args.materialization.node_linker.map_or(
-            base_config.node_linker,
-            NodeLinkerArg::into_config,
-        );
+        let node_linker = self.install_args.materialization.node_linker
+            .map(NodeLinkerArg::into_config)
+            .unwrap_or(base_config.node_linker);
         let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
         deploy_config.prefer_frozen_lockfile = frozen_lockfile;
         // pnpm's deploy forwards `--force` into the install, where it

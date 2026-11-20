@@ -259,7 +259,8 @@ fn callback_lockfile_dir<'a>(
     callback.options
         .get("lockfileDir")
         .and_then(Value::as_str)
-        .map_or(native.lockfile_dir, Path::new)
+        .map(Path::new)
+        .unwrap_or(native.lockfile_dir)
 }
 
 /// `fetchers.directory`. A directory has no archive digest, see

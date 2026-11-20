@@ -46,6 +46,7 @@ use metadata::{
     sanitize_package_name,
     sanitize_path_segment,
 };
+use miette::WrapErr;
 use pnpm_config::Config;
 use pnpm_lockfile::{
     LazyLockfile,
@@ -281,10 +282,7 @@ impl SbomArgs {
         let include = self.include_filter(state.config.optional);
         let authors = self.author_list();
 
-        let lockfile = state.lockfile
-            .get()
-            .map_err(miette::Report::new)
-            .map_err(|value| value.wrap_err("load the lockfile"))?;
+        let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
         let all_importer_ids = sorted_importer_ids(lockfile);
         let all_count = all_importer_ids.len();
         let Some(importer_ids) = select_importer_ids(&state, all_importer_ids, lockfile.is_some())?
@@ -326,7 +324,7 @@ impl SbomArgs {
             .map(|csv| {
                 csv.split(',')
                     .map(str::trim)
-                    .map(|trimmed| trimmed.to_string())
+                    .map(std::string::ToString::to_string)
                     .filter(|author| !author.is_empty())
                     .collect()
             })

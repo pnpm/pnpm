@@ -54,7 +54,7 @@ impl Collection<'_> {
                 }
             }
         }
-        failure.map_or(Ok(report), Err)
+        failure.map(Err).unwrap_or(Ok(report))
     }
 
     async fn unmap_repository(&self, name: &str, min_age: Duration) -> Result<GcReport> {

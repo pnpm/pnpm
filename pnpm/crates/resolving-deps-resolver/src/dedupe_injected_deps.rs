@@ -216,7 +216,7 @@ pub(crate) fn prune_unreachable(
     let mut stack: Vec<DepPath> = direct_by_importer
         .values()
         .map(BTreeMap::values)
-        .flat_map(|values| values.cloned())
+        .flat_map(std::iter::Iterator::cloned)
         .collect();
     while let Some(dep_path) = stack.pop() {
         if !reachable.insert(dep_path.clone()) {

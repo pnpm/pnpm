@@ -157,7 +157,7 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 /// * **Process-local per-path mutex for serialization**: two
 ///   snapshots whose tarballs ship identical file content
 ///   (e.g. a shared `LICENSE`) compute the same CAS path and would
-///   race in `verify_or_rewrite`. The mutex makes the second
+///   race in the verify-or-rewrite step. The mutex makes the second
 ///   writer wait for the first's `write_all` so the byte-match
 ///   fast path always applies. See [`cas_write_lock`].
 ///
@@ -274,7 +274,7 @@ fn ensure(
 /// ([`ensure_file`]) and verifiers (`check_pkg_files_integrity`) of the
 /// same path are guaranteed to meet on the same lock and serialise.
 /// Stripe-hash collisions between unrelated paths block each other
-/// too, that false-sharing is bounded by `NUM_CAS_LOCK_STRIPES` and
+/// too, that false-sharing is bounded by the number of lock stripes and
 /// the guarded section (a single `O_CREAT|O_EXCL` open + `write_all`)
 /// is microseconds long.
 ///

@@ -127,10 +127,9 @@ impl<'a> PickState<'a> {
         ctx: &PickPackageContext<'_, Cache>,
         opts: &PickPackageOptions<'_>,
     ) -> (bool, bool, &'static str) {
-        let full_metadata = ctx.needs_full_metadata_for.map_or(
-            opts.request.optional || ctx.full_metadata,
-            |needs_full_metadata| needs_full_metadata(opts.registry, opts.request.optional),
-        );
+        let full_metadata = ctx.needs_full_metadata_for
+            .map(|needs_full_metadata| needs_full_metadata(opts.registry, opts.request.optional))
+            .unwrap_or(opts.request.optional || ctx.full_metadata);
         let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
         let base_meta_dir = if full_metadata {
             if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }

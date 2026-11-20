@@ -207,7 +207,8 @@ fn pump(mut src: TcpStream, mut dst: TcpStream, profile: LinkProfile) {
         if let Some(rate) = profile.rate_limit {
             let effective = slow_start
                 .as_mut()
-                .map_or(rate as f64, |ramp| ramp.effective_rate(rate as f64, bytes.len()));
+                .map(|ramp| ramp.effective_rate(rate as f64, bytes.len()))
+                .unwrap_or(rate as f64);
             link_free_at = send_at + Duration::from_secs_f64(bytes.len() as f64 / effective);
         }
         if dst.write_all(&bytes).is_err() {

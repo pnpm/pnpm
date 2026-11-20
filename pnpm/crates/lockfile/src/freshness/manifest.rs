@@ -41,7 +41,7 @@ use pnpm_tool_protocol::tool_specifiers_equal;
 /// into `dependencies` for the comparison, matching how pnpm
 /// materializes those peers into the importer's `dependencies` in the
 /// lockfile. Without this, a peer-only dependency would be misread as
-/// a lockfile entry the manifest removed (see `auto_installed_peer_deps`).
+/// a lockfile entry the manifest removed (see the auto-installed peer handling).
 ///
 /// Still unsupported: `excludeLinksFromLockfile` (`link:` resolutions
 /// aren't modeled yet). Non-semver resolutions such as file and
@@ -132,8 +132,12 @@ fn check_dependencies_meta(
         return Ok(());
     }
     Err(StalenessReason::DependenciesMetaMismatch {
-        lockfile: importer_meta.map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
-        manifest: manifest_meta.map_or_else(|| "{}".to_string(), std::string::ToString::to_string),
+        lockfile: importer_meta
+            .map(std::string::ToString::to_string)
+            .unwrap_or_else(|| "{}".to_string()),
+        manifest: manifest_meta
+            .map(std::string::ToString::to_string)
+            .unwrap_or_else(|| "{}".to_string()),
     })
 }
 

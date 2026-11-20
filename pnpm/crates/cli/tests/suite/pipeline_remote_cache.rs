@@ -75,14 +75,13 @@ fn workspace(root: &Path) -> PathBuf {
 /// `pnpm` in `project` with a local cache and global config of its own under
 /// `machine`, as a separate machine would have.
 fn pnpm_on_machine(project: &Path, machine: &Path, runs: &Path) -> Command {
-    let command = Command::cargo_bin("pnpm")
+    Command::cargo_bin("pnpm")
         .unwrap()
         .without_ambient_pnpm_config()
         .with_current_dir(project)
         .with_env("XDG_CACHE_HOME", machine.join("cache"))
         .with_env("XDG_CONFIG_HOME", machine.join("config"))
-        .with_env("RUN_LOG", runs);
-    command
+        .with_env("RUN_LOG", runs)
 }
 
 /// The auth setting that holds the token for `cache`, as a machine's auth
@@ -93,11 +92,10 @@ fn cache_token_key(cache: &TurborepoCache) -> String {
 
 /// [`pnpm_on_machine`] on a machine that names `cache` in its environment.
 fn pnpm_with_cache(project: &Path, machine: &Path, runs: &Path, cache: &TurborepoCache) -> Command {
-    let command = pnpm_on_machine(project, machine, runs)
+    pnpm_on_machine(project, machine, runs)
         .with_env("PNPM_REMOTE_CACHE_URL", cache.url())
         .with_env("PNPM_REMOTE_CACHE_TEAM", TEAM)
-        .with_env(format!("pnpm_config_{}", cache_token_key(cache)), TOKEN);
-    command
+        .with_env(format!("pnpm_config_{}", cache_token_key(cache)), TOKEN)
 }
 
 fn combined_output(output: &Output) -> String {

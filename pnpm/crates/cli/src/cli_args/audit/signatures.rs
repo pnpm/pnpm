@@ -297,7 +297,7 @@ fn parse_signatures(raw_signatures: Option<&serde_json::Value>) -> Option<Vec<Pa
     };
     elements
         .iter()
-        .map(|element| element.clone())
+        .cloned()
         .map(serde_json::from_value)
         .map(Result::ok)
         .collect()

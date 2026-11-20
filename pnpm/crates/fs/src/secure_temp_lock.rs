@@ -93,7 +93,8 @@ fn xdg_runtime_dir(value: Option<std::ffi::OsString>) -> Option<PathBuf> {
 fn android_user_lock_root(home: Option<std::ffi::OsString>) -> PathBuf {
     home.filter(|home| !home.is_empty())
         .map(PathBuf::from)
-        .map_or_else(|| PathBuf::from("/data/local/tmp"), |value| value.join(".cache"))
+        .map(|value| value.join(".cache"))
+        .unwrap_or_else(|| PathBuf::from("/data/local/tmp"))
 }
 
 #[cfg(windows)]

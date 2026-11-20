@@ -58,7 +58,8 @@ pub fn drop_shadowed_aliases(cmd: &Command, argv: Vec<OsString>) -> Vec<OsString
         if let Some(rest) = token.strip_prefix("--") {
             let (name, has_inline_value) = rest
                 .split_once('=')
-                .map_or((rest, false), |(name, _)| (name, true));
+                .map(|(name, _)| (name, true))
+                .unwrap_or((rest, false));
             let width =
                 token_width(arity.long_consumes_value(name).unwrap_or(false), has_inline_value);
             scan.note_long(name, index, width);

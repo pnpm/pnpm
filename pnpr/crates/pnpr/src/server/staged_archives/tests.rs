@@ -70,13 +70,13 @@ async fn every_reference_to_a_staged_archive_counts_against_one_request() {
     assert!(
         refused
             .map_err(|err| err.to_string())
-            .is_err_and(|text| text.contains("257 staged archives"))
+            .is_err_and(|text| text.contains("257 staged archives")),
     );
     let refused = StagedReferences::check_within(&storage, "alice", thrice, 20).await;
     assert!(
         refused
             .map_err(|err| err.to_string())
-            .is_err_and(|text| text.contains("30 bytes"))
+            .is_err_and(|text| text.contains("30 bytes")),
     );
 
     // The commit gives what it claimed back.

@@ -34,7 +34,8 @@ pub(in super::super) fn record_address(version_or_tag: &str) -> (&str, Option<u6
     version_or_tag
         .rsplit_once("+r")
         .and_then(|(version, revision)| Some((version, parse_revision(revision)?)))
-        .map_or((version_or_tag, None), |(version, revision)| (version, Some(revision)))
+        .map(|(version, revision)| (version, Some(revision)))
+        .unwrap_or((version_or_tag, None))
 }
 
 /// A revision number in its canonical form: digits without a leading zero.

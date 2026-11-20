@@ -51,7 +51,8 @@ pub(crate) fn manifest_stats(
         .map(|(root_dir, manifest)| {
             let digest = project_manifests
                 .recorded_digest(root_dir)
-                .map_or_else(|| manifest_digest(manifest), str::to_string);
+                .map(str::to_string)
+                .unwrap_or_else(|| manifest_digest(manifest));
             ManifestStat { root_dir, manifest, status: status(root_dir, manifest, digest) }
         })
         .collect()

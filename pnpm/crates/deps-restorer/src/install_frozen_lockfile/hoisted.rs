@@ -164,7 +164,7 @@ pub enum HoistedLinkerError {
 /// walker's newly-discovered installability skips into `skipped`.
 ///
 /// Shared by both install paths so the hoisted layout, skip-set
-/// accounting, and `pkg_roots_by_key` derivation stay identical.
+/// accounting, and package-root derivation stay identical.
 pub fn run_hoisted_linker<Reporter: self::Reporter>(
     inputs: &HoistedLinkerInputs<'_>,
     skipped: &mut SkippedSnapshots,

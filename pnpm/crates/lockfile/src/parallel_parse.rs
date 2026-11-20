@@ -167,7 +167,8 @@ const CHUNK_TARGET_BYTES: usize = 32 * 1024;
 fn chunk_entries(text: &str, count: usize) -> Vec<String> {
     let header_end = text
         .find('\n')
-        .map_or(text.len(), |end| end + 1);
+        .map(|end| end + 1)
+        .unwrap_or(text.len());
     let (header, body) = text.split_at(header_end);
     let target = body.len().div_ceil(count).max(1);
     let mut chunks = Vec::with_capacity(count);

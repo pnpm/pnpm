@@ -151,7 +151,9 @@ fn importer_version_with_key(
         ImporterDepVersion::File(payload) => {
             let full = key.suffix.to_string();
             ImporterDepVersion::File(
-                full.strip_prefix("file:").map_or_else(|| payload.clone(), str::to_string),
+                full.strip_prefix("file:")
+                    .map(str::to_string)
+                    .unwrap_or_else(|| payload.clone()),
             )
         }
         ImporterDepVersion::Link(path) => ImporterDepVersion::Link(path.clone()),

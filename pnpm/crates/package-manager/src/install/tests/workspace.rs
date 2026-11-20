@@ -467,7 +467,7 @@ fn filtered_modules_metadata_preserves_only_retained_unselected_entries() {
         ignored_builds: Some(
             [retained, shared, stale_selected]
                 .into_iter()
-                .map(|value| value.to_string())
+                .map(std::string::ToString::to_string)
                 .map(pnpm_modules_yaml::DepPath::from)
                 .collect(),
         ),

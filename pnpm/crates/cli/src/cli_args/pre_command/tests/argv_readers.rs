@@ -170,7 +170,8 @@ fn sample_value(arg: &Arg) -> String {
     arg.get_possible_values()
         .into_iter()
         .rfind(|value| !value.is_hide_set())
-        .map_or_else(|| format!("/tmp/{}", arg.get_id()), |value| value.get_name().to_string())
+        .map(|value| value.get_name().to_string())
+        .unwrap_or_else(|| format!("/tmp/{}", arg.get_id()))
 }
 
 fn with_dir(arg: &Arg, spelling: &[String]) -> Vec<String> {

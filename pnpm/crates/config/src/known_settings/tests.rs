@@ -78,7 +78,8 @@ fn block_between<'a>(source: &'a str, header: &str, footer: &str) -> &'a str {
     source
         .split_once(header)
         .and_then(|(_, rest)| rest.split_once(footer))
-        .map_or_else(|| panic!("missing block `{header}`"), |(body, _)| body)
+        .map(|(body, _)| body)
+        .unwrap_or_else(|| panic!("missing block `{header}`"))
 }
 
 fn quoted_array_items<'a>(source: &'a str, declaration: &str) -> Vec<&'a str> {

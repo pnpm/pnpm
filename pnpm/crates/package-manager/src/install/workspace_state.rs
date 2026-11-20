@@ -124,7 +124,7 @@ pub(crate) fn lockfile_root_for(
     if !config.shared_workspace_lockfile {
         return manifest_dir.to_path_buf();
     }
-    workspace_dir.map_or_else(|| manifest_dir.to_path_buf(), Path::to_path_buf)
+    workspace_dir.map(Path::to_path_buf).unwrap_or_else(|| manifest_dir.to_path_buf())
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm

@@ -171,17 +171,15 @@ fn resolved_config_values(
         global_virtual_store_dir: display_path(&config.global_virtual_store_dir),
         virtual_store_dir: display_path(&config.install_state_dir),
         effective_virtual_store_dir: display_path(config.virtual_store_dir()),
-        network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
-        max_sockets: config.max_sockets
-            .map(u32::try_from)
-            .map(|converted| converted.unwrap_or(u32::MAX)),
+        network_concurrency: bounded_u32(config.network_concurrency),
+        max_sockets: config.max_sockets.map(bounded_u32),
         fetch_retries: config.fetch_retries,
         fetch_retry_factor: config.fetch_retry_factor,
-        fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
-        fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
-        fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
-        fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
-        fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
+        fetch_retry_mintimeout: bounded_u32(config.fetch_retry_mintimeout),
+        fetch_retry_maxtimeout: bounded_u32(config.fetch_retry_maxtimeout),
+        fetch_timeout: bounded_u32(config.fetch_timeout),
+        fetch_warn_timeout_ms: bounded_u32(config.fetch_warn_timeout_ms),
+        fetch_min_speed_ki_bps: bounded_u32(config.fetch_min_speed_ki_bps),
         user_agent: explicit_user_agent(config),
         engine_strict: config.engine_strict,
         node_version: config.node_version.clone(),
@@ -198,8 +196,8 @@ fn resolved_config_values(
     }
 }
 
-fn bounded_u32(value: u64) -> u32 {
-    u32::try_from(value).unwrap_or(u32::MAX)
+fn bounded_u32(value: impl TryInto<u32>) -> u32 {
+    value.try_into().unwrap_or(u32::MAX)
 }
 fn display_path(path: impl AsRef<std::path::Path>) -> String {
     path.as_ref().display().to_string()

@@ -127,9 +127,10 @@ impl WorkspaceSettings {
         }
         self.registries
             .as_ref()
-            .map_or(Ok(()), |registries| {
+            .map(|registries| {
                 registries::refuse_env_placeholder_entries(registries, has_env_placeholder)
             })
+            .unwrap_or(Ok(()))
     }
 
     fn drop_unexpanded_request_scalars(&mut self, dropped: &mut Vec<String>) {

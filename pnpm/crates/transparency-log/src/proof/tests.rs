@@ -63,12 +63,14 @@ fn hash(encoded: Option<&String>) -> Option<Hash> {
 }
 
 fn hashes(encoded: Option<&Vec<String>>) -> Option<Vec<Hash>> {
-    encoded.map_or(Some(Vec::new()), |list| {
-        list.iter()
-            .map(Some)
-            .map(hash)
-            .collect()
-    })
+    encoded
+        .map(|list| {
+            list.iter()
+                .map(Some)
+                .map(hash)
+                .collect()
+        })
+        .unwrap_or(Some(Vec::new()))
 }
 
 #[test]

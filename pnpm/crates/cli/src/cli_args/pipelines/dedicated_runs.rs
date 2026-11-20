@@ -115,7 +115,8 @@ impl DedicatedProjectRuns<'_> {
         first_error
             .into_inner()
             .expect("dedicated install error lock is not poisoned")
-            .map_or(Ok(()), Err)
+            .map(Err)
+            .unwrap_or(Ok(()))
     }
 
     /// Install the project at `project_dir` through `run`, sharing `caches`

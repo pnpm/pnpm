@@ -24,7 +24,7 @@ pub fn split_paths<Value: AsRef<OsStr> + ?Sized>(
         .as_ref()
         .as_bytes()
         .split(|&byte| byte == b':')
-        .map(|bytes| bytes.to_vec())
+        .map(<[u8]>::to_vec)
         .map(OsString::from_vec)
         .map(PathBuf::from)
 }

@@ -317,10 +317,9 @@ fn registry_routes(options: &DependentsOptions) -> BTreeMap<String, String> {
 }
 
 fn virtual_store_dir_max_length(options: &DependentsOptions) -> usize {
-    options.virtual_store_dir_max_length.map_or(
-        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize,
-        |value| value as usize,
-    )
+    options.virtual_store_dir_max_length
+        .map(|value| value as usize)
+        .unwrap_or(DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH as usize)
 }
 
 fn importer_dirs(

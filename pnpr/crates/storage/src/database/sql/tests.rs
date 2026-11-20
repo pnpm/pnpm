@@ -270,7 +270,7 @@ pub(super) fn packument(name: &str, versions: &[&str]) -> Value {
     json!({
         "name": name,
         "description": "a package",
-        "dist-tags": versions.last().map_or_else(|| json!({}), |version| json!({ "latest": version })),
+        "dist-tags": versions.last().map(|version| json!({ "latest": version })).unwrap_or_else(|| json!({})),
         "versions": manifests,
         "time": time,
         "maintainers": [{ "name": "someone", "userId": "u-someone" }],

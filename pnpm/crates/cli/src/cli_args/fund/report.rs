@@ -85,16 +85,14 @@ impl FundingReport {
         };
         let name = field("name")
             .and_then(Value::as_str)
-            .map_or_else(
-                || {
-                    project.dir
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned()
-                },
-                ToString::to_string,
-            );
+            .map(ToString::to_string)
+            .unwrap_or_else(|| {
+                project.dir
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned()
+            });
         FundingReport {
             length: walk.funded_count,
             name,

@@ -85,7 +85,8 @@ impl AutoDedupeBaseline {
         let Some(digest) = self.digest(lockfile) else { return };
         let written = self.record
             .parent()
-            .map_or(Ok(()), fs::create_dir_all)
+            .map(fs::create_dir_all)
+            .unwrap_or(Ok(()))
             .and_then(|()| pnpm_fs::write_atomic(&self.record, digest.as_bytes()));
         if let Err(error) = written {
             tracing::debug!(

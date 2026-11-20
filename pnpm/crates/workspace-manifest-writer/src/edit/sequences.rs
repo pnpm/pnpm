@@ -74,7 +74,8 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
     let block_items_end = blank_run_start(
         text,
         all.get(leading_comment_start(&all, key_idx + 1, block_end_idx))
-            .map_or(text.len(), |line| line.start),
+            .map(|line| line.start)
+            .unwrap_or(text.len()),
     );
     let starts: Vec<usize> =
         item_idxs
@@ -99,12 +100,12 @@ fn item_layout(text: &str, key: &str, current: &[String]) -> Option<ItemLayout> 
             })
             .collect(),
         indent,
-        newline: if text[all[key_idx].start..block_items_end].contains("\r\n") {
-            "\r\n"
-        } else {
-            "\n"
-        },
+        newline: newline_of(&text[all[key_idx].start..block_items_end]),
     })
+}
+
+fn newline_of(block: &str) -> &'static str {
+    if block.contains("\r\n") { "\r\n" } else { "\n" }
 }
 
 /// The indentation of `body`'s block-sequence item lines and their indices,

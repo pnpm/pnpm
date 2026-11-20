@@ -226,7 +226,9 @@ fn metadata_requirements(
             Err(refusal) => unreadable = unreadable.or(Some(refusal)),
         }
     }
-    unreadable.map_or(Ok(requirements), Err)
+    unreadable
+        .map(Err)
+        .unwrap_or(Ok(requirements))
 }
 
 impl Provider<'_> {

@@ -122,7 +122,8 @@ pub(super) async fn add_hosted_org_packages(
     for name in names {
         let owners = owners_by_package
             .get(&name)
-            .map_or(&[][..], Vec::as_slice);
+            .map(Vec::as_slice)
+            .unwrap_or(&[][..]);
         let ownership = Ownership::Owners(owners);
         let permission =
             if allows_with_ownership(state, identity, &rules, (&name, &ownership), Action::Publish)

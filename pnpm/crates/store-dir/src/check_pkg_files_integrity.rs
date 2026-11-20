@@ -156,7 +156,7 @@ impl VerifiedFileIntegrity {
 /// Concurrent: the install fans [`check_pkg_files_integrity`] calls out
 /// across tokio's blocking pool, so the cache must tolerate parallel
 /// readers and writers. `DashMap` gives us that without any external
-/// locking. Race-window duplicate verifies are benign (the `verify_file`
+/// locking. Race-window duplicate verifies are benign (the per-file verify
 /// path is idempotent) and rare in practice.
 pub type VerifiedFilesCache = DashMap<PathBuf, Option<u32>>;
 

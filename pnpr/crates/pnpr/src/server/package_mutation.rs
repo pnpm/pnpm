@@ -157,7 +157,7 @@ async fn try_rewrite_packument(
     let removed = prepare_packument_rewrite(hosted, &tar_integrities, name, &mut packument)?;
     let bytes = serde_json::to_vec_pretty(&packument)
         .map_err(RegistryError::Json)
-        .map_err(|value| value.into_response())?;
+        .map_err(axum::response::IntoResponse::into_response)?;
     let unpublished = unpublished_blobs(&storage, name, &removed).await;
     match storage
         .write_hosted_document_if_current(name, &bytes, Some(&version), identity.user_id())

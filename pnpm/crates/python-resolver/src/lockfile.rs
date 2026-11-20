@@ -245,7 +245,7 @@ impl Lockfile {
         let markers = environments
             .iter()
             .map(|marker| marker.parse::<MarkerTree>())
-            .map(|value| value.into_diagnostic())
+            .map(miette::IntoDiagnostic::into_diagnostic)
             .collect::<Result<Vec<_>>>()?;
         for ((environment, marker), written) in solved
             .iter()
@@ -447,5 +447,6 @@ fn marker_tree(package: &LockedPackage) -> Result<MarkerTree> {
     package.marker
         .as_deref()
         .map(str::parse)
-        .map_or(Ok(MarkerTree::TRUE), |parsed| parsed.into_diagnostic())
+        .map(miette::IntoDiagnostic::into_diagnostic)
+        .unwrap_or(Ok(MarkerTree::TRUE))
 }

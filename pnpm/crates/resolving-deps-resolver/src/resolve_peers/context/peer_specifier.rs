@@ -133,7 +133,8 @@ pub(in super::super) fn peer_id_pair(result: &ResolveResult) -> PeerId {
     let name = pkg_name(result);
     let version = result.package.name_ver
         .as_ref()
-        .map_or_else(|| result.id.as_str().to_string(), |name_ver| name_ver.suffix.to_string());
+        .map(|name_ver| name_ver.suffix.to_string())
+        .unwrap_or_else(|| result.id.as_str().to_string());
     let Some(registry_name) = named_registry_of(result) else {
         return PeerId::Pair { name, version };
     };

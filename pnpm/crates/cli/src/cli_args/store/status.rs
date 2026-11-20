@@ -177,9 +177,9 @@ fn installed_layout(
     lockfile_dir: &Path,
     virtual_store_dir: &Path,
 ) -> miette::Result<VirtualStoreLayout> {
-    let max_length = modules_manifest.map_or(config.virtual_store_dir_max_length, |manifest| {
-        manifest.virtual_store_dir_max_length
-    }) as usize;
+    let max_length = modules_manifest
+        .map(|manifest| manifest.virtual_store_dir_max_length)
+        .unwrap_or(config.virtual_store_dir_max_length) as usize;
     let layout = if config.enable_global_virtual_store {
         let policy = installed_build_policy(config, modules_manifest)?;
         virtual_store_layout_for_lockfile(config, lockfile, Some(&policy), Some(lockfile_dir))

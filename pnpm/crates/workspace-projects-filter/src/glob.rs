@@ -261,7 +261,11 @@ fn split_top_level(content: &str, separator: &[char]) -> Vec<String> {
     while index < chars.len() {
         match chars[index] {
             '[' => index = bracket_end(&chars, brackets, index + 1).unwrap_or(index + 1),
-            '{' => index = spans.closes[index].map_or(index + 1, |close| close + 1),
+            '{' => {
+                index = spans.closes[index]
+                    .map(|close| close + 1)
+                    .unwrap_or(index + 1);
+            }
             _ if chars[index..].starts_with(separator) => {
                 parts.push(chars[part_start..index].iter().collect());
                 index += separator.len();

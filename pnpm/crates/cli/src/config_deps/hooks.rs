@@ -274,7 +274,8 @@ fn same_registry_route(left: &str, right: &str) -> bool {
 }
 
 fn normalized_registry_route(route: &str) -> String {
-    let mut normalized = url::Url::parse(route).map_or_else(|_| route.to_string(), String::from);
+    let mut normalized =
+        url::Url::parse(route).map(String::from).unwrap_or_else(|_| route.to_string());
     if !normalized.ends_with('/') {
         normalized.push('/');
     }
@@ -361,7 +362,10 @@ fn hook_base_dir(config: &Config, root_dir: &Path) -> Result<PathBuf> {
         return Ok(root_dir.to_path_buf());
     }
     Ok(match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
-        Some((path, _)) => path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
+        Some((path, _)) => path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| root_dir.to_path_buf()),
         None => root_dir.to_path_buf(),
     })
 }

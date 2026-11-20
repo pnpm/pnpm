@@ -249,7 +249,7 @@ fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
 ///
 /// * `name`, `_id`, copied from the new body.
 /// * `versions`, union; an already-hosted version is immutable except for
-///   its `deprecated` flag (see `merge_versions`), an upstream-only or
+///   its `deprecated` flag (see the version merge), an upstream-only or
 ///   new version is taken from the body. `hosted` is the locally hosted
 ///   packument (or `None`); `existing` is the merge seed, which may instead
 ///   be the upstream packument, so immutability keys off `hosted`, not it.

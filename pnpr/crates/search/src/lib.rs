@@ -33,8 +33,9 @@ pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchPar
     let text = query
         .strip_prefix("maintainer:")
         .filter(|maintainer| !maintainer.is_empty())
-        .map(|maintainer| maintainer.to_string())
-        .map_or_else(|| SearchText::Package(query.clone()), SearchText::Maintainer);
+        .map(std::string::ToString::to_string)
+        .map(SearchText::Maintainer)
+        .unwrap_or_else(|| SearchText::Package(query.clone()));
     Some(SearchParams {
         text,
         from: parse_from(query_string),

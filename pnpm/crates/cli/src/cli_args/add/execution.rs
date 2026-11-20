@@ -211,7 +211,8 @@ async fn add_workspace_config_dependencies<Reporter: self::Reporter>(
             state.manifest
                 .path()
                 .parent()
-                .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from("."))
         });
     config_deps::add_config_dependencies::<Reporter>(
         state.config,
@@ -364,7 +365,7 @@ impl AddArgs {
         let selectors: Vec<String> = self.package_names
             .iter()
             .map(AddRequest::selector)
-            .map(|selector| selector.to_string())
+            .map(std::string::ToString::to_string)
             .collect();
         let package_names =
             match workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())? {

@@ -1,5 +1,6 @@
-use command_extra::CommandExtra;
 pub(crate) use peer_heavy::seed_peer_heavy_registry;
+
+use command_extra::CommandExtra;
 
 mod scripts;
 use scripts::{

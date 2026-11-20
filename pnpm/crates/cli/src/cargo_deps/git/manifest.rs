@@ -80,7 +80,7 @@ impl Checkout {
             }
             return Ok(Some(CheckoutPackage { dir: dir.clone(), manifest: package.manifest }));
         }
-        unreadable.map_or(Ok(None), Err)
+        unreadable.map(Err).unwrap_or(Ok(None))
     }
 
     /// Every directory in the checkout that `cargo` reads a package from.

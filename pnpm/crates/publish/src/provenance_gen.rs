@@ -148,7 +148,8 @@ impl ProvenanceSubject {
 fn npm_purl(name: &str, version: &str) -> String {
     let encoded = name
         .strip_prefix('@')
-        .map_or_else(|| name.to_owned(), |rest| format!("%40{rest}"));
+        .map(|rest| format!("%40{rest}"))
+        .unwrap_or_else(|| name.to_owned());
     format!("pkg:npm/{encoded}@{version}")
 }
 

@@ -79,7 +79,7 @@ pub(super) async fn process_cas_entries(
     .await
     .map_err(|err| err.to_string())
     .map_err(io::Error::other)
-    .map_err(|other| other.into())
+    .map_err(std::convert::Into::into)
 }
 
 fn evict_cas_entries_sync(

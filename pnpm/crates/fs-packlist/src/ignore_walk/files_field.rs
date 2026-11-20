@@ -52,7 +52,8 @@ impl FilesMatcher {
     ) {
         let mut entry = entry
             .strip_prefix("./")
-            .map_or_else(|| entry.to_string(), |entry| format!("/{entry}"));
+            .map(|entry| format!("/{entry}"))
+            .unwrap_or_else(|| entry.to_string());
         if entry.ends_with("/*") {
             entry.push('*');
         }

@@ -376,7 +376,7 @@ fn string_array(items: &[String]) -> Value {
     Value::Array(
         items
             .iter()
-            .map(|item| item.clone())
+            .cloned()
             .map(Value::String)
             .collect(),
     )

@@ -27,11 +27,7 @@ pub(crate) fn build_publish_document(
     tag: &str,
     dist_hashes: &DistHashes<'_>,
 ) -> Result<Value, PublishPackedPkgError> {
-    if manifest
-        .get("private")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-    {
+    if matches!(manifest.get("private"), Some(Value::Bool(true))) {
         return Err(PublishPackedPkgError::Private);
     }
     let name = manifest_string(manifest, "name");
@@ -75,10 +71,7 @@ pub(crate) fn build_publish_document(
     }
     root.insert("dist-tags".to_owned(), Value::Object(dist_tags));
     root.insert("versions".to_owned(), Value::Object(versions));
-    root.insert(
-        "access".to_owned(),
-        access.map(|access| access.to_string()).map_or(Value::Null, Value::String),
-    );
+    root.insert("access".to_owned(), Value::from(access.as_ref().map(ToString::to_string)));
     root.insert("_attachments".to_owned(), Value::Object(attachments));
     Ok(Value::Object(root))
 }
