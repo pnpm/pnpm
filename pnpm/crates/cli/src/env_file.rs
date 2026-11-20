@@ -21,8 +21,8 @@
 //! `--env-file` is this binary's own option: [`strip_flags`] removes its
 //! tokens from the argv a dispatched pnpm receives (an older pnpm would
 //! reject the unknown flag), and the loaded variables travel by
-//! environment inheritance instead. Tokens past the passthrough point —
-//! script arguments after `--`, or after a `run`/`exec` script name — are
+//! environment inheritance instead. Tokens past the passthrough point
+//! (script arguments after `--`, or after a `run`/`exec` script name) are
 //! left alone (see `crate::parse_boundary`).
 
 mod parse;
@@ -85,8 +85,8 @@ pub fn load_from_argv(argv: &[OsString]) -> miette::Result<()> {
 
 /// Remove the `--env-file` tokens from an argv that still carries the
 /// program name at index 0 (the shape the entry point builds the child argv
-/// from), keeping every other token — including tokens past the passthrough
-/// point — in place.
+/// from), keeping every other token (including tokens past the passthrough
+/// point) in place.
 pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
     scan(argv).1
 }

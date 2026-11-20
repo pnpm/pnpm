@@ -8,8 +8,8 @@ use super::{
     load_with_graph_and_overrides,
 };
 
-/// A router registry routes each package to exactly one concrete source — the
-/// first listed source whose declared patterns claim it — the safe
+/// A router registry routes each package to exactly one concrete source (the
+/// first listed source whose declared patterns claim it) the safe
 /// alternative to a multi-upstream fallback chain.
 #[test]
 fn from_yaml_str_router_routes_each_package_to_one_source() {
@@ -82,7 +82,7 @@ registries:
     assert!(message.contains("@acme/ba*r"), "expected the pattern named, got: {message}");
 }
 
-/// A duplicate key within one registry's `packages:` map fails config load —
+/// A duplicate key within one registry's `packages:` map fails config load,
 /// the one within-registry error (selection is by specificity, so nothing
 /// else about the map can be a defect).
 #[test]
@@ -151,7 +151,7 @@ registries:
 }
 
 /// A dot-prefixed `namespace` would alias a reserved dot-directory inside the
-/// storage root — most dangerously `.pnpr-cache`, putting authoritative
+/// storage root, most dangerously `.pnpr-cache`, putting authoritative
 /// packages under the path operators are told is safe to wipe.
 #[test]
 fn from_yaml_str_rejects_dot_prefixed_hosted_namespace() {

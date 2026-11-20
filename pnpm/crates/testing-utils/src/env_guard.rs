@@ -32,7 +32,7 @@ use std::{
     },
 };
 
-/// Serialization mutex for env-mutating tests. A single `Mutex<()>` —
+/// Serialization mutex for env-mutating tests. A single `Mutex<()>`,
 /// uncontended outside the handful of tests that need it, cheap when
 /// held.
 fn env_mutex() -> &'static Mutex<()> {
@@ -46,7 +46,7 @@ fn env_mutex() -> &'static Mutex<()> {
 pub struct EnvGuard {
     // `OsString` so non-UTF-8 values round-trip. `env::var` returns
     // `Err(NotUnicode)` for those and would silently coerce to "absent"
-    // here — then `Drop` would `remove_var` a variable the user
+    // here; then `Drop` would `remove_var` a variable the user
     // actually had set, clobbering CI / shell state. `env::var_os` +
     // `OsString` preserves the raw bytes.
     saved: Vec<(&'static str, Option<OsString>)>,
@@ -92,7 +92,7 @@ impl EnvGuard {
     /// Set a variable under the lock the guard holds.
     ///
     /// The variable must have been listed in [`Self::snapshot`]'s
-    /// `vars` so the `Drop` impl will restore it — otherwise the
+    /// `vars` so the `Drop` impl will restore it; otherwise the
     /// mutation leaks beyond the guard. We accept this footgun rather
     /// than re-snapshotting on every `set` because the snapshot-then-
     /// set pattern matches every call site, and the test fixtures

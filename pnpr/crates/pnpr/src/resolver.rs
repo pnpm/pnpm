@@ -4,9 +4,9 @@
 //!
 //! Two routes, built on pacquet's resolver:
 //!
-//! * `GET /-/pnpr` — capability handshake; advertises the supported
+//! * `GET /-/pnpr`, capability handshake; advertises the supported
 //!   protocol versions so a client can negotiate or fail fast.
-//! * `POST /-/pnpr/v0/resolve` — resolve a project **against the registries
+//! * `POST /-/pnpr/v0/resolve`, resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
 //!   the client), verify the client's input lockfile under the client's
 //!   policy, and **stream** the result back as NDJSON: one `package`
@@ -17,7 +17,7 @@
 //!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
 //!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
-//! * `POST /-/pnpr/v0/verify-lockfile` — verify an already-fresh client
+//! * `POST /-/pnpr/v0/verify-lockfile`, verify an already-fresh client
 //!   lockfile under the same policy without resolving. A frozen restore
 //!   can start local fetch/materialization immediately and only use this
 //!   endpoint as the trust verdict.
@@ -250,7 +250,7 @@ struct ResolverCache {
     entries: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
     ttl: Duration,
     /// SQLite-backed whole-lockfile verification verdict cache. `None`
-    /// only if the database couldn't be opened — verification then runs
+    /// only if the database couldn't be opened, verification then runs
     /// every time (uncached) rather than failing the server.
     verdicts: Option<VerdictCache>,
     /// HMAC secret namespacing a private footprint's cache descriptor.

@@ -1,4 +1,4 @@
-//! `pacquet store add` — fetch packages into the store without installing
+//! `pacquet store add`: fetch packages into the store without installing
 //! them anywhere.
 
 use crate::cli_args::registry_client::build_registry_client;
@@ -85,7 +85,7 @@ pub struct FrozenStoreAddError;
 ///
 /// The code is pacquet's own because pnpm has none to match: pnpm's
 /// `storeAdd` fetches these successfully. That makes this the same kind of
-/// marker as `ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED` — a gap that
+/// marker as `ERR_PNPM_RECURSIVE_SHARED_LOCKFILE_UNSUPPORTED`, a gap that
 /// fails loudly and by name rather than one that quietly does something
 /// other than what was asked.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -106,8 +106,8 @@ pub struct UnsupportedSpecError {
 
 /// The archive a resolution points at, if it points at one.
 ///
-/// A tarball published without an integrity hash is still fetchable —
-/// pnpm fetches those unverified — so the hash is optional.
+/// A tarball published without an integrity hash is still fetchable
+/// (pnpm fetches those unverified) so the hash is optional.
 fn archive_to_fetch(resolution: &LockfileResolution) -> Option<(&str, Option<Integrity>)> {
     match resolution {
         LockfileResolution::Tarball(tarball) => {
@@ -219,7 +219,7 @@ fn store_resolve_options(dir: &Path) -> ResolveOptions {
 ///
 /// The command keeps going so one bad specifier doesn't strand
 /// the rest, which leaves this line as the only place the cause
-/// is reported — so it carries the code the top-level handler
+/// is reported, so it carries the code the top-level handler
 /// would otherwise have printed.
 fn report_add_failure<Reporter: self::Reporter>(error: &miette::Report) {
     let code = error

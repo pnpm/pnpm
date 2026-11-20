@@ -37,7 +37,7 @@ pub struct UpstreamConfig {
     /// every request pnpr makes to this upstream.
     pub headers: HeaderMap,
     /// Per-upstream packument freshness window (`packumentTtl`).
-    /// `None` when the YAML omits it — the proxy then falls back to the
+    /// `None` when the YAML omits it, the proxy then falls back to the
     /// global [`super::HttpConfig::packument_ttl`], so the existing
     /// `--packument-ttl` flag still governs upstreams that don't set
     /// their own.
@@ -186,7 +186,7 @@ pub(super) struct UpstreamConfigFile {
 
 /// A verdaccio interval scalar as written in YAML: either a string
 /// (`"2m"`, `"30s"`) or a bare number (a count of seconds). Both YAML
-/// shapes are accepted — verdaccio configs use either — and kept as the
+/// shapes are accepted (verdaccio configs use either) and kept as the
 /// raw string so [`parse_interval`] handles them uniformly and an
 /// unparsable value surfaces as a precise config error.
 #[derive(Debug, Clone)]
@@ -283,7 +283,7 @@ impl TokenEnv {
 /// the resolution is testable.
 ///
 /// The auth-derived `Authorization` header is inserted first, then the
-/// custom `headers:` are merged on top — so a custom `Authorization`
+/// custom `headers:` are merged on top, so a custom `Authorization`
 /// entry overrides the one derived from `auth:`, matching verdaccio's
 /// merge order. A configured `auth:` block that resolves to no token,
 /// an unknown header name, or a non-ASCII header value is a config
@@ -329,7 +329,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         search: file.search,
         public: file.public,
         // The claimed patterns are attached by the caller
-        // (`build_registries`) — this resolver only handles the serving
+        // (`build_registries`); this resolver only handles the serving
         // knobs shared with programmatic construction.
         rules: PackageRules::default(),
     })
@@ -376,8 +376,8 @@ fn upstream_headers<Sys: EnvVar>(
 
 /// Parse a verdaccio-style interval string into a [`Duration`].
 ///
-/// Accepts the suffixes verdaccio's `parseInterval` understands —
-/// `ms`, `s`, `m`, `h`, `d`, `w` — optionally chained without or with
+/// Accepts the suffixes verdaccio's `parseInterval` understands
+/// (`ms`, `s`, `m`, `h`, `d`, `w`) optionally chained without or with
 /// whitespace (`"1h30m"`, `"2m 30s"`), and a bare number, which (like
 /// verdaccio) is read as **seconds**. A trailing number with no suffix
 /// is also seconds. Returns `None` for anything unparsable so the

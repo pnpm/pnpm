@@ -44,7 +44,7 @@ pub(super) struct PublicRouteFile {
 
 /// Disk shape of one `registries:` entry, discriminated by an internal `type:` tag
 /// (`hosted` / `upstream` / `router`). The tag selects exactly one kind, so
-/// "declared none or more than one" is unrepresentable — no runtime count check.
+/// "declared none or more than one" is unrepresentable, no runtime count check.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(super) enum RegistryFile {
@@ -111,7 +111,7 @@ pub(super) struct HostedFile {
     pub(super) tarballs: Option<TarballFormat>,
 }
 
-/// Disk shape of an `upstream:` registry — one external origin. Mirrors an
+/// Disk shape of an `upstream:` registry; one external origin. Mirrors an
 /// upstream's tuning knobs plus `public` (an anonymous, no-credential origin)
 /// and `access` (which pnpr callers may reach a private one).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -436,11 +436,11 @@ pub(super) struct OsvFile {
 }
 
 /// Disk shape of the `resolver:` feature block. The field and the whole-block
-/// defaults are both `enabled: true`, so omitting the block — or writing
-/// `resolver:` with no body — keeps the surface on.
+/// defaults are both `enabled: true`, so omitting the block, or writing
+/// `resolver:` with no body, keeps the surface on.
 /// `deny_unknown_fields` so a typo like `resolver: { enable: false }`
 /// (note: `enable`, not `enabled`) is a loud config error rather than
-/// silently leaving the surface enabled — the toggle scopes which
+/// silently leaving the surface enabled, the toggle scopes which
 /// endpoints are exposed, so a silent default-on is a security footgun.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

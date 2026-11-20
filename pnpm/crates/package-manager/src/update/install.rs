@@ -195,7 +195,7 @@ fn saved_single_update_options<'a>(
 /// moved pins in place of the ones startup read, so the resolve, the
 /// lockfile settings it records, and the freshness checks all answer to
 /// them. The resolve reads overrides from the config, never the workspace
-/// manifest on disk — that write belongs to the settle phase.
+/// manifest on disk, that write belongs to the settle phase.
 fn update_with_moved_overrides<'a>(
     update: UpdateOptions<'a>,
     updated_overrides: &[(String, String)],

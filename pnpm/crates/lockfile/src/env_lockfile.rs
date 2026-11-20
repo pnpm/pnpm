@@ -1,4 +1,4 @@
-//! The *env lockfile* — the first YAML document of `pnpm-lock.yaml`.
+//! The *env lockfile*, the first YAML document of `pnpm-lock.yaml`.
 //!
 //! Pnpm v11 records configurational dependencies (and the
 //! `packageManager`/`devEngines` bootstrap deps) in a separate YAML
@@ -74,7 +74,7 @@ pub struct SpecifierAndResolution {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvImporterSnapshot {
-    /// Always serialized — the key is seeded even when empty, so the env
+    /// Always serialized, the key is seeded even when empty, so the env
     /// document always carries it.
     #[serde(default)]
     pub config_dependencies: BTreeMap<String, SpecifierAndResolution>,
@@ -152,7 +152,7 @@ impl EnvLockfile {
     }
 
     /// [`Self::read`]'s parse of one env document, with the number of
-    /// files its Git conflict markers had to be merged out of — 1 or 0,
+    /// files its Git conflict markers had to be merged out of, 1 or 0,
     /// since it is handed a single document.
     pub(crate) fn parse_conflicted_document(
         env_doc: &str,

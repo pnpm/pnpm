@@ -21,7 +21,7 @@ use std::{
 
 /// Errors surfaced while resolving or installing configurational
 /// dependencies. The user-facing `code(...)` values mirror the
-/// `ERR_PNPM_*` codes pnpm's env-installer throws — they are part of
+/// `ERR_PNPM_*` codes pnpm's env-installer throws; they are part of
 /// the public contract (<https://pnpm.io/errors>).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

@@ -42,7 +42,7 @@ use super::{
     validate_crate_archive,
 };
 
-/// `PUT api/v1/crates/new` — `cargo publish`.
+/// `PUT api/v1/crates/new`: `cargo publish`.
 pub(super) async fn put_publish(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,

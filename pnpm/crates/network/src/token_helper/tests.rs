@@ -34,7 +34,7 @@ fn a_hung_command_is_killed_at_the_deadline() {
     let elapsed = started.elapsed();
 
     assert_eq!(result.expect_err("must time out").kind(), io::ErrorKind::TimedOut);
-    assert!(elapsed < Duration::from_secs(5), "returned only after {elapsed:?} — was it killed?");
+    assert!(elapsed < Duration::from_secs(5), "returned only after {elapsed:?}, was it killed?");
 }
 
 #[test]

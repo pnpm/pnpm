@@ -62,7 +62,7 @@ use std::{
 
 impl WorkEnv {
     /// Apply the `serve_timing` diagnostic env to a spawned `pnpr` command, if
-    /// enabled — so the server emits per-phase serve timing to its log.
+    /// enabled, so the server emits per-phase serve timing to its log.
     fn apply_serve_timing(&self, command: &mut Command) {
         if self.options.serve_timing {
             // Append rather than clobber, so a `RUST_LOG` the caller already set
@@ -103,7 +103,7 @@ impl WorkEnv {
         let binary = self.pnpr_server_binary(revision);
         assert!(
             binary.is_file(),
-            "pnpr binary not found at {binary:?} — the build step did not produce it",
+            "pnpr binary not found at {binary:?}, the build step did not produce it",
         );
         let mock_port = pick_unused_port().expect("pick a port for the revision mock");
         let bench_dir = self.bench_dir(BenchId::PnprRevision(revision));
@@ -249,7 +249,7 @@ impl WorkEnv {
             .join("pnpr");
         assert!(
             binary.is_file(),
-            "pnpr binary not found at {binary:?} — the build step did not produce it",
+            "pnpr binary not found at {binary:?}, the build step did not produce it",
         );
         let pnpr_storage = bench_dir.join("pnpr-storage");
         let public_route_registries = if matches!(self.options.network.registry, RegistryMode::Npm)

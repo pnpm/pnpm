@@ -117,7 +117,7 @@ pub(super) fn save_pristine_copies(dir: &Path) {
 /// leak in (Copilot review on [#296](https://github.com/pnpm/pacquet/pull/296)).
 ///
 /// If a custom fixture's workspace file already declares `storeDir`,
-/// trust it — that's the user opting into a different store layout
+/// trust it; that's the user opting into a different store layout
 /// (e.g. shared store across revisions to test a specific scenario).
 ///
 /// Also mirrors the `.npmrc` settings into the workspace file as camelCase
@@ -194,7 +194,7 @@ pub(super) fn fixture_workspace_manifest(
         serde_saphyr::from_str(&text).expect("parse fixture pnpm-workspace.yaml");
     if parsed.store_dir.is_none() {
         eprintln!(
-            "warn: fixture's pnpm-workspace.yaml has no top-level `storeDir:` — \
+            "warn: fixture's pnpm-workspace.yaml has no top-level `storeDir:`, \
              injecting `storeDir: ./store-dir` so per-revision store isolation works",
         );
     }

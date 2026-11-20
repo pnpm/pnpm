@@ -293,7 +293,7 @@ async fn record_license(
     }
 }
 
-/// Every collected package, in name and registry order — the table lists
+/// Every collected package, in name and registry order, the table lists
 /// packages rather than grouping them by license.
 fn sorted_license_infos(results_by_license: &LicensesByGroup) -> Vec<&LicenseInfo> {
     let mut all_packages: Vec<&LicenseInfo> = results_by_license

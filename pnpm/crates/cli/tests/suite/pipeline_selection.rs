@@ -162,7 +162,7 @@ fn an_empty_full_selection_reports_no_selected_projects() {
     .unwrap();
     let result = pipeline(project.path(), &project.path().join("config"), &["--full", "--dry-run"]);
     let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
-    assert!(output.contains("No projects are selected — nothing to run."), "{output}");
+    assert!(output.contains("No projects are selected. Nothing to run."), "{output}");
 }
 
 #[test]

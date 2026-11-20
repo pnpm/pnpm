@@ -138,8 +138,8 @@ pub(super) fn package_frame(
     hint: &ResolvedPackageHint<'_>,
 ) -> serde_json::Value {
     // A registry-resolved package's `tarball_url` is the packument's
-    // `dist.tarball`, which a split-domain registry hosts on a different origin
-    // — route it by the registry, not the tarball host, so a private package
+    // `dist.tarball`, which a split-domain registry hosts on a different origin,
+    // route it by the registry, not the tarball host, so a private package
     // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
     let tarball_url = if hint.from_registry {
         router.route_registry_hint(
@@ -365,7 +365,7 @@ pub(super) const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::
 
 /// Terminal `error` frame for a resolution that aborted mid-stream,
 /// after one or more `package` frames may already have been sent (so the
-/// HTTP status is locked at 200 — the failure has to ride in the body).
+/// HTTP status is locked at 200, the failure has to ride in the body).
 pub(super) fn error_frame(message: &str) -> Vec<u8> {
     error_frame_with_code(message, None)
 }

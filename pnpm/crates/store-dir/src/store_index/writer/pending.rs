@@ -13,7 +13,7 @@ const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS: usize = 64;
 /// `Replace` is a straight overwrite. Three short-circuit
 /// branches log and skip without removing the row from
 /// `pending`, so a same-batch `Replace` for the same key still
-/// flushes — see the docs on
+/// flushes; see the docs on
 /// [`WriteMsg::SideEffectsUpload`].
 pub(super) fn apply_write_msg(
     index: &StoreIndex,
@@ -134,7 +134,7 @@ fn remove_side_effects(row: &mut PackageFilesIndex, cache_key: &str) -> bool {
 /// `key`, loading from `SQLite` when this is the row's first
 /// sighting in the batch. Returns `None` (and logs at `debug!` /
 /// `warn!` as appropriate) when no base row exists or the `SQLite`
-/// read fails — both cases mean the caller should skip the
+/// read fails; both cases mean the caller should skip the
 /// side-effects mutation without disturbing `pending`.
 fn load_pending_row<'a>(
     index: &StoreIndex,

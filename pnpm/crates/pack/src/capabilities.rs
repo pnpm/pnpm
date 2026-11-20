@@ -10,7 +10,7 @@
 //! 4. Production callers turbofish [`Host`] explicitly.
 //!
 //! The seam covers only the final "write the tarball to disk" phase of
-//! [`crate::api`] — reading each packed file's bytes, inspecting file
+//! [`crate::api`], reading each packed file's bytes, inspecting file
 //! executability, measuring its size, creating the destination directory,
 //! and writing the archive.
 //! Manifest reading, the packlist walk, and bin resolution stay on real

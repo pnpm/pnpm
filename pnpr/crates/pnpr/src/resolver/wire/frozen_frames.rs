@@ -40,7 +40,7 @@ use super::{
 /// [`tarball_url_and_integrity`] the client's frozen materialization
 /// uses, so the announced URLs match the client's mem-cache keys
 /// byte-for-byte. Non-tarball resolutions (git, directory, binary,
-/// variations) are skipped — the client fetches those through their
+/// variations) are skipped, the client fetches those through their
 /// own protocol paths.
 pub(in super::super) fn frozen_package_frames_until(
     config: &PacquetConfig,

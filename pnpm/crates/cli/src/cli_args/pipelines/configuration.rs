@@ -111,7 +111,7 @@ fn apply_install_git_branch_lockfiles_config(
 ) {
     // pnpm merges its CLI options into the config *before* deciding
     // `mergeGitBranchLockfiles`, so a pattern given on the command line
-    // still gets matched against the current branch — and an explicit
+    // still gets matched against the current branch, and an explicit
     // `--merge-git-branch-lockfiles` settles the question without it.
     if lockfile_updates.merge_git_branch_lockfiles {
         cfg.cli_settings.insert("mergeGitBranchLockfiles".to_string());

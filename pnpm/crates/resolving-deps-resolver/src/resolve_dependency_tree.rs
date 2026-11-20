@@ -130,7 +130,7 @@ use walk::{
 /// ...). The mutexes guarded by this helper hold short `HashMap` /
 /// `HashSet` inserts with no invariants that survive a panic, so the
 /// install can keep going after the unrelated panic that poisoned
-/// the lock — better than escalating into a hard install-wide
+/// the lock, better than escalating into a hard install-wide
 /// failure.
 fn lock_recoverable<Inner>(mutex: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
     mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -153,7 +153,7 @@ fn write_recoverable<Inner>(lock: &RwLock<Inner>) -> RwLockWriteGuard<'_, Inner>
 /// call sees; the tree walker doesn't mutate it.
 ///
 /// Peer auto-installation lives one layer up in
-/// [`fn@crate::resolve_importer`] — this entry point is a pure tree walker
+/// [`fn@crate::resolve_importer`]; this entry point is a pure tree walker
 /// over the manifest's explicit dependencies plus their transitive
 /// children. The orchestrator extends the same tree with hoisted peers
 /// via [`extend_tree`].
@@ -215,7 +215,7 @@ pub struct SkippedOptionalDependency {
     /// The wanted specifier.
     pub bare_specifier: String,
     /// The resolved packages between the importer and the failing
-    /// edge, importer first. Empty for a direct optional dependency —
+    /// edge, importer first. Empty for a direct optional dependency,
     /// the default reporter renders only those.
     pub parents: Vec<SkippedOptionalDependencyParent>,
     /// The project directory the failing edge was resolved for.
@@ -303,9 +303,9 @@ pub type DeprecationLogFn = Arc<dyn Fn(Deprecation) + Send + Sync>;
 /// AND-folds its `optional` flag into the existing
 /// [`ResolvedPackage`] envelope and reuses it. It still allocates a
 /// fresh [`DependenciesTreeNode`] for the current occurrence and
-/// recurses on `X`'s children — only the resolver-side envelope is
+/// recurses on `X`'s children, only the resolver-side envelope is
 /// shared. The critical sections are short `HashMap` inserts with no
-/// `await` inside, so a sync mutex is the right tool — tokio's async
+/// `await` inside, so a sync mutex is the right tool, tokio's async
 /// mutex adds per-acquire overhead that the resolve hot path was
 /// paying once per visit per ctx field.
 ///
@@ -413,7 +413,7 @@ pub struct DependencySpec {
 /// leave it `None`: an absent meta entry yields no flag rather than
 /// `false`. The resolver OR's this with the global
 /// `inject_workspace_packages` flag, so `None` and `Some(false)` would
-/// produce identical behavior — but keeping `None` aligns the
+/// produce identical behavior, but keeping `None` aligns the
 /// [`WantedKey`](workspace_ctx::WantedKey) cache buckets across the two pacquet branches that
 /// surface `injected`.
 pub(crate) fn wanted_from_spec(spec: DependencySpec) -> WantedDependency {

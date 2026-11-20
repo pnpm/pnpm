@@ -47,7 +47,7 @@ pub struct AllowBuildPolicy {
 impl AllowBuildPolicy {
     /// Build a policy from already-expanded `allowed` and
     /// `disallowed` sets and `dangerouslyAllowAllBuilds`. Pure
-    /// constructor — no IO — so the policy logic is tested
+    /// constructor (no IO) so the policy logic is tested
     /// directly with in-memory inputs.
     #[must_use]
     pub fn new(
@@ -91,7 +91,7 @@ impl AllowBuildPolicy {
     /// `allow_builds` and `dangerously_allow_all_builds`, which are
     /// populated by [`pnpm_config::WorkspaceSettings::apply_to`]
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
-    /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
+    /// from `package.json#pnpm`; see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
         Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)?
             .with_side_effects_cache_exclude(

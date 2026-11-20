@@ -185,7 +185,7 @@ fn force_symlink_dir_moves_non_symlink_occupant_to_ignored_name() {
     fs::write(&link, b"squatting on the link slot").expect("seed occupant file");
 
     let outcome = force_symlink_dir(&target, &link).expect("force_symlink_dir succeeds");
-    assert!(!outcome.reused, "we wrote a fresh link over an occupant — not a reuse");
+    assert!(!outcome.reused, "we wrote a fresh link over an occupant, not a reuse");
     assert!(outcome.warning.is_some(), "warning must be set when an occupant was moved aside");
     let warning = outcome.warning.unwrap();
     assert!(
@@ -362,7 +362,7 @@ fn windows_native_path_is_borrowed_unchanged() {
 }
 
 /// Regression for the Windows failure where a symlink's parent slot is a
-/// dangling junction — the shape a tar-based CI cache restore leaves
+/// dangling junction, the shape a tar-based CI cache restore leaves
 /// behind (tar can't round-trip a Windows reparse point). The child link
 /// can't be created through the dangling junction, and `create_dir_all`
 /// can't rebuild the slot because the junction still occupies it (it
@@ -383,7 +383,7 @@ fn windows_force_symlink_dir_repairs_dangling_junction_parent() {
 
     // Build a slot `node_modules` that is a dangling junction: point it at
     // a directory, then delete that directory. Windows keeps the reparse
-    // point (with the directory attribute) but its target is now missing —
+    // point (with the directory attribute) but its target is now missing,
     // the state a cache restore leaves behind.
     let node_modules = root
         .path()
@@ -571,8 +571,8 @@ fn windows_error_directory_falls_back_to_junctions() {
     assert!(!super::windows::should_fallback_to_junction(&std::io::Error::from_raw_os_error(123)));
 }
 
-/// `ERROR_PRIVILEGE_NOT_HELD` (1314) — symlink creation without
-/// Developer Mode or elevation — maps to `Uncategorized`, not
+/// `ERROR_PRIVILEGE_NOT_HELD` (1314) (symlink creation without
+/// Developer Mode or elevation) maps to `Uncategorized`, not
 /// `PermissionDenied`, so the fallback must match the raw os error
 /// ([pnpm/pnpm#13694](https://github.com/pnpm/pnpm/issues/13694)).
 #[cfg(windows)]

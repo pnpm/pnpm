@@ -170,8 +170,8 @@ pub struct BuildDependentsOptions<'a> {
     /// [`Self::dependency_specifiers`] reads manifests independently.
     ///
     /// This is what the TypeScript tree-builder's `nameFormatter` callback
-    /// is for: an embedder that renames nodes after a manifest field —
-    /// Bit rendering component ids instead of package names — asks for the
+    /// is for: an embedder that renames nodes after a manifest field
+    /// (Bit rendering component ids instead of package names) asks for the
     /// field here and sets `displayName` on the returned tree, rather than
     /// handing a callback across the FFI boundary into a synchronous walk.
     pub manifest_fields: &'a [String],
@@ -400,7 +400,7 @@ fn expand_parent(ctx: &mut WalkCtx<'_>, edge: &ReverseEdge, depth: usize) -> Opt
     node.manifest = ctx.manifest_reader.project(&edge.parent);
 
     if ctx.expanded.contains(&edge.parent) {
-        // Already expanded elsewhere in the tree — show as a leaf to keep
+        // Already expanded elsewhere in the tree, show as a leaf to keep
         // the output bounded.
         node.deduped = true;
         return Some(node);

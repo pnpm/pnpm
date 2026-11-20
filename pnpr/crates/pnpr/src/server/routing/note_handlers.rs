@@ -50,7 +50,7 @@ pub(super) struct ScopedNamePath {
     name: String,
 }
 
-/// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
+/// `GET {base}/@{scope}/{pkg}/{version-or-tag}`: a scoped package's version
 /// manifest. A first segment that is not a scope names no package.
 async fn get_scoped_version_manifest(
     State(state): State<AppState>,

@@ -2,7 +2,7 @@ use std::io;
 
 use pnpm_network_web_auth::PromptError;
 
-/// Read a visible credential line — the `dialoguer::Input` builder chain (the
+/// Read a visible credential line, the `dialoguer::Input` builder chain (the
 /// username and email prompts). This is the blocking terminal read behind the
 /// capability seam, and nothing more: the production impl is that bare chain.
 ///
@@ -14,7 +14,7 @@ pub trait PromptInput {
     fn prompt_input(message: &str) -> Result<String, dialoguer::Error>;
 }
 
-/// Read a masked credential secret — the `dialoguer::Password` builder chain
+/// Read a masked credential secret, the `dialoguer::Password` builder chain
 /// (the password prompt). The masked counterpart of [`PromptInput`]; see there
 /// for how the surrounding algorithm is kept out of the provider.
 pub trait PromptPassword {
@@ -30,7 +30,7 @@ pub(super) enum Masking {
 
 /// Read one credential line off the async runtime (`dialoguer` is blocking):
 /// run the injected [`PromptInput`] read for [`Masking::Visible`] or the
-/// [`PromptPassword`] read for [`Masking::Masked`], then classify the outcome —
+/// [`PromptPassword`] read for [`Masking::Masked`], then classify the outcome,
 /// an interrupted prompt (Ctrl-C) maps to [`PromptError::Cancelled`] (mirroring
 /// enquirer's `ExitPromptError`), a task panic or any other failure to
 /// [`PromptError::Other`].

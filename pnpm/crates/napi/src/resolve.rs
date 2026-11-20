@@ -1,4 +1,4 @@
-//! `resolveDependency` — resolve a wanted dependency to a concrete version.
+//! `resolveDependency`: resolve a wanted dependency to a concrete version.
 //!
 //! Replaces Bit's use of `@pnpm/installing.client`'s
 //! `createResolver(...).resolve(...)` (via `generateResolverAndFetcher` /
@@ -95,7 +95,7 @@ pub async fn resolve_dependency(
 fn normalize_wanted_dependency(wanted: WantedDependencyInput) -> WantedDependency {
     WantedDependency {
         alias: wanted.alias,
-        // An empty bareSpecifier means "no range given" — pnpm v11's
+        // An empty bareSpecifier means "no range given", pnpm v11's
         // resolver treated it like an absent pref (resolve the latest
         // matching version); passing it through verbatim would fall off
         // the resolver chain as ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER.
@@ -141,8 +141,8 @@ fn run_resolve_blocking(
         ..ResolveOptions::default()
     };
 
-    // A single dependency resolve is one packument fetch — no task parallelism
-    // to exploit — and this already runs on a dedicated worker thread. Use a
+    // A single dependency resolve is one packument fetch (no task parallelism
+    // to exploit) and this already runs on a dedicated worker thread. Use a
     // current-thread runtime so a `resolveDependency` call spawns no extra
     // worker-thread pool (a per-call multi-thread runtime would multiply threads
     // under concurrent resolves). The install path keeps a multi-thread runtime
@@ -161,8 +161,8 @@ fn run_resolve_blocking(
     let resolved = runtime
         .block_on(async { resolver.resolve(&wanted_dependency, &resolve_options).await })
         // `Resolver::resolve` erases its error to `ResolveError`
-        // (`Box<dyn Error>`), so the underlying miette `Diagnostic` — and its
-        // `ERR_PNPM_*` code / hint — is already gone by the time it reaches
+        // (`Box<dyn Error>`), so the underlying miette `Diagnostic` (and its
+        // `ERR_PNPM_*` code / hint) is already gone by the time it reaches
         // here; only the message survives.
         .map_err(|error| error.to_string())
         .map_err(napi::Error::from_reason)?;

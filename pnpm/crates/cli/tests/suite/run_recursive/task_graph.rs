@@ -50,7 +50,7 @@ fn filter_keeps_dependency_tasks_outside_the_selection_from_running() {
 }
 
 /// `slow` waits for a marker only `mid` writes, and `mid` may start only
-/// once `dep` is done — so the run completes only if `mid` is dispatched
+/// once `dep` is done, so the run completes only if `mid` is dispatched
 /// while the unrelated `slow` is still in flight. Any barrier between
 /// dependency-independent tasks deadlocks this fixture.
 #[test]

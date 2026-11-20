@@ -24,8 +24,8 @@ use pnpm_testing_utils::git_repo::GitRepoFixture;
 /// TS: `GVS hashes are engine-agnostic for packages not in allowBuilds`
 /// (`globalVirtualStore.ts:132`).
 ///
-/// The hash of a package covers the engine only when the package — or
-/// something in its dependency closure — is allowed to build. Allowing
+/// The hash of a package covers the engine only when the package (or
+/// something in its dependency closure) is allowed to build. Allowing
 /// the *transitive* dep therefore has to change the *parent's* hash.
 #[test]
 fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
@@ -35,7 +35,7 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
 
     write_manifest(&workspace, &serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
 
-    eprintln!("Scenario 1: nothing may build — hashes must omit the engine...");
+    eprintln!("Scenario 1: nothing may build, hashes must omit the engine...");
     set_gvs_workspace_yaml(&workspace, &allow_builds_yaml(&[]));
     pacquet(&workspace)
         .with_arg("install")
@@ -44,7 +44,7 @@ fn gvs_hashes_are_engine_agnostic_for_packages_not_in_allow_builds() {
     let version_dir = pkg_version_dir(&store_dir, "@pnpm.e2e/pkg-with-1-dep", "100.0.0");
     let hash_no_builds = sole_hash_dir(&version_dir);
 
-    eprintln!("Scenario 2: the transitive dep may build — the parent hash must change...");
+    eprintln!("Scenario 2: the transitive dep may build, the parent hash must change...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     set_gvs_workspace_yaml(
         &workspace,
@@ -550,7 +550,7 @@ fn gvs_ignore_scripts_and_building_installs_use_different_slots() {
 
 /// TS: `GVS rebuilds successfully after simulated build failure cleanup`
 /// (`globalVirtualStore.ts:367`). With the hash directory gone the warm
-/// fast path must not fire — the install re-fetches, re-imports and
+/// fast path must not fire, the install re-fetches, re-imports and
 /// re-builds into a fresh slot.
 #[test]
 fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {

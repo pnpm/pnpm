@@ -409,9 +409,9 @@ use std::{
 
 /// MIME the npm registry uses for the abbreviated install-v1 form.
 /// Matches what pacquet (and pnpm/npm/yarn) send in `Accept` when
-/// resolving for an install — see pacquet's
+/// resolving for an install; see pacquet's
 /// `resolving-npm-resolver::ACCEPT_ABBREVIATED_DOC`. Returning the
-/// full document instead bloats the wire by 2–10× on packuments with
+/// full document instead bloats the wire by 2-10× on packuments with
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
@@ -422,7 +422,7 @@ const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 const GENERATION_HEADER: &str = "pnpr-generation";
 
 /// Cap publish bodies at 100 MiB. The default axum body limit is
-/// 2 MiB, far too small for a real package — npm itself caps publish
+/// 2 MiB, far too small for a real package, npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`axum::extract::DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling. The cap on a
@@ -432,7 +432,7 @@ const MAX_PUBLISH_BODY_BYTES: usize = 100 * 1024 * 1024;
 
 /// Cap adduser/login bodies far below the publish ceiling. The body is a
 /// small couchdb-user JSON document, and login is the one body-accepting
-/// endpoint reachable anonymously on every tier — letting it inherit the
+/// endpoint reachable anonymously on every tier, letting it inherit the
 /// 100 MiB publish limit would hand unauthenticated callers a cheap
 /// buffer-and-parse amplifier.
 const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
@@ -475,13 +475,13 @@ impl AppState {
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient
-/// for tests and for callers that don't want disk-backed users —
+/// for tests and for callers that don't want disk-backed users,
 /// [`serve`] is the production entry point and goes through
 /// [`router_with_auth`] with an [`AuthState::load`]-ed bundle so a
 /// corrupted htpasswd file surfaces as a startup error.
 ///
 /// The 2- and 3-segment routes do dispatch inside the handler rather
-/// than registering overlapping parametric routes — matchit can't
+/// than registering overlapping parametric routes, matchit can't
 /// disambiguate `/{scope}/{name}` from `/{name}/{version}` at the
 /// router level, so we take both via one handler that branches on
 /// the `@` prefix and the literal-`-` segment.
@@ -542,14 +542,14 @@ fn loggable_uri(uri: &axum::http::Uri) -> String {
 }
 
 // --------------------------------------------------------------------
-// Account routes — adduser/login, whoami, profile, token list and
+// Account routes, adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
 // in `router_with_auth_and_osv`), each with a `/~<name>/`-addressed twin.
 // --------------------------------------------------------------------
 
 /// The registry a `~<name>` path segment addresses, or `None` for a segment
 /// that is not one. A bare `~` names no registry, so it reads as "not a
-/// registry prefix" rather than as an empty name — every caller then treats
+/// registry prefix" rather than as an empty name; every caller then treats
 /// it the way it treats `foo`.
 #[allow(dead_code, reason = "helper used across server tiers and in tests")]
 pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
@@ -561,8 +561,8 @@ pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
 /// The registry a request addressed through a leading `/~<name>/`, or `None`
 /// when it arrived on the path-less base.
 ///
-/// Every route that answers under a registry prefix is registered twice — once
-/// bare, once under `/~{registry}` — pointing at the same handler. This
+/// Every route that answers under a registry prefix is registered twice (once
+/// bare, once under `/~{registry}`) pointing at the same handler. This
 /// extractor is what tells the two apart, so a handler states once that it is
 /// prefix-aware instead of needing a near-identical twin.
 ///
@@ -585,7 +585,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
                 match err {
                     // The client sent a segment that percent-decodes to invalid
                     // UTF-8. It cannot be a registry name, so answer it the same
-                    // 404 every other malformed prefix gets rather than a 500 — a
+                    // 404 every other malformed prefix gets rather than a 500, a
                     // bad URL is not a server fault, and rendering it as one would
                     // also let a client fill the error log.
                     RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
@@ -614,8 +614,8 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
 /// Await `fut`, emitting its duration as a `pnpr::serve_timing` debug event
 /// (`phase`, `package`, `elapsed_us`).
 ///
-/// Enabling that target — `RUST_LOG=pnpr::serve_timing=debug`, or a pnpr `log:`
-/// level of `debug`/`trace` — turns the upstream serve paths into a per-request
+/// Enabling that target, `RUST_LOG=pnpr::serve_timing=debug`, or a pnpr `log:`
+/// level of `debug`/`trace`, turns the upstream serve paths into a per-request
 /// profile of where time goes: the upstream packument/tarball fetch vs the
 /// on-disk cache read. Near zero-cost when the target is disabled: the
 /// only always-on work is one `Instant::now()`; the field values (including

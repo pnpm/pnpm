@@ -442,7 +442,7 @@ fn manifest_with_dependency_spec(
     PackageManifest::from_path(manifest_path).expect("read project manifest")
 }
 
-/// A project manifest whose `name` is absent, or present but empty —
+/// A project manifest whose `name` is absent, or present but empty;
 /// both shapes a workspace project's `package.json` can carry.
 fn manifest_without_usable_name(
     root: &std::path::Path,
@@ -747,7 +747,7 @@ mod selection {
         }
     }
 
-    /// Checking a group heading or a column header updates nothing —
+    /// Checking a group heading or a column header updates nothing,
     /// `dialoguer` lets either be checked, where pnpm's prompt disables
     /// them outright.
     #[test]
@@ -801,7 +801,7 @@ mod selection {
 struct SeenPrompt {
     message: String,
     /// The label of each row, paired with the package checking it
-    /// updates — [`None`] for a group heading or a header row.
+    /// updates. [`None`] for a group heading or a header row.
     rows: Vec<(String, Option<String>)>,
 }
 
@@ -828,8 +828,8 @@ static SCRIPT_LOCK: Mutex<()> = Mutex::new(());
 
 /// One test's claim on the scripted prompt.
 ///
-/// [`SCRIPT`] is process-global, which `cargo nextest run` — a process
-/// per test — makes invisible, but `cargo test` does not. Holding this
+/// [`SCRIPT`] is process-global, which `cargo nextest run` (a process
+/// per test) makes invisible, but `cargo test` does not. Holding this
 /// for the test's lifetime keeps two tests from consuming each other's
 /// answers.
 struct ScriptedPrompts {

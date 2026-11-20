@@ -223,7 +223,7 @@ fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
 }
 
 /// Two declared peers can share one provider, and the suffix then
-/// spells its segment twice — once per peer.
+/// spells its segment twice, once per peer.
 #[test]
 fn declared_peers_sharing_a_provider_each_get_their_alias_back() {
     let lockfile = peer_context_lockfile(
@@ -414,7 +414,7 @@ async fn auto_installs_missing_required_peer() {
         ),
     );
     // When hoistPeers proposes react, it'll come in as the missing
-    // peer's wanted range — "^18.0.0".
+    // peer's wanted range, "^18.0.0".
     table.insert(
         ("react".to_string(), "^18.0.0".to_string()),
         fake_result("react", "18.2.0", serde_json::json!({ "name": "react", "version": "18.2.0" })),
@@ -554,7 +554,7 @@ async fn auto_install_skips_optional_peers_without_preferred_versions() {
 /// plain entry for the lower `1.0.0` a sibling workspace package declares
 /// directly, and a weighted entry for the already-locked higher `1.0.1`
 /// seeded from the wanted lockfile. Optional peer hoisting must consider
-/// the weighted entry too — otherwise the locked `1.0.1` is discarded and
+/// the weighted entry too; otherwise the locked `1.0.1` is discarded and
 /// the lockfile is rewritten to the sibling's `1.0.0`. Regression test for
 /// <https://github.com/pnpm/pnpm/pull/12075>; the end-to-end equivalent
 /// lives in pnpm's `autoInstallPeers.ts`.
@@ -635,7 +635,7 @@ async fn keeps_locked_optional_peer_over_lower_sibling_version() {
 
 /// TS: `should return the intersection of two compatible ranges`
 /// (`resolvePeers.ts:513`). Consumers wanting `2` and `^2.2.0` share
-/// the intersected range `>=2.2.0 <3.0.0-0` — the resolver stub keys on
+/// the intersected range `>=2.2.0 <3.0.0-0`, the resolver stub keys on
 /// that exact specifier, so the single hoisted provider proves both the
 /// intersection and its canonical rendering.
 #[tokio::test]
@@ -699,7 +699,7 @@ async fn auto_installed_peer_uses_the_intersection_of_compatible_ranges() {
 /// reach the same package, so every branch reports the identical missing
 /// `react` peer again. One narrower declarer turns the merge into a real
 /// intersection, and the stub resolves `react` only through the
-/// deduplicated one — a merge that folds the duplicates back in reaches
+/// deduplicated one, a merge that folds the duplicates back in reaches
 /// a different range and leaves the peer unhoisted.
 #[tokio::test]
 async fn a_peer_reported_once_per_path_is_hoisted_through_one_intersection() {
@@ -835,8 +835,8 @@ async fn auto_install_reuses_peer_already_brought_by_a_sibling() {
         assert!(direct.contains(&name), "{name} should be hoisted to importer: {direct:?}");
     }
     // The sibling already supplies x@1.0.0 / y@1.0.0 / z@1.0.0, so the
-    // hoist-picker must reuse that exact version via preferred-versions
-    // — never the peer's `^1.0.0` range arm. (The resolver may still be
+    // hoist-picker must reuse that exact version via preferred-versions,
+    // never the peer's `^1.0.0` range arm. (The resolver may still be
     // called multiple times with the same `1.0.0` spec because the
     // tree walker doesn't gate the `resolve()` call on dedup; what
     // matters here is that `^1.0.0` never appears.)

@@ -124,7 +124,7 @@ use tokio::sync::{
 };
 
 /// Ceiling on a single eager buffer reservation sized from untrusted
-/// archive metadata — `dist.unpackedSize` in registry metadata and an
+/// archive metadata, `dist.unpackedSize` in registry metadata and an
 /// entry's `uncompressed_size` in a zip central directory. Both are
 /// attacker-controlled, and post-download work runs concurrently (see
 /// [`post_download_semaphore`]), so whatever one task reserves up front
@@ -154,7 +154,7 @@ fn auth_header_for_package_download(
 /// tarball + gzip inflate + per-file SHA-512 + CAFS writes). The body is
 /// CPU-bound with some blocking FS I/O, and putting it on
 /// `tokio::task::spawn_blocking` makes the default 512-thread blocking
-/// pool available — but async fan-out across `try_join_all` routinely
+/// pool available, but async fan-out across `try_join_all` routinely
 /// fires hundreds of these at once on a 1352-snapshot install, which
 /// thrashes small CI runners. Past "Download completed" a 2-CPU GitHub
 /// Actions runner wedged between decompress-close and `Checksum verified`
@@ -382,7 +382,7 @@ impl<'a> IngestTarballToStore<'a> {
             target: "pacquet::download",
             package_url = ?self.package.url,
             package_id = ?self.package.id,
-            "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
+            "Reusing prefetched CAFS entry, skipping download (warm-cache fast path)",
         );
         emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
         let cached = CachedTarball::from_files_arc(Arc::clone(cas_paths));
@@ -393,7 +393,7 @@ impl<'a> IngestTarballToStore<'a> {
 
     /// Park until the task that claimed this URL settles the cache slot.
     ///
-    /// `pnpm:progress` fires exactly once per URL — only the first writer's
+    /// `pnpm:progress` fires exactly once per URL, only the first writer's
     /// `run_without_mem_cache` call emits. Later waiters on the same cache
     /// slot do not re-trigger the emit.
     async fn wait_for_owner<Reporter: self::Reporter>(

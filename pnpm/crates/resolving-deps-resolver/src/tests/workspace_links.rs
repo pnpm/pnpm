@@ -80,11 +80,11 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
     assert_eq!(link_node.depth, -1, "link node must carry depth = -1");
     assert!(
         link_node.children.realized().is_empty(),
-        "link node must have empty children — link target resolves its own deps separately",
+        "link node must have empty children, link target resolves its own deps separately",
     );
     let pkg = tree.packages.get(link_id).expect("link package entry");
     assert!(
         pkg.peer_set.taken().is_empty(),
-        "link node's ResolvedPackage must carry no peer_dependencies — peer matching is the linked importer's responsibility",
+        "link node's ResolvedPackage must carry no peer_dependencies, peer matching is the linked importer's responsibility",
     );
 }

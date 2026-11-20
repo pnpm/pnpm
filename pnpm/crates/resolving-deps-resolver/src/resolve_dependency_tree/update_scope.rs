@@ -14,7 +14,7 @@ pub enum UpdateReuseScope {
     /// Reuse every still-satisfied dependency. `install` / `add`.
     #[default]
     All,
-    /// Reuse nothing — the whole graph re-resolves. `pacquet update`
+    /// Reuse nothing, the whole graph re-resolves. `pacquet update`
     /// with no selectors.
     None,
     /// Reuse everything except the update's targets (matched at any depth
@@ -37,8 +37,8 @@ pub enum LockedRuntimeReuse {
 
 /// The major and minor of a version, which is how far an exact update
 /// selector reaches. `pacquet update foo@1.2.3` targets only the copies of
-/// `foo` that could resolve to `1.2.3`: the same major, or -- on `0.x`,
-/// where the minor is the compatibility boundary -- the same minor. Copies
+/// `foo` that could resolve to `1.2.3`: the same major, or (on `0.x`,
+/// where the minor is the compatibility boundary) the same minor. Copies
 /// on another line keep their locked resolution, so bumping one line of a
 /// package the workspace depends on twice leaves the other alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -54,7 +54,7 @@ impl VersionLine {
         VersionLine { major: version.major, minor: version.minor }
     }
 
-    /// The line a version selector pins, or `None` when it pins none -- a
+    /// The line a version selector pins, or `None` when it pins none, a
     /// range, a tag and an `npm:` alias spec all name no single version.
     #[must_use]
     pub fn parse(version_spec: &str) -> Option<Self> {
@@ -145,8 +145,8 @@ impl UpdateTargets {
     }
 
     /// Whether the edge resolved to `version` under `name` is an update
-    /// target. A `None` version -- an edge with no locked resolution to
-    /// judge yet -- matches by name alone, mirroring pnpm's version-less
+    /// target. A `None` version (an edge with no locked resolution to
+    /// judge yet) matches by name alone, mirroring pnpm's version-less
     /// `updateMatching` calls.
     #[must_use]
     pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
@@ -168,7 +168,7 @@ impl FromIterator<(String, Option<VersionLine>)> for UpdateTargets {
     }
 }
 
-/// How deep `pacquet update` reaches — the `--depth` ceiling. A node
+/// How deep `pacquet update` reaches, the `--depth` ceiling. A node
 /// below it keeps its locked resolution even when its name is an update
 /// target, matching pnpm's `currentDepth <= updateDepth` gate.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -178,8 +178,8 @@ impl UpdateDepth {
     /// `--depth Infinity`, the default.
     pub const UNLIMITED: Self = Self(None);
 
-    /// A depth no dependency graph can reach — `usize::MAX`, which the
-    /// CLI uses for the `Infinity` default, among them — is unlimited.
+    /// A depth no dependency graph can reach, `usize::MAX`, which the
+    /// CLI uses for the `Infinity` default, among them, is unlimited.
     #[must_use]
     pub fn new(depth: usize) -> Self {
         i32::try_from(depth).map(Some).map_or(Self::UNLIMITED, Self)
@@ -210,7 +210,7 @@ impl UpdateScope<'_> {
 
 /// `true` when a node named `name`, locked at `version`, is a `pacquet
 /// update` target at `depth`, and so excluded from reuse. A `None` version
-/// is judged by name alone -- see [`crate::UpdateTargets::covers`]. Past the
+/// is judged by name alone; see [`crate::UpdateTargets::covers`]. Past the
 /// `--depth` ceiling the update no longer reaches, so every node keeps its
 /// locked resolution.
 fn update_excludes(
@@ -232,7 +232,7 @@ fn update_excludes(
 }
 
 /// Whether the running `pacquet update` reaches this edge, so its
-/// locked-version pin must not survive — the update exists to move it.
+/// locked-version pin must not survive, the update exists to move it.
 /// Unlike [`fn@is_update_target`], an update-everything scope
 /// ([`UpdateReuseScope::None`]) unpins every edge the depth ceiling
 /// reaches.

@@ -49,7 +49,7 @@ pub(super) fn registry_err(err: &RegistryConfigError) -> RegistryError {
 ///
 /// With `resolve_upstreams` false (the registry surface is disabled), an
 /// upstream registry still joins the graph for validation but its credentials
-/// and serving config are not resolved — a resolver-only tier must not fail
+/// and serving config are not resolved, a resolver-only tier must not fail
 /// on (or carry) upstream secrets it never uses.
 pub(super) fn build_registries<Sys: EnvVar>(
     upstreams: &mut IndexMap<String, UpstreamConfig>,

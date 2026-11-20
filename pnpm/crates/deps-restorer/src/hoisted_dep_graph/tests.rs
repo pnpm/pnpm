@@ -72,7 +72,7 @@ fn directory_resolution(directory: &str) -> LockfileResolution {
 }
 
 /// Uses a synthetic `directory:` resolution: walker tests don't exercise
-/// resolution semantics — they only need *some* resolution so the graph node
+/// resolution semantics; they only need *some* resolution so the graph node
 /// has a non-default value to inspect.
 fn metadata_stub() -> PackageMetadata {
     PackageMetadata {
@@ -124,7 +124,7 @@ fn lockfile_with(
 fn host_aware_opts() -> LockfileToHoistedDepGraphOptions<'static> {
     // Concrete platform values so the installability check has
     // something to compare against. The specific host doesn't
-    // matter — tests assert relative behavior (compatible vs
+    // matter, tests assert relative behavior (compatible vs
     // incompatible) by setting metadata that targets *this*
     // value or its opposite.
     LockfileToHoistedDepGraphOptions {

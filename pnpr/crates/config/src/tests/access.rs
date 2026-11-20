@@ -8,9 +8,9 @@ use super::{
     user,
 };
 
-/// A hosted `namespace` becomes a storage path segment, so a traversal-y value —
+/// A hosted `namespace` becomes a storage path segment, so a traversal-y value,
 /// including a Windows drive-relative prefix, which `PathBuf::join` treats as
-/// a new path rather than a child — must be rejected at load rather than
+/// a new path rather than a child, must be rejected at load rather than
 /// reach the filesystem.
 #[test]
 fn from_yaml_str_rejects_hosted_namespace_path_traversal() {

@@ -158,7 +158,7 @@ pub enum UpdateWorkspaceManifestError {
 ///
 /// The block-style writers splice `value` into a single `key: value` /
 /// `- item` line. A control character forces a multi-line scalar and
-/// corrupts the document outright; a separator is subtler — the emitter
+/// corrupts the document outright; a separator is subtler, the emitter
 /// folds the scalar and the parser reads back the folding indentation as
 /// part of the value, so the write silently succeeds with a mangled
 /// value. The values these writers handle (GHSA ids, version-policy

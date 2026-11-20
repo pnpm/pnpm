@@ -6,7 +6,7 @@ use serde_json::Value;
 /// (`application/vnd.npm.install-v1+json`) form.
 pub(super) const ABBREVIATED_TOP_FIELDS: &[&str] = &["name", "dist-tags"];
 
-/// Per-version fields preserved in the abbreviated form — a subset of
+/// Per-version fields preserved in the abbreviated form, a subset of
 /// the npm spec's abbreviated version object.
 pub(super) const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
     "name",

@@ -46,7 +46,7 @@ pub(super) fn match_package(
 }
 
 /// The resolved filesystem location (and manifest source) of every
-/// package node, found by walking the graph top-down from importers —
+/// package node, found by walking the graph top-down from importers,
 /// with a global virtual store the correct path is only reachable by
 /// following symlinks through each parent's `node_modules`.
 #[must_use]
@@ -186,7 +186,7 @@ fn normalize_unc_directory(directory: &str) -> String {
 }
 
 /// `semver.compare` when both versions parse as semver, lexicographic
-/// otherwise — the tree ordering the TypeScript CLI uses.
+/// otherwise, the tree ordering the TypeScript CLI uses.
 #[must_use]
 pub fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {

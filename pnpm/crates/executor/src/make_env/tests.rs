@@ -106,7 +106,7 @@ fn make_env_preserves_user_config_and_strips_auth_and_package_leakage() {
     assert_eq!(
         built.env.get("PNPM_HOME").map(String::as_str),
         Some("/opt/pnpm"),
-        "pnpm_* (incl. PNPM_HOME) keys are NOT in upstream's strip filter — they must pass through",
+        "pnpm_* (incl. PNPM_HOME) keys are NOT in upstream's strip filter; they must pass through",
     );
     assert_eq!(
         built.env.get("HOME").map(String::as_str),
@@ -164,7 +164,7 @@ fn make_env_stamps_lifecycle_specific_keys() {
 
     // Compute expected paths through the same `join` so the
     // assertions are correct on Windows (`\\` separator) as well as
-    // POSIX. Path-separator handling itself is `std`'s job — these
+    // POSIX. Path-separator handling itself is `std`'s job; these
     // tests verify build_env's mapping, not separator policy.
     let expected_package_json = pkg_root
         .join("package.json")
@@ -375,7 +375,7 @@ fn stamp_package_recurses_into_kept_buckets() {
     assert_eq!(
         env.get("npm_package_config_deep_nested").map(String::as_str),
         Some("value"),
-        "recursion must keep going beneath config/* — only the top-level filter restricts",
+        "recursion must keep going beneath config/*, only the top-level filter restricts",
     );
     assert_eq!(env.get("npm_package_engines_node").map(String::as_str), Some(">=18"));
     assert_eq!(env.get("npm_package_bin_foo").map(String::as_str), Some("./bin/foo.js"));

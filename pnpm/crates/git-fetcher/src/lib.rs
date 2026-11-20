@@ -4,10 +4,10 @@
 //! Two fetcher entry points, sharing `prepare_package` / `packlist` /
 //! the CAS-import helpers:
 //!
-//! - [`GitFetcher`] handles `LockfileResolution::Git` — shells out to
+//! - [`GitFetcher`] handles `LockfileResolution::Git`, shells out to
 //!   the system `git` binary.
 //! - [`GitHostedTarballFetcher`] handles
-//!   `TarballResolution { gitHosted: true }` — picks up a tarball the
+//!   `TarballResolution { gitHosted: true }`, picks up a tarball the
 //!   pacquet HTTP path has already downloaded into the CAS, materializes
 //!   it into a temp dir, and runs the same `prepare_package` + packlist
 //!   passes.

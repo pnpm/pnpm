@@ -322,8 +322,8 @@ fn rewrite_runtime_without_node_resolver(requested: &str, previous: &str) -> Str
 /// A dist tag names no version until it is resolved, so an entry pinning a
 /// version or a range records what the tag resolved to, keeping the operator
 /// it already pins. An entry that already tracks a tag keeps tracking one.
-/// Anything else — a `catalog:` reference, a `workspace:` or `npm:` alias, a
-/// path or git dependency — declares something no version round-trips, so it
+/// Anything else, a `catalog:` reference, a `workspace:` or `npm:` alias, a
+/// path or git dependency, declares something no version round-trips, so it
 /// stands and the selector reaches the install as a preference only.
 pub(super) async fn tag_rewrite(
     rewrite_ctx: &LatestRewriteCtx<'_, '_>,

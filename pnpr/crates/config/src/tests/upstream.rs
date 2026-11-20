@@ -240,8 +240,8 @@ registries:
     assert!(config.routing.upstreams["npmjs"].search);
 }
 
-/// A `public` upstream is fetched anonymously, so *any* custom header — not just
-/// `Authorization`, but a credential smuggled through `X-Api-Key` — must fail
+/// A `public` upstream is fetched anonymously, so *any* custom header (not just
+/// `Authorization`, but a credential smuggled through `X-Api-Key`) must fail
 /// closed rather than be sent to a supposedly-public origin.
 #[test]
 fn from_yaml_str_rejects_public_upstream_with_custom_headers() {
@@ -265,7 +265,7 @@ registries:
 }
 
 /// With the registry disabled, an upstream registry whose credential cannot
-/// resolve must not fail startup — the tier never talks to that upstream. The
+/// resolve must not fail startup, the tier never talks to that upstream. The
 /// registry still joins the (validated) graph; only its serving config is
 /// skipped.
 #[test]

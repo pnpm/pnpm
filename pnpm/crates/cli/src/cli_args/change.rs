@@ -67,7 +67,7 @@ use std::{
     },
 };
 
-/// `pnpm change` — record a change intent: which packages a change affects,
+/// `pnpm change`: record a change intent: which packages a change affects,
 /// the bump type for each, and a summary that becomes the changelog entry.
 /// The intent file is written to `.changeset/` in the changesets format.
 #[derive(Debug, Args)]
@@ -79,7 +79,7 @@ pub struct ChangeArgs {
     pub params: Vec<String>,
 
     /// Bump type for the named packages: none, patch, minor, major. "none"
-    /// records an explicit decline — the change needs no release.
+    /// records an explicit decline, the change needs no release.
     #[clap(long)]
     pub bump: Option<String>,
 

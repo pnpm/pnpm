@@ -52,7 +52,7 @@ impl Config {
             // `modules_dir` / `install_state_dir` anchored at the CLI
             // `--dir` (the subdir), while the per-importer
             // [`SymlinkDirectDependencies`] writes are anchored at the
-            // workspace root — producing two `node_modules` layouts
+            // workspace root, producing two `node_modules` layouts
             // for the same install. pnpm v11 ties
             // `pnpmConfig.dir = lockfileDir` exactly so its defaults
             // resolve from the workspace root; we mirror that here.
@@ -62,7 +62,7 @@ impl Config {
             // still wins.
             //
             // `virtual_store_dir_explicit` guards the re-anchor for
-            // `install_state_dir` — without it, a `virtualStoreDir`
+            // `install_state_dir`, without it, a `virtualStoreDir`
             // already set in the global `config.yaml` would be
             // clobbered by the workspace-root default whenever the
             // workspace yaml itself leaves the field unset. `modules_dir`
@@ -79,7 +79,7 @@ impl Config {
             }
             // The workspace root is structural context (env-lockfile reads/
             // writes, pin persistence, and caller `catalog:` lookups for dlx),
-            // not a "setting" — set it whenever a workspace is discovered,
+            // not a "setting", set it whenever a workspace is discovered,
             // even on the `PNPM_CONFIG_WORKSPACE_DIR` path when the yaml file
             // is missing and `apply_to` (which also writes it) never runs.
             self.workspace_dir = Some(base_dir.clone());
@@ -194,7 +194,7 @@ impl Config {
         // `store_dir_explicit` carries the "did the user set `storeDir`
         // anywhere?" signal through the cascade. Tracked separately
         // from `virtual_store_dir_explicit` because the downstream
-        // consumer is different — store_dir's late-stage cross-volume
+        // consumer is different, store_dir's late-stage cross-volume
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         if let Some(mut global_settings) = global_settings {
@@ -249,7 +249,7 @@ impl Config {
         // makes the flag mean "standalone project": with no workspace dir
         // there is no shared lockfile, no sibling projects, and no
         // `pnpm-workspace.yaml` settings layer. Only the flag reaches
-        // this far — see [`Config::ignore_workspace`].
+        // this far; see [`Config::ignore_workspace`].
         let env_workspace_dir = pnpm_workspace::WORKSPACE_DIR_ENV_VARS
             .iter()
             .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))

@@ -52,8 +52,8 @@ use std::{
 };
 
 /// This subroutine creates the virtual-store slot for one package and then
-/// runs the two post-extraction tasks — CAS file import and intra-package
-/// symlink creation — in parallel via `rayon::join`.
+/// runs the two post-extraction tasks (CAS file import and intra-package
+/// symlink creation) in parallel via `rayon::join`.
 ///
 /// Symlinks don't depend on CAS file contents, only on the resolved dep graph,
 /// so overlapping them with the import saves the serial symlink time per
@@ -170,7 +170,7 @@ impl CreateVirtualDirBySnapshot<'_> {
         // `pnpm:progress imported` fires one event per (resolved +
         // fetched) package once its CAFS import has finished. `to` is
         // the per-package directory
-        // inside the virtual store. `method` is best-effort — pacquet
+        // inside the virtual store. `method` is best-effort, pacquet
         // doesn't surface the per-package resolved method past
         // `link_file`'s install-scoped atomic, so we report the
         // optimistic value this slot's import method would resolve to in
@@ -321,7 +321,7 @@ impl SlotPaths {
         // failing `mkdir` per missing ancestor before creating them
         // top-down, which on the APFS-serialized metadata path costs a
         // large install ~3 extra syscalls per slot. The virtual-store
-        // root exists (steady state) — only its absence falls back to
+        // root exists (steady state), only its absence falls back to
         // the recursive form.
         create_slot_dirs(&slot_dir, &node_modules)?;
         let save_path = safe_join_modules_dir(&node_modules, &package_key.name.to_string())
@@ -334,7 +334,7 @@ impl SlotPaths {
 /// the recursive form probes bottom-up with a failing `mkdir` per missing
 /// ancestor before creating them top-down, which on the APFS-serialized
 /// metadata path costs a large install ~3 extra syscalls per slot. The
-/// virtual-store root exists (steady state) — only its absence falls back to
+/// virtual-store root exists (steady state), only its absence falls back to
 /// the recursive form.
 fn create_slot_dirs(
     slot_dir: &Path,
@@ -393,7 +393,7 @@ fn slot_import_opts<'a>(
     // import may be stale.
     let safe_to_skip = layout.enable_global_virtual_store() && !source_is_mutable;
     // A mutable source that is currently missing must never be forced, even by
-    // force_import — see SlotImportSource::source_exists.
+    // force_import; see SlotImportSource::source_exists.
     if source_is_mutable && !source_exists {
         return ImportIndexedDirOpts { safe_to_skip, swap_lock, ..ImportIndexedDirOpts::default() };
     }

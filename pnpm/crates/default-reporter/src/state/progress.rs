@@ -26,7 +26,7 @@ impl ReporterState {
 
     /// pnpm's `reportScope`: how many workspace projects the command
     /// selected. Silent for a command that doesn't report scope, and for a
-    /// single selected project — where the answer is the directory the
+    /// single selected project, where the answer is the directory the
     /// user is already standing in.
     pub(super) fn on_scope(&mut self, log: &ScopeLog) {
         if !self.options.scope.reports_scope || log.selected == 1 {

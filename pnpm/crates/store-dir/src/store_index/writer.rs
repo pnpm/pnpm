@@ -31,7 +31,7 @@ pub struct StoreIndexWriter {
     disabled: bool,
     /// One-shot log guard for the "channel closed" case in [`Self::queue`].
     /// A dead writer (task panicked, [`StoreIndex::open`] failed) means
-    /// every subsequent `queue` call fails — without this guard that
+    /// every subsequent `queue` call fails, without this guard that
     /// spams 1352+ identical warnings into the install log. Once the
     /// first failure has been logged, further failures go silent;
     /// subsequent installs will still observe the missing index rows
@@ -61,7 +61,7 @@ enum WriteMsg {
     ///
     /// Routing R/M/W through the writer task is the simplest way
     /// to make multi-snapshot uploads against the same row
-    /// commutative — every read happens after every previously-
+    /// commutative; every read happens after every previously-
     /// queued write for the same key (committed in this batch or
     /// in a prior one). Doing it on the caller thread with a
     /// readonly handle would let a second upload re-read the
@@ -217,7 +217,7 @@ impl StoreIndexWriter {
         }
     }
 
-    /// Spawn a writer that never opens `index.db` — it drains every
+    /// Spawn a writer that never opens `index.db`; it drains every
     /// queued message and drops it.
     ///
     /// Used when `frozenStore` is enabled: the store is opened read-only,
@@ -264,7 +264,7 @@ fn handle_batch_write_error(
 }
 
 /// Drain whatever else is already queued to maximize batch size without ever
-/// blocking on the channel — a single `recv` by the caller is the only
+/// blocking on the channel, a single `recv` by the caller is the only
 /// blocking wait per transaction. Capped at [`MAX_BATCH_SIZE`] so a producer
 /// storm doesn't grow an unbounded buffer on the writer side.
 fn drain_queued(
@@ -273,7 +273,7 @@ fn drain_queued(
 ) {
     while batch.len() < MAX_BATCH_SIZE {
         // `Empty` / `Disconnected` both mean "nothing more to drain right
-        // now" — the caller flushes the current batch and loops back; if the
+        // now", the caller flushes the current batch and loops back; if the
         // channel is disconnected its `blocking_recv` returns `None` next and
         // the task exits cleanly.
         let Ok(item) = rx.try_recv() else { break };
@@ -327,11 +327,11 @@ impl StoreIndexWriter {
     /// `files`, inserts `(cache_key → diff)` into the row's
     /// `side_effects` map, and re-flushes. Routing this through
     /// the writer's batch loop is what keeps multiple uploads for
-    /// the same row commutative — see the doc-comment on the
+    /// the same row commutative; see the doc-comment on the
     /// `WriteMsg::SideEffectsUpload` variant for the rationale.
     ///
     /// If no base row exists at `key`, the upload is silently
-    /// skipped — there is nothing to layer the side-effects diff onto.
+    /// skipped; there is nothing to layer the side-effects diff onto.
     pub fn queue_side_effects_upload(
         &self,
         key: String,

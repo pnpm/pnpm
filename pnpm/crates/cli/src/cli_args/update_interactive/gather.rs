@@ -147,7 +147,7 @@ fn unique_choices(
     choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
 ) -> miette::Result<Vec<OutdatedPackage>> {
     // Keyed by workspace as well, so an entry each project contributed
-    // survives to [`super::choices::update_choices`] — that is what lets a
+    // survives to [`super::choices::update_choices`], that is what lets a
     // collapsed row name every project it covers instead of the first.
     let mut unique = HashSet::new();
     let mut collected = Vec::new();

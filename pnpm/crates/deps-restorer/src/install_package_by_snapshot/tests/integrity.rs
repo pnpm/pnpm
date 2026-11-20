@@ -11,7 +11,7 @@ use pnpm_lockfile::{
 
 /// The bytes of a plain remote tarball are whatever the server hands
 /// back, so a lockfile that pins no hash for one cannot be fetched
-/// from — pnpm's `assertFetchableResolution` refuses it too.
+/// from, pnpm's `assertFetchableResolution` refuses it too.
 #[test]
 fn remote_tarball_resolution_without_integrity_is_refused() {
     let config = Config::new();
@@ -39,7 +39,7 @@ fn remote_tarball_resolution_without_integrity_is_refused() {
     );
 }
 /// An emptied-out `integrity: ''` pins nothing, so it is refused on the
-/// same footing as an absent field — for a registry resolution too,
+/// same footing as an absent field, for a registry resolution too,
 /// whose integrity is structurally mandatory but can still be empty.
 #[test]
 fn empty_integrity_is_refused_like_a_missing_one() {

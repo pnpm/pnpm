@@ -42,14 +42,14 @@ pub fn to_napi_error<Diag: Diagnostic + ?Sized>(error: &Diag) -> napi::Error {
     let reason = match serde_json::to_string(&envelope) {
         Ok(json) => format!("{ENVELOPE_PREFIX}{json}"),
         // If the envelope itself fails to serialize, fall back to the plain
-        // message — the JS side then sees a normal Error with no `code`.
+        // message, the JS side then sees a normal Error with no `code`.
         Err(_) => envelope.message,
     };
     napi::Error::from_reason(reason)
 }
 
-/// Convert a boxed [`miette::Report`] — what the crates that build their
-/// errors with `miette::miette!` hand back — into the same envelope.
+/// Convert a boxed [`miette::Report`], what the crates that build their
+/// errors with `miette::miette!` hand back, into the same envelope.
 /// `Report` is not itself a [`Diagnostic`]; it derefs to the one it wraps.
 pub fn report_to_napi_error(report: &miette::Report) -> napi::Error {
     to_napi_error(&**report)

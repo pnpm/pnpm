@@ -8,7 +8,7 @@ use super::{
 };
 
 /// A YAML permission value: a sequence of tokens, or a scalar naming exactly
-/// one token. Every entry is taken verbatim — there is no whitespace
+/// one token. Every entry is taken verbatim; there is no whitespace
 /// splitting inside a scalar or a sequence element, so a multi-token list
 /// must be a YAML sequence (`access: [$authenticated, admin]`). Verdaccio's
 /// space-separated form (`access: $authenticated admin`) is rejected with a

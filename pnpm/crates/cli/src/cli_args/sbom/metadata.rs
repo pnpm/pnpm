@@ -280,7 +280,7 @@ pub(super) fn build_purl_with_encoded_registry(
 }
 
 /// The resolution's integrity, but only where pnpm checks the downloaded
-/// bytes against it — so an SBOM never publishes a checksum as an assurance
+/// bytes against it, so an SBOM never publishes a checksum as an assurance
 /// pnpm did not make. A git resolution's recorded hash is not one: nothing
 /// verifies a checkout against it (see
 /// [`pnpm_lockfile::GitResolution::integrity`]).

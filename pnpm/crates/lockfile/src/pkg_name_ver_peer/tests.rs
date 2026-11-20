@@ -48,7 +48,7 @@ fn parse_local_tarball_file_protocol() {
 }
 
 /// `PkgVerPeer` lumps `(patch_hash=...)(<peers>)` into the `peer`
-/// field — the raw key still round-trips.
+/// field, the raw key still round-trips.
 #[test]
 fn parse_patch_hash_and_peer_suffix_round_trip() {
     let raw = "foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)";
@@ -147,7 +147,7 @@ fn without_peer_strips_peer_with_nested_parens() {
 }
 
 /// Runtime entries keep their `runtime:` prefix on the metadata-map
-/// key — pnpm's `packages:` entry carries the same prefix, so
+/// key, pnpm's `packages:` entry carries the same prefix, so
 /// dropping it would unhook the snapshot from its metadata.
 #[test]
 fn without_peer_preserves_runtime_prefix() {

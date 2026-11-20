@@ -114,10 +114,10 @@ pub(super) enum PublishTarget {
 /// Resolve where a publish lands. A write may only target a hosted registry
 /// whose declared patterns claim the name: a selection of an upstream is
 /// rejected ("name a hosted registry"), never silently landing on an upstream,
-/// and an unclaimed name is rejected with the reason — so a typo'd scope
+/// and an unclaimed name is rejected with the reason, so a typo'd scope
 /// fails loudly at publish time instead of storing a name the registry's
 /// namespace can never serve. The registry's `access` list gates the write
-/// exactly as it gates reads — a caller the registry denies gets the same
+/// exactly as it gates reads, a caller the registry denies gets the same
 /// not-found mask as on a read, whether the name is claimed or not
 /// ([`registry_visible_to_caller`] gates the loud rejection), so a private
 /// registry neither accepts the write nor reveals that it exists. The
@@ -144,7 +144,7 @@ pub(super) fn resolve_publish_target_for(
                 HostedGate::Denied(err) => PublishTarget::Denied(err),
             }
         }
-        // A write can never land on an upstream — but the upstream's grants
+        // A write can never land on an upstream, but the upstream's grants
         // gate the write endpoints exactly as they gate reads, so a caller the
         // upstream denies gets the read path's 403 (`authorized_upstream`), not
         // a rejection that narrates where the name routes.
@@ -238,7 +238,7 @@ pub(super) fn registry_visible_to_caller(
     }
 }
 
-/// `PUT /:pkg` (path-less) or `PUT /~<name>/:pkg` — publish a new version (or
+/// `PUT /:pkg` (path-less) or `PUT /~<name>/:pkg`, publish a new version (or
 /// republish). Body is the full packument with `_attachments` carrying the
 /// tarball bytes base64-encoded.
 pub(super) async fn publish_package(

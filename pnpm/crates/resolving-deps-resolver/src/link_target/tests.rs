@@ -5,7 +5,7 @@ use super::{
 use pretty_assertions::assert_eq;
 use std::path::Path;
 
-/// An anchor that is absolute on every platform — a bare `/ws/root` is
+/// An anchor that is absolute on every platform, a bare `/ws/root` is
 /// not absolute on Windows (no drive prefix), which the guards reject.
 fn abs_root() -> &'static Path {
     if cfg!(windows) { Path::new(r"C:\ws\root") } else { Path::new("/ws/root") }
@@ -67,8 +67,8 @@ fn guards_send_unclean_inputs_to_the_fallback() {
     assert_eq!(disarmed.target_relative_to_lockfile_root("packages/lib"), None);
 }
 
-/// Targets whose kept tail is not verbatim — collapsed separators, `.`
-/// segments, a trailing separator — re-render through the segment join
+/// Targets whose kept tail is not verbatim (collapsed separators, `.`
+/// segments, a trailing separator) re-render through the segment join
 /// and agree with the clean spelling of the same target.
 #[test]
 fn filtered_segments_render_like_their_clean_spelling() {

@@ -35,7 +35,7 @@ use super::{
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;
 
-/// `GET /-/org/{scope}/package` — the npm-compatible package-permission map.
+/// `GET /-/org/{scope}/package`: the npm-compatible package-permission map.
 /// Values are useful to npm's account UI; registry UIs such as npmX consume
 /// the keys as the authoritative package list.
 pub(super) async fn serve_org_packages(
@@ -208,7 +208,7 @@ pub(super) fn upstream_org_package_is_visible(
 /// through the addressed registry (an explicit `/~<name>/`, or the
 /// path-less default) exactly as a package read in that scope would, then
 /// whether the caller may read anything in that registry gates it. A denial is
-/// masked as not-found — team and member names must not become an
+/// masked as not-found, team and member names must not become an
 /// existence probe for a private registry. Returns the registry's name with
 /// its config. Teams belong to the instance, so the registry only decides who
 /// may ask.
@@ -293,8 +293,8 @@ pub(super) fn visible_teams(
     Ok(visible)
 }
 
-/// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`
-/// — list the teams the caller may see, in the shape the pnpm team command
+/// `GET /-/org/{scope}/team` (path-less) or `GET /~<name>/-/org/{scope}/team`,
+/// list the teams the caller may see, in the shape the pnpm team command
 /// consumes: an array of `{"name": ...}`.
 pub(super) fn get_org_teams(
     state: &AppState,
@@ -315,7 +315,7 @@ pub(super) fn get_org_teams(
 }
 
 /// `GET /-/team/{scope}/{team}/user` (path-less) or
-/// `GET /~<name>/-/team/{scope}/{team}/user` — list a team's members, in
+/// `GET /~<name>/-/team/{scope}/{team}/user`, list a team's members, in
 /// the shape the pnpm team command consumes: an array of `{"name": ...}`.
 pub(super) async fn get_team_members(
     state: &AppState,

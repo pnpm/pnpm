@@ -18,9 +18,9 @@ use std::collections::{
 };
 
 /// What the fast-update handlers did to the dependency graph, so the
-/// maintenance that keeps the lockfile consistent — pruning, the
+/// maintenance that keeps the lockfile consistent (pruning, the
 /// peer-suffix safety check, catalog entry pruning, and the `optional`
-/// flag recompute — runs once over the combined result instead of once
+/// flag recompute) runs once over the combined result instead of once
 /// per handler.
 #[derive(Default)]
 pub(crate) struct GraphEdits {
@@ -35,8 +35,8 @@ pub(crate) struct GraphEdits {
 /// What the edges a fast update severed pointed at, each written the way
 /// a peer suffix names a package: `name@version`, or a bare `name@` when
 /// the reference pins no version a suffix segment can be compared
-/// against — a link or a tarball, whose suffix segment carries the
-/// resolved manifest version instead — which makes every suffix naming
+/// against (a link or a tarball, whose suffix segment carries the
+/// resolved manifest version instead) which makes every suffix naming
 /// that name suspect.
 #[derive(Default)]
 pub(crate) struct DroppedEdges(HashSet<String>);
@@ -82,7 +82,7 @@ impl DroppedEdges {
             || peer_id_of(key).is_some_and(|peer_id| self.0.contains(&peer_id))
     }
 
-    /// Whether `peers` — the peer suffix of a snapshot key — names none
+    /// Whether `peers` (the peer suffix of a snapshot key) names none
     /// of the severed edges' targets, at any nesting depth. Without
     /// `dedupePeers` a peer is named by its whole dep path, and the peers
     /// that path pins are as much a part of the dependent's key as the

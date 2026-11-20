@@ -5,7 +5,7 @@
 //! [`ImageDocument`] a hosted registry keeps per repository.
 //!
 //! A repository's blobs are content-addressed and immutable, so pushing one
-//! is not what makes a release visible — referencing it from a manifest is.
+//! is not what makes a release visible, referencing it from a manifest is.
 //! That is why the document records manifests and tags but not layers: the
 //! manifest write is the commit point, and a blob no manifest names is
 //! garbage for collection rather than a half-published release.

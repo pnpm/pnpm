@@ -75,7 +75,7 @@ impl EffectiveResolverSettings {
     /// The client's own values whenever it sends them. A client that sends
     /// none (one older than
     /// [pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)) falls
-    /// back to the input lockfile on a frozen request — nothing is
+    /// back to the input lockfile on a frozen request; nothing is
     /// re-resolved there, the freshness gate compares these against the
     /// config, and the server's defaults would call a lockfile that is valid
     /// for its owner stale. On an update-capable request it falls back to the

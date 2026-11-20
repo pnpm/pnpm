@@ -126,7 +126,7 @@ use std::{
 ///   tag reaches past the declared range. The follow-up install then
 ///   resolves the new range.
 /// * **`--tag <tag>`**: the same rewrite, except the dependency moves to
-///   the version behind the given dist-tag — exactly what a `<name>@<tag>`
+///   the version behind the given dist-tag, exactly what a `<name>@<tag>`
 ///   selector asks for, applied to every matched dependency.
 /// * **`--workspace`** ([`UpdateSelection::workspace_packages`]): each matched
 ///   direct dependency that a workspace project publishes is re-pointed
@@ -141,8 +141,8 @@ use std::{
 ///
 /// A dependency a bare-name override governs answers to the override, not its
 /// declaration: the declaration never moves, and an update that names the
-/// dependency moves the override with it — keeping the override's own range
-/// shape — or reports an override it cannot move
+/// dependency moves the override with it (keeping the override's own range
+/// shape) or reports an override it cannot move
 /// ([pnpm/pnpm#8701](https://github.com/pnpm/pnpm/issues/8701)). Under
 /// `--latest` or `--tag`, a range-scoped override leaves the declaration to
 /// move past its range, where the override stops matching.
@@ -270,7 +270,7 @@ pub enum UpdateError {
 
 /// pnpm's mutation for an update: a full install of the projects it was
 /// pointed at when the user named nothing, and `installSome` once the
-/// update targets specific dependencies — either by selector or through
+/// update targets specific dependencies; either by selector or through
 /// `--latest` / `--tag`, which expand to every direct dependency's spec.
 ///
 /// `--workspace` does not enter into it: pnpm picks the mutation from the
@@ -396,7 +396,7 @@ pub struct UpdateSelection<'a> {
     pub depth: usize,
     /// `--workspace`: what the workspace projects publish, as built by
     /// [`crate::build_workspace_packages_map`]. `Some` turns the update
-    /// into a workspace-link update — the matched direct dependencies
+    /// into a workspace-link update, the matched direct dependencies
     /// are re-pointed at the workspace copies through the `workspace:`
     /// protocol instead of the registry. `None` is a plain update.
     pub workspace_packages: Option<&'a WorkspacePackages>,

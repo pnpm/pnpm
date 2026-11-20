@@ -159,7 +159,7 @@ impl WorkspaceSettings {
     /// through, so a repository must not get a say in whether it may be
     /// replaced. Both policies are dangerous in both directions here: a
     /// cooldown lowered waives the protection the user configured, raised it
-    /// pins the machine to the installed pnpm — including past a release that
+    /// pins the machine to the installed pnpm, including past a release that
     /// fixes a vulnerability in it; a trust policy turned off accepts a pnpm
     /// release whose trust evidence the user meant to reject, turned on blocks
     /// the update the same way. Unlike a blocked dependency upgrade, those

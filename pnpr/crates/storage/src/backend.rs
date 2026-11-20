@@ -48,7 +48,7 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     /// Write only if the stored document is still at `version`. A backend
     /// without compare-and-set reports [`DocumentWrite::Written`]
-    /// unconditionally — it serializes writers by another means.
+    /// unconditionally; it serializes writers by another means.
     async fn write_document_if_current(
         &self,
         name: &CanonicalPackageName,
@@ -119,8 +119,8 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     //
     // The store also holds what the registry itself keeps beside the packages:
     // staged publish bodies and pipeline run records. Each such
-    // kind owns a reserved namespace of the hosted store — a dot-prefixed
-    // segment beside `packages/` — and addresses its records by a key within
+    // kind owns a reserved namespace of the hosted store (a dot-prefixed
+    // segment beside `packages/`) and addresses its records by a key within
     // it. `Storage` names the namespaces; a backend only maps a namespace and
     // key onto a path or an object key.
 

@@ -119,7 +119,7 @@ fn create_allow_build_before_name_is_parsed() {
 }
 
 /// Options placed after `<name>` are forwarded to the package, not parsed
-/// by create — matching pnpm's `escapeArgs` behavior where everything
+/// by create, matching pnpm's `escapeArgs` behavior where everything
 /// after the first positional is opaque.
 #[cfg(unix)]
 #[test]

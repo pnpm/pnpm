@@ -247,7 +247,7 @@ pub(super) struct ColdMockGraph {
     #[serde(rename = "defaultRegistry")]
     default_registry: &'static str,
 }
-/// The `registries:` table — a single-upstream entry.
+/// The `registries:` table, a single-upstream entry.
 #[derive(Serialize)]
 pub(super) struct ColdMockUpstreamTable {
     npmjs: ColdMockUpstreamEntry,

@@ -27,8 +27,8 @@ use crate::{
 };
 
 /// A scripted response for a credential prompt, keyed on the prompt message.
-/// The error half is `dialoguer::Error` — exactly what the real terminal read
-/// yields — so a script can drive [`super::prompt::prompt_line`]'s real error
+/// The error half is `dialoguer::Error` (exactly what the real terminal read
+/// yields) so a script can drive [`super::prompt::prompt_line`]'s real error
 /// classification (e.g. an interrupt mapping to a canceled login). `Send`
 /// because `prompt_line` calls the fake read from a `spawn_blocking` thread.
 pub(crate) type PromptScript = Box<dyn FnMut(&str) -> Result<String, dialoguer::Error> + Send>;
@@ -149,7 +149,7 @@ pub(crate) fn client() -> ThrottledClient {
     ThrottledClient::default()
 }
 
-/// Build [`LoginOptions`] with retry / timeout knobs zeroed — the poll runs
+/// Build [`LoginOptions`] with retry / timeout knobs zeroed, the poll runs
 /// against the fake clock, so the real values are irrelevant.
 pub(crate) fn opts<'a>(registry: &'a str, config_dir: &'a Path) -> LoginOptions<'a> {
     LoginOptions {

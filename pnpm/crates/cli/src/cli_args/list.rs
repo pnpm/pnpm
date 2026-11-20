@@ -1,4 +1,4 @@
-//! `pnpm list` / `ls` / `ll` / `la` — list installed packages.
+//! `pnpm list` / `ls` / `ll` / `la`: list installed packages.
 
 pub(in crate::cli_args) mod global;
 pub(in crate::cli_args) mod recursive;

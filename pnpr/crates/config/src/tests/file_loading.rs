@@ -109,7 +109,7 @@ fn from_default_yaml_parses_bundled_file() {
 #[test]
 fn default_yaml_const_matches_what_from_default_parses() {
     // Sanity check: the const is non-empty and round-trips through
-    // the parser without panicking — i.e. `from_default_yaml`'s
+    // the parser without panicking, i.e. `from_default_yaml`'s
     // `expect(...)` is not a tripwire under future edits.
     assert!(!DEFAULT_CONFIG_YAML.is_empty());
     let _ = Config::from_default_yaml(Path::new("."), listen(), None);
@@ -290,7 +290,7 @@ fn resolve_propagates_parse_error_for_cli_path() {
 
 #[test]
 fn resolve_propagates_missing_file_error_for_default_path() {
-    // Symmetric to the CLI case — a bad default path is just as
+    // Symmetric to the CLI case, a bad default path is just as
     // fatal as a bad CLI path. (In practice callers only pass a
     // default path that already passed `config_file_in`'s
     // `is_file()` check, so this is a defense-in-depth assertion.)

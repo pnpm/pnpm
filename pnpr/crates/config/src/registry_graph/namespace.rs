@@ -45,7 +45,7 @@ pub(in super::super) fn ecosystem_package_keys(
 
 /// Two hosted registries of the same ecosystem sharing a `namespace` would read and
 /// write the same storage namespace, so a package published to one would
-/// surface through the other — breaking the declared-provenance isolation.
+/// surface through the other, breaking the declared-provenance isolation.
 /// Rejected at load, whether the config came from YAML or an embedder.
 pub(in super::super) fn namespace_collision_error(
     name: &str,
@@ -106,7 +106,7 @@ pub(in super::super) fn validate_artifact_owner_name(name: &str) -> Result<(), R
 /// A hosted registry's `namespace` becomes a storage path/key segment (`Storage::for_hosted`),
 /// so it must be empty (the default namespace) or one safe component under the same
 /// rules as every other on-disk segment (no separators, traversal, leading
-/// dot, or Windows drive prefix) — otherwise a crafted config could read or
+/// dot, or Windows drive prefix); otherwise a crafted config could read or
 /// write outside the storage root. The leading-dot rule also keeps a namespace
 /// from aliasing the reserved dot-directories inside the storage root (the
 /// default `.pnpr-cache` wipeable cache and the `.metadata` database), which

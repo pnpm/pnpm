@@ -1,4 +1,4 @@
-//! Resolves and installs *configurational dependencies* — the packages
+//! Resolves and installs *configurational dependencies*, the packages
 //! declared under `configDependencies` in `pnpm-workspace.yaml`. They
 //! are installed ahead of regular dependencies, into
 //! `node_modules/.pnpm-config/<name>`, and recorded in the env lockfile

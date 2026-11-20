@@ -77,8 +77,8 @@ const NAMED_REGISTRY_RESOLVED_VIA: &str = "named-registry";
 pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// Merged map of `<alias> → <registry URL>`. Built-in entries
     /// (`gh:` → GitHub Packages) plus any user-supplied overrides
-    /// from `pnpm-workspace.yaml#namedRegistries`. Already validated
-    /// — every URL parses and is HTTP or HTTPS.
+    /// from `pnpm-workspace.yaml#namedRegistries`. Already validated;
+    /// every URL parses and is HTTP or HTTPS.
     pub registries_by_prefix: HashMap<String, String>,
     /// Precomputed key set of [`Self::registries_by_prefix`]. The parser
     /// checks aliases against this set per call, so caching it

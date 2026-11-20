@@ -183,8 +183,8 @@ pub async fn wait_after_document_write_conflict(attempt: usize) {
 /// A cached upstream document, read at a granularity that avoids loading the
 /// (potentially multi-MB) body when it isn't needed:
 ///
-/// * `Fresh` — within the TTL; the body is read and ready to serve.
-/// * `Stale` — past the TTL. The body is left on disk; a per-registry cache
+/// * `Fresh`, within the TTL; the body is read and ready to serve.
+/// * `Stale`, past the TTL. The body is left on disk; a per-registry cache
 ///   refetches a stale entry rather than revalidating it, so the caller treats
 ///   `Stale` as a miss.
 #[derive(Debug)]
@@ -195,14 +195,14 @@ pub enum CachedDocument {
 
 /// Storage split into two stores with different durability guarantees:
 ///
-/// * `hosted` — the authoritative source of truth: packages this
+/// * `hosted`, the authoritative source of truth: packages this
 ///   server hosts directly (published through its API) plus the content
 ///   served in static mode. Served as-is and never overwritten by an
 ///   upstream refresh, so a hosted version can't be masked or lost.
 ///   Backed by a local directory by default, or an S3-compatible
 ///   object store (S3, Cloudflare R2, `MinIO`, ...) when the YAML `storage.s3`
-///   block is set — see the S3 backend.
-/// * `cached` — the disposable mirror of upstream registries. Safe to
+///   block is set; see the S3 backend.
+/// * `cached`, the disposable mirror of upstream registries. Safe to
 ///   wipe at any time; it self-heals on the next request. Always local,
 ///   on scratch/ephemeral disk.
 ///
@@ -365,7 +365,7 @@ impl Storage {
     // --- Authoritative (hosted) store -----------------------------------
 
     /// Read the authoritative document for `name`, fresh or stale.
-    /// Hosted content has no TTL — it is the source of truth.
+    /// Hosted content has no TTL; it is the source of truth.
     pub async fn read_hosted_document(
         &self,
         name: &CanonicalPackageName,

@@ -82,7 +82,7 @@ fn parseable_project_line(project: &ProjectHierarchy, long: bool) -> String {
 }
 
 /// One package's parseable line: its path, and under `--long` the
-/// specifier it resolves as — including the `npm:` alias form.
+/// specifier it resolves as, including the `npm:` alias form.
 fn parseable_node_line(node: &DependencyNode, long: bool) -> String {
     if !long {
         return plain(&node.package.path);

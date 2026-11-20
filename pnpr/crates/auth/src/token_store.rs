@@ -30,7 +30,7 @@ use super::{
 /// Pulls 32 bytes from the OS CSPRNG (`getrandom` → `/dev/urandom`
 /// on Linux, `BCryptGenRandom` on Windows, `getentropy` on macOS).
 /// We refuse to start the server if the OS RNG is unavailable
-/// rather than fall back to weaker entropy — token unguessability
+/// rather than fall back to weaker entropy, token unguessability
 /// is the whole reason this exists.
 pub(super) fn fresh_secret() -> [u8; 32] {
     let mut secret = [0u8; 32];

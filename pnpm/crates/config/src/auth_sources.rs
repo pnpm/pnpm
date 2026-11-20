@@ -48,7 +48,7 @@ where
         Some(path) => npmrc_source::<Host>(path, |text| {
             // Relative `cafile`/`certfile` entries resolve against
             // the file's directory; for a bare filename (no parent)
-            // that's the empty path — i.e. the process cwd — never
+            // that's the empty path (i.e. the process cwd) never
             // the file itself.
             let dir = path
                 .parent()
@@ -87,8 +87,8 @@ fn parse_trusted_source<Sys: EnvVar>(text: &str, dir: &Path, path: &Path) -> Npm
 /// URL-scoped credentials from `npm_config_//...` / `pnpm_config_//...`
 /// environment variables. These are trusted (they come from the
 /// environment, not the repository) and host-scoped by construction, so
-/// they sit at the top of the precedence chain — above the project
-/// `.npmrc` — following the env-over-workspace ordering.
+/// they sit at the top of the precedence chain (above the project
+/// `.npmrc`) following the env-over-workspace ordering.
 fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
     let auth = NpmrcAuth::from_url_scoped_env::<Sys>();
     (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)

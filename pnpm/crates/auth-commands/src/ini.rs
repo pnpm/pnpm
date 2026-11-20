@@ -104,7 +104,7 @@ impl IniSettings {
 }
 
 /// Quote a key or value that would otherwise be misread on the way back, as a
-/// JSON string — the same quoting the `ini` package's `write-ini-file`
+/// JSON string, the same quoting the `ini` package's `write-ini-file`
 /// applies, so [`encode_value`] and [`decode_value`] stay inverses (`ini`'s
 /// inline `;` / `#` escaping is out of scope; see the module docs). Quoting is
 /// required when the string:

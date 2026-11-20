@@ -128,7 +128,7 @@ fn allocate_tarball_buffer_presizes_for_reasonable_content_length() {
 }
 
 /// A maliciously or buggily huge `Content-Length` must not be
-/// passed through to the infallible `Vec::with_capacity` — that
+/// passed through to the infallible `Vec::with_capacity`, that
 /// would abort the process on allocation failure. `try_reserve_exact`
 /// surfaces the failure as `TarballTooLarge` so the install can
 /// reject this one package and continue.
@@ -146,8 +146,8 @@ fn allocate_tarball_buffer_rejects_absurd_content_length() {
     }
 }
 
-/// `extract_tarball_entries` must propagate any tar-side failure —
-/// corrupt header, short body read, path decode — as
+/// `extract_tarball_entries` must propagate any tar-side failure
+/// (corrupt header, short body read, path decode) as
 /// [`TarballError::ReadTarballEntries`] rather than panicking inside
 /// a blocking-pool task (which would take the whole install with it
 /// and could leave the pool with dangling permits).
@@ -305,7 +305,7 @@ fn decompress_gzip_stops_at_the_eager_ceiling() {
 }
 
 /// A lockfile records no unpacked size, so on a frozen install the
-/// archive's own gzip trailer is the only claim about it there is — and
+/// archive's own gzip trailer is the only claim about it there is, and
 /// a good enough one to route a large archive straight to the streaming
 /// extractor instead of discovering its size by decoding it twice.
 #[test]
@@ -342,7 +342,7 @@ fn extract_gzipped_tarball_streams_an_archive_past_the_eager_ceiling() {
         &[("package/package.json", br#"{"name":"bomb"}"#)],
     );
     // Rewrite the trailer's unpacked size so nothing warns the router
-    // ahead of the decode — the shape a bomb takes once the trailer is
+    // ahead of the decode, the shape a bomb takes once the trailer is
     // a signal.
     let trailer = bomb.len() - 4;
     bomb[trailer..].copy_from_slice(&1024_u32.to_le_bytes());
@@ -383,9 +383,9 @@ fn should_stream_extract_pivots_on_compressed_size_and_unpacked_hint() {
 }
 
 /// The streaming extractor must produce byte-identical outputs to the
-/// eager whole-archive extractor — same store-relative CAS paths, same
+/// eager whole-archive extractor (same store-relative CAS paths, same
 /// digests/modes/sizes in the index row, same bundled manifest and
-/// requires-build flag — because [`should_stream_extract`] routes
+/// requires-build flag) because [`should_stream_extract`] routes
 /// between the two per download and the shared `index.db` must not be
 /// able to tell them apart.
 #[test]
@@ -449,7 +449,7 @@ fn streaming_extract_matches_eager_extract() {
 }
 
 /// Streaming-path counterpart of
-/// [`extract_rejects_parent_dir_component_in_entry_path`] — the
+/// [`extract_rejects_parent_dir_component_in_entry_path`], the
 /// traversal guard must hold on both extraction paths.
 #[test]
 fn streaming_extract_rejects_parent_dir_component_in_entry_path() {
@@ -543,7 +543,7 @@ fn streaming_extract_applies_ignore_filter_dropping_entries_from_both_maps() {
 
 /// A large entry cut short by a truncated (but gzip-valid) archive
 /// must fail extraction without committing the partial payload to the
-/// CAS — the blob would be correctly content-addressed, but a
+/// CAS, the blob would be correctly content-addressed, but a
 /// cut-short transfer must leave the store as it found it.
 #[test]
 fn streaming_extract_truncated_large_entry_commits_nothing() {
@@ -622,7 +622,7 @@ fn streaming_extract_propagates_corrupt_gzip_as_read_error() {
 }
 
 /// A registry `dist.unpackedSize` at the streaming pivot routes the
-/// full download pipeline — integrity verification included — through
+/// full download pipeline (integrity verification included) through
 /// the streaming extractor.
 #[tokio::test]
 async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint() {

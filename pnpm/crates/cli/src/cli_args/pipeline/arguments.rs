@@ -5,7 +5,7 @@ pub struct WatchArgs {
     /// directory.
     #[clap(long, requires = "repo")]
     pub watch: bool,
-    /// The repository the watch agent polls and builds — a URL or a local
+    /// The repository the watch agent polls and builds, a URL or a local
     /// path, anything git accepts as a remote.
     #[clap(long, value_name = "REPO")]
     pub repo: Option<String>,
@@ -28,7 +28,7 @@ pub struct PipelineReportArgs {
     #[clap(long)]
     pub report: bool,
     /// Publish the run to this pnpr server instead of the `pnprServer`
-    /// setting — which also drives install offloading, so a server that
+    /// setting, which also drives install offloading, so a server that
     /// only stores runs is better named here.
     #[clap(long = "report-to", value_name = "URL")]
     pub report_to: Option<String>,

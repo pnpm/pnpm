@@ -464,12 +464,12 @@ fn fresh_resolve_walks_every_workspace_importer() {
     let a_dep = workspace.join("packages/a/node_modules/@pnpm.e2e/hello-world-js-bin-parent");
     assert!(
         is_symlink_or_junction(&a_dep).expect("query packages/a symlink"),
-        "packages/a/node_modules direct-dep symlink missing — sibling importer's deps weren't walked",
+        "packages/a/node_modules direct-dep symlink missing, sibling importer's deps weren't walked",
     );
     let b_dep = workspace.join("packages/b/node_modules/@pnpm.e2e/hello-world-js-bin");
     assert!(
         is_symlink_or_junction(&b_dep).expect("query packages/b symlink"),
-        "packages/b/node_modules direct-dep symlink missing — sibling importer's deps weren't walked",
+        "packages/b/node_modules direct-dep symlink missing, sibling importer's deps weren't walked",
     );
 
     // Shared virtual store: both packages land under
@@ -494,7 +494,7 @@ fn fresh_resolve_walks_every_workspace_importer() {
         "pnpm-lock.yaml missing importers entry for packages/b:\n{lockfile}",
     );
     // hello-world-js-bin-parent is a direct dep of packages/a, so it
-    // should appear in that importer's section — not just in
+    // should appear in that importer's section, not just in
     // `packages:` where any transitive could also surface the name.
     // Slice the lockfile to packages/a's importer block and check
     // there.
@@ -515,7 +515,7 @@ fn fresh_resolve_walks_every_workspace_importer() {
 /// that peer auto-installed (pnpm's default) and materialized into its
 /// lockfile importer `dependencies`. A subsequent `--frozen-lockfile`
 /// install must accept that lockfile instead of misreading the
-/// materialized peer as a removed dependency — the alpha.14
+/// materialized peer as a removed dependency, the alpha.14
 /// workspace-importer freshness regression.
 #[test]
 fn frozen_install_accepts_auto_installed_workspace_peer() {
@@ -1127,7 +1127,7 @@ fn optional_peer_stays_out_of_the_importer_without_auto_install_peers() {
         "optional peer linked into pkg-a under `autoInstallPeers: false`",
     );
     // The optional peer is still deduplicated into the dependent's peer
-    // context — the same entry the TypeScript CLI writes for this
+    // context, the same entry the TypeScript CLI writes for this
     // workspace. Its counterpart lives in `peerDependencies.ts`, in
     // `an optional peer declared by a workspace project is not added to
     // its own importer, when auto-install-peers is off`.
@@ -1196,7 +1196,7 @@ fn no_peer_is_hoisted_when_auto_install_peers_and_dedupe_peer_dependents_are_off
 
 /// When the workspace root and a non-root importer both depend on the
 /// same workspace package via `workspace:*`, each importer's resolved
-/// `link:` target is relative to *its own* directory — pnpm writes
+/// `link:` target is relative to *its own* directory, pnpm writes
 /// `link:packages/lib` for the root and `link:../lib` for
 /// `packages/app`.
 #[test]
@@ -1437,7 +1437,7 @@ fn workspace_specs_do_not_resolve_a_non_string_version_as_zero() {
 }
 
 /// A workspace root defined by `pnpm-workspace.yaml` alone is legal without a
-/// root `package.json`, and installing must not scaffold one — pnpm never
+/// root `package.json`, and installing must not scaffold one, pnpm never
 /// does, and a scaffolded root manifest (with the init template's failing
 /// `test` script) would become a selectable project for recursive commands.
 #[test]
@@ -1482,7 +1482,7 @@ fn install_does_not_scaffold_a_root_manifest_in_a_workspace() {
 
 /// With `preferSymlinkedExecutables`, the isolated linker also
 /// materializes `.bin` entries as symlinks to executable bin files instead of
-/// shell shims — pnpm's `deps-installer` "prefer-symlinked-executables"
+/// shell shims, pnpm's `deps-installer` "prefer-symlinked-executables"
 /// install coverage.
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]

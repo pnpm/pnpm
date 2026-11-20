@@ -1,4 +1,4 @@
-//! `pacquet setup` — make pnpm available for global use.
+//! `pacquet setup`: make pnpm available for global use.
 //!
 //! The CLI is installed into the global packages directory, the `pn` /
 //! `pnpx` / `pnx` alias scripts are written into `$PNPM_HOME/bin`, and
@@ -376,6 +376,10 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
 }
 
 /// The `sh` form of an alias, which reaches the sibling `pnpm` shim.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(perfectionist::em_dash_prose, reason = "pnpm v11 writes the same script")
+)]
 fn posix_alias_script(name: &str, subcommand: &str) -> String {
     format!(
         r#"#!/bin/sh

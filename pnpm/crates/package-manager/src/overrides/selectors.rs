@@ -92,7 +92,7 @@ impl VersionsOverrider {
 }
 
 /// Parse a dependency edge's declared spec for the convergence
-/// consult. Only plain semver ranges participate — `workspace:`,
+/// consult. Only plain semver ranges participate, `workspace:`,
 /// `catalog:`, `npm:`, git/URL, and dist-tag specifiers have no
 /// defined "satisfies" relation and yield `None`. An empty declared
 /// spec counts as `*`.
@@ -275,7 +275,7 @@ fn is_intersecting_range(range1: Option<&str>, range2: &str) -> bool {
 
 /// True when `version` (parsed as a concrete semver) satisfies
 /// `range`, the guard in the parent-scoped filter.
-/// A non-parseable version OR range fails the match conservatively —
+/// A non-parseable version OR range fails the match conservatively,
 /// the parent constraint is treated as not applying.
 pub(super) fn semver_satisfies(version: &str, range: &str) -> bool {
     let Ok(parsed_version) = version.parse::<Version>() else { return false };

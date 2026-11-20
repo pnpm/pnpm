@@ -25,8 +25,8 @@ const INVALID_EXPANSION: &str = "invalid environment-expanded value";
 /// how long loading its own configuration takes.
 ///
 /// Placeholders are decided in groups, which is what makes this affordable:
-/// the ones a document reads without — in comments, and in every setting that
-/// takes free text — cost about one read per doubling of their number rather
+/// the ones a document reads without (in comments, and in every setting that
+/// takes free text) cost about one read per doubling of their number rather
 /// than one each, and only the ones a setting genuinely needs cost about two
 /// apiece. A file naming this many settings out of the environment is far past
 /// anything written by hand, and is read as written.

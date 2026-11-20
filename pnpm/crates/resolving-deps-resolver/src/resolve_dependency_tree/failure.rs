@@ -139,7 +139,7 @@ pub enum ResolveDependencyTreeError {
     #[diagnostic(transparent)]
     UnsupportedProtocol(#[error(source)] UnsupportedProtocolError),
 
-    /// The npm resolver's cache/fetch orchestration failed — most often
+    /// The npm resolver's cache/fetch orchestration failed, most often
     /// `ERR_PNPM_NO_OFFLINE_META`, raised with whatever code and help
     /// [`PickPackageError`] itself carries.
     #[diagnostic(transparent)]

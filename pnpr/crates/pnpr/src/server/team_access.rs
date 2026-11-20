@@ -182,7 +182,7 @@ async fn put_named(
     state.inner.storage.put_grant(&id, content, None).await
 }
 
-/// `GET /-/team/{scope}/{team}/package` — the package patterns that grants
+/// `GET /-/team/{scope}/{team}/package`: the package patterns that grants
 /// give the team in `@{scope}`'s registry, as `{"<pattern>": "read-only" |
 /// "read-write"}`. A grant that covers every package is listed as `**`.
 pub(super) fn list_team_packages(

@@ -1,5 +1,5 @@
 //! Summarize a packed tarball's bytes into the [`PublishSummary`] shape that
-//! `pnpm publish --json` emits — used by `pnpm stage download` to describe a
+//! `pnpm publish --json` emits, used by `pnpm stage download` to describe a
 //! staged tarball without re-packing it.
 
 use super::StageError;

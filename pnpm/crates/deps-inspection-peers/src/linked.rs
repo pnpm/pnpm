@@ -81,7 +81,7 @@ impl<'a> LinkRoots<'a> {
     }
 }
 
-/// `base_dir` is the directory the `link:` target is relative to — the
+/// `base_dir` is the directory the `link:` target is relative to, the
 /// importer's directory for importer dependencies, the lockfile directory for
 /// snapshot dependencies. Targets escaping `roots` are rejected.
 pub(super) fn resolve_link_version(

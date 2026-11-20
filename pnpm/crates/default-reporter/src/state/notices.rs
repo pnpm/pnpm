@@ -84,7 +84,7 @@ impl ReporterState {
     // --- misc one-liners --------------------------------------------------
 
     pub(super) fn on_ignored_scripts(&mut self, log: &IgnoredScriptsLog) {
-        // Suppress the warning box under `strictDepBuilds` — the install
+        // Suppress the warning box under `strictDepBuilds`, the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
         // only duplicate the error. The structured event still carries the
         // names for NDJSON consumers.
@@ -236,6 +236,13 @@ impl ReporterState {
 
     pub(super) fn on_request_retry(&mut self, log: &RequestRetryLog) {
         let left = log.max_retries.saturating_sub(log.attempt);
+        #[cfg_attr(
+            dylint_lib = "perfectionist",
+            expect(
+                perfectionist::em_dash_prose,
+                reason = "the retry notice keeps its printed separator"
+            )
+        )]
         let msg = format!(
             "{} {} error ({}) {} {}\nWill retry in {}. {left} retries left.",
             log.method,

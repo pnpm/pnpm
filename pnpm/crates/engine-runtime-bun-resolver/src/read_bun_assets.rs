@@ -2,7 +2,7 @@
 //!
 //! Bun's release assets share one `SHASUMS256.txt` at
 //! `https://github.com/oven-sh/bun/releases/download/bun-v<version>/SHASUMS256.txt`.
-//! Each row covers one platform variant — pacquet decodes them in one
+//! Each row covers one platform variant, pacquet decodes them in one
 //! pass, sorts the result by URL, and emits
 //! [`PlatformAssetResolution`] entries
 //! the lockfile records.

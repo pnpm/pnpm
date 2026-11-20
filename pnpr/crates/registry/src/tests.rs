@@ -86,7 +86,7 @@ fn rejects_exact_pattern_that_is_not_a_package_name() {
 
 /// A `@<scope>/*` pattern whose scope request parsing (`CanonicalPackageName::parse`)
 /// would reject is a claim no valid package name can ever match. It must be a
-/// config error rather than a dead pattern — a mistyped private-scope claim
+/// config error rather than a dead pattern, a mistyped private-scope claim
 /// that never matches would silently let the names it was meant to cover land
 /// on a later (often public) router source.
 #[test]
@@ -350,7 +350,7 @@ fn rejects_source_shadowed_by_broader_scope() {
 
 #[test]
 fn allows_narrower_source_before_broader() {
-    // `@acme/foo` exact before `@acme/*` is fine — the exact claims strictly
+    // `@acme/foo` exact before `@acme/*` is fine, the exact claims strictly
     // less, so the scope source is still reachable for every other name.
     let registry = registries(
         vec![
@@ -383,7 +383,7 @@ fn allows_sibling_scopes_before_any_scoped() {
 fn rejects_partially_shadowed_source() {
     // The later source stays reachable through `plainpkg` (which `@*/*` cannot
     // cover), but its `@secret/foo` claim is swallowed by the earlier `@*/*`
-    // source. That one pattern must be rejected by name — otherwise requests
+    // source. That one pattern must be rejected by name; otherwise requests
     // for `@secret/foo` silently go to the public upstream instead of the
     // private registry, and the whole-source unreachability check never fires.
     let registry = registries(
@@ -424,7 +424,7 @@ fn rejects_identical_claim_across_two_sources() {
     );
 }
 
-/// Namespaces that overlap in both directions can't be saved by reordering —
+/// Namespaces that overlap in both directions can't be saved by reordering;
 /// either order leaves one source's claim dead, so both orders are rejected.
 #[test]
 fn rejects_bidirectionally_overlapping_sources_in_either_order() {

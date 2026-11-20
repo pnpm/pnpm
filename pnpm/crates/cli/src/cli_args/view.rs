@@ -1,4 +1,4 @@
-//! `pacquet view` (aliases `info`, `show`, `v`) — print package metadata
+//! `pacquet view` (aliases `info`, `show`, `v`), print package metadata
 //! from the registry.
 //!
 //! When the package name is omitted, the nearest project manifest's `name`

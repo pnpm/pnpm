@@ -513,7 +513,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         ("config", "myValue"),
         ("init_cwd", expected_init_cwd.as_ref()),
         ("user", "x64"), // user-defined npm_config_* is preserved
-        ("auth", ""),    // auth npm_config_* is stripped — child sees empty string
+        ("auth", ""),    // auth npm_config_* is stripped, child sees empty string
     ];
     for (k, v) in expected_pairs {
         let line = format!("{k}={v}\n");

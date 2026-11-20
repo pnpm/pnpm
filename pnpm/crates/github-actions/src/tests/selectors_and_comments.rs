@@ -102,8 +102,8 @@ fn updates_partial_and_non_version_comments_cleanly() {
             format!("actions/checkout@{SHA_V4_2_0} # v4.2.0"),
         ),
         (
-            format!("actions/checkout@{SHA_V4_1_0} # v4 — pin for CI"),
-            format!("actions/checkout@{SHA_V4_2_0} # v4.2.0 — pin for CI"),
+            format!("actions/checkout@{SHA_V4_1_0} # v4, pin for CI"),
+            format!("actions/checkout@{SHA_V4_2_0} # v4.2.0, pin for CI"),
         ),
         (
             format!("actions/checkout@{SHA_V4_1_0} # pinned manually"),

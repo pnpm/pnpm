@@ -2,7 +2,7 @@
 //!
 //! Backs both [`UserBackend`] and [`TokenBackend`] with one shared
 //! database reached over the network, so several stateless pnpr
-//! replicas observe a consistent set of users and tokens — the
+//! replicas observe a consistent set of users and tokens, the
 //! prerequisite for running the registry as more than a single
 //! instance.
 //!
@@ -120,7 +120,7 @@ impl LibsqlAuth {
     ///
     /// With `replicaPath` set, the database is an embedded replica (see
     /// [`pnpr_libsql::open`]), so reads hit the local file. Without it, every
-    /// read is a remote query against the primary — always fresh, but a
+    /// read is a remote query against the primary, always fresh, but a
     /// network round-trip on the auth hot path.
     ///
     /// The whole startup, the initial sync included, runs under one
@@ -212,7 +212,7 @@ impl LibsqlAuth {
         .await
     }
 
-    /// Current number of registered users — read under the
+    /// Current number of registered users, read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         self.pool.read(|conn| async move {

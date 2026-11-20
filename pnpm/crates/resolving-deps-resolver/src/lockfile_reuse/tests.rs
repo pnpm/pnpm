@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-/// The registry facts with only the scope map populated — what these tests
+/// The registry facts with only the scope map populated, what these tests
 /// vary; the aliases and per-registry settings stay empty.
 fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::RegistryContext {
     pnpm_lockfile::RegistryContext { registries, ..Default::default() }

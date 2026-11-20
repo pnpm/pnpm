@@ -18,7 +18,7 @@ use super::{
     winner,
 };
 
-/// [`crate::merge_lockfile_changes()`] for the env document — the config and
+/// [`crate::merge_lockfile_changes()`] for the env document, the config and
 /// package-manager dependencies pnpm records ahead of the project
 /// lockfile. Two branches that each added a config dependency conflict
 /// here rather than in the main document, and the same rules apply:

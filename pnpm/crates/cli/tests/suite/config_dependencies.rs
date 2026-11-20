@@ -124,7 +124,7 @@ fn config_dependency_install_waits_for_the_store_operation_lock() {
 }
 
 /// A second `pacquet install` with the env lockfile already in place is
-/// a no-op for config deps — it must still succeed and keep the link.
+/// a no-op for config deps; it must still succeed and keep the link.
 #[test]
 fn second_install_keeps_config_dependency() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -707,7 +707,7 @@ fn add_config_validates_all_selectors_before_writing_files() {
 }
 
 /// An `updateConfig` hook can inject a `catalogs` entry that the install
-/// then resolves a `catalog:` specifier against — even though
+/// then resolves a `catalog:` specifier against, even though
 /// `pnpm-workspace.yaml` declares no catalog. Without the hook the
 /// `catalog:` dependency would have no entry to resolve to.
 #[test]
@@ -931,7 +931,7 @@ fn config_dependency_plugin_read_package_hook_shapes_the_install() {
 }
 
 /// Two branches that each added a config dependency conflict inside the
-/// env document — the *first* YAML document of `pnpm-lock.yaml` — where
+/// env document (the *first* YAML document of `pnpm-lock.yaml`) where
 /// the main lockfile's own conflict recovery never looks.
 #[test]
 fn install_merges_a_conflicted_env_document() {

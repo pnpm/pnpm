@@ -415,8 +415,8 @@ async fn team_tokens_reach_package_authorization() {
 
     // Over HTTP: the team member reaches storage (404, the package is
     // absent); a caller denied by the *explicit* `@team/*` entry is
-    // rejected loudly — 401 for anonymous, so clients can prompt for
-    // credentials — rather than masked (masking is the registry-level
+    // rejected loudly (401 for anonymous, so clients can prompt for
+    // credentials) rather than masked (masking is the registry-level
     // default's behavior, not an explicit entry's).
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     let allowed = app
@@ -716,7 +716,7 @@ async fn team_listing_masks_callers_the_registry_denies() {
         PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     // An anonymous caller gets the not-found mask on reads and mutations
-    // alike — team names must not become an existence probe.
+    // alike, team names must not become an existence probe.
     for (method, path) in [
         (Method::GET, "/npm/-/org/myorg/team"),
         (Method::GET, "/npm/-/team/myorg/developers/user"),

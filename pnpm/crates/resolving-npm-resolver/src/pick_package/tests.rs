@@ -99,7 +99,7 @@ const PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
-/// [`PACKAGE_BODY`] with 1.1.0 left out of the `time` map — the shape
+/// [`PACKAGE_BODY`] with 1.1.0 left out of the `time` map, the shape
 /// registries such as npmmirror serve, where an abbreviated packument
 /// reports publish times for only some of the versions it lists.
 const PARTIAL_TIME_PACKAGE_BODY: &str = r#"{
@@ -131,7 +131,7 @@ const PARTIAL_TIME_PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
-/// [`PACKAGE_BODY`] as it looked before 1.1.0 was published — for
+/// [`PACKAGE_BODY`] as it looked before 1.1.0 was published, for
 /// seeding a mirror that predates a version the registry has.
 const STALE_PACKAGE_BODY: &str = r#"{
     "name": "acme",
@@ -198,8 +198,8 @@ fn default_opts(registry: &str) -> PickPackageOptions<'_> {
 
 /// Abbreviated metadata body, mirroring what a real npm registry
 /// returns under `Accept: application/vnd.npm.install-v1+json`.
-/// Missing per-version `time`, no `_npmUser`, no `dist.attestations`
-/// — just the picker-relevant shape.
+/// Missing per-version `time`, no `_npmUser`, no `dist.attestations`,
+/// just the picker-relevant shape.
 const ABBREVIATED_BODY: &str = r#"{
     "name": "acme",
     "dist-tags": { "latest": "1.0.0" },

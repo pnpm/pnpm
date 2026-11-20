@@ -95,8 +95,8 @@ pub struct GitFetcher<'a> {
     pub allow_build: AllowBuildRef<'a>,
     /// Used in log lines, and as the resolution id
     /// [`crate::prepare_package()`] synthesizes its gated dep path from.
-    /// Matches the `package_id` the rest of the install dispatcher uses
-    /// — for a git dep, the bare `git+…#<commit>` id.
+    /// Matches the `package_id` the rest of the install dispatcher uses,
+    /// for a git dep, the bare `git+…#<commit>` id.
     pub package_id: &'a str,
     /// Name of the package this resolution belongs to, used to say which
     /// dependency a transport failure came from. Unlike
@@ -265,7 +265,7 @@ pub(crate) fn queue_files_index(
 }
 
 /// Restate a failure of the transport-touching part of
-/// [`checkout_commit`] as [`GitFetcherError::Fetch`] — or, when the
+/// [`checkout_commit`] as [`GitFetcherError::Fetch`], or, when the
 /// lockfile pins an SSH remote, [`GitFetcherError::FetchOverSsh`], which
 /// carries the remediation help.
 ///
@@ -287,7 +287,7 @@ fn name_fetch_failure(repo: &str, package: &str, err: GitFetcherError) -> GitFet
     };
     // Every value is untrusted: a lockfile URL can carry `user:pass@`
     // credentials, and git echoes it back through stderr. Only the values are
-    // sanitized — `redact_and_sanitize` strips control characters, which would
+    // sanitized, `redact_and_sanitize` strips control characters, which would
     // collapse the deliberately multi-line help.
     let host = ssh_repo_host(repo).map(redact_and_sanitize);
     let (package, repo, stderr) = (
@@ -412,7 +412,7 @@ pub struct GitManifestQuery<'a> {
     pub source_cache: &'a GitSourceCache,
     pub repo: &'a str,
     pub commit: &'a str,
-    /// `path` field from the resolution — the directory within the repo
+    /// `path` field from the resolution, the directory within the repo
     /// holding the package (`#path:/packages/foo`). `None` reads the
     /// repo root.
     pub path: Option<&'a str>,
@@ -431,7 +431,7 @@ pub struct GitManifestQuery<'a> {
 /// serves no archive endpoint. The install-scoped source cache supplies the
 /// verified checkout without running package scripts.
 ///
-/// `None` when the package directory has no `package.json` — the caller
+/// `None` when the package directory has no `package.json`, the caller
 /// degrades rather than failing.
 ///
 /// Only the manifest is read: `prepare` / `prepublish` and the packlist

@@ -44,7 +44,7 @@ use std::{
     path::Path,
 };
 
-/// One project (importer) with its categorized dependency hierarchy —
+/// One project (importer) with its categorized dependency hierarchy,
 /// the unit the renderers consume.
 #[derive(Debug)]
 pub(crate) struct ProjectHierarchy {

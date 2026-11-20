@@ -10,11 +10,11 @@ use qrcode::{
 /// matching the output of pnpm's `qrcode-terminal` small mode.
 ///
 /// The code is encoded at error-correction level `L` in a single byte segment
-/// (so its version — and therefore its on-screen size — matches pnpm's) and
+/// (so its version (and therefore its on-screen size) matches pnpm's) and
 /// framed by a one-module light border rather than the four-module quiet zone
 /// the crate's own renderer draws, keeping the margin thin. Dark modules are
 /// blank and light modules are block glyphs, so on the usual light-on-dark
-/// terminal the code shows as dark modules inside a light frame — the
+/// terminal the code shows as dark modules inside a light frame, the
 /// orientation a QR scanner expects.
 ///
 /// Returns an error only when `text` exceeds the maximum QR data capacity.
@@ -44,7 +44,7 @@ fn byte_mode_code(data: &[u8], ec_level: EcLevel) -> Result<QrCode, GenerateQrCo
 /// Render `code` in `qrcode-terminal`'s small (half-block) style: a one-row
 /// top border, each module row framed by a light column, and each character
 /// stacking two vertical modules. A real QR always has an odd module count, so
-/// the bottom edge is the last row's light lower half — no separate bottom
+/// the bottom edge is the last row's light lower half, no separate bottom
 /// border row.
 ///
 /// Every line (including the last) is terminated by a newline, as

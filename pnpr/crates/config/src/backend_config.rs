@@ -19,7 +19,7 @@ use pnpr_error::redact_connection_url;
 
 /// The database that holds accounts and tokens.
 /// Unlike [`crate::HostedStoreConfig`], this only carries the parsed
-/// settings — the fallible step (opening the database and ensuring its
+/// settings, the fallible step (opening the database and ensuring its
 /// schema) runs in `AuthState::load` rather than at config-parse time.
 #[derive(Debug, Clone)]
 pub enum BackendConfig {
@@ -50,7 +50,7 @@ pub struct LibsqlSettings {
     pub replica_path: Option<PathBuf>,
     /// How often (seconds) the embedded replica pulls from the primary.
     /// Only meaningful with `replicaPath`; bounds how stale a read can
-    /// be — most importantly, token-revocation lag. `0` disables
+    /// be, most importantly, token-revocation lag. `0` disables
     /// background sync (the replica then reflects the initial sync at
     /// startup and its own account and token changes; a token's last-used
     /// time waits for the next sync). Defaults to
@@ -181,7 +181,7 @@ impl MaxUsers {
     /// accepts any signed integer here; negative anything other than
     /// `-1` is nonsense and is treated as "disabled" to err on the
     /// side of rejecting unsafe configs. An omitted key never reaches
-    /// this function — it maps to [`MaxUsers::Disabled`] in
+    /// this function; it maps to [`MaxUsers::Disabled`] in
     /// [`build_auth_config`], so there is no YAML spelling for
     /// "unlimited".
     pub(super) fn from_yaml(value: i64) -> Self {

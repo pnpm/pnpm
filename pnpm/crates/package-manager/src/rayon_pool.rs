@@ -21,7 +21,7 @@ use std::sync::Once;
 ///
 /// Use [`std::thread::available_parallelism`] rather than the
 /// workspace's existing `num_cpus::get()` so cgroup / CPU-quota
-/// limits in containers and CI runners are respected — `num_cpus`
+/// limits in containers and CI runners are respected, `num_cpus`
 /// reports the host's logical CPU count, which on a quota-limited
 /// runner can spin up far more rayon threads than the kernel will
 /// actually schedule onto our cores.
@@ -51,7 +51,7 @@ pub fn configure_rayon_pool() {
 /// metadata journal, not by CPU work, so oversubscribing CPUs gives
 /// more in-flight syscalls and a higher effective throughput.
 /// Empirically sweeping 4-200 threads on a 1352-package warm install
-/// on macOS APFS, 2× was the knee — fewer threads underutilize the
+/// on macOS APFS, 2× was the knee, fewer threads underutilize the
 /// journal, way more (100+) loses to context switching and per-thread
 /// fixed costs (`user` time scales linearly past 50 without any
 /// wall-time payoff). That knee holds up to the ceiling below. Past 16

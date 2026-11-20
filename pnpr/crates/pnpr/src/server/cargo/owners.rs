@@ -23,7 +23,7 @@ use super::{
 };
 use axum::body::Bytes;
 
-/// `GET api/v1/crates/<crate>/owners` — `cargo owner --list`.
+/// `GET api/v1/crates/<crate>/owners`: `cargo owner --list`.
 pub(super) async fn get_owners(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -36,7 +36,7 @@ pub(super) async fn get_owners(
     owners_response(listed)
 }
 
-/// `PUT api/v1/crates/<crate>/owners` — `cargo owner --add`.
+/// `PUT api/v1/crates/<crate>/owners`: `cargo owner --add`.
 pub(super) async fn put_owners(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -50,7 +50,7 @@ pub(super) async fn put_owners(
     )
 }
 
-/// `DELETE api/v1/crates/<crate>/owners` — `cargo owner --remove`.
+/// `DELETE api/v1/crates/<crate>/owners`: `cargo owner --remove`.
 pub(super) async fn delete_owners(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,

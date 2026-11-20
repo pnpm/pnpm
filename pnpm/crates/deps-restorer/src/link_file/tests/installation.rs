@@ -516,7 +516,7 @@ fn other_import_errors_propagate() {
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
 /// `Auto` must succeed on any filesystem because it falls through to
-/// `fs::copy`. We point it at a `tmpfs`-like temp dir — reflink and
+/// `fs::copy`. We point it at a `tmpfs`-like temp dir, reflink and
 /// hardlink may or may not be available, but copy always is.
 #[test]
 fn auto_falls_through_to_a_working_method() {
@@ -529,7 +529,7 @@ fn auto_falls_through_to_a_working_method() {
         .expect("Auto should always succeed");
     assert_eq!(fs::read(&dst).unwrap(), b"auto");
 }
-/// If the target already exists, `link_file` is a no-op — it must not
+/// If the target already exists, `link_file` is a no-op; it must not
 /// error (which `fs::hard_link` / `reflink` would do on their own) or
 /// overwrite the existing contents.
 #[test]
@@ -554,7 +554,7 @@ fn existing_target_is_preserved() {
 /// `CloneOrCopy` has to succeed on any filesystem because
 /// `clone_or_copy_link` falls back to `fs::copy` when the reflink
 /// attempt fails with a capability error. This hits the match arm
-/// directly — the [`existing_target_is_preserved`] loop
+/// directly, the [`existing_target_is_preserved`] loop
 /// short-circuits before the arm ever runs, so without this we had
 /// no coverage of the real code path.
 #[test]
@@ -584,7 +584,7 @@ fn explicit_clone_surfaces_errors() {
     assert!(matches!(err, LinkFileError::Import { .. }), "got: {err:?}");
 }
 /// A one-off `NotFound` / `AlreadyExists` on
-/// a single file must not downgrade the cache — those are
+/// a single file must not downgrade the cache; those are
 /// per-call errors, not capability errors. A different source /
 /// target later in the install would still succeed at the current
 /// tier, and we'd have permanently disabled it for no reason.
@@ -596,7 +596,7 @@ fn explicit_clone_surfaces_errors() {
 /// `reflink_copy::reflink` on non-macOS platforms rewrites a
 /// missing-source `NotFound` into `ErrorKind::InvalidInput` for
 /// diagnostic purposes (see `reflink-copy/src/lib.rs:64`). That
-/// makes `NotFound` a poor test for "call errors propagate" — the
+/// makes `NotFound` a poor test for "call errors propagate", the
 /// error surfaces as `InvalidInput` on Linux / Windows and the
 /// test would silently pass via the fallback path instead of the
 /// propagation path we want to exercise.
@@ -651,7 +651,7 @@ fn stale_downgrades_neither_skip_nor_regress() {
     downgrade_auto_tier(&state, AUTO_FIRST_TIER);
     assert_eq!(state.load(Ordering::Relaxed), second);
 
-    // Only the current tier failing moves the ladder again — and a
+    // Only the current tier failing moves the ladder again, and a
     // last stale report from the head still cannot move it back.
     downgrade_auto_tier(&state, second);
     assert_eq!(state.load(Ordering::Relaxed), super::super::LINK_STATE_COPY);
@@ -660,7 +660,7 @@ fn stale_downgrades_neither_skip_nor_regress() {
 }
 /// Same propagate-on-call-error property for `CloneOrCopy`. Uses
 /// `AlreadyExists` trigger for the same reason
-/// [`auto_call_errors_propagate_without_downgrading`] does —
+/// [`auto_call_errors_propagate_without_downgrading`] does.
 /// `NotFound` gets rewritten to `InvalidInput` inside reflink-copy
 /// on non-macOS and would take the fallback path instead of the
 /// propagation path.

@@ -44,7 +44,7 @@ fn source_rules(state: &AppState, source: &RegistrySource) -> PackageRules {
 /// registry's grants. Returns `Ok(())`
 /// when the call is allowed; otherwise the appropriate `Unauthenticated` /
 /// `Forbidden` error. The identity is resolved once by [`authenticate`](super::authenticate), so
-/// every handler — including the search endpoint that filters many packages —
+/// every handler (including the search endpoint that filters many packages)
 /// authorizes synchronously against it.
 pub(in crate::server) fn authorize(
     state: &AppState,

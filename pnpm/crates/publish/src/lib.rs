@@ -1,7 +1,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
-//! Publish a package to an npm registry — pnpm's `publish` command,
+//! Publish a package to an npm registry, pnpm's `publish` command,
 //! implemented in Rust.
 
 #[cfg(target_family = "wasm")]

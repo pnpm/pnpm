@@ -165,8 +165,8 @@ pub(crate) fn claim_cache_entry<'a>(
 /// return `Ok(None)` when the owning task was dropped without settling it.
 ///
 /// Register with the `Notify` *before* re-checking the slot.
-/// `notify_waiters` stores no permit — it wakes only `Notified`
-/// futures already registered at that instant — and the read guard
+/// `notify_waiters` stores no permit (it wakes only `Notified`
+/// futures already registered at that instant) and the read guard
 /// from an `InProgress` observation is released before the loop,
 /// so the owner's flip-and-notify can land in between. Checking
 /// first and registering after loses that wakeup and parks this

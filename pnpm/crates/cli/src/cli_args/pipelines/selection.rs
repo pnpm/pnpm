@@ -118,7 +118,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     let scope = workspace_scope(cfg, &selection, root_selector);
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
-    // every plan shape below — a `PerProject` plan installs each selected
+    // every plan shape below, a `PerProject` plan installs each selected
     // project separately, and those child installs must not each report
     // the workspace again. The unnarrowed install reports its own scope
     // from inside the installer, where the workspace walk it already does
@@ -214,7 +214,7 @@ pub(crate) fn select_workspace_projects(
 /// [`select_workspace_projects`], optionally running the install's
 /// workspace-cycle search over the selection graph while it is still in
 /// hand. Callers pass `true` only for a run that is certain to reach
-/// the cycle check — the "Already up to date" fast path returns before
+/// the cycle check, the "Already up to date" fast path returns before
 /// it, and a search it never reads would tax exactly that path.
 fn select_workspace_projects_with_cycles(
     cfg: &Config,

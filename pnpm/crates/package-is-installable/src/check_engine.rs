@@ -19,8 +19,8 @@ pub struct WantedEngine {
 }
 
 /// Current runtime engine versions. `node` is mandatory (no install
-/// without a node version on PATH or in config), `pnpm` is optional
-/// — pacquet itself is not pnpm, so callers normally pass `None`
+/// without a node version on PATH or in config), `pnpm` is optional,
+/// pacquet itself is not pnpm, so callers normally pass `None`
 /// here, which matches upstream's behavior of skipping the pnpm
 /// check entirely when `currentEngine.pnpm` is unset.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

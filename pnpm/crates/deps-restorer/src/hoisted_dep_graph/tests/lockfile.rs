@@ -55,7 +55,7 @@ fn walker_empty_lockfile_produces_empty_result() {
 // --- prev_graph tests ------------------------------------------------
 
 /// When no current lockfile is supplied, `prev_graph` is `None`
-/// (the empty-graph fallback) — the linker treats it the same as an
+/// (the empty-graph fallback), the linker treats it the same as an
 /// empty map (no orphans to remove on a fresh install).
 #[test]
 fn prev_graph_none_when_current_lockfile_absent() {

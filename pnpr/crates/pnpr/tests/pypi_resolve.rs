@@ -4,7 +4,7 @@
 //! The client sends its requirements and the interpreter they are for; the
 //! server reads the index and answers with the `pylock.toml` document.
 //! These tests stand a mock index up and assert what the server read from
-//! it as much as what it returned — above all that it reads a wheel's
+//! it as much as what it returned, above all that it reads a wheel's
 //! metadata from the file an index publishes beside it, and downloads the
 //! wheel only when there is no such file.
 

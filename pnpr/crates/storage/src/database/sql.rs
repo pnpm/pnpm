@@ -1,9 +1,9 @@
 //! Metadata in a SQL database.
 //!
-//! Package documents are stored as normalized rows per ecosystem — accepted
+//! Package documents are stored as normalized rows per ecosystem (accepted
 //! version manifests, READMEs, tags, deprecations, crate versions, Python
 //! distribution files, OCI manifests and tags, plus package-level state
-//! versioned by `packages.state_version` — and rendered through the fragment
+//! versioned by `packages.state_version`) and rendered through the fragment
 //! and view caches in [`render`].
 
 #[cfg(feature = "backend-libsql")]

@@ -3,9 +3,9 @@
 //! `POST /-/stage/package/:pkg` accepts a regular publish document but holds
 //! it back instead of making it visible; the staged record is then listed
 //! (`GET /-/stage`), inspected (`GET /-/stage/:id`, `GET
-//! /-/stage/:id/tarball`), and finally approved (`POST /-/stage/:id/approve`
-//! — which replays the held document through the regular publish flow) or
-//! rejected (`DELETE /-/stage/:id` — which deletes it). This is the server
+//! /-/stage/:id/tarball`), and finally approved (`POST /-/stage/:id/approve`,
+//! which replays the held document through the regular publish flow) or
+//! rejected (`DELETE /-/stage/:id`, which deletes it). This is the server
 //! half of `pnpm stage`.
 //!
 //! Every operation is gated by the same `publish` rule as a direct publish
@@ -245,7 +245,7 @@ pub(super) async fn get_staged_tarball(
 // The handlers proper.
 // ---------------------------------------------------------------------
 
-/// `POST /-/stage/package/:pkg` — validate and authorize the publish
+/// `POST /-/stage/package/:pkg`: validate and authorize the publish
 /// document exactly like a direct publish, then hold it back under a fresh
 /// stage id instead of committing it.
 async fn serve_staged_publish(
@@ -314,7 +314,7 @@ async fn store_staged(
     state.inner.storage.create_staged_meta(stage_id, &meta_bytes).await
 }
 
-/// `GET /-/stage?page=&perPage=&package=` — the staged records visible to
+/// `GET /-/stage?page=&perPage=&package=`: the staged records visible to
 /// the caller through this registry address, sorted oldest-first by staging
 /// time (then id) so pagination stays stable as new records arrive.
 async fn serve_staged_list(
@@ -368,7 +368,7 @@ async fn serve_staged_list(
     )
 }
 
-/// `GET /-/stage/:id` — one staged record's metadata.
+/// `GET /-/stage/:id`: one staged record's metadata.
 async fn serve_staged_view(
     state: &AppState,
     identity: &Identity,
@@ -382,7 +382,7 @@ async fn serve_staged_view(
     json_response(StatusCode::OK, &stored.record.metadata())
 }
 
-/// `DELETE /-/stage/:id` — reject a staged publish, deleting its record and
+/// `DELETE /-/stage/:id`: reject a staged publish, deleting its record and
 /// held tarball.
 async fn serve_staged_reject(
     state: &AppState,
@@ -402,7 +402,7 @@ async fn serve_staged_reject(
     }
 }
 
-/// `GET /-/stage/:id/tarball` — the held tarball's bytes, decoded from the
+/// `GET /-/stage/:id/tarball`: the held tarball's bytes, decoded from the
 /// stored publish document's attachment.
 async fn serve_staged_tarball(
     state: &AppState,

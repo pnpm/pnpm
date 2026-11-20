@@ -11,7 +11,7 @@ use super::{
 };
 
 // ---------------------------------------------------------------------------
-// `catalogs` drift — the first lockfile-settings check
+// `catalogs` drift, the first lockfile-settings check
 // ---------------------------------------------------------------------------
 
 #[test]

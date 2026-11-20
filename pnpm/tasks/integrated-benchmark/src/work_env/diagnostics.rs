@@ -32,7 +32,7 @@ impl WorkEnv {
     /// Fail the run if a `pnpr@<rev>` target never actually went through its
     /// pnpr server. A resolve populates the server's on-disk store/cache
     /// under `pnpr-storage`, so an empty `pnpr-storage` after the
-    /// benchmark means the client resolved *directly* instead — the silent
+    /// benchmark means the client resolved *directly* instead, the silent
     /// failure mode where a misnamed `PNPM_CONFIG_PNPR_SERVER` made every
     /// `pnpr@<rev>` row a duplicate of its `pacquet@<rev>` row. Better to
     /// abort than to publish meaningless pnpr-vs-direct numbers.
@@ -41,7 +41,7 @@ impl WorkEnv {
             let storage = self.bench_dir(id).join("pnpr-storage");
             assert!(
                 dir_contains_file(&storage),
-                "pnpr server storage at {storage:?} is empty after the benchmark — `{id}` never \
+                "pnpr server storage at {storage:?} is empty after the benchmark, `{id}` never \
                  routed through pnpr (it resolved directly), so its rows would silently duplicate \
                  the `pacquet@<rev>` install. Check that `.pnpr-env` exports \
                  `PNPM_CONFIG_PNPR_SERVER` and that the client reads it.",

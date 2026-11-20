@@ -25,7 +25,7 @@ use std::{
 ///
 /// `precomputed` is a verdict the caller already has in flight; when it
 /// is set the verifiers are not consulted. An empty `verifiers` with no
-/// `precomputed` verdict means `trustLockfile` — verification is a
+/// `precomputed` verdict means `trustLockfile`, verification is a
 /// no-op.
 pub(super) struct ConcurrentVerification<'a> {
     pub(super) lockfile: &'a Lockfile,

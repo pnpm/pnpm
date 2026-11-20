@@ -678,9 +678,9 @@ fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
 /// This is the Rust parallel to the TypeScript end-to-end coverage that
 /// caught the equivalent worker-thread regression in pnpm
 /// (`@pnpm/worker` opened its own *writable* `StoreIndex` on every cache hit).
-/// pacquet has no analogous bug — frozen-store reads go through the immutable
+/// pacquet has no analogous bug, frozen-store reads go through the immutable
 /// [`StoreIndex::shared_immutable_in`] and every warm-path store write is
-/// either gated under `frozenStore` or best-effort — so there is no clean
+/// either gated under `frozenStore` or best-effort, so there is no clean
 /// hard-fail negative control here; the load-bearing assertion is that the
 /// install *succeeds* against a genuinely read-only store and mutates nothing.
 #[cfg(unix)]
@@ -713,7 +713,7 @@ fn frozen_store_installs_against_a_read_only_global_virtual_store() {
         .success();
 
     // Drop node_modules so the frozen run cannot take the up-to-date
-    // short-circuit — it must re-materialize from the store, which
+    // short-circuit; it must re-materialize from the store, which
     // exercises the read path against the now read-only index.
     eprintln!("Removing node_modules so the frozen install re-materializes...");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
@@ -766,7 +766,7 @@ fn frozen_store_installs_against_a_read_only_global_virtual_store() {
         );
     }
 
-    // Restore writability so the TempDir can clean itself up — unlinking a
+    // Restore writability so the TempDir can clean itself up, unlinking a
     // file needs write permission on its *parent* directory.
     set_dir_modes(&store_dir, 0o755);
 

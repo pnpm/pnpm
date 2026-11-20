@@ -434,7 +434,7 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
 /// (`deps/inspection/commands/test/listing/index.ts`). Upstream calls
 /// the handler for the one project; going through the CLI from inside a
 /// workspace member makes the run recursive by default, so the summary
-/// counts the projects too — verified against `pnpm ls` in pnpm 11.
+/// counts the projects too, verified against `pnpm ls` in pnpm 11.
 #[test]
 fn listing_packages_of_a_project_with_an_external_lockfile() {
     let (_root, workspace, _registry) = setup_registry();

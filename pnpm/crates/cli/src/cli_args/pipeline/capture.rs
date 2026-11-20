@@ -1,5 +1,5 @@
 //! Capture of a task's `pnpm:lifecycle` output stream for the cache, and
-//! its replay on a hit — so a hit renders exactly like a run, through the
+//! its replay on a hit, so a hit renders exactly like a run, through the
 //! same reporter.
 //!
 //! The executor's streamed output takes a plain `fn(&LogEvent)`, so the

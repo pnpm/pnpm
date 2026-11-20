@@ -18,8 +18,8 @@ use std::collections::{
 
 /// Whether `ignoredOptionalDependencies` drifted from what the lockfile
 /// records, and whether the drift is a pure widening this rewrite can
-/// absorb. Anything else — a dropped pattern, a new exclusion, a
-/// previous configuration that ignores by default — is
+/// absorb. Anything else (a dropped pattern, a new exclusion, a
+/// previous configuration that ignores by default) is
 /// [`Drift::Resolve`], because only a resolution can bring packages
 /// back.
 pub(crate) fn detect_ignored_optional_drift(

@@ -277,7 +277,7 @@ pub(super) fn reject_unusable_resolve(
 
 /// A verified frozen lockfile is the whole answer: no incremental tree walk
 /// runs. Its tarballs are still announced as `package` frames when the
-/// verification fan-out just fetched their metadata — the sizes let the client
+/// verification fan-out just fetched their metadata, the sizes let the client
 /// start the largest downloads first. On a verdict-cache hit no metadata was
 /// fetched, so there is nothing to add and the response is the bare `done`
 /// frame.
@@ -368,7 +368,7 @@ fn serialize_frozen_frames(
 /// A stored lockfile this caller may reuse.
 ///
 /// The OSV index is immutable for this resolver instance and a lockfile is only
-/// stored after passing the OSV check, so a cache hit is already OSV-clean — no
+/// stored after passing the OSV check, so a cache hit is already OSV-clean, no
 /// per-package re-scan is needed on this warm path.
 fn cached_resolution_response(
     runtime: &Resolver,

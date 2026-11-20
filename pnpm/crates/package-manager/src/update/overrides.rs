@@ -64,8 +64,8 @@ pub(super) struct BareOverrideEntry {
 }
 
 /// Whether an override value fixes the dependency to a single version, so a
-/// compatible update — one that moves the resolution inside the override's
-/// range — has no room to move.
+/// compatible update (one that moves the resolution inside the override's
+/// range) has no room to move.
 fn override_pins_one_version(value: &str) -> bool {
     Version::parse(
         value

@@ -281,7 +281,7 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&scp_dep, &context).is_some());
 
-    // Every git transport is gated by origin, not just HTTP, HTTPS, git, and ssh — and
+    // Every git transport is gated by origin, not just HTTP, HTTPS, git, and ssh, and
     // `file://` (a server-local read) nerf-darts to no host and is rejected.
     for spec in [
         "git+rsync://169.254.169.254/repo",
@@ -650,7 +650,7 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
 
 /// The client's `resolutionMode` decides which version a pick lands on, so a
 /// server resolving on the client's behalf has to run the client's mode
-/// rather than its own default — and two modes cannot share one interned
+/// rather than its own default, and two modes cannot share one interned
 /// config.
 #[test]
 fn intern_config_resolves_in_the_client_s_resolution_mode() {

@@ -2,7 +2,7 @@
 //!
 //! A `file:` tarball's name, version, and integrity live inside the
 //! archive, not in its specifier, and pacquet builds the lockfile before
-//! the install pass — so the local resolver reads them during
+//! the install pass, so the local resolver reads them during
 //! resolution, for the same reason the remote-tarball resolver downloads
 //! at resolve time (see `tarball_url_dependency.rs`).
 //!

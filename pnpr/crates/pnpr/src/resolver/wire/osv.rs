@@ -91,7 +91,7 @@ fn package_osv_violation(
 /// For a tarball resolution the fetched artifact's identity is its URL, not the
 /// lockfile key. Under `trustLockfile` a tampered lockfile could key a safe
 /// `name@version` while pointing the tarball at a vulnerable artifact, so the
-/// version in the tarball filename is screened too. This is additive — a
+/// version in the tarball filename is screened too. This is additive, a
 /// mismatch alone is never a violation (custom registries may name tarballs
 /// differently), only an actually-vulnerable version is.
 fn vulnerability_ids_for_entry(
@@ -115,7 +115,7 @@ fn vulnerability_ids_for_entry(
 /// Best-effort extraction of the version from a registry tarball URL of
 /// the conventional `<unscoped-name>-<version>.tgz` shape. Returns `None`
 /// for non-standard naming so a legitimate custom registry isn't
-/// misjudged. Never parses the URL strictly — the lockfile is untrusted.
+/// misjudged. Never parses the URL strictly, the lockfile is untrusted.
 pub(in crate::resolver) fn tarball_url_version<'a>(url: &'a str, name: &str) -> Option<&'a str> {
     if let Ok(canonical) = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)
         && let Some(version) = version_route_tarball_version(url, &canonical)
@@ -151,7 +151,7 @@ pub(in crate::resolver) fn is_osv_checkable_resolution(resolution: &LockfileReso
         LockfileResolution::Registry(_) => true,
         // A frozen lockfile is attacker-controlled, so gate on the tarball
         // URL rather than the tamper-prone `git_hosted` flag or strict URL
-        // parsing — otherwise `gitHosted: true` or a barely-malformed URL
+        // parsing; otherwise `gitHosted: true` or a barely-malformed URL
         // would let a vulnerable package opt out of the OSV scan. Mirrors
         // the npm verifier's URL-based gate.
         LockfileResolution::Tarball(tarball) => {
@@ -167,7 +167,7 @@ pub(in crate::resolver) fn is_osv_checkable_resolution(resolution: &LockfileReso
     }
 }
 
-/// Whether a tarball URL uses an HTTP or HTTPS scheme — the only schemes a
+/// Whether a tarball URL uses an HTTP or HTTPS scheme, the only schemes a
 /// registry artifact is served over. Case-insensitive (so a tampered
 /// uppercase scheme can't slip past) without allocating a lowercased copy.
 pub(in crate::resolver) fn is_http_tarball_url(url: &str) -> bool {

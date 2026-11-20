@@ -131,7 +131,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
 /// A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
 /// normalized as usual. A non-canonical basename preserved verbatim from the
 /// upstream's `dist.tarball` (see `pnpr_upstream::rewrite_tarball_urls`) is
-/// accepted opaquely so long as it is safe as a cache path segment — the
+/// accepted opaquely so long as it is safe as a cache path segment, the
 /// packument match is what authorizes it, binding it to a declared version and
 /// integrity. Rejecting it here would make such a version un-fetchable through
 /// the very URL this server advertised.
