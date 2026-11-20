@@ -24,6 +24,7 @@ import type {
   PreparedFrozenProjectHook,
 } from './mutationTypes.js'
 import { canUsePnprForMutations, pnpmfileHookPnprCannotRun } from './pnpr.js'
+import { findLocalSpecForPnpr } from './pnprLocalSpecs.js'
 import { assertProjectManifestsExist } from './preparedFrozen.js'
 import { requiresFullResolution, throwOnInconsistentFrozenPatchHashes } from './runMutations.js'
 import { createOutdatedLockfileMajorVersionError } from './tryFrozenInstall.js'
@@ -57,7 +58,13 @@ export async function validateFrozenInstall (
   const usesPnpr = Boolean(maybeOpts.allProjects?.length) &&
     Boolean(opts.pnprServer) &&
     canUsePnprForMutations(projects, opts) &&
-    pnpmfileHookPnprCannotRun(opts.hooks) == null
+    pnpmfileHookPnprCannotRun(opts.hooks) == null &&
+    findLocalSpecForPnpr({
+      lockfileDir: opts.lockfileDir,
+      projects: maybeOpts.allProjects!,
+      mutations: projects,
+      opts,
+    }) == null
   if (usesPnpr) {
     assertPnprCompatibleWithStore(opts)
   }

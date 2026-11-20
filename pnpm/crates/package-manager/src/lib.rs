@@ -29,9 +29,11 @@ pub use overrides::*;
 pub use package_extender::*;
 pub use patch::*;
 pub use pnpm_deps_restorer::*;
+pub use pnpm_local_spec::is_host_filesystem_specifier;
 pub use pnpm_patching::{
     PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
 };
+pub use pnpm_resolving_local_resolver::LocalFilesystemPolicy;
 pub use prefetch_downloads::{DownloadOutcome, PrefetchDownloads};
 pub use prefetching_resolver::*;
 pub use rayon_pool::*;

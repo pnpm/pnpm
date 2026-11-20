@@ -116,6 +116,7 @@ async fn install_unmatchable_runtime_variant(dirs: &InstallDirs) -> InstallError
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -220,6 +221,7 @@ dry_run: false
 },
 resolution: crate::ResolutionInputs {
 update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+local_filesystem_policy: Default::default(),
 preferred_versions_override: None,
 auth_override: None,
 observer: None,
@@ -359,6 +361,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -455,6 +458,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -518,6 +522,7 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -622,6 +627,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -731,6 +737,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -901,6 +908,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,

@@ -17,9 +17,13 @@
 //! so a caller can ask what a specifier is without depending on the code
 //! that resolves it.
 
+pub use host_filesystem::is_host_filesystem_specifier;
+
 use std::path::{Path, PathBuf};
 
 use pnpm_fs::{lexical_normalize, relative_path};
+
+mod host_filesystem;
 
 /// The local-filesystem protocols a specifier can carry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

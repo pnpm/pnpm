@@ -97,8 +97,10 @@ mount a modules directory with FUSE: [@pnpm/mount-modules].
 Controls whether pnpm asks for confirmation before removing the contents of an
 incompatible modules directory and reinstalling it from scratch. When `false`,
 pnpm recreates the modules directory without prompting. In CI, confirmation is
-disabled automatically. If confirmation is enabled without a TTY and CI is not
-detected, pnpm aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`.
+disabled automatically. If confirmation is enabled without a TTY, pnpm proceeds
+without prompting when the modules directory is a regular `node_modules`
+directory directly inside the project. For a custom or symlinked modules
+directory, pnpm aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_UNSAFE`.
 
 ### virtualStoreDir
 

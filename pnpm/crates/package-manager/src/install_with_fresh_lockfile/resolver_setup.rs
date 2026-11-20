@@ -410,7 +410,7 @@ impl ResolverChainInputs<'_> {
         let local_ctx = LocalResolverContext {
             preserve_absolute_paths: false,
             integrity_target: self.config.lockfile_integrity_target,
-            ..Default::default()
+            filesystem_policy: self.project.local_filesystem_policy,
         };
         chain.extend([
             Box::new(Arc::clone(npm_resolver)) as Box<dyn Resolver>,
@@ -422,10 +422,13 @@ impl ResolverChainInputs<'_> {
         chain.extend(runtime_resolvers::runtime_resolvers(self, npm_resolver));
         #[cfg(not(feature = "runtime-provisioning"))]
         chain.push(Box::new(pnpm_resolving_default_resolver::UnavailableToolResolver));
-        chain.extend([
-            Box::new(self.named_registry_resolver(caches)) as Box<dyn Resolver>,
-            Box::new(LocalPathResolver::new(local_ctx)) as Box<dyn Resolver>,
-        ]);
+        chain.push(Box::new(self.named_registry_resolver(caches)) as Box<dyn Resolver>);
+        match self.project.local_filesystem_policy {
+            pnpm_resolving_local_resolver::LocalFilesystemPolicy::HostFilesystem(_) => {
+                chain.push(Box::new(LocalPathResolver::new(local_ctx)) as Box<dyn Resolver>);
+            }
+            pnpm_resolving_local_resolver::LocalFilesystemPolicy::WorkspaceOnly => {}
+        }
         chain
     }
 

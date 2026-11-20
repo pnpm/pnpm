@@ -13,9 +13,15 @@ use pnpm_workspace_projects_graph::WorkspaceCatalogs;
 /// install performs. Empty outside a workspace, where no catalog can be
 /// declared.
 pub(crate) fn configured_catalogs(config: &Config) -> miette::Result<Catalogs> {
-    if let Some(catalogs) = &config.catalogs {
-        return Ok(catalogs.clone());
+    match &config.catalogs {
+        Some(catalogs) => Ok(catalogs.clone()),
+        None => workspace_manifest_catalogs(config),
     }
+}
+
+/// The `catalog:` / `catalogs:` tables of the workspace manifest, ignoring
+/// what an `updateConfig` hook made of them. Empty outside a workspace.
+pub(crate) fn workspace_manifest_catalogs(config: &Config) -> miette::Result<Catalogs> {
     let Some(workspace_dir) = config.workspace_dir.as_deref() else {
         return Ok(Catalogs::default());
     };

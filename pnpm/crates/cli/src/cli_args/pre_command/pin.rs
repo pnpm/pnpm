@@ -102,7 +102,9 @@ fn decide_enforced_pin(
     if can_switch_for_entry_point(invocation.entry_point, switch_wanted, pin.process_state) {
         return decide_switch_or_record(pin, settings, invocation, root_manifest, on_fail);
     }
-    if invocation.entry_point == EntryPoint::UnknownFlag {
+    if invocation.entry_point == EntryPoint::UnknownFlag
+        || (invocation.entry_point == EntryPoint::Version && pm.name != "pnpm")
+    {
         return Ok(PinDecision::Nothing);
     }
     check_package_manager(

@@ -7,28 +7,18 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { renameFileWithRetryAsync } from '@pnpm/fs.graceful-fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 import { rimraf } from '@zkochan/rimraf'
-import yaml from 'js-yaml'
 import { isEmpty } from 'ramda'
 import { onExit } from 'signal-exit'
 import writeFileAtomic from 'write-file-atomic'
 
 import { convertToLockfileFile, convertToLockfileObject, setOwnProperty } from './lockfileFormatConverters.js'
 import { getWantedLockfileName } from './lockfileName.js'
+import { lockfileYamlDump } from './lockfileYamlDump.js'
 import { lockfileLogger as logger } from './logger.js'
 import { sortLockfileKeys } from './sortLockfileKeys.js'
 import { ensureLockfileIsNotSymlink, extractEnvDocument, readLockfileToString, YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START } from './yamlDocuments.js'
 
-const LOCKFILE_YAML_FORMAT = {
-  blankLines: true,
-  lineWidth: -1,
-  noCompatMode: true,
-  noRefs: true,
-  sortKeys: false,
-}
-
-export function lockfileYamlDump (obj: object): string {
-  return yaml.dump(obj, LOCKFILE_YAML_FORMAT)
-}
+export { lockfileYamlDump }
 
 /**
  * Returns the canonical post-write lockfile — structurally identical

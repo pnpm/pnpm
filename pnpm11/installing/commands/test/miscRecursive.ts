@@ -1196,6 +1196,33 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   projects['project-1'].has('is-positive')
 })
 
+test('recursive install installs a workspace project located in a parent directory of the workspace', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('project-1/workspace/pnpm-workspace.yaml', { packages: ['..'] })
+  const workspaceDir = path.resolve('project-1/workspace')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(workspaceDir, []),
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    recursive: true,
+    workspaceDir,
+  })
+
+  expect(fs.existsSync('project-1/node_modules/is-positive/package.json')).toBe(true)
+  const lockfile = readYamlFileSync<LockfileFile>('project-1/workspace/pnpm-lock.yaml')
+  expect(Object.keys(lockfile.importers!['..']?.dependencies ?? {})).toStrictEqual(['is-positive'])
+})
+
 test('recursive install installs a workspace project that is a symlink to a directory outside the workspace', async () => {
   preparePackages([
     {

@@ -386,6 +386,9 @@ impl RouteContext {
         {
             return false;
         }
+        if scheme_of(url).is_some_and(|scheme| scheme.eq_ignore_ascii_case("file")) {
+            return false;
+        }
         let fetch = nerf_dart(url);
         if fetch.is_empty() {
             return false;

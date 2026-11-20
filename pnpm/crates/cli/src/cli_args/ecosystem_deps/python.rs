@@ -238,6 +238,7 @@ fn into_outdated_package(
         github_action: false,
         metadata: OutdatedMetadata {
             deprecated: None,
+            repository: None,
             homepage: Some(format!("https://pypi.org/project/{name_str}/")),
             workspace: workspace_name.map(str::to_string),
             display_versions: Some(Box::new(OutdatedDisplayVersions {
@@ -245,6 +246,7 @@ fn into_outdated_package(
                 target: entry.target.to_string(),
                 wanted: entry.wanted.to_string(),
             })),
+            trust: None,
         },
     }
 }

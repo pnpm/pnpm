@@ -6,6 +6,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{Config, router_with_auth};
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_storage::{HostedDocumentVersion, Storage};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -74,7 +76,12 @@ fn public_url() -> Option<String> {
 async fn app_router(config: Config) -> axum::Router {
     let auth = crate::tokens::seeded_auth(
         &config,
-        &[("root", "secret123"), ("carol", "secret123"), ("bob", "secret123")],
+        &[
+            ("root", "secret123"),
+            ("alice", "secret123"),
+            ("carol", "secret123"),
+            ("bob", "secret123"),
+        ],
     );
     router_with_auth(config, auth)
 }
@@ -351,6 +358,152 @@ async fn adding_a_registry_seeds_its_grant_and_removing_it_forgets_the_grant() {
     assert!(!grant_names(&app, &root).await.contains(&"extra".to_string()));
     let (_, shared) = send(&app, "GET", &format!("{GRANTS}/shared"), Some(&root), None).await;
     assert_eq!(shared["registries"], json!(["local"]));
+}
+
+async fn write_vault_package(storage: &Storage, package_name: &str) {
+    let package = CanonicalPackageName::parse(package_name, Ecosystem::Npm).unwrap();
+    let doc = format!(r#"{{"name":{package_name:?},"versions":{{}},"dist-tags":{{}}}}"#);
+    storage
+        .for_hosted("vault", Ecosystem::Npm)
+        .write_hosted_document_if_current(
+            &package,
+            doc.as_bytes(),
+            Some(&HostedDocumentVersion::Unversioned),
+            None,
+        )
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn restoring_a_revision_after_restricting_a_grant_never_seeds_default_grants() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let storage = Storage::from_config(&config.storage).unwrap();
+    let app = app_router(config).await;
+    let root = login(&app, "root").await;
+    let alice = login(&app, "alice").await;
+    let bob = login(&app, "bob").await;
+
+    let vault_registry = "/-/pnpr/v0/admin/registries/vault";
+    let vault_entry = json!({
+        "type": "hosted",
+        "namespace": "vault",
+        "packages": { "@vault/*": {} },
+    });
+    let (status, created) = send(&app, "PUT", vault_registry, Some(&root), Some(vault_entry)).await;
+    assert_eq!((status, &created["version"]), (StatusCode::OK, &json!("2")), "{created}");
+
+    let restricted = json!({
+        "registries": ["vault"],
+        "subjects": { "alice": ["read", "publish"] },
+    });
+    let (status, locked) = put_grant(&app, &root, "vault", restricted).await;
+    assert_eq!(status, StatusCode::OK, "{locked}");
+    assert_eq!(locked["subjects"], json!({ "alice": ["publish", "read"] }));
+
+    assert_eq!(send(&app, "DELETE", vault_registry, Some(&root), None).await.0, StatusCode::OK);
+
+    let restore = "/-/pnpr/v0/admin/registry-revisions/2/restore";
+    let (status, restored) = send(&app, "POST", restore, Some(&root), None).await;
+    assert_eq!((status, &restored["version"]), (StatusCode::OK, &json!("4")), "{restored}");
+    assert_eq!(send(&app, "GET", vault_registry, Some(&root), None).await.0, StatusCode::OK);
+    write_vault_package(&storage, "@vault/secret").await;
+
+    let vault_grant = format!("{GRANTS}/vault");
+    assert_eq!(send(&app, "GET", &vault_grant, Some(&root), None).await.0, StatusCode::NOT_FOUND);
+    assert!(!grant_names(&app, &root).await.contains(&"vault".to_string()));
+    assert_eq!(
+        send(&app, "GET", "/npm/~vault/@vault/secret", None, None).await.0,
+        StatusCode::NOT_FOUND,
+    );
+    assert_eq!(read(&app, "/npm/~vault/@vault/secret", &bob).await, StatusCode::NOT_FOUND);
+    let publish = crate::npm::publish_doc("@vault/unclaimed", "1.0.0", b"tarball-contents");
+    assert_eq!(
+        send(&app, "PUT", "/npm/~vault/@vault/unclaimed", Some(&bob), Some(publish))
+            .await
+            .0,
+        StatusCode::NOT_FOUND,
+    );
+
+    // Admitting `$all` to another package in `vault` lifts the registry-wide 404 mask.
+    let partial = json!({
+        "registries": ["vault"],
+        "include": ["@vault/open"],
+        "subjects": { "$all": ["read"] },
+    });
+    assert_eq!(put_grant(&app, &root, "vault-open", partial).await.0, StatusCode::OK);
+    let alice_only = json!({
+        "registries": ["vault"],
+        "subjects": { "alice": ["read", "publish"] },
+    });
+    assert_eq!(put_grant(&app, &root, "vault", alice_only).await.0, StatusCode::OK);
+    assert_eq!(
+        send(&app, "GET", "/npm/~vault/@vault/secret", None, None).await.0,
+        StatusCode::UNAUTHORIZED,
+    );
+    assert_eq!(read(&app, "/npm/~vault/@vault/secret", &bob).await, StatusCode::FORBIDDEN);
+    assert_eq!(read(&app, "/npm/~vault/@vault/secret", &alice).await, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn restoring_a_revision_after_deleting_a_grant_leaves_no_grant_while_new_registries_seed() {
+    let dir = TempDir::new().unwrap();
+    let config = load_config(dir.path()).await;
+    let storage = Storage::from_config(&config.storage).unwrap();
+    let app = app_router(config).await;
+    let root = login(&app, "root").await;
+    let bob = login(&app, "bob").await;
+
+    let vault_registry = "/-/pnpr/v0/admin/registries/vault";
+    let vault_entry = json!({
+        "type": "hosted",
+        "namespace": "vault",
+        "packages": { "@vault/*": {} },
+    });
+    assert_eq!(
+        send(&app, "PUT", vault_registry, Some(&root), Some(vault_entry)).await.0,
+        StatusCode::OK,
+    );
+    let vault_grant = format!("{GRANTS}/vault");
+    assert_eq!(
+        send(&app, "DELETE", &vault_grant, Some(&root), None).await.0,
+        StatusCode::NO_CONTENT,
+    );
+    assert_eq!(send(&app, "DELETE", vault_registry, Some(&root), None).await.0, StatusCode::OK);
+
+    let restore = "/-/pnpr/v0/admin/registry-revisions/2/restore";
+    assert_eq!(send(&app, "POST", restore, Some(&root), None).await.0, StatusCode::OK);
+    write_vault_package(&storage, "@vault/secret").await;
+    assert_eq!(send(&app, "GET", &vault_grant, Some(&root), None).await.0, StatusCode::NOT_FOUND);
+    assert!(!grant_names(&app, &root).await.contains(&"vault".to_string()));
+    assert_eq!(
+        send(&app, "GET", "/npm/~vault/@vault/secret", None, None).await.0,
+        StatusCode::NOT_FOUND,
+    );
+
+    let new_registry = "/-/pnpr/v0/admin/registries/new-reg";
+    let new_entry = json!({
+        "type": "hosted",
+        "namespace": "new-reg",
+        "packages": { "@new-reg/*": {} },
+    });
+    assert_eq!(
+        send(&app, "PUT", new_registry, Some(&root), Some(new_entry)).await.0,
+        StatusCode::OK,
+    );
+    let (status, seeded) = send(&app, "GET", &format!("{GRANTS}/new-reg"), Some(&root), None).await;
+    assert_eq!(status, StatusCode::OK, "{seeded}");
+    assert_eq!(seeded["registries"], json!(["new-reg"]));
+    assert_eq!(seeded["subjects"], json!({ "$all": ["read"], "$owners": ["annotate", "publish"] }));
+    let publish = crate::npm::publish_doc("@new-reg/pkg", "1.0.0", b"tarball-contents");
+    assert_eq!(
+        send(&app, "PUT", "/npm/~new-reg/@new-reg/pkg", Some(&bob), Some(publish))
+            .await
+            .0,
+        StatusCode::CREATED,
+    );
+    assert_eq!(send(&app, "GET", "/npm/~new-reg/@new-reg/pkg", None, None).await.0, StatusCode::OK);
 }
 
 #[tokio::test]

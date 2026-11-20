@@ -38,6 +38,44 @@ fn audit_fix_override_writes_overrides_to_workspace_manifest() {
 }
 
 #[test]
+fn audit_fix_override_respects_ignore_ghsas() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let body = format!(
+        "{{\n{},\n{}\n}}",
+        advisory_entry("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+        advisory_entry("moderate-pkg", 124, "moderate", "<3.0.0", "test", "GHSA-test-3333-4444"),
+    );
+    let mock = audit_mock(&mut registry, &body).create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  ignoreGhsas:\n    - GHSA-test-1111-2222\n",
+    );
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--fix")
+        .output()
+        .expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        !manifest.contains("vulnerable@<2.0.0"),
+        "manifest should not hold override for ignored GHSA:\n{manifest}",
+    );
+    assert!(
+        manifest.contains("moderate-pkg@<3.0.0: ^3.0.0"),
+        "manifest should hold override for unignored GHSA:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
 fn audit_fix_override_writes_overrides_in_the_configured_save_style() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
@@ -284,10 +322,11 @@ fn audit_fix_override_writes_age_exclude_when_patched_version_is_within_the_wind
   ]
 }"#,
     )
+    .expect(2)
     .create();
     let packument_mock = registry
         .mock("GET", "/vulnerable")
-        .expect(1)
+        .expect(2)
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(
@@ -296,7 +335,22 @@ fn audit_fix_override_writes_age_exclude_when_patched_version_is_within_the_wind
         .create();
     // A ~19-year window puts the 2020 publish times after the cutoff, so the
     // age gate would block the patched versions and the exclusions stay.
-    write_audit_workspace(&workspace, &registry.url(), "minimumReleaseAge: 10000000\n");
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "minimumReleaseAge: 10000000\nminimumReleaseAgeExclude: [existing@1.0.0]\n",
+    );
+
+    let output = pacquet_cmd(&workspace, ["audit", "--fix", "--no-add-release-age-exclusions"])
+        .output()
+        .expect("run audit without adding age exclusions");
+    assert_success(&output);
+    let manifest_path = workspace.join("pnpm-workspace.yaml");
+    let manifest = fs::read_to_string(&manifest_path).expect("read workspace manifest");
+    assert!(manifest.contains("overrides:"), "{manifest}");
+    assert!(manifest.contains("existing@1.0.0"), "{manifest}");
+    assert!(!manifest.contains("vulnerable@2.0.0"), "{manifest}");
+    assert!(!stdout(&output).contains("entries were added to minimumReleaseAgeExclude"));
 
     let output = pacquet
         .arg("audit")
@@ -748,6 +802,36 @@ fn audit_interactive_rejects_ignore_unfixable() {
 }
 
 #[test]
+fn audit_fix_accepts_true_string() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--fix=true")
+        .output()
+        .expect("run pacquet audit --fix=true");
+
+    assert_success(&output);
+    assert!(stdout(&output).contains("overrides were added to pnpm-workspace.yaml"));
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("overrides:") && manifest.contains("vulnerable@<2.0.0: ^2.0.0"),
+        "manifest should hold the override:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
 fn audit_ignore_writes_ghsa_to_audit_config() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
@@ -1033,6 +1117,80 @@ fn audit_fix_update_moves_to_a_non_vulnerable_version() {
     );
     mock.assert();
     drop((root, npmrc_info));
+}
+
+#[test]
+fn audit_fix_update_skips_adding_release_age_exclusions() {
+    const PKG: &str = "@pnpm.e2e/bravo-dep";
+    let CommandTempCwd {
+        workspace, npmrc_info, root: _root, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{"name":"audit-no-age-exclusions","version":"1.0.0","dependencies":{{"{PKG}":"~1.0.0"}}}}"#,
+        ),
+    )
+    .expect("write package.json");
+
+    // Put the cutoff between the fixture's 1.0.0 and 1.0.1 publish dates.
+    let cutoff: jiff::Timestamp = "2022-02-10T00:00:00Z".parse().unwrap();
+    let age =
+        u64::try_from((jiff::Timestamp::now().as_second() - cutoff.as_second()) / 60).unwrap();
+    set_minimum_release_age(&workspace, age);
+    pacquet_cmd(&workspace, ["install"]).assert().success();
+
+    let mut audit_registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut audit_registry,
+        &advisory_response(
+            PKG,
+            9001,
+            "high",
+            "<1.0.1",
+            "test vulnerability",
+            "GHSA-test-1111-2222",
+        ),
+    )
+    .expect(2)
+    .create();
+    fs::write(
+        workspace.join(".npmrc"),
+        format!(
+            "registry={audit}\n@pnpm.e2e:registry={pnpr}\nstore-dir=../pacquet-store\ncache-dir=../pacquet-cache\nfetchRetries=0\n",
+            audit = audit_registry.url(),
+            pnpr = npmrc_info.mock_instance.url(),
+        ),
+    )
+    .expect("rewrite .npmrc");
+
+    let manifest_path = workspace.join("pnpm-workspace.yaml");
+    let manifest = fs::read_to_string(&manifest_path).expect("read workspace manifest");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let output =
+        pacquet_cmd(&workspace, ["audit", "--fix", "update", "--no-add-release-age-exclusions"])
+            .output()
+            .expect("run audit without adding age exclusions");
+    assert_eq!(output.status.code(), Some(1), "{}", stdout(&output));
+    let stderr = stderr(&output);
+    assert!(stderr.contains("ERR_PNPM_NO_MATURE_MATCHING_VERSION"), "{stderr}");
+    assert_eq!(fs::read_to_string(&manifest_path).unwrap(), manifest);
+    let lockfile = fs::read_to_string(&lockfile_path).unwrap();
+    assert!(lockfile.contains("bravo-dep@1.0.0"), "{lockfile}");
+    assert!(!lockfile.contains("bravo-dep@1.0.1"), "{lockfile}");
+
+    let non_strict_manifest = format!("{manifest}\nminimumReleaseAgeStrict: false\n");
+    fs::write(&manifest_path, &non_strict_manifest).expect("disable strict release age");
+    let output =
+        pacquet_cmd(&workspace, ["audit", "--fix", "update", "--no-add-release-age-exclusions"])
+            .output()
+            .expect("run audit without adding age exclusions in non-strict mode");
+    assert_success(&output);
+    assert_eq!(fs::read_to_string(&manifest_path).unwrap(), non_strict_manifest);
+    let lockfile = fs::read_to_string(&lockfile_path).unwrap();
+    assert!(lockfile.contains("bravo-dep@1.0.1"), "{lockfile}");
+    mock.assert();
 }
 
 /// A package whose every in-range version is vulnerable has no update that

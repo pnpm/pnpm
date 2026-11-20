@@ -2,7 +2,11 @@ use crate::cli_args::{install::resolve_bool_override, publish::PublishManifestAr
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{PackManifestOptions, WorkspacePackageManifest};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::Arc,
+};
 
 pub fn build_workspace_package_manifest_map(
     projects: &[pnpm_workspace::Project],
@@ -44,6 +48,7 @@ pub fn create_publish_pack_manifest_options(
     config: &Config,
     before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
+    bumped_packages: Option<&Arc<HashSet<String>>>,
 ) -> miette::Result<PackManifestOptions> {
     Ok(PackManifestOptions {
         catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
@@ -61,6 +66,7 @@ pub fn create_publish_pack_manifest_options(
         ),
         before_packing_hooks: before_packing_hooks.to_vec(),
         workspace_packages,
+        bumped_workspace_packages: bumped_packages.map(Arc::clone),
     })
 }
 

@@ -2,11 +2,15 @@ use super::{
     CatalogAnchor, CatalogResolutionResult, CatalogWantedDependency, Catalogs, Cow,
     DeclaredEngineDep, DependencyGroup, HashMap, LatestQuery, Lockfile, OutdatedMetadata,
     OutdatedPackage, OutdatedQuery, OutdatedRun, PackageManifest, ResolverWantedDependency,
-    TargetVersion, Version, dereference_catalog_protocol, min_version_of_spec,
+    TargetVersion, TrustChange, Version, dereference_catalog_protocol, min_version_of_spec,
     resolve_from_catalog,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_resolving_resolver_base::VersionSelectorType;
+use pnpm_resolving_npm_resolver::{TrustEvidence, get_manifest_trust_evidence};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+};
+use std::sync::Arc;
 
 pub(super) struct OutdatedCandidate<'a> {
     pub(super) alias: &'a str,
@@ -128,18 +132,79 @@ pub(super) async fn outdated_dependency(
             .0
             .to_string()
     };
+    let bare_specifier = bare_specifier.into_owned();
     let latest = resolve_outdated_target(
         run,
         query,
         &candidate,
-        bare_specifier.into_owned(),
+        bare_specifier.clone(),
         &resolved_package_name,
     )
     .await?;
     let Some(target_manifest) = latest.and_then(|latest| latest.latest_manifest) else {
         return Ok(None);
     };
-    Ok(outdated_target(query, workspace, candidate, &target_manifest, &resolved_package_name))
+    let is_engine = candidate.is_engine;
+    let Some(mut package) =
+        outdated_target(query, workspace, candidate, &target_manifest, &resolved_package_name)
+    else {
+        return Ok(None);
+    };
+    if query.apply_trust_policy && !is_engine {
+        package.metadata.trust = Some(TrustChange {
+            current: current_trust_evidence(run, &package, bare_specifier).await,
+            target: get_manifest_trust_evidence(&target_manifest),
+        });
+    }
+    Ok(Some(package))
+}
+
+/// The trust evidence of the version `package` has installed, or `None`
+/// when it cannot be read.
+///
+/// `bare_specifier` is resolved again with the installed version
+/// preferred, so the lookup goes to the registry the specifier names and
+/// reads the packument the target resolution already fetched. The release
+/// age and trust filters are dropped: they decide what to install, and the
+/// installed version is already chosen. A pick other than the installed
+/// version, such as a dist-tag's, is discarded.
+async fn current_trust_evidence(
+    run: &OutdatedRun,
+    package: &OutdatedPackage,
+    bare_specifier: String,
+) -> Option<TrustEvidence> {
+    let mut options = run.resolve_options.clone();
+    options.policy = pnpm_resolving_resolver_base::ResolutionPolicyOptions::default();
+    options.version.preferred_versions = Arc::new(PreferredVersions::from([(
+        package.package_name.clone(),
+        VersionSelectors::from([(
+            package.current.to_string(),
+            VersionSelectorEntry::Plain(VersionSelectorType::Version),
+        )]),
+    )]));
+    let manifest = run.resolver
+        .resolve_latest(
+            &LatestQuery {
+                wanted_dependency: ResolverWantedDependency {
+                    alias: Some(package.alias.clone()),
+                    bare_specifier: Some(bare_specifier),
+                    optional: Some(package.belongs_to == DependencyGroup::Optional),
+                    ..ResolverWantedDependency::default()
+                },
+                compatible: true,
+                current_version: None,
+            },
+            &options,
+        )
+        .await
+        .ok()??
+        .latest_manifest?;
+    let picked = manifest
+        .get("version")
+        .and_then(serde_json::Value::as_str)?
+        .parse::<Version>()
+        .ok()?;
+    (picked == package.current).then(|| get_manifest_trust_evidence(&manifest)).flatten()
 }
 
 fn dereference_catalog<'a>(
@@ -211,6 +276,9 @@ async fn resolve_outdated_target(
                 ..ResolverWantedDependency::default()
             },
             compatible,
+            current_version: query.follow_prerelease_channels.then(|| {
+                candidate.current.clone()
+            }),
         },
         &run.resolve_options,
     )
@@ -278,18 +346,9 @@ fn outdated_target(
     {
         return None;
     }
-    let package_name = if candidate.is_engine {
-        candidate.alias.to_string()
-    } else {
-        target_manifest
-            .get("name")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or(resolved_package_name)
-            .to_string()
-    };
     Some(OutdatedPackage {
         alias: candidate.alias.to_string(),
-        package_name,
+        package_name: target_package_name(&candidate, target_manifest, resolved_package_name),
         belongs_to: candidate.group,
         wanted: candidate.current.clone(),
         current: candidate.current,
@@ -301,8 +360,34 @@ fn outdated_target(
                 .get("homepage")
                 .and_then(serde_json::Value::as_str)
                 .map(str::to_string),
+            repository: target_manifest
+                .get("repository")
+                .and_then(repository_url)
+                .map(str::to_string),
             workspace: Some(workspace.to_string()),
             display_versions: None,
+            trust: None,
         },
     })
+}
+
+fn repository_url(repository: &serde_json::Value) -> Option<&str> {
+    repository
+        .as_str()
+        .or_else(|| repository.get("url").and_then(serde_json::Value::as_str))
+}
+
+fn target_package_name(
+    candidate: &OutdatedCandidate<'_>,
+    target_manifest: &pnpm_resolving_resolver_base::SharedDependencyManifest,
+    resolved_package_name: &str,
+) -> String {
+    if candidate.is_engine {
+        return candidate.alias.to_string();
+    }
+    target_manifest
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(resolved_package_name)
+        .to_string()
 }

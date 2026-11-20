@@ -29,8 +29,10 @@ A skill is instructions that an agent follows in every session, and it may inclu
 During install, pnpm looks for skills in the direct dependencies of every project. Only the dependency groups the install includes count, so `pnpm install --prod` skips the skills of `devDependencies`. The packages whose skills await approval are listed after the install:
 
 ```
-Agent skills awaiting approval: drizzle-kit.
-Run "pnpm approve" to review them.
+Packages awaiting approval:
+  drizzle-kit  skills
+
+Run "pnpm approve" to review the packages awaiting approval.
 ```
 
 A pending skill never fails the install. Run [`pnpm approve`](./cli/permissions.md) to decide. The decision is recorded in the [`permissions`](./settings/build.md#permissions) setting:

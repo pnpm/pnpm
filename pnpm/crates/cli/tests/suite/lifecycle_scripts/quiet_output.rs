@@ -153,7 +153,7 @@ fn quiet_ignored_builds_keep_strict_enforcement() {
         let output = install(&fixture.workspace, level, false);
         let text = output_text(&output);
         assert!(output.status.success());
-        assert_eq!(text.contains("Ignored build scripts"), level == "warn");
+        assert_eq!(text.contains("Packages awaiting approval"), level == "warn");
         assert!(
             !fixture.workspace
                 .join(format!("node_modules/{SUCCESS}/generated-by-install.js"))

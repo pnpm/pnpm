@@ -507,6 +507,8 @@ mod frozen_validation;
 
 mod pnpr_config_validation;
 
+mod pnpr_local_specs;
+
 mod pnpr_pnpmfile;
 
 mod pnpr_request;

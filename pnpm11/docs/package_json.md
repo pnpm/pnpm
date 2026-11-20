@@ -12,7 +12,7 @@ In addition to the traditional `package.json` format, pnpm also supports `packag
 If a directory contains more than one of these files, pnpm uses `package.json`, then `package.json5`, then `package.yaml`. Since v11.28.0, workspace discovery follows the same order and finds one project per directory.
 
 [json5]: https://www.npmjs.com/package/json5
-[js-yaml]: https://www.npmjs.com/package/@zkochan/js-yaml
+[js-yaml]: https://www.npmjs.com/package/js-yaml
 
 :::note
 

@@ -36,6 +36,7 @@
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.normalize-registries": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",

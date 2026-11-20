@@ -1,6 +1,7 @@
 //! Integration tests for whole-cache reclamation, orphan pruning,
 //! and LRU/TTL eviction across upstream and resolver caches.
 
+mod ecosystem_upstreams;
 mod security_and_scopes;
 mod sqlite_security;
 

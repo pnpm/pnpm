@@ -18,6 +18,55 @@ export function assertValidTarballVersion (version: string, reportedVersion: str
   }
 }
 
+/**
+ * Resolves `publishConfig.directory` to a relative path inside `projectDir`.
+ *
+ * Validation stays lexical so build outputs symlinked into the package keep
+ * packing (see https://github.com/pnpm/pnpm/issues/17390). Root, prefix, and
+ * `..` segments are rejected so paths cannot escape `projectDir` or a symlink
+ * target.
+ */
+export function resolvePublishDirectory (projectDir: string, publishDirectory: unknown): string {
+  if (publishDirectory == null || publishDirectory === '') {
+    return projectDir
+  }
+  if (typeof publishDirectory !== 'string') {
+    throw new PnpmError(
+      'INVALID_PUBLISH_DIRECTORY',
+      `Invalid publishConfig.directory "${JSON.stringify(publishDirectory)}": must be a relative path inside the package directory`
+    )
+  }
+  if (isInvalidPublishDirectory(publishDirectory)) {
+    throw new PnpmError(
+      'INVALID_PUBLISH_DIRECTORY',
+      `Invalid publishConfig.directory "${publishDirectory}": must be a relative path inside the package directory`
+    )
+  }
+  const normalized = process.platform === 'win32'
+    ? publishDirectory.replaceAll('\\', '/')
+    : publishDirectory
+  const segments = normalized
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== '.')
+  return segments.length === 0 ? projectDir : path.join(projectDir, ...segments)
+}
+
+function isInvalidPublishDirectory (rawPath: string): boolean {
+  if (rawPath.includes('\0') || rawPath.includes(':') || path.win32.parse(rawPath).root !== '') {
+    return true
+  }
+  return rawPath
+    .replaceAll('\\', '/')
+    .split('/')
+    .some(isDotTraversalSegment)
+}
+
+function isDotTraversalSegment (segment: string): boolean {
+  return segment !== '' &&
+    segment !== '.' &&
+    segment.replaceAll('.', '').replaceAll(' ', '') === ''
+}
+
 export function resolvePackOutput (
   params: {
     dir: string

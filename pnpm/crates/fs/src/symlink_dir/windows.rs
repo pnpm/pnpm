@@ -1,5 +1,7 @@
+use super::share_links::{ShareLinks, UnusableShareLinksError, open_through};
 use derive_more::{Display, Error};
 use std::{
+    borrow::Cow,
     fs, io,
     path::{Path, PathBuf},
     sync::{
@@ -66,13 +68,27 @@ pub(super) struct NetworkShareLinkError {
 pub(super) fn explain_network_share_refusal(link: &Path, error: io::Error) -> io::Error {
     let refused =
         matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported);
-    if !refused || !crate::mapped_drive_path::is_on_network_drive(link) {
+    let explained = error
+        .get_ref()
+        .is_some_and(|inner| inner.downcast_ref::<UnusableShareLinksError>().is_some());
+    if !refused || explained || !crate::mapped_drive_path::is_on_network_drive(link) {
         return error;
     }
     io::Error::new(error.kind(), NetworkShareLinkError { source: error })
 }
 
 fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
+    // On a network share the kind of link is the one that can be opened
+    // there, see [`super::share_links`]. This doesn't touch `MODE`: links on
+    // local drives keep preferring symlinks.
+    match super::share_links::share_links(link, original)? {
+        Some(ShareLinks::Junction) => return create_junction(original, link),
+        Some(ShareLinks::Symlink) => return std::os::windows::fs::symlink_dir(contents, link),
+        Some(ShareLinks::Unusable(error)) => {
+            return Err(io::Error::new(io::ErrorKind::Unsupported, error));
+        }
+        None => {}
+    }
     match MODE.load(Ordering::Relaxed) {
         USE_SYMLINK => match std::os::windows::fs::symlink_dir(contents, link) {
             Err(error) if should_fallback_to_junction(&error) => {
@@ -83,6 +99,88 @@ fn create_link(original: &Path, contents: &Path, link: &Path) -> io::Result<()> 
         USE_JUNCTION => create_junction(original, link),
         _ => probe_and_cache(original, contents, link),
     }
+}
+
+/// The contents of the link at `link` to `target` when it is of the kind
+/// that can be opened on its network share, and an error for any other
+/// entry. `None` when `link` isn't on a share. An earlier install may have
+/// left the other kind, which is replaced rather than reused even when it
+/// points at the right target. Where junctions are used, reading a junction
+/// as one fails for a symlink in the same open, so a warm install pays
+/// nothing extra per link. Where symlinks are used, telling them from
+/// junctions takes a second open per link. Where neither kind can be
+/// created, a link left by an earlier install is reused if it opens.
+pub(super) fn read_share_link(link: &Path, target: &Path) -> Option<io::Result<PathBuf>> {
+    match super::share_links::share_links(link, target) {
+        Ok(None) => None,
+        Ok(Some(ShareLinks::Junction)) => Some(read_junction_target(link)),
+        Ok(Some(ShareLinks::Symlink)) => Some(
+            fs::read_link(link)
+                .and_then(|contents| {
+                    if reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK) {
+                        Ok(contents)
+                    } else {
+                        Err(io::Error::from(io::ErrorKind::InvalidInput))
+                    }
+                }),
+        ),
+        Ok(Some(ShareLinks::Unusable(error))) => Some(
+            fs::read_link(link)
+                .and_then(|contents| open_through(link).map(|()| contents))
+                .map_err(|_| io::Error::new(io::ErrorKind::Unsupported, error)),
+        ),
+        Err(error) => Some(Err(error)),
+    }
+}
+
+/// Whether the link at `link` to `target` is of the kind [`create_link`]
+/// writes there, or, where no kind can be created, whether it opens. Off a
+/// network share both kinds are fine.
+pub(super) fn is_link_kind_usable(link: &Path, target: &Path) -> bool {
+    match super::share_links::share_links(link, target) {
+        Ok(None) => true,
+        Ok(Some(ShareLinks::Junction)) => reparse_tag(link) == Some(IO_REPARSE_TAG_MOUNT_POINT),
+        Ok(Some(ShareLinks::Symlink)) => reparse_tag(link) == Some(IO_REPARSE_TAG_SYMLINK),
+        Ok(Some(ShareLinks::Unusable(_))) => open_through(link).is_ok(),
+        Err(_) => false,
+    }
+}
+
+pub(super) const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+pub(super) const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
+
+/// [`fs::read_link`] for a junction only: it fails for a true symlink or
+/// any other entry, with the same open and reparse read.
+///
+/// `junction::get_target` strips only the `\??\` prefix, so a junction to
+/// `\\server\share\…`, held as `\??\UNC\server\share\…`, comes back as
+/// `UNC\server\share\…`. That is turned back into the UNC path, which is
+/// what [`fs::read_link`] returns for it.
+pub(super) fn read_junction_target(link: &Path) -> io::Result<PathBuf> {
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::{OsStrExt as _, OsStringExt as _},
+    };
+
+    let target = junction::get_target(link)?;
+    let wide: Vec<u16> = target
+        .as_os_str()
+        .encode_wide()
+        .collect();
+    let unc_prefix: Vec<u16> = r"UNC\".encode_utf16().collect();
+    let Some(rest) = wide.strip_prefix(unc_prefix.as_slice()) else {
+        return Ok(target);
+    };
+    let mut unc: Vec<u16> = r"\\".encode_utf16().collect();
+    unc.extend_from_slice(rest);
+    Ok(PathBuf::from(OsString::from_wide(&unc)))
+}
+
+/// The reparse tag of `path` itself, or `None` when it isn't a reparse
+/// point or can't be read. The standard library reports a junction and a
+/// symlink alike as a symlink, so the tag is the only way to tell them apart.
+pub(super) fn reparse_tag(path: &Path) -> Option<u32> {
+    pnpm_ffi_fs::reparse_tag(path)
 }
 
 fn probe_and_cache(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
@@ -125,8 +223,49 @@ fn create_and_cache_junction(original: &Path, link: &Path) -> io::Result<()> {
 }
 
 pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
-    let staging = stage_junction(original, link)?;
+    let staging = stage_junction(&junction_target(original), link)?;
     commit_staged_junction(link, &staging)
+}
+
+/// The target to give `junction::create` for `original`.
+///
+/// The `junction` crate prefixes the full path with `\??\`, which makes an
+/// NT path only of a drive path or a verbatim path. A plain UNC path
+/// `\\server\share\…` would become `\??\\\server\share\…`, which names
+/// nothing. Its verbatim form `\\?\UNC\server\share\…` becomes
+/// `\??\UNC\server\share\…`, the target Node.js writes for a junction to
+/// that path. A relative `original` is resolved first, as the crate would
+/// resolve it, because under a UNC working directory it becomes a UNC path.
+pub(super) fn junction_target(original: &Path) -> Cow<'_, Path> {
+    use std::{
+        ffi::OsString,
+        os::windows::ffi::{OsStrExt as _, OsStringExt as _},
+        path::{Component, Prefix},
+    };
+
+    if original.is_relative()
+        && let Ok(absolute) = std::path::absolute(original)
+    {
+        return match junction_target(&absolute) {
+            Cow::Borrowed(_) => Cow::Owned(absolute),
+            Cow::Owned(verbatim) => Cow::Owned(verbatim),
+        };
+    }
+    let is_plain_unc = matches!(
+        original.components().next(),
+        Some(Component::Prefix(prefix)) if matches!(prefix.kind(), Prefix::UNC(..)),
+    );
+    if !is_plain_unc {
+        return Cow::Borrowed(original);
+    }
+    let mut verbatim: Vec<u16> = r"\\?\UNC\".encode_utf16().collect();
+    verbatim.extend(
+        original
+            .as_os_str()
+            .encode_wide()
+            .skip(2),
+    );
+    Cow::Owned(PathBuf::from(OsString::from_wide(&verbatim)))
 }
 
 /// Build the junction at a unique sibling path so no other worker can

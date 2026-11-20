@@ -156,6 +156,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -437,6 +438,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -534,6 +536,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -690,6 +693,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,

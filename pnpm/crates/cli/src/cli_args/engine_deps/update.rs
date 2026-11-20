@@ -247,6 +247,7 @@ async fn query_engine_version(
                     ..ResolverWantedDependency::default()
                 },
                 compatible,
+                current_version: None,
             },
             resolve_options,
         )

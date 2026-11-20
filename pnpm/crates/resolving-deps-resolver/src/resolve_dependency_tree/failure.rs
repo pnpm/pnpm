@@ -10,7 +10,7 @@ use pnpm_resolving_resolver_base::{
 };
 use std::{fmt, sync::Arc};
 
-use super::SkippedOptionalDependencyParent;
+use super::{OverrideNoMatchingVersionError, SkippedOptionalDependencyParent};
 
 /// Cooperative cancellation probe polled during synchronous and multi-pass
 /// dependency resolution stages.
@@ -106,6 +106,11 @@ pub enum ResolveDependencyTreeError {
     /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
     #[diagnostic(transparent)]
     NoMatchingVersion(#[error(source)] NoMatchingVersionError),
+
+    /// `ERR_PNPM_NO_MATCHING_VERSION` attributed to the override that forced
+    /// the missing specifier. Boxed to stay under `clippy::result_large_err`.
+    #[diagnostic(transparent)]
+    OverrideNoMatchingVersion(#[error(source)] Box<OverrideNoMatchingVersionError>),
 
     /// The registry answered the metadata request with a non-2xx status,
     /// raised with the matching `ERR_PNPM_FETCH_<status>` code.

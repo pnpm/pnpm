@@ -284,11 +284,15 @@ Added in: v12.7.0
 Allow the named package to run its lifecycle scripts during this install, and
 record it in the [`allowBuilds`](../settings/build.md#allowbuilds) field of
 `pnpm-workspace.yaml` so it stays allowed. Prefix a name with `!` to deny its
-scripts instead. The option can be repeated:
+scripts instead. The option can be repeated or, since v12.23.0, take a
+comma-separated list:
 
 ```sh
 pnpm install --allow-build=esbuild --allow-build='!core-js'
 ```
+
+Pass a git or tarball key in its own `--allow-build`. A value that contains one
+is not split at its commas.
 
 The quotes keep a POSIX shell from treating `!` as history expansion. In
 Windows `cmd.exe`, leave them out.

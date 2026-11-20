@@ -81,6 +81,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -175,6 +176,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -285,6 +287,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -384,6 +387,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,
@@ -505,6 +509,7 @@ async fn fresh_install_skips_platform_incompatible_optional_dependency() {
         },
         resolution: crate::ResolutionInputs {
             update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+            local_filesystem_policy: Default::default(),
             preferred_versions_override: None,
             auth_override: None,
             observer: None,

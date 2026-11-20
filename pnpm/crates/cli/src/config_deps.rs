@@ -11,7 +11,7 @@ pub use declarations::{add_config_dependencies, update_config_dependencies};
 pub use engine_policy::mature_pnpm_version_for_range;
 pub use hooks::{
     apply_config_dependency_settings, load_before_packing_hooks, may_update_config, prepare_config,
-    run_update_config_hooks,
+    run_update_config_hooks, update_config_hook_catalogs,
 };
 
 pub(crate) use declarations::declared_specifier;

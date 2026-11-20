@@ -15,7 +15,7 @@ import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
 import type { PackOptions, PackResultJson } from './pack.js'
-import { assertValidTarballVersion, resolvePackOutput, resolveRelativeTarget, stripBuildMetadata } from './packOutput.js'
+import { assertValidTarballVersion, resolvePackOutput, resolvePublishDirectory, resolveRelativeTarget, stripBuildMetadata } from './packOutput.js'
 import { checkPackedBinsForCrlf, isManifestEntry, packPkg } from './packTarball.js'
 import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { bindRunScriptsIfPresent } from './publish.js'
@@ -23,7 +23,10 @@ import { bindRunScriptsIfPresent } from './publish.js'
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 
 export interface PackResult {
+  /** The manifest sent to the registry as package metadata. See {@link withRegistryReadme}. */
   publishedManifest: ExportedManifest
+  /** The `package.json` written into the tarball. */
+  packedManifest: ExportedManifest
   contents: string[]
   tarballPath: string
   /** Total uncompressed size of all files in the tarball, in bytes. */
@@ -33,6 +36,7 @@ export interface PackResult {
 export async function api (opts: PackOptions): Promise<PackResult> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
   preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, entryManifest)
+  const dir = resolvePublishDirectory(opts.dir, entryManifest.publishConfig?.directory)
   const _runScriptsIfPresent = await bindRunScriptsIfPresent(opts.dir, opts)
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
@@ -40,9 +44,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
       'prepare',
     ], entryManifest)
   }
-  const dir = entryManifest.publishConfig?.directory
-    ? path.join(opts.dir, entryManifest.publishConfig.directory)
-    : opts.dir
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
   const { manifest, fileName: selectedManifestFileName } = await readProjectManifest(dir, opts)
   preventBundledDependenciesWithPnpNodeLinker(opts.nodeLinker, manifest)
@@ -117,6 +118,7 @@ async function packProject ({ opts, dir, manifest, selectedManifestFileName, run
   }
   return {
     publishedManifest: await withRegistryReadme(publishManifest, dir),
+    packedManifest: publishManifest,
     contents: packedContents,
     tarballPath: opts.dir !== destDir
       ? outputPath
@@ -368,11 +370,12 @@ async function createPublishManifest (opts: {
 }
 
 export function toPackResultJson (packResult: PackResult): PackResultJson {
-  const { publishedManifest, contents, tarballPath } = packResult
+  const { packedManifest, contents, tarballPath } = packResult
   return {
-    name: publishedManifest.name as string,
-    version: publishedManifest.version as string,
+    name: packedManifest.name as string,
+    version: packedManifest.version as string,
     filename: tarballPath,
     files: contents.map((file) => ({ path: file })),
+    manifest: packedManifest,
   }
 }

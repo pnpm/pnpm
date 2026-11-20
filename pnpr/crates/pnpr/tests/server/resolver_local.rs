@@ -140,3 +140,262 @@ async fn resolve_private_upstream(header: &str) {
     assert_eq!(requests.load(Ordering::SeqCst), 0);
     packument.assert_async().await;
 }
+
+#[tokio::test]
+async fn resolve_rejects_local_file_and_link_specs_without_reading_server_filesystem() {
+    let mut upstream = mockito::Server::new_async().await;
+    let canary = upstream
+        .mock("GET", "/canary-pkg")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let secret_dir = tmp.path().join("server-only-dir");
+    std::fs::create_dir_all(&secret_dir).unwrap();
+    std::fs::write(
+        secret_dir.join("package.json"),
+        r#"{"name":"server-secret","version":"9.9.9","dependencies":{"canary-pkg":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let (_, secret_tgz) = package_tar_and_tgz(
+        r#"{"name":"server-secret-tgz","version":"9.9.9","dependencies":{"canary-pkg":"1.0.0"}}"#,
+    );
+    let secret_tgz_path = tmp.path().join("server-only.tgz");
+    std::fs::write(&secret_tgz_path, &secret_tgz).unwrap();
+
+    let mut config = config_for(&upstream.url(), tmp.path().join("storage"));
+    config.http.public_url = "http://localhost:4873/".into();
+    let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
+    let reader = issue_token(&auth, "reader").await;
+    let app = router_with_auth(config, auth);
+
+    let secret = secret_dir.to_str().unwrap();
+    let secret_tgz_str = secret_tgz_path.to_str().unwrap();
+    let payloads = [
+        json!({ "dependencies": { "sneaky": format!("file:{secret}") } }),
+        json!({ "dependencies": { "sneaky": "file:../server-only-dir" } }),
+        json!({ "dependencies": { "sneaky": format!("file:{secret_tgz_str}") } }),
+        json!({ "dependencies": { "sneaky": "file:./local.tgz" } }),
+        json!({ "dependencies": { "sneaky": format!("file://{secret}") } }),
+        json!({ "dependencies": { "sneaky": format!("git+file://{secret}") } }),
+        json!({ "dependencies": { "sneaky": format!("git+file://localhost{secret}") } }),
+        json!({ "dependencies": { "sneaky": format!("link:{secret}") } }),
+        json!({ "dependencies": { "sneaky": "link:../server-only-dir" } }),
+        json!({ "dependencies": { "sneaky": secret } }),
+        json!({ "dependencies": { "sneaky": "./server-only-dir" } }),
+        json!({ "overrides": { "target": format!("file:{secret}") } }),
+        json!({ "catalogs": { "default": { "target": format!("file:{secret}") } } }),
+        json!({ "packageExtensions": { "foo@1": { "dependencies": { "sneaky": format!("file:{secret}") } } } }),
+    ];
+
+    for mut payload in payloads {
+        payload["registry"] = json!(upstream.url());
+        let request = Request::post("/-/pnpr/v0/resolve")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {reader}"))
+            .body(Body::from(payload.to_string()))
+            .unwrap();
+        let (status, body) = drain_resolve_response(
+            app.clone()
+                .oneshot(request)
+                .await
+                .unwrap(),
+        )
+        .await;
+        let text = String::from_utf8(body).unwrap();
+        assert_eq!(status, StatusCode::BAD_REQUEST, "expected 400 for {payload}, got {text}");
+        assert!(
+            text.contains("ERR_PNPR_BAD_REQUEST"),
+            "expected ERR_PNPR_BAD_REQUEST for {payload}, got {text}",
+        );
+        assert!(!text.contains("server-secret"), "leaked manifest name for {payload}: {text}");
+        assert!(!text.contains("canary-pkg"), "leaked transitive dep for {payload}: {text}");
+    }
+    canary.assert_async().await;
+}
+
+#[tokio::test]
+async fn resolve_blocks_transitive_local_specs_in_published_packages_without_reading_server_files()
+{
+    let mut upstream = mockito::Server::new_async().await;
+    let canary = upstream
+        .mock("GET", "/canary-pkg")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let secret_dir = tmp.path().join("server-only-dir");
+    std::fs::create_dir_all(&secret_dir).unwrap();
+    std::fs::write(
+        secret_dir.join("package.json"),
+        r#"{"name":"server-secret","version":"9.9.9","dependencies":{"canary-pkg":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let secret = secret_dir.to_str().unwrap();
+
+    for (idx, (transitive_spec, expected_error)) in [
+        (format!("file:{secret}"), "cannot be resolved on the server"),
+        (format!("link:{secret}"), "cannot be resolved on the server"),
+        (secret.to_string(), "isn't supported by any available resolver"),
+        (format!("git+file://localhost{secret}"), "is not allowed by this pnpr server"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let pkg_name = format!("evil-wrapper-{idx}");
+        let manifest_str = json!({
+            "name": pkg_name,
+            "version": "1.0.0",
+            "dependencies": { "sneaky": transitive_spec },
+        })
+        .to_string();
+        let (_, tgz) = package_tar_and_tgz(&manifest_str);
+        let packument = upstream
+            .mock("GET", format!("/{pkg_name}").as_str())
+            .expect(1)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "name": pkg_name,
+                    "dist-tags": { "latest": "1.0.0" },
+                    "versions": {
+                        "1.0.0": {
+                            "name": pkg_name,
+                            "version": "1.0.0",
+                            "dependencies": { "sneaky": transitive_spec },
+                            "dist": {
+                                "tarball": format!("{}/{pkg_name}/-/{pkg_name}-1.0.0.tgz", upstream.url()),
+                                "integrity": sha512_integrity(&tgz),
+                            },
+                        },
+                    },
+                })
+                .to_string(),
+            )
+            .create_async()
+            .await;
+
+        let mut config = config_for(
+            &upstream.url(),
+            tmp.path()
+                .join(format!("storage-{idx}")),
+        );
+        config.http.public_url = "http://localhost/".into();
+        config.routing.route_policy.public.push(super::PublicRoute {
+            registry: Some(upstream.url()),
+            package: None,
+        });
+        let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
+        let reader = issue_token(&auth, "reader").await;
+        let app = router_with_auth(config, auth);
+
+        let request = Request::post("/-/pnpr/v0/resolve")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {reader}"))
+            .body(Body::from(
+                json!({
+                    "dependencies": { pkg_name.as_str(): "1.0.0" },
+                    "registry": upstream.url(),
+                    "preferFrozenLockfile": false,
+                })
+                .to_string(),
+            ))
+            .unwrap();
+        let (status, resp_body) = drain_resolve_response(
+            app.clone()
+                .oneshot(request)
+                .await
+                .unwrap(),
+        )
+        .await;
+        packument.assert_async().await;
+        let text = String::from_utf8(resp_body).unwrap();
+        assert_eq!(status, StatusCode::OK);
+        assert!(text.contains(r#""type":"error""#), "expected error frame: {text}");
+        assert!(
+            text.contains(expected_error),
+            "expected {expected_error:?} in error frame for {pkg_name}: {text}",
+        );
+        assert!(!text.contains(r#""type":"done""#), "must not resolve: {text}");
+        assert!(!text.contains("server-secret"), "leaked server manifest: {text}");
+        assert!(!text.contains("canary-pkg"), "leaked transitive dep: {text}");
+    }
+    canary.assert_async().await;
+}
+
+#[tokio::test]
+async fn resolve_continues_to_support_workspace_protocol_across_projects() {
+    let mut upstream = mockito::Server::new_async().await;
+    let (_, tgz) = package_tar_and_tgz(r#"{"name":"ext-dep","version":"1.0.0"}"#);
+    let packument = upstream
+        .mock("GET", "/ext-dep")
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "name": "ext-dep",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": {
+                    "1.0.0": {
+                        "name": "ext-dep",
+                        "version": "1.0.0",
+                        "dist": {
+                            "tarball": format!("{}/ext-dep/-/ext-dep-1.0.0.tgz", upstream.url()),
+                            "integrity": sha512_integrity(&tgz),
+                        },
+                    },
+                },
+            })
+            .to_string(),
+        )
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.http.public_url = "http://localhost:4873/".into();
+    config.routing.route_policy.public.push(super::PublicRoute {
+        registry: Some(upstream.url()),
+        package: None,
+    });
+    let auth = crate::tokens::seeded_auth(&config, &[("reader", "password")]);
+    let reader = issue_token(&auth, "reader").await;
+    let app = router_with_auth(config, auth);
+
+    let request = Request::post("/-/pnpr/v0/resolve")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {reader}"))
+        .body(Body::from(
+            json!({
+                "registry": upstream.url(),
+                "preferFrozenLockfile": false,
+                "projects": [
+                    { "dir": ".", "name": "root", "version": "0.0.0" },
+                    {
+                        "dir": "packages/lib",
+                        "name": "@ws/lib",
+                        "version": "1.0.0",
+                        "dependencies": { "ext-dep": "1.0.0" },
+                    },
+                    {
+                        "dir": "packages/app",
+                        "name": "@ws/app",
+                        "version": "1.0.0",
+                        "dependencies": { "@ws/lib": "workspace:*" },
+                    },
+                ],
+                "overrides": { "aliased-lib": "workspace:./packages/lib" },
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let (status, body) = drain_resolve_response(app.oneshot(request).await.unwrap()).await;
+    let text = String::from_utf8(body).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert!(!text.contains(r#""type":"error""#), "{text}");
+    assert!(text.contains(r#""type":"done""#), "{text}");
+    assert!(text.contains("link:../lib"), "{text}");
+    packument.assert_async().await;
+}

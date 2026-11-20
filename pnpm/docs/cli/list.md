@@ -30,7 +30,9 @@ dependents first.
 
 ### --json
 
-Log output in JSON format.
+Log output in JSON format. The `unsavedDependencies` field lists packages
+present in the project's own modules directory that its lockfile entry does
+not record.
 
 ### --long
 

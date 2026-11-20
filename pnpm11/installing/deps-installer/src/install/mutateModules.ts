@@ -302,7 +302,7 @@ async function validateModulesAndReopenContext (
     forceNewModules: installsOnly,
     include: isPrune ? undefined : opts.include,
     modulesDir: opts.modulesDir ?? 'node_modules',
-    mutatesEveryProject: mutatesEveryProject(projects, ctx),
+    mutatedProjectDirs: new Set(projects.map(({ rootDir }) => rootDir)),
     virtualStoreDir: ctx.virtualStoreDir,
     confirmModulesPurge: opts.confirmModulesPurge && !opts.ci,
     currentHoistPattern: ctx.currentHoistPattern,
@@ -311,11 +311,6 @@ async function validateModulesAndReopenContext (
   const nextCtx = purged ? await getContext(opts) : ctx
   applyProjectPruneFlags(nextCtx, projects)
   return nextCtx
-}
-
-function mutatesEveryProject (projects: MutatedProject[], ctx: PnpmContext): boolean {
-  const mutatedDirs = new Set(projects.map(({ rootDir }) => rootDir))
-  return Object.values(ctx.projects).every(({ rootDir }) => mutatedDirs.has(rootDir))
 }
 
 function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): void {

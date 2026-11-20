@@ -55,6 +55,7 @@ fn test_update(
             explicit_groups: UpdateExplicitGroups::default(),
             supported_architectures: None,
             resolution_observer: None,
+            policy_excludes: None,
         },
     )
 }

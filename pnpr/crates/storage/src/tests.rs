@@ -702,3 +702,19 @@ async fn local_upstream_metadata_updates_preserve_fetch_age() {
         b"new",
     );
 }
+
+#[test]
+fn namespaced_splits_slash_separated_subtrees_into_path_components() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let nested = storage.cached.namespaced("~public/abc/artifacts/def");
+    assert_eq!(
+        nested.root,
+        storage.cached.root
+            .join("~public")
+            .join("abc")
+            .join("artifacts")
+            .join("def"),
+    );
+    assert_eq!(storage.cached.namespaced("").root, storage.cached.root);
+}

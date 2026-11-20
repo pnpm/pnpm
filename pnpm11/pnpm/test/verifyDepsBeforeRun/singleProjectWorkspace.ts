@@ -12,6 +12,31 @@ import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
+test('only repeat install acts on trustLockfile drift', async () => {
+  const manifest: ProjectManifest = {
+    name: 'root',
+    private: true,
+    dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+    scripts: { hello: 'echo hello from script' },
+  }
+  const project = prepare(manifest)
+
+  const policy = '--config.minimum-release-age=1'
+  await execPnpm([policy, 'install', '--trust-lockfile'])
+  const original = loadWorkspaceState(process.cwd())
+  expect(original?.settings.trustLockfile).toBe(true)
+
+  project.writePackageJson({ ...manifest, description: 'edited' })
+  const run = execPnpmSync([...CONFIG, policy, 'run', 'hello'], { expectSuccess: true })
+  expect(run.stdout.toString()).toContain('hello from script')
+  const refreshed = loadWorkspaceState(process.cwd())
+  expect(refreshed?.settings.trustLockfile).toBe(true)
+  expect(refreshed?.validation?.manifests).not.toEqual(original?.validation?.manifests)
+
+  const install = execPnpmSync([policy, 'install', '--reporter=ndjson'], { expectSuccess: true })
+  expect(install.stdout.toString()).toContain('"name":"pnpm:lockfile-verification"')
+})
+
 test('single dependency', async () => {
   const manifest: ProjectManifest = {
     name: 'root',

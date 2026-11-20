@@ -185,6 +185,8 @@ This setting allows the checking of the state of dependencies before running scr
 - `error` - Throws an error if `node_modules` is not up to date.
 - `false` - Disables dependency checks.
 
+Changing [`trustLockfile`](./dependency-resolution.md#trustlockfile) alone does not trigger a dependency reinstall before a script runs. An explicit `pnpm install` verifies the lockfile when that setting is off.
+
 ### strictDepBuilds
 
 Added in: v10.3.0

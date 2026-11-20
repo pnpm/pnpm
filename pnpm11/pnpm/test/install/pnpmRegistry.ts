@@ -591,3 +591,83 @@ test('pnpm install resolves locally when the pnpmfile defines a preResolution ho
   expect(requestCount).toBe(0)
   expect(fs.existsSync('pre-resolution-ran')).toBe(true)
 })
+
+test('pnpm install with pnprServer falls back locally for file:, link:, and local tarball specs', async () => {
+  prepareProject({
+    name: 'app',
+    version: '1.0.0',
+  })
+
+  const parentDir = path.dirname(process.cwd())
+  const localLibDir = path.join(parentDir, 'local-lib')
+  fs.mkdirSync(localLibDir, { recursive: true })
+  fs.writeFileSync(path.join(localLibDir, 'package.json'), JSON.stringify({
+    name: 'local-lib',
+    version: '1.0.0',
+    dependencies: { 'is-positive': '1.0.0' },
+  }))
+
+  const linkedLibDir = path.join(parentDir, 'linked-lib')
+  fs.mkdirSync(linkedLibDir, { recursive: true })
+  fs.writeFileSync(path.join(linkedLibDir, 'package.json'), JSON.stringify({
+    name: 'linked-lib',
+    version: '1.0.0',
+  }))
+
+  const packedLibDir = path.join(parentDir, 'packed-lib')
+  fs.mkdirSync(packedLibDir, { recursive: true })
+  fs.writeFileSync(path.join(packedLibDir, 'package.json'), JSON.stringify({
+    name: 'packed-lib',
+    version: '1.0.0',
+  }))
+  await execPnpm(['-C', packedLibDir, 'pack', '--pack-destination', process.cwd()])
+  fs.renameSync('packed-lib-1.0.0.tgz', 'pkg.tgz')
+
+  fs.writeFileSync('package.json', JSON.stringify({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      'local-lib': 'file:../local-lib',
+      'packed-lib': 'file:./pkg.tgz',
+      'linked-lib': 'link:../linked-lib',
+    },
+  }))
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  expect(fs.existsSync('node_modules/local-lib/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/packed-lib/package.json')).toBe(true)
+  expect(fs.existsSync('node_modules/linked-lib/package.json')).toBe(true)
+})
+
+test('pnpm install with pnprServer falls back locally for file: specs in overrides', async () => {
+  prepareProject({
+    name: 'app',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  const localOverrideDir = path.join(path.dirname(process.cwd()), 'local-override')
+  fs.mkdirSync(localOverrideDir, { recursive: true })
+  fs.writeFileSync(path.join(localOverrideDir, 'package.json'), JSON.stringify({
+    name: 'is-positive',
+    version: '1.0.0-local',
+  }))
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    overrides: {
+      'is-positive': 'file:../local-override',
+    },
+  })
+
+  requestCount = 0
+
+  await execPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+
+  expect(requestCount).toBe(0)
+  expect(loadJsonFileSync<{ version: string }>('node_modules/is-positive/package.json').version).toBe('1.0.0-local')
+})

@@ -271,6 +271,24 @@ test('devEngines.runtime with onFail=error should fail on Node.js version mismat
   expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
 })
 
+test('help prints despite an unsatisfied devEngines.runtime with onFail=error', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+
+  for (const args of [['help'], ['--help'], ['install', '--help']]) {
+    const { status, stdout } = execPnpmSync(args)
+    expect(status).toBe(0)
+    expect(stdout.toString()).toContain('Usage:')
+  }
+})
+
 test('devEngines.runtime is still checked when --lockfile-dir moves the root project directory', async () => {
   prepare({
     devEngines: {
@@ -1002,6 +1020,42 @@ testOnPosix('pnpm --version reports a pin it cannot record instead of failing', 
   expect(result.stderr.toString()).toContain('Cannot use the pnpm version this project pins')
   expect(result.stderr.toString()).toContain('permission denied')
   expect(fs.existsSync(path.join(projectDir, 'pnpm-lock.yaml'))).toBe(false)
+})
+
+test('--version should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--version'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toMatch(/^\d+\.\d+\.\d+/)
+})
+
+test('--help should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['--help'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Usage:')
+})
+
+test('help command should work even if the required package manager is not pnpm', async () => {
+  prepare({
+    name: 'project',
+    packageManager: 'yarn@3.0.0',
+    version: '1.0.0',
+  })
+
+  const { status, stdout } = execPnpmSync(['help'])
+  expect(status).toBe(0)
+  expect(stdout.toString()).toContain('Usage:')
 })
 
 function canWriteTo (dir: string): boolean {

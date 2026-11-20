@@ -1,9 +1,9 @@
 use super::{
     AccessArgs, AddArgs, ApproveArgs, ApproveBuildsArgs, AuditArgs, BinArgs, BugsArgs,
-    CacheCommand, CatFileArgs, CatIndexArgs, ChangeArgs, CiArgs, CleanArgs, CompletionArgs,
-    CompletionServerArgs, ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, CreateArgs,
-    DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs, EnvArgs,
-    ExecArgs, FetchArgs, FindHashArgs, FundArgs, IgnoredBuildsArgs, ImportArgs, InitArgs,
+    CacheCommand, CatFileArgs, CatIndexArgs, CatalogArgs, ChangeArgs, CiArgs, CleanArgs,
+    CompletionArgs, CompletionServerArgs, ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs,
+    CreateArgs, DedupeArgs, DeployArgs, DeprecateArgs, DistTagArgs, DlxArgs, DocsArgs, DoctorArgs,
+    EnvArgs, ExecArgs, FetchArgs, FindHashArgs, FundArgs, IgnoredBuildsArgs, ImportArgs, InitArgs,
     InstallArgs, InstallTestArgs, LaneArgs, LicensesArgs, LinkArgs, ListArgs, LoginArgs,
     LogoutArgs, NotImplementedArgs, OutdatedArgs, OwnerArgs, PackAppArgs, PackArgs, PatchArgs,
     PatchCommitArgs, PatchRemoveArgs, PeersArgs, PermissionsArgs, PingArgs, PipelineArgs, PkgArgs,
@@ -214,6 +214,8 @@ pub enum CliCommand {
     /// Inspect and manage the metadata cache.
     #[clap(subcommand)]
     Cache(CacheCommand),
+    /// Manage the catalogs of the workspace.
+    Catalog(CatalogArgs),
     /// Prints the contents of a file based on the hash value stored in the index file.
     CatFile(CatFileArgs),
     /// Prints the index file of a specific package from the store.

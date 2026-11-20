@@ -9,6 +9,10 @@ const pack = (): PackResult => ({
     name: 'example-pack',
     version: '0.1.2',
   },
+  packedManifest: {
+    name: 'example-pack',
+    version: '0.1.2',
+  },
   tarballPath: 'example-pack.tgz',
   unpackedSize: 0,
 })

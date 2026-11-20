@@ -9,7 +9,7 @@ pub use options::{LifecycleOptions, ProgressOptions, ReporterOptions, ScopeOptio
 mod options;
 
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Component, Path, PathBuf},
 };
 
@@ -27,6 +27,7 @@ use serde_json::Value;
 use pnpm_config::standalone_install_command;
 use pnpm_matcher::{Matcher, create_matcher};
 
+use self::approvals::{PendingApprovals, pending_approval_packages};
 use crate::{
     MaxLogLevel, SummaryScope,
     colors::Colors,
@@ -202,6 +203,7 @@ struct NoticeState {
     deprecated_subdeps: Vec<DeprecationLog>,
     deprecated_slot: BlockSlot,
     reported_peer_issues: bool,
+    approvals: PendingApprovals,
 }
 
 #[derive(Default)]
@@ -283,7 +285,10 @@ impl ReporterState {
         if !self.level_permits(event) {
             return Output::None;
         }
-        if matches!(event, LogEvent::Summary(_) | LogEvent::ExecutionTime(_)) {
+        if matches!(event, LogEvent::Summary(_))
+            || matches!(event, LogEvent::ExecutionTime(_))
+                && self.options.max_log_level >= MaxLogLevel::Info
+        {
             self.flush_pending_lockfile_message();
         }
         self.handle_event(event);
@@ -374,6 +379,7 @@ impl ReporterState {
                 matches!(log.message, LockfileVerificationMessage::Failed { .. })
                     || self.options.max_log_level >= MaxLogLevel::Info
             }
+            LogEvent::ExecutionTime(_) if self.options.append_only => true,
             _ => self.options.max_log_level >= MaxLogLevel::Info,
         }
     }
@@ -425,6 +431,8 @@ use manifest_diff::{
 };
 
 mod lifecycle;
+
+mod approvals;
 
 mod notices;
 

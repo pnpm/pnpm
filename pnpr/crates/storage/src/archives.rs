@@ -163,7 +163,18 @@ impl Storage {
     /// Map `artifact` outside a publication commit, as an image blob's
     /// upload does, refused as a commit depending on it would be.
     pub async fn map_hosted_artifact(&self, artifact: ArtifactBlob) -> Result<()> {
-        self.database.map_artifact(self.metadata.namespace(), artifact).await
+        self.map_hosted_artifact_for_owner(artifact, None).await
+    }
+
+    /// Like [`Self::map_hosted_artifact`], enforcing in the same transaction
+    /// that `required_owner` still owns the package once owners are recorded.
+    pub async fn map_hosted_artifact_for_owner(
+        &self,
+        artifact: ArtifactBlob,
+        required_owner: Option<&str>,
+    ) -> Result<()> {
+        self.database.map_artifact_for_owner(self.metadata.namespace(), artifact, required_owner)
+            .await
     }
 
     /// Remove the package's metadata, then reclaim the blobs its files were

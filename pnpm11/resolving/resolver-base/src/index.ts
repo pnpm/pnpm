@@ -464,6 +464,7 @@ export interface ResolveOptions {
     resolution: Resolution
     publishedAt?: string
   }
+  currentVersion?: string
 }
 
 export type WantedDependency = {
@@ -488,6 +489,8 @@ export type ResolveFunction = (wantedDependency: WantedDependency & { optional?:
 export interface LatestQuery {
   wantedDependency: WantedDependency
   compatible?: boolean
+  /** Lockfile-resolved version used to keep prereleases on their dist-tag channel. */
+  currentVersion?: string
 }
 
 /**

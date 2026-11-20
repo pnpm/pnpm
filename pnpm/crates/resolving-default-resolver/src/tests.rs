@@ -154,7 +154,11 @@ fn spec_not_supported_renders_alias_and_bare_specifier() {
 async fn resolve_latest_returns_none_when_chain_empty() {
     let resolver = DefaultResolver::new(vec![]);
     let opts = ResolveOptions::default();
-    let query = LatestQuery { wanted_dependency: WantedDependency::default(), compatible: false };
+    let query = LatestQuery {
+        wanted_dependency: WantedDependency::default(),
+        compatible: false,
+        current_version: None,
+    };
 
     let info = resolver.resolve_latest(&query, &opts).await.expect("latest doesn't error");
     assert!(info.is_none(), "resolve_latest should fall through to None on an empty chain");

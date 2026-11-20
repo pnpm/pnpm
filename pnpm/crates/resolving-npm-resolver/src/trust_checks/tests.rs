@@ -634,3 +634,23 @@ fn versions_published_at_the_same_time_are_ordered_by_semver() {
     fail_if_trust_downgraded(&meta, "1.0.0", &TrustCheckOptions::default())
         .expect("a later version published at the same time is not earlier");
 }
+
+/// The resolver hands out a version's manifest serialized from its
+/// [`pnpm_registry::PackageVersion`], so the manifest classification has to
+/// read the fields that serialization writes.
+#[test]
+fn manifest_evidence_matches_version_evidence() {
+    use super::{TrustEvidence, get_manifest_trust_evidence, get_trust_evidence};
+    for (evidence, expected) in [
+        (Evidence::None, None),
+        (Evidence::Provenance, Some(TrustEvidence::Provenance)),
+        (Evidence::TrustedPublisher, Some(TrustEvidence::TrustedPublisher)),
+        (Evidence::StagedPublish, Some(TrustEvidence::StagedPublish)),
+    ] {
+        let version: pnpm_registry::PackageVersion =
+            serde_json::from_value(version_json("acme", "1.0.0", evidence)).expect("parse version");
+        let manifest = serde_json::to_value(&version).expect("serialize version");
+        assert_eq!(get_trust_evidence(&version), expected);
+        assert_eq!(get_manifest_trust_evidence(&manifest), expected);
+    }
+}

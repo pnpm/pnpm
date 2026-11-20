@@ -1017,4 +1017,5 @@ fn recursive_publish_resolves_workspace_protocol_without_node_modules() {
 }
 
 mod eligibility;
+mod new_version;
 mod wait;

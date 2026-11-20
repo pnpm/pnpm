@@ -167,7 +167,7 @@ bytes = { version = "1.12.2" }
 cap-primitives = { version = "4.0.3" }
 cargo-lock = { version = "11.1.0" }
 cargo-util-schemas = { version = "0.15.0" }
-jiff = { version = "0.2.46" }
+jiff = { version = "1.0.1" }
 console = { version = "0.16.6" }
 core-foundation = { version = "0.10.1" }
 crossterm = { version = "0.29.0" }
@@ -301,7 +301,7 @@ yamlpath = { version = "1.32.0" }
 wax = { version = "0.7.0" }
 which = { version = "8.0.6" }
 zeroize = { version = "1.9.2" }
-zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
+zip = { version = "9.7.3", default-features = false, features = ["deflate"] }
 zstd = { version = "0.14.4", default-features = false }
 zune-inflate = { version = "0.2.54" }
 

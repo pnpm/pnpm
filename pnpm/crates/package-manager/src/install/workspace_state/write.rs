@@ -6,6 +6,7 @@ use super::{
     recorded_auto_dedupe,
 };
 use pnpm_modules_yaml::Host;
+use pnpm_workspace_state::WorkspaceStateSettings;
 
 /// Everything a workspace state write records besides what the run's
 /// configuration and manifests already say.
@@ -46,9 +47,8 @@ pub(crate) struct CarriedSettings<'a> {
     /// [`recorded_registry_routes_after_install`](crate::install_state::recorded_registry_routes_after_install)
     /// for an install and the recorded ones for a passing check.
     pub(crate) registry_routes: Option<std::collections::BTreeMap<String, String>>,
-    /// The recorded dependency groups, runtime settings and store location to
-    /// keep instead of the run's, for a writer that ignored their drift.
-    pub(crate) kept_settings: Option<&'a pnpm_workspace_state::WorkspaceStateSettings>,
+    /// The install settings to carry forward when a run check ignores their drift.
+    pub(crate) kept_settings: Option<&'a WorkspaceStateSettings>,
 }
 
 /// The workspace state `write` records. Every writer goes through here, so a
@@ -74,13 +74,7 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
     }
     state.settings.registry_routes.clone_from(&write.carried.registry_routes);
     if let Some(kept) = write.carried.kept_settings {
-        state.settings.dev = kept.dev;
-        state.settings.optional = kept.optional;
-        state.settings.production = kept.production;
-        state.settings.runtime = kept.runtime;
-        state.settings.runtime_on_fail = kept.runtime_on_fail;
-        state.settings.store_dir.clone_from(&kept.store_dir);
-        state.settings.virtual_store_dir.clone_from(&kept.virtual_store_dir);
+        carry_run_ignored_settings(&mut state.settings, kept);
     }
     crate::install_state::validation::record_validation(
         &mut state,
@@ -94,4 +88,18 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
         },
     );
     state
+}
+
+fn carry_run_ignored_settings(
+    settings: &mut WorkspaceStateSettings,
+    kept: &WorkspaceStateSettings,
+) {
+    settings.dev = kept.dev;
+    settings.optional = kept.optional;
+    settings.production = kept.production;
+    settings.runtime = kept.runtime;
+    settings.runtime_on_fail = kept.runtime_on_fail;
+    settings.store_dir.clone_from(&kept.store_dir);
+    settings.trust_lockfile = kept.trust_lockfile;
+    settings.virtual_store_dir.clone_from(&kept.virtual_store_dir);
 }

@@ -13,6 +13,7 @@ use super::{
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
+    catalog::CatalogArgs,
     change::ChangeArgs,
     ci::CiArgs,
     clean::CleanArgs,

@@ -1,4 +1,5 @@
 use super::{
+    catalog::CatalogArgs,
     dispatch::{CommandFuture, RunCtx, apply_update_config},
     exec::{ExecArgs, ExecDirs},
     init::InitArgs,
@@ -76,6 +77,21 @@ pub(super) fn pkg<'a>(ctx: &RunCtx<'a>, args: PkgArgs) -> miette::Result<Command
         args.run(ctx.locations.manifest_path)
     };
     Ok(Box::pin(std::future::ready(result)))
+}
+
+// `catalog` compares against the catalogs an install resolves through, so
+// the `updateConfig` hooks apply first.
+pub(super) fn catalog<'a>(
+    ctx: &RunCtx<'a>,
+    args: CatalogArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.loaders.config)()?;
+    let pre_hook_config = config.clone();
+    let dir = ctx.locations.dir;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir).await?;
+        Box::pin(args.run(config, pre_hook_config, dir)).await
+    }))
 }
 
 pub(super) fn test<'a>(

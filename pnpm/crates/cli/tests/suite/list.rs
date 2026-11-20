@@ -149,6 +149,54 @@ fn recursive_list_sorts_projects_by_workspace_dependencies() {
     drop(root);
 }
 
+#[test]
+fn list_json_reads_unsaved_dependencies_from_each_project() {
+    for modules_dir in ["node_modules", "vendor/modules"] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(&workspace, &[("app", json!({ "name": "app", "version": "1.0.0" }))]);
+        let app = workspace.join("packages/app");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("packages:\n  - packages/*\nmodulesDir: {modules_dir}\n"),
+        )
+        .expect("write workspace settings");
+        fs::write(
+            workspace.join("pnpm-lock.yaml"),
+            "lockfileVersion: '9.0'\nimporters:\n  .: {}\n  packages/app: {}\n",
+        )
+        .expect("write workspace lockfile");
+        for (project, name) in [(&workspace, "root-extra"), (&app, "app-extra")] {
+            let package = project.join(modules_dir).join(name);
+            fs::create_dir_all(&package).expect("create unsaved package directory");
+            fs::write(
+                package.join("package.json"),
+                json!({ "name": name, "version": "1.0.0" }).to_string(),
+            )
+            .expect("write unsaved package manifest");
+        }
+
+        for (cwd, args, expected_count) in [
+            (workspace.as_path(), ["list", "--json", "--recursive"].as_slice(), 2),
+            (app.as_path(), ["list", "--json"].as_slice(), 1),
+        ] {
+            let output = run_ok(cwd, args);
+            let projects: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+            assert_eq!(projects.len(), expected_count, "{output}");
+            for project in projects {
+                let name = project["name"].as_str().expect("project name");
+                let dependencies =
+                    project["unsavedDependencies"].as_object().expect("unsaved dependencies");
+                assert_eq!(
+                    dependencies.keys().collect::<Vec<_>>(),
+                    [&format!("{name}-extra")],
+                    "{output}",
+                );
+            }
+        }
+        drop(root);
+    }
+}
+
 /// Scaffold a project whose lockfile records exactly one dependency
 /// (`saved-dep`), with both that dependency and an unrecorded
 /// `extraneous` package materialized in `node_modules`.

@@ -118,14 +118,7 @@ pub(crate) fn decide_catalog_outcome(
     dep: &CatalogModeDep<'_>,
     prefix: &str,
 ) -> Result<CatalogDecisionOutcome, CatalogVersionMismatchError> {
-    // A `tool:` / `runtime:` specifier round-trips to `devEngines.runtime` through
-    // the manifest writer; promoting it into a catalog would strand it in
-    // `devDependencies`. Skip it, matching pnpm.
-    if is_tool_specifier(dep.bare_specifier) {
-        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
-    }
-
-    if is_project_relative_path(dep.bare_specifier) {
+    if stays_out_of_catalogs(dep.bare_specifier) {
         return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 
@@ -236,6 +229,16 @@ fn catalog_mismatch(
             Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None })
         }
     }
+}
+
+/// Whether a dependency written with `bare_specifier` has to stay direct
+/// rather than move into a catalog.
+#[must_use]
+pub fn stays_out_of_catalogs(bare_specifier: &str) -> bool {
+    // A `tool:` / `runtime:` specifier round-trips to `devEngines.runtime`
+    // through the manifest writer; promoting it into a catalog would strand
+    // it in `devDependencies`.
+    is_tool_specifier(bare_specifier) || is_project_relative_path(bare_specifier)
 }
 
 /// Whether `specifier` names a path resolved against the project that

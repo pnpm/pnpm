@@ -43,7 +43,7 @@ impl UpdateArgs {
             range_spec_style: self.range_spec_style(config),
         };
         let groups = &self.dependency_options;
-        let narrowed = self.selection.interactive
+        let narrowed = self.selection.display.interactive
             || self.selection.patches
             || self.selection.tag.is_some()
             || self.save.no_save

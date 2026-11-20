@@ -174,7 +174,7 @@ fn resync_agent_skills_when_up_to_date<Reporter: self::Reporter>(
     {
         return Ok(());
     }
-    let pending = crate::agent_skills::resync_agent_skills_at(
+    let pending = crate::agent_skills::resync_agent_skills_dep_paths_at(
         config,
         inputs.tree.workspace_root,
         inputs.lockfiles.current,

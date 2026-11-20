@@ -11,7 +11,7 @@ import * as tar from 'tar'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import type { PackResultJson } from '../../src/publish/pack.js'
-import { canonicalizePackDestination, type PackDestinationCache, resolvePackOutput, resolveRelativeTarget } from '../../src/publish/packOutput.js'
+import { canonicalizePackDestination, type PackDestinationCache, resolvePackOutput, resolvePublishDirectory, resolveRelativeTarget } from '../../src/publish/packOutput.js'
 import { createPackDestinationLocker } from '../../src/publish/packRecursive.js'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -1485,7 +1485,52 @@ test('pack: display in json format', async () => {
         path: 'src/index.ts',
       },
     ],
+    manifest: {
+      name: 'test-publish-package.json',
+      version: '0.0.0',
+    },
   }, null, 2))
+})
+
+test('pack: json output contains the publish-transformed manifest', async () => {
+  prepare({
+    name: 'test-published-manifest',
+    version: '0.0.0',
+    main: './src/index.ts',
+    publishConfig: {
+      main: './dist/index.js',
+    },
+    scripts: {
+      build: 'exit 0',
+      prepublishOnly: 'exit 0',
+    },
+    pnpm: {
+      overrides: {
+        'is-positive': '1.0.0',
+      },
+    },
+  } as Parameters<typeof prepare>[0] & { pnpm?: Record<string, unknown> })
+  fs.writeFileSync('README.md', '# test-published-manifest', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    dryRun: true,
+    json: true,
+  })
+
+  const { manifest }: PackResultJson = JSON.parse(output)
+
+  expect(manifest.main).toBe('./dist/index.js')
+  expect(manifest.publishConfig).toBeUndefined()
+  expect(manifest.scripts).toStrictEqual({ build: 'exit 0' })
+  expect(manifest.pnpm).toBeUndefined()
+  // The readme is registry metadata that `withRegistryReadme` adds to the
+  // published manifest regardless of `embedReadme`; the packed one omits it.
+  expect(manifest.readme).toBeUndefined()
+  expect(fs.existsSync('test-published-manifest-0.0.0.tgz')).toBeFalsy()
 })
 
 test('pack: recursive pack and display in json format', async () => {
@@ -1567,6 +1612,7 @@ test('pack: recursive pack and display in json format', async () => {
     expect(pkg).toHaveProperty('version')
     expect(pkg).toHaveProperty('filename')
     expect(pkg).toHaveProperty('files')
+    expect(pkg.manifest.name).toBe(pkg.name)
     expect(Array.isArray(pkg.files)).toBeTruthy()
     for (const file of pkg.files) {
       expect(file).toHaveProperty('path')
@@ -2275,6 +2321,128 @@ describe('resolveRelativeTarget and resolvePackOutput cross-platform behavior', 
       outputPath: 'C:\\ws\\selected\\sub\\..\\foo.tgz',
       tarballName: 'foo.tgz',
     })
+  })
+})
+
+describe('publishConfig.directory containment', () => {
+  test.each([
+    '/dist',
+    '/',
+    '//server/share',
+    '\\outside',
+    '\\\\server\\share\\outside',
+    '\\\\?\\C:\\outside',
+    'C:outside',
+    'c:outside',
+    'C:\\outside',
+    'D:/outside',
+    'C:',
+    'dist/C:outside',
+    'dist/D:outside',
+    'sub/C:/sensitive',
+    'dist\\D:outside',
+    'dist:stream',
+    '..',
+    '../outside',
+    '../../outside',
+    'sub/../../outside',
+    'sub/../dist',
+    '..\\outside',
+    'sub\\..\\..\\outside',
+    '...',
+    '.. ',
+    '. ',
+    '   ',
+    'sub/.. /outside',
+    'dist\0/../outside',
+  ])('resolvePublishDirectory rejects escaping or rooted path %j', (directory) => {
+    expect(() => resolvePublishDirectory('/workspace/pkg', directory)).toThrow(
+      expect.objectContaining({ code: 'ERR_PNPM_INVALID_PUBLISH_DIRECTORY' })
+    )
+  })
+
+  test.each([123, true, ['../outside'], {}])('resolvePublishDirectory rejects non-string value %j', (directory) => {
+    expect(() => resolvePublishDirectory('/workspace/pkg', directory)).toThrow(
+      expect.objectContaining({ code: 'ERR_PNPM_INVALID_PUBLISH_DIRECTORY' })
+    )
+  })
+
+  test('pack rejects publishConfig.directory escaping the package root before running prepack', async () => {
+    const root = tempDir()
+    const outsideDir = path.join(root, 'outside')
+    const pkgDir = path.join(root, 'pkg')
+    fs.mkdirSync(outsideDir, { recursive: true })
+    fs.writeFileSync(path.join(outsideDir, 'package.json'), JSON.stringify({
+      name: 'outside-pkg',
+      version: '1.0.0',
+    }))
+    fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'SENSITIVE_DATA=123\n')
+
+    for (const directory of [outsideDir, '../outside', 'sub/../../outside', '/dist', 'C:outside', '\\outside']) {
+      prepare({
+        name: 'repro',
+        version: '1.0.0',
+        scripts: {
+          prepack: 'node -e "require(\'node:fs\').writeFileSync(\'prepack-ran\', \'1\')"',
+        },
+        publishConfig: { directory },
+      }, { tempDir: pkgDir })
+
+      // eslint-disable-next-line no-await-in-loop -- sequential repro over the same temp fixture
+      await expect(pack.handler({
+        ...DEFAULT_OPTS,
+        argv: { original: [] },
+        dir: pkgDir,
+        extraBinPaths: [],
+        ignoreScripts: false,
+      })).rejects.toMatchObject({
+        code: 'ERR_PNPM_INVALID_PUBLISH_DIRECTORY',
+      })
+      expect(fs.existsSync(path.join(outsideDir, 'outside-pkg-1.0.0.tgz'))).toBe(false)
+      expect(fs.existsSync(path.join(pkgDir, 'repro-1.0.0.tgz'))).toBe(false)
+      expect(fs.existsSync(path.join(pkgDir, 'prepack-ran'))).toBe(false)
+    }
+  })
+
+  test.each([
+    ['', '.'],
+    ['./', '.'],
+    ['./dist', 'dist'],
+    ['./build/dist/', 'build/dist'],
+    ['..hidden', '..hidden'],
+    ['dist..v2', 'dist..v2'],
+  ])('pack allows relative publishConfig.directory %j', async (directory, relDir) => {
+    prepare({
+      name: 'valid-publish-dir',
+      version: '1.0.0',
+      publishConfig: { directory },
+    })
+    if (relDir !== '.') {
+      fs.mkdirSync(relDir, { recursive: true })
+      fs.writeFileSync(path.join(relDir, 'package.json'), JSON.stringify({
+        name: 'valid-publish-dir',
+        version: '1.0.0',
+      }))
+    }
+    fs.writeFileSync(path.join(relDir, 'index.js'), 'module.exports = 1\n')
+
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+    })
+
+    const tarballPath = path.join(relDir, 'valid-publish-dir-1.0.0.tgz')
+    expect(fs.existsSync(tarballPath)).toBe(true)
+    const entries: string[] = []
+    await tar.t({
+      file: tarballPath,
+      onReadEntry: (entry) => {
+        entries.push(entry.path)
+      },
+    })
+    expect(entries).toContain('package/index.js')
   })
 })
 

@@ -1,6 +1,7 @@
 pub use catalogs::{ChildCatalogs, local_directory_child_specs};
 pub use failure::{DependencyResolutionError, ResolutionCancel, ResolveDependencyTreeError};
 pub use manifest::{declared_specifiers, manifest_child_specs};
+pub use override_reframe::{OverrideEntry, OverrideNoMatchingVersionError};
 
 pub use update_scope::{
     LockedRuntimeReuse, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
@@ -51,6 +52,7 @@ mod finalized;
 mod importer;
 mod locked_resolution;
 mod manifest;
+mod override_reframe;
 mod reuse;
 mod tree_ctx;
 mod walk;

@@ -8,7 +8,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, type ConfigContext, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, findLocalPrefix, getWorkspaceConcurrency, types as allTypes } from '@pnpm/config.reader'
 import type { CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { keepEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
@@ -130,7 +130,7 @@ export const completion: CompletionFunc = async (cliOpts, params) => {
   if (params.length > 0) {
     return []
   }
-  const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? process.cwd(), cliOpts)
+  const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? findLocalPrefix(process.cwd()), cliOpts)
   return Object.keys(manifest.scripts ?? {}).map((name) => ({ name }))
 }
 

@@ -300,14 +300,7 @@ impl<'a, 'install> MaterializationInputs<'a, 'install> {
                 verification_gate: lockfile_verification_gate,
                 check_sink: self.resolution.lockfile_check_sink,
             },
-            resolution: crate::ResolutionInputs {
-                update_seed_policy: self.resolution.inputs.update_seed_policy,
-                preferred_versions_override: self.resolution.inputs.preferred_versions_override,
-                auth_override: self.resolution.inputs.auth_override,
-                observer: self.resolution.inputs.observer,
-                peer_issues_sink: self.resolution.inputs.peer_issues_sink,
-                deps_requiring_build_sink: self.resolution.inputs.deps_requiring_build_sink,
-            },
+            resolution: self.resolution.inputs,
             fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
                 prefetch_downloads: self.downloads.prefetch_downloads,

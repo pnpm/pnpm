@@ -103,17 +103,17 @@ function calculateRepositoryRoot (
   projectDirs: string[]
 ): string {
   // assume repo root is workspace dir
-  let relativeRepoRoot = '.'
+  let levelsUp = 0
   for (const rootDir of projectDirs) {
-    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`)
-    const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir))
-    if (relativePartMatch == null) continue
-    const relativePart = relativePartMatch[0]
-    if (relativePart.length > relativeRepoRoot.length) {
-      relativeRepoRoot = relativePart
-    }
+    // Count whole leading ".." segments, so that a project in an ancestor
+    // directory (a relative path of exactly "..") is counted too, while a
+    // directory named like "..foo" is not.
+    const segments = path.relative(workspaceDir, rootDir).split(path.sep)
+    let projectLevelsUp = 0
+    while (segments[projectLevelsUp] === '..') projectLevelsUp++
+    levelsUp = Math.max(levelsUp, projectLevelsUp)
   }
-  return path.resolve(workspaceDir, relativeRepoRoot)
+  return path.resolve(workspaceDir, ...Array.from({ length: levelsUp }, () => '..'))
 }
 
 async function createMutatedImporters (

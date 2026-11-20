@@ -166,6 +166,7 @@
             "cli/doctor",
             "cli/pm",
             "cli/pkg",
+            "cli/catalog",
             "cli/repo",
             "cli/set-script",
             "cli/config",

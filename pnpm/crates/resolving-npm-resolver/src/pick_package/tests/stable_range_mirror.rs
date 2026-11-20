@@ -58,7 +58,11 @@ async fn pick_from_warm_mirror(
     persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &cached)
         .expect("warm mirror");
     if !mirror.fresh {
-        set_mirror_mtime(cache_dir.path(), &registry, parse_cutoff("2024-01-01T00:00:00Z").into());
+        set_mirror_mtime(
+            cache_dir.path(),
+            &registry,
+            std::time::SystemTime::try_from(parse_cutoff("2024-01-01T00:00:00Z")).unwrap(),
+        );
     }
     let http_client = ThrottledClient::default();
     let auth_headers = AuthHeaders::default();

@@ -140,6 +140,8 @@ See also [`pnpm with`](../cli/with.md) for running pnpm at a specific version wi
 
 The Node.js version to use when checking a package's `engines` setting.
 
+It does not change the Node.js version that names the global virtual store directories or keys the side-effects cache. Those follow the Node.js runtime that pnpm installs for the project, then the `node` on `PATH`.
+
 If you want to prevent contributors of your project from adding new incompatible dependencies, use `nodeVersion` and `engineStrict` in a `pnpm-workspace.yaml` file at the root of the project:
 
 ```yaml title="pnpm-workspace.yaml"
