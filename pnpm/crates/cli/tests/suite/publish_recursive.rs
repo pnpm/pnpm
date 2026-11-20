@@ -646,7 +646,7 @@ fn recursive_publish_pushes_each_eligible_package() {
 
 /// The recursive path builds its publish options from the same resolver as the
 /// single-package one, so a configured `tag` has to reach every package's
-/// `PUT` — upstream re-derives `opts.tag ?? 'latest'` separately here.
+/// `PUT`. Upstream re-derives `opts.tag ?? 'latest'` separately here.
 #[test]
 fn recursive_publish_applies_the_configured_dist_tag() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

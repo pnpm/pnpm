@@ -37,8 +37,7 @@ use crate::{
 /// or `restricted`.
 ///
 /// Only the manifest field is validated against it. A configured `access` (or
-/// `--access`) is sent to the registry verbatim, so this type does not stand
-/// between the caller and the wire — see [`resolve_access`].
+/// `--access`) is sent to the registry verbatim. See [`resolve_access`].
 #[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
     #[display("public")]
@@ -106,7 +105,7 @@ fn scope_of(name: &str) -> Option<&str> {
 /// (the `--access` flag, else the `access` setting) wins, else a valid
 /// `publishConfig.access`, else `None`.
 ///
-/// `explicit` is passed through unvalidated, matching pnpm — `--access` is
+/// `explicit` is passed through unvalidated, matching pnpm. `--access` is
 /// already constrained to the closed set when it is parsed, but a value from
 /// `pnpm-workspace.yaml` or the global `config.yaml` is not, and pnpm sends
 /// whatever it finds there for the registry to reject. Dropping an
