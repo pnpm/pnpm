@@ -33,8 +33,7 @@ pub(crate) fn is_on_network_drive(path: &Path) -> bool {
     let absolute = std::path::absolute(path);
     let path = absolute.as_deref().unwrap_or(path);
     is_unc_path(path)
-        || drive_letter(path)
-            .is_some_and(|drive| pnpm_ffi_fs::drive_is_mapped(drive) == Some(true))
+        || drive_letter(path).is_some_and(|drive| pnpm_ffi_fs::drive_is_mapped(drive) == Some(true))
 }
 
 /// The network share a path is on.
@@ -104,7 +103,6 @@ fn is_mapped_drive_cached(drive: char) -> bool {
         },
     }
 }
-
 
 #[cfg(windows)]
 fn is_unc_path(path: &Path) -> bool {

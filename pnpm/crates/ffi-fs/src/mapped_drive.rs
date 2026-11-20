@@ -1,11 +1,13 @@
 //! The share a mapped Windows network drive stands for, and the comparison
 //! Windows makes between two path names.
 
+#[cfg(test)]
+#[path = "mapped_drive/tests.rs"]
+mod tests;
+
 use std::{ffi::OsString, os::windows::ffi::OsStringExt as _, path::PathBuf};
 use windows_sys::Win32::{
-    Foundation::{
-        ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NOT_CONNECTED, NO_ERROR,
-    },
+    Foundation::{ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NOT_CONNECTED, NO_ERROR},
     Globalization::{CSTR_EQUAL, CompareStringOrdinal},
     NetworkManagement::WNet::WNetGetConnectionW,
 };
@@ -48,7 +50,12 @@ pub fn drive_is_mapped(letter: char) -> Option<bool> {
     };
     let drive = [letter, u16::from(b':'), 0];
     let mut remote = [0u16; 260];
-    match connection(&drive, &mut remote).0 {
+    drive_kind_from_connection_result(connection(&drive, &mut remote).0)
+}
+
+/// What a `WNetGetConnectionW` status says about a drive.
+fn drive_kind_from_connection_result(result: u32) -> Option<bool> {
+    match result {
         NO_ERROR | ERROR_MORE_DATA | ERROR_CONNECTION_UNAVAIL => Some(true),
         ERROR_NOT_CONNECTED => Some(false),
         _ => None,

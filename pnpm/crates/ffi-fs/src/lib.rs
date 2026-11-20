@@ -47,8 +47,7 @@ pub use wasi::{
 #[cfg(windows)]
 pub use windows_file::{
     FileAttributes, FileInformation, change_time_ticks, file_attributes, file_information,
-    reparse_tag,
-    local_app_data_directory, rename_over, short_path, system_directory,
+    local_app_data_directory, rename_over, reparse_tag, short_path, system_directory,
 };
 
 #[cfg(target_os = "android")]

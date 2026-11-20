@@ -88,8 +88,9 @@ pub fn reparse_tag(path: &Path) -> Option<u32> {
             u32::try_from(size_of::<FILE_ATTRIBUTE_TAG_INFO>()).ok()?,
         )
     };
-    (read != 0 && info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0)
-        .then_some(info.ReparseTag)
+    (read != 0 && info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0).then_some(
+        info.ReparseTag,
+    )
 }
 
 /// The change time of the file at `path`, in 100-nanosecond ticks since
