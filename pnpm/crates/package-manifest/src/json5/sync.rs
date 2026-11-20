@@ -1,12 +1,25 @@
-use super::stringify::{is_identifier, quote_string};
+use super::stringify::{
+    is_identifier,
+    quote_string,
+};
 use jsonc_parser::{
     ParseOptions,
     cst::{
-        CstArray, CstContainerNode, CstInputValue, CstLeafNode, CstNode, CstObject, CstObjectProp,
-        CstRootNode, CstStringLit,
+        CstArray,
+        CstContainerNode,
+        CstInputValue,
+        CstLeafNode,
+        CstNode,
+        CstObject,
+        CstObjectProp,
+        CstRootNode,
+        CstStringLit,
     },
 };
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::collections::HashMap;
 
 #[cfg(test)]
@@ -104,7 +117,8 @@ impl Editor {
             }
             let index = previous
                 .as_ref()
-                .map_or(0, |property| property.property_index() + 1);
+                .map(|property| property.property_index() + 1)
+                .unwrap_or(0);
             let property = object.insert(index, key, input_value(value));
             self.restyle(&property.clone().into());
             previous = Some(property);
@@ -152,7 +166,8 @@ impl Style {
         while let Some(node) = pending.pop() {
             match node
                 .as_string_lit()
-                .map(|literal| literal.raw_value().starts_with('"'))
+                .map(|literal| literal.raw_value())
+                .map(|raw| raw.starts_with('"'))
             {
                 Some(true) => double_quoted += 1,
                 Some(false) => single_quoted += 1,
@@ -161,7 +176,8 @@ impl Style {
             bare_keys |= node
                 .as_object_prop()
                 .and_then(|property| property.name())
-                .is_some_and(|name| name.as_word_lit().is_some());
+                .and_then(|name| name.as_word_lit())
+                .is_some();
             pending.extend(node.children());
         }
         let quote = if double_quoted > single_quoted { '"' } else { '\'' };

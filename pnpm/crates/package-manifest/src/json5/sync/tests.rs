@@ -1,7 +1,10 @@
 use super::sync;
 use crate::json5::parse;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 fn edit(source: &str, change: impl FnOnce(&mut Value)) -> String {
     let original = parse(source).unwrap();

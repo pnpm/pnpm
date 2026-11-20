@@ -45,6 +45,7 @@ fn edits_and_runs_json5_without_creating_json() {
     assert_eq!(manifest.value()["version"], "1.0.1");
     assert_eq!(manifest.value()["custom"]["keep"], true);
     let text = fs::read_to_string(path).unwrap();
+    eprintln!("TEXT:\n{text}");
     assert_eq!(
         text,
         "// project\n{\n  name: 'fixture',\n  version: '1.0.1',\n  scripts: {\n    probe: 'echo json5-probe',\n    other: 'echo other'\n  },\n  custom: {\n    keep: true,\n  },\n}\n",
@@ -92,6 +93,7 @@ fn add_update_remove_preserve_json5_comments() {
         None,
     );
     let text = fs::read_to_string(path).unwrap();
+    eprintln!("TEXT:\n{text}");
     assert_eq!(text, "// project\n{\n  name: 'fixture',\n  version: '1.0.0',\n}\n");
     assert!(!workspace.join("package.json").exists(), "JSON must not be created");
     drop((root, npmrc_info));
