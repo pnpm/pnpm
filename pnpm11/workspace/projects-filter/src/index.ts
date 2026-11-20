@@ -1,6 +1,6 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { ProjectRootDir, SupportedArchitectures } from '@pnpm/types'
-import { type BaseProject, createProjectsGraph, type ProjectGraphNode } from '@pnpm/workspace.projects-graph'
+import { type BaseProject, createProjectsGraph, type ProjectGraphNode, type ProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
 import { findWorkspaceProjects, type Project } from '@pnpm/workspace.projects-reader'
 import { pick } from 'ramda'
 
@@ -53,6 +53,8 @@ export interface ReadProjectsResult {
 export interface FilterProjectsOptions {
   catalogs?: Catalogs
   linkWorkspacePackages?: boolean
+  /** See {@link ProjectsGraphOverrides}. */
+  overrides?: ProjectsGraphOverrides
   prefix: string
   workspaceDir: string
   testPattern?: string[]
@@ -147,6 +149,7 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
   opts: {
     catalogs?: Catalogs
     linkWorkspacePackages?: boolean
+    overrides?: ProjectsGraphOverrides
     workspaceDir: string
     testPattern?: string[]
     changedFilesIgnorePattern?: string[]
@@ -159,14 +162,15 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
   unmatchedFilters: string[]
 }> {
-  const { graph } = createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages })
+  const graphOptions = { catalogs: opts.catalogs, linkWorkspacePackages: opts.linkWorkspacePackages, overrides: opts.overrides }
+  const { graph } = createProjectsGraph<Pkg>(projects, graphOptions)
   if (projectSelectors.length === 0) {
     return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 
   const hasProdSelectors = projectSelectors.some(({ followProdDepsOnly }) => Boolean(followProdDepsOnly))
   const prodAllProjectsGraph = hasProdSelectors
-    ? createProjectsGraph<Pkg>(projects, { catalogs: opts.catalogs, ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages }).graph
+    ? createProjectsGraph<Pkg>(projects, { ...graphOptions, ignoreDevDeps: true }).graph
     : undefined
   const filtered = await filterWorkspaceProjectsWithProdGraph(
     { allProjectsGraph: graph, prodProjectsGraph: prodAllProjectsGraph },

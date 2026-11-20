@@ -6536,6 +6536,8 @@ snapshots:
 			"dependencies": {
 				"@pnpm/catalogs.resolver": "workspace:*",
 				"@pnpm/catalogs.types": "workspace:*",
+				"@pnpm/config.parse-overrides": "workspace:*",
+				"@pnpm/hooks.read-package-hook": "workspace:*",
 				"@pnpm/npm-package-arg": "catalog:",
 				"@pnpm/resolving.npm-resolver": "workspace:*",
 				"@pnpm/types": "workspace:*",

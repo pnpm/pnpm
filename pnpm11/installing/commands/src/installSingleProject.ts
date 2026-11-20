@@ -23,6 +23,7 @@ import type {
   ProjectRootDir,
 } from '@pnpm/types'
 import { filterProjectsBySelectorObjects } from '@pnpm/workspace.projects-filter'
+import { getProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
 
 import { getSaveType } from './getSaveType.js'
@@ -402,6 +403,7 @@ async function installLinkedWorkspaceProjects (
     },
   ], {
     catalogs: opts.catalogs,
+    overrides: getProjectsGraphOverrides(opts, workspaceDir),
     workspaceDir,
   })
   await recursiveInstallThenUpdateWorkspaceState(allProjects, [], {

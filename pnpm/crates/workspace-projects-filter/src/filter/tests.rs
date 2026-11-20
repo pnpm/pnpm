@@ -6,7 +6,9 @@ use crate::{
     parse_project_selector::ProjectSelector,
 };
 use indexmap::IndexMap;
-use pnpm_workspace_projects_graph::{BaseProject, GraphProject, ProjectGraph, ProjectGraphNode};
+use pnpm_workspace_projects_graph::{
+    BaseProject, DependencyGroups, GraphProject, ProjectGraph, ProjectGraphNode,
+};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
@@ -28,7 +30,7 @@ impl BaseProject for TestPkg {
     fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
         let mut merged = self.deps.clone();
         if !ignore_dev_deps {
-            merged.extend(self.dev_deps.iter().cloned());
+            merged.extend(self.dev_deps.clone());
         }
         merged
     }
@@ -37,6 +39,13 @@ impl BaseProject for TestPkg {
 impl GraphProject for TestPkg {
     fn manifest_version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+    fn dependency_groups(&self, ignore_dev_deps: bool) -> DependencyGroups {
+        DependencyGroups {
+            dev: (!ignore_dev_deps).then(|| self.dev_deps.clone()),
+            prod: self.deps.clone(),
+            ..DependencyGroups::default()
+        }
     }
 }
 

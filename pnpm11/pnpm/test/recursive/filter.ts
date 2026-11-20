@@ -277,3 +277,51 @@ test('pnpm --filter "<pkg>..." run follows an npm alias of a workspace project w
   expect(stdout).toContain('from-math')
   expect(stdout.indexOf('from-math')).toBeLessThan(stdout.indexOf('from-app'))
 })
+
+test('pnpm --filter "<pkg>..." run follows an override that points a dependency at a workspace project', async () => {
+  const which = (name: string) => `node -e "console.log('${name}')"`
+  preparePackages([
+    {
+      location: 'app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { lib: '^1.0.0' },
+        scripts: { which: which('app') },
+      },
+    },
+    {
+      location: 'lib',
+      package: {
+        name: 'lib',
+        version: '1.0.0',
+        scripts: { which: which('lib') },
+      },
+    },
+    {
+      location: 'other',
+      package: {
+        name: 'other',
+        version: '1.0.0',
+        scripts: { which: which('other') },
+      },
+    },
+  ])
+
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - "*"\nlinkWorkspacePackages: false\noverrides:\n  lib: "workspace:*"\n')
+
+  const result = execPnpmSync([
+    '--stream',
+    '--config.verify-deps-before-run=false',
+    '--filter',
+    'app...',
+    'run',
+    'which',
+  ])
+  expect(result.status).toBe(0)
+
+  const stdout = result.stdout.toString()
+  expect(stdout).toContain('app which$')
+  expect(stdout).toContain('lib which$')
+  expect(stdout).not.toContain('other which$')
+})

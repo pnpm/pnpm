@@ -463,7 +463,8 @@ pub(super) fn report_install_scope_cycles<Reporter: self::Reporter>(
         catalogs: &workspace.catalogs,
         workspace_dir,
     };
-    let cycles = crate::install_scope_cycles(config, projects, selected_dirs, Some(catalogs));
+    let cycles = crate::install_scope_cycles(config, projects, selected_dirs, catalogs)
+        .map_err(InstallError::InvalidOverrides)?;
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)
 }

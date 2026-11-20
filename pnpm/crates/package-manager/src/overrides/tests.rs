@@ -2,6 +2,9 @@ use super::VersionsOverrider;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_overrides_iter;
 use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace_projects_graph::{
+    BaseProject, DependencyGroups, DependencyRewriter, GraphProject,
+};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -570,7 +573,6 @@ fn override_for_undeclared_dependency_applies_converge_only_within_range() {
     assert_eq!(undeclared(&overrider, "react", "^19.0.0"), None);
     assert!(overrider.converge_declared_ranges().is_empty());
 }
-
 /// An override is written once, at the workspace root, and applied to
 /// every package that matches. A bare path has to move with it the way
 /// its `link:` spelling does, or it names a directory inside whichever
@@ -864,4 +866,123 @@ fn version_scoped_override_matches_catalog_dependency_by_catalog_specifier() {
 
     assert_eq!(undeclared(&overrider, "ms", "catalog:").as_deref(), Some("2.1.1"));
     assert_eq!(undeclared(&overrider, "ms", "catalog:legacy"), None);
+}
+
+/// A workspace project as [`crate::overrides_dependency_rewriter`]'s
+/// hook sees it: a root dir, the manifest's `name` / `version`, and its
+/// dependency groups.
+struct GraphProjectFixture {
+    root_dir: PathBuf,
+    name: String,
+    groups: DependencyGroups,
+}
+
+impl BaseProject for GraphProjectFixture {
+    fn root_dir(&self) -> &Path {
+        &self.root_dir
+    }
+
+    fn manifest_name(&self) -> Option<&str> {
+        Some(&self.name)
+    }
+}
+
+impl GraphProject for GraphProjectFixture {
+    fn manifest_version(&self) -> Option<&str> {
+        Some("1.0.0")
+    }
+
+    fn dependency_groups(&self, _ignore_dev_deps: bool) -> DependencyGroups {
+        self.groups.clone()
+    }
+}
+
+fn pairs(dependencies: &[(&str, &str)]) -> Vec<(String, String)> {
+    dependencies
+        .iter()
+        .map(|(name, spec)| ((*name).to_string(), (*spec).to_string()))
+        .collect()
+}
+
+/// The merged dependency list `overrider` rewrites for the project `name`
+/// at `/workspace/packages/<name>`.
+fn rewritten(
+    overrider: &VersionsOverrider,
+    name: &str,
+    groups: DependencyGroups,
+) -> Vec<(String, String)> {
+    let project = GraphProjectFixture {
+        root_dir: PathBuf::from("/workspace/packages").join(name),
+        name: name.to_string(),
+        groups,
+    };
+    let mut groups = project.dependency_groups(false);
+    overrider.rewrite_dependencies(&project, &mut groups);
+    groups.merge()
+}
+
+fn prod_only(dependencies: &[(&str, &str)]) -> DependencyGroups {
+    DependencyGroups { prod: pairs(dependencies), ..DependencyGroups::default() }
+}
+
+#[test]
+fn rewrite_dependencies_applies_workspace_and_local_protocol_overrides() {
+    let overrides =
+        parsed(&[("lib", "workspace:*"), ("qar", "link:./packages/qar"), ("baz", "file:../baz")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(
+            &overrider,
+            "app",
+            prod_only(&[("lib", "^1.0.0"), ("qar", "^2.0.0"), ("baz", "^3.0.0")]),
+        ),
+        pairs(&[("lib", "workspace:*"), ("qar", "link:../qar"), ("baz", "file:../../../baz")]),
+    );
+}
+
+#[test]
+fn rewrite_dependencies_drops_deleted_dependencies() {
+    let overrides = parsed(&[("qar", "-")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(&overrider, "app", prod_only(&[("lib", "^1.0.0"), ("qar", "^2.0.0")])),
+        pairs(&[("lib", "^1.0.0")]),
+    );
+}
+
+#[test]
+fn rewrite_dependencies_applies_a_parent_scoped_override_to_its_parent_only() {
+    let overrides = parsed(&[("app>lib", "workspace:*")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    assert_eq!(
+        rewritten(&overrider, "app", prod_only(&[("lib", "^1.0.0")])),
+        pairs(&[("lib", "workspace:*")]),
+    );
+    assert_eq!(
+        rewritten(&overrider, "other", prod_only(&[("lib", "^1.0.0")])),
+        pairs(&[("lib", "^1.0.0")]),
+    );
+}
+
+#[test]
+fn rewrite_dependencies_applies_a_dependency_type_selector_to_its_group_only() {
+    let overrides = parsed(&[("lib:optional", "workspace:*")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let groups = DependencyGroups {
+        optional: pairs(&[("lib", "^1.0.0")]),
+        prod: pairs(&[("other", "^1.0.0")]),
+        ..DependencyGroups::default()
+    };
+    assert_eq!(
+        rewritten(&overrider, "app", groups),
+        pairs(&[("lib", "workspace:*"), ("other", "^1.0.0")]),
+    );
+    assert_eq!(
+        rewritten(&overrider, "app", prod_only(&[("lib", "^1.0.0")])),
+        pairs(&[("lib", "^1.0.0")]),
+    );
 }

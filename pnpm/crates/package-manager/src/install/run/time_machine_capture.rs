@@ -1,13 +1,12 @@
 use super::{InstallScope, RunExecution};
 #[cfg(target_os = "macos")]
-use indexmap::IndexMap;
-#[cfg(target_os = "macos")]
 use pnpm_config::LinkWorkspacePackages;
 #[cfg(target_os = "macos")]
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 #[cfg(target_os = "macos")]
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
+    BaseProject, CreateProjectsGraphOptions, DependencyGroups, GraphProject, ProjectGraph,
+    create_projects_graph,
 };
 #[cfg(target_os = "macos")]
 use std::{
@@ -137,17 +136,8 @@ impl BaseProject for CaptureProject<'_> {
             .and_then(|name| name.as_str())
     }
 
-    fn merged_dependencies(&self, _: bool) -> Vec<(String, String)> {
-        let mut dependencies = IndexMap::new();
-        for (name, spec) in self.manifest.dependencies([
-            DependencyGroup::Peer,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-            DependencyGroup::Prod,
-        ]) {
-            dependencies.insert(name.to_string(), spec.to_string());
-        }
-        dependencies.into_iter().collect()
+    fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
+        self.dependency_groups(ignore_dev_deps).merge()
     }
 }
 
@@ -158,6 +148,21 @@ impl GraphProject for CaptureProject<'_> {
             .value()
             .get("version")
             .and_then(|version| version.as_str())
+    }
+
+    fn dependency_groups(&self, ignore_dev_deps: bool) -> DependencyGroups {
+        let declared = |group: DependencyGroup| {
+            self.manifest
+                .dependencies([group])
+                .map(|(name, spec)| (name.to_string(), spec.to_string()))
+                .collect()
+        };
+        DependencyGroups {
+            peer: declared(DependencyGroup::Peer),
+            dev: (!ignore_dev_deps).then(|| declared(DependencyGroup::Dev)),
+            optional: declared(DependencyGroup::Optional),
+            prod: declared(DependencyGroup::Prod),
+        }
     }
 }
 

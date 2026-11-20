@@ -1258,3 +1258,46 @@ fn recursive_exec_resumes_from_exactly_the_projects_that_passed_before_a_failure
 
     drop(root);
 }
+
+/// Under the default `link-workspace-packages: false`, `app`'s `^1.0.0`
+/// range is not a workspace edge on its own; an override pointing it at
+/// the sibling makes `app...` select `lib` too.
+#[test]
+fn dependency_selector_follows_an_override_to_a_workspace_sibling() {
+    for override_key in ["lib", "app>lib"] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        write_workspace(&workspace, &["app", "lib", "other"]);
+        let app_manifest =
+            json!({ "name": "app", "version": "1.0.0", "dependencies": { "lib": "^1.0.0" } });
+        fs::write(workspace.join("app/package.json"), app_manifest.to_string())
+            .expect("write app/package.json");
+        let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml");
+        fs::write(
+            workspace.join("pnpm-workspace.yaml"),
+            format!("{workspace_yaml}overrides:\n  '{override_key}': 'workspace:*'\n"),
+        )
+        .expect("write pnpm-workspace.yaml");
+
+        pacquet
+            .with_arg("--filter")
+            .with_arg("app...")
+            .with_arg("exec")
+            .with_args(marker_args("ran.txt"))
+            .assert()
+            .success();
+
+        for (name, selected) in [("app", true), ("lib", true), ("other", false)] {
+            assert_eq!(
+                workspace
+                    .join(name)
+                    .join("ran.txt")
+                    .exists(),
+                selected,
+                "{name} selected with override key {override_key}",
+            );
+        }
+
+        drop(root);
+    }
+}

@@ -1,8 +1,8 @@
 //! A recursive selection detached from the projects it was made over.
 
 use super::{
-    RecursiveSelection, build_graph, build_selected_graph, configured_catalogs,
-    production_filter_graph, recursive_graph_options,
+    RecursiveSelection, build_selected_graph,
+    filter_graphs::{FilterGraphs, build_filter_graphs},
 };
 use pnpm_config::Config;
 use pnpm_workspace::Project;
@@ -39,15 +39,14 @@ impl SelectedProjectDirs {
     }
 
     /// The selection over `projects`, with its graph edges taken from their
-    /// current manifests.
+    /// current manifests. `prefix` is where the command was invoked.
     pub fn select<'a>(
         &self,
         projects: &'a [Project],
         config: &Config,
+        prefix: &Path,
     ) -> miette::Result<RecursiveSelection<'a>> {
-        let catalogs = configured_catalogs(config)?;
-        let graph_options = recursive_graph_options(config, &catalogs);
-        let all = build_graph(projects, graph_options);
+        let FilterGraphs { all, prod_all } = build_filter_graphs(projects, config, prefix)?;
         if !self.narrowed {
             return Ok(RecursiveSelection {
                 selected: all,
@@ -56,7 +55,6 @@ impl SelectedProjectDirs {
                 prod_only_selected: HashSet::new(),
             });
         }
-        let prod_all = production_filter_graph(projects, config, graph_options);
         let selected =
             build_selected_graph(&all, prod_all.as_ref(), &self.selected, &self.prod_only_selected);
         Ok(RecursiveSelection {
