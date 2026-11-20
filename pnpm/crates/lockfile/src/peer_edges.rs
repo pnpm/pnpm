@@ -77,8 +77,7 @@ impl PeerSatisfactionEdges {
     /// Classify every edge of `graph`.
     #[must_use]
     pub fn of_graph(graph: &PeerEdgeGraph<'_>) -> Self {
-        let entries =
-            LockfileEntries { snapshots: Some(graph.snapshots), packages: Some(graph.packages) };
+        let entries = graph.lockfile_entries();
         classify_edges(graph, |key| BoundProviders::of_snapshot(entries, key))
     }
 
@@ -146,6 +145,12 @@ impl PeerSatisfactionEdges {
     }
 }
 
+impl PeerEdgeGraph<'_> {
+    fn lockfile_entries(&self) -> LockfileEntries<'_> {
+        LockfileEntries { snapshots: Some(self.snapshots), packages: Some(self.packages) }
+    }
+}
+
 impl FromIterator<(PackageKey, HashSet<PkgName>)> for PeerSatisfactionEdges {
     fn from_iter<Edges: IntoIterator<Item = (PackageKey, HashSet<PkgName>)>>(edges: Edges) -> Self {
         PeerSatisfactionEdges { aliases_by_snapshot: edges.into_iter().collect() }
@@ -169,14 +174,18 @@ fn classify_edges(
     graph: &PeerEdgeGraph<'_>,
     providers_for: impl Fn(&PackageKey) -> BoundProviders,
 ) -> PeerSatisfactionEdges {
-    let candidates = optional_peer_candidates(graph.snapshots, graph.packages);
+    let candidates = optional_peer_candidates(graph);
     droppable_edges(graph, &candidates)
         .into_iter()
         .filter_map(|(key, edges)| {
-            let providers = providers_for(key);
+            let providers = candidates[key].needs_recovery.then(|| providers_for(key));
             let aliases = edges
                 .into_iter()
-                .filter(|(_, target)| providers.binds(target))
+                .filter(|(_, target)| {
+                    providers
+                        .as_ref()
+                        .is_none_or(|known| known.binds(target))
+                })
                 .map(|(alias, _)| alias.clone())
                 .collect::<HashSet<_>>();
             (!aliases.is_empty()).then(|| (key.clone(), aliases))
@@ -184,23 +193,34 @@ fn classify_edges(
         .collect()
 }
 
-/// Resolvable entries whose alias is one of the package's optional peers.
+struct OptionalPeerCandidates<'a> {
+    edges: Vec<(&'a PkgName, PackageKey)>,
+    needs_recovery: bool,
+}
+
+/// Resolvable optional peers that could be bound by the snapshot key.
 fn optional_peer_candidates<'a>(
-    snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
-    packages: &HashMap<PackageKey, PackageMetadata>,
-) -> HashMap<&'a PackageKey, Vec<(&'a PkgName, PackageKey)>> {
-    snapshots
+    graph: &PeerEdgeGraph<'a>,
+) -> HashMap<&'a PackageKey, OptionalPeerCandidates<'a>> {
+    let entries = graph.lockfile_entries();
+    graph.snapshots
         .iter()
         .filter_map(|(key, snapshot)| {
             if key.suffix.peer().is_empty() {
                 return None;
             }
-            let package = packages.get(&key.without_peer())?;
-            let edges = all_entries(snapshot)
+            let package = graph.packages.get(&key.without_peer())?;
+            let mut candidates = all_entries(snapshot)
                 .filter(|(alias, _)| is_optional_peer(package, alias))
                 .filter_map(|(alias, dep_ref)| Some((alias, dep_ref.resolve(alias)?)))
+                .peekable();
+            candidates.peek()?;
+            let providers = BoundProviders::from_recorded_snapshot(entries, key);
+            let edges = candidates
+                .filter(|(_, target)| providers.binds(target))
                 .collect::<Vec<_>>();
-            (!edges.is_empty()).then_some((key, edges))
+            let needs_recovery = providers.is_hashed();
+            (!edges.is_empty()).then_some((key, OptionalPeerCandidates { edges, needs_recovery }))
         })
         .collect()
 }
@@ -234,7 +254,7 @@ type CandidateEdge<'a> = (&'a PkgName, &'a PackageKey);
 /// Candidates whose binding can affect which dependencies are kept.
 fn droppable_edges<'a>(
     graph: &PeerEdgeGraph<'_>,
-    candidates: &'a HashMap<&'a PackageKey, Vec<(&'a PkgName, PackageKey)>>,
+    candidates: &'a HashMap<&'a PackageKey, OptionalPeerCandidates<'a>>,
 ) -> HashMap<&'a PackageKey, Vec<CandidateEdge<'a>>> {
     let mut droppable = HashMap::<_, Vec<_>>::new();
     // Drop each walk before the next listing to keep memory linear.
@@ -257,12 +277,12 @@ fn droppable_edges<'a>(
 /// list their target, since the edges of one group share a reachability walk.
 fn edges_by_listing<'a>(
     graph: &PeerEdgeGraph<'_>,
-    candidates: &'a HashMap<&'a PackageKey, Vec<(&'a PkgName, PackageKey)>>,
+    candidates: &'a HashMap<&'a PackageKey, OptionalPeerCandidates<'a>>,
 ) -> HashMap<Vec<usize>, Vec<(&'a PackageKey, CandidateEdge<'a>)>> {
     let mut listing_by_target = HashMap::<&PackageKey, Vec<usize>>::new();
     let mut grouped = HashMap::<_, Vec<_>>::new();
-    for (key, edges) in candidates {
-        for (alias, target) in edges {
+    for (key, snapshot) in candidates {
+        for (alias, target) in &snapshot.edges {
             let listing =
                 listing_by_target.entry(target).or_insert_with(|| importers_listing(graph, target));
             grouped

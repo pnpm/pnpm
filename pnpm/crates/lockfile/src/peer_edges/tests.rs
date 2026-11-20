@@ -6,7 +6,10 @@ use std::{
 
 use pretty_assertions::assert_eq;
 
-use super::{PeerEdgeGraph, PeerEdgeOptions, PeerSatisfactionEdges, classify_edges};
+use super::{
+    PeerEdgeGraph, PeerEdgeOptions, PeerSatisfactionEdges, classify_edges, direct_keys,
+    optional_peer_candidates,
+};
 use crate::{Lockfile, PackageKey, PeerBindings, PkgName};
 
 const ABC: &str = "abc@1.0.0(peer-a@1.0.0)(peer-c@1.0.0)";
@@ -452,7 +455,20 @@ fn an_optional_peer_the_key_does_not_bind_is_followed() {
         .remove(&key(ABC))
         .expect("abc snapshot");
     snapshots.insert(key("abc@1.0.0(peer-a@1.0.0)"), abc);
+    assert!(optional_peer_candidates(&graph_for_test(&lockfile)).is_empty());
     assert_eq!(classified(&lockfile, PeerEdgeOptions::default()), Vec::<String>::new());
+}
+
+fn graph_for_test(lockfile: &Lockfile) -> PeerEdgeGraph<'_> {
+    PeerEdgeGraph {
+        importers: lockfile.importers
+            .values()
+            .map(direct_keys)
+            .collect(),
+        listed_by_every_importer: HashSet::new(),
+        snapshots: lockfile.snapshots.as_ref().unwrap(),
+        packages: lockfile.packages.as_ref().unwrap(),
+    }
 }
 
 #[test]
@@ -529,15 +545,7 @@ snapshots:
 {optional_entries}
 ",
         ));
-        let graph = PeerEdgeGraph {
-            importers: lockfile.importers
-                .values()
-                .map(super::direct_keys)
-                .collect(),
-            listed_by_every_importer: HashSet::new(),
-            snapshots: lockfile.snapshots.as_ref().unwrap(),
-            packages: lockfile.packages.as_ref().unwrap(),
-        };
+        let graph = graph_for_test(&lockfile);
         let edges = classify_edges(&graph, |key| panic!("unnecessary provider lookup for {key}"));
         assert!(edges.is_empty());
     }
