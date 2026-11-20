@@ -79,6 +79,13 @@ fn nan_resolves_as_float() {
 }
 
 #[test]
+fn signed_leading_dot_floats_are_quoted() {
+    assert!(resolves_float("+.5"));
+    let yaml = to_string(json!({ "a": "+.5", "b": "-.5" }));
+    assert_eq!(yaml, "a: '+.5'\n\nb: '-.5'\n");
+}
+
+#[test]
 fn timestamp_strings_are_quoted() {
     let yaml = to_string(json!({ "t": "2021-01-01" }));
     assert_eq!(yaml, "t: '2021-01-01'\n");

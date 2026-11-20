@@ -85,10 +85,12 @@ fn float_matches(string: &str) -> bool {
         return true;
     }
 
-    // Form A: [0-9][0-9_]* (\.[0-9_]*)? ([eE][-+]?[0-9]+)?
-    // Form B: \.[0-9_]+ ([eE][-+]?[0-9]+)?  (no leading sign per the pattern).
+    // Form A: [-+]?[0-9][0-9_]* (\.[0-9_]*)? ([eE][-+]?[0-9]+)?
+    // Form B: [-+]?\.[0-9_]+ ([eE][-+]?[0-9]+)?
+    // js-yaml's pattern has no sign in form B, but YAML 1.2 Core readers read
+    // `+.5` as a float, so it is quoted too.
     match unsigned.strip_prefix('.') {
-        Some(after_dot) => !string.starts_with(['-', '+']) && fraction_matches(after_dot),
+        Some(after_dot) => fraction_matches(after_dot),
         None => integer_form_matches(unsigned),
     }
 }
