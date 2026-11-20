@@ -1,6 +1,7 @@
 use super::{
     InstallOrigin,
     OwnDirs,
+    SetupPathEntry,
     ShadowingPnpm,
     find_shadowing_pnpm,
 };
@@ -236,15 +237,16 @@ fn a_project_dependency_is_not_an_npm_global_install() {
 
 #[test]
 fn setup_keeps_the_warning_only_when_its_path_entry_does_not_fix_it() {
-    let shadowing = |global_bin_on_path| ShadowingPnpm {
+    let bin_missing = ShadowingPnpm {
         executable: PathBuf::from("/usr/local/bin/pnpm"),
         origin: InstallOrigin::Unknown,
-        global_bin_on_path,
+        global_bin_on_path: false,
     };
-    assert!(!shadowing(false).outlives_setup(true));
-    assert!(shadowing(false).outlives_setup(false));
-    assert!(shadowing(true).outlives_setup(true));
-    assert!(shadowing(true).outlives_setup(false));
+    let bin_behind = ShadowingPnpm { global_bin_on_path: true, ..bin_missing.clone() };
+    assert!(!bin_missing.outlives_setup(SetupPathEntry::Prepended));
+    assert!(bin_missing.outlives_setup(SetupPathEntry::LeftAlone));
+    assert!(bin_behind.outlives_setup(SetupPathEntry::Prepended));
+    assert!(bin_behind.outlives_setup(SetupPathEntry::LeftAlone));
 }
 
 /// Windows shims are `.cmd` scripts in a directory that says nothing about

@@ -152,6 +152,21 @@ fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
     None
 }
 
+/// What `pnpm setup` does to the user's `PATH`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SetupPathEntry {
+    /// Writes the global bin directory first on `PATH`.
+    Prepended,
+    /// `--no-modify-path`: prints the settings for the user to add.
+    LeftAlone,
+}
+
+impl SetupPathEntry {
+    pub(crate) fn for_no_modify_path(no_modify_path: bool) -> Self {
+        if no_modify_path { Self::LeftAlone } else { Self::Prepended }
+    }
+}
+
 /// A `pnpm` that a `PATH` lookup finds ahead of the one in the global bin
 /// directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -172,8 +187,8 @@ impl ShadowingPnpm {
     /// entry. Setup puts a global bin directory missing from `PATH` first,
     /// which is the fix the warning would ask for, unless it leaves `PATH`
     /// alone.
-    pub(crate) fn outlives_setup(&self, modifies_path: bool) -> bool {
-        self.global_bin_on_path || !modifies_path
+    pub(crate) fn outlives_setup(&self, path_entry: SetupPathEntry) -> bool {
+        self.global_bin_on_path || path_entry == SetupPathEntry::LeftAlone
     }
 
     pub(crate) fn emit_warning<Logger: Reporter>(&self, global_bin: &Path, prefix: &str) {

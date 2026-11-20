@@ -9,7 +9,10 @@
 mod gh_actions_env;
 mod path_extender;
 
-use super::shadowing_pnpm::find_shadowing_pnpm_on_path;
+use super::shadowing_pnpm::{
+    SetupPathEntry,
+    find_shadowing_pnpm_on_path,
+};
 use crate::process::Command;
 use clap::Args;
 use miette::{
@@ -119,7 +122,7 @@ fn handler<Reporter: self::Reporter + 'static>(
     };
     remove_legacy_homedir_shims(&pnpm_home_dir);
     if let Some(shadowing) = find_shadowing_pnpm_on_path(&bin_dir)
-        && shadowing.outlives_setup(!no_modify_path)
+        && shadowing.outlives_setup(SetupPathEntry::for_no_modify_path(no_modify_path))
     {
         shadowing.emit_warning::<Reporter>(&bin_dir, &dir.to_string_lossy());
     }
