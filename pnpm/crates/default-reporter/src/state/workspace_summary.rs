@@ -206,9 +206,10 @@ impl ReporterState {
         if projects == [current_project.as_str()] {
             return None;
         }
-        let root = self.summary.workspace
-            .as_ref()
-            .map_or(current_project.as_str(), |workspace| workspace.root.as_str());
+        let root = match &self.summary.workspace {
+            Some(workspace) => workspace.root.as_str(),
+            None => current_project.as_str(),
+        };
         let hidden = projects.len().saturating_sub(MAX_SHOWN_PROJECTS);
         if hidden > 0 {
             projects.select_nth_unstable(MAX_SHOWN_PROJECTS - 1);

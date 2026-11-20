@@ -63,37 +63,46 @@ impl ReporterState {
         }
         let mut warnings: Vec<String> = direct
             .into_iter()
-            .map(|(label, (log, projects))| {
-                let projects = self
-                    .project_names(
-                        projects
-                            .iter()
-                            .map(String::as_str)
-                            .collect(),
-                    )
-                    .map(|names| format!(" ({names})"))
-                    .unwrap_or_default();
-                format!(
-                    "{} {} {label}{projects}{}",
-                    self.rendering.colors.warn_label(),
-                    self.rendering.colors.red("deprecated:"),
-                    alternative_hint(log),
-                )
-            })
+            .map(|(label, (log, projects))| self.direct_deprecation_warning(&label, log, &projects))
             .collect();
         if !subdependencies.is_empty() {
             subdependencies.sort();
-            warnings.push(format!(
-                "{} {} {}",
-                self.rendering.colors.warn_label(),
-                self.rendering.colors.red(&format!(
-                    "{} deprecated subdependencies found:",
-                    subdependencies.len()
-                )),
-                subdependencies.join(", "),
-            ));
+            warnings.push(self.subdependencies_warning(&subdependencies));
         }
         warnings
+    }
+
+    fn direct_deprecation_warning(
+        &self,
+        label: &str,
+        log: &DeprecationLog,
+        projects: &[String],
+    ) -> String {
+        let projects = self
+            .project_names(
+                projects
+                    .iter()
+                    .map(String::as_str)
+                    .collect(),
+            )
+            .map(|names| format!(" ({names})"))
+            .unwrap_or_default();
+        format!(
+            "{} {} {label}{projects}{}",
+            self.rendering.colors.warn_label(),
+            self.rendering.colors.red("deprecated:"),
+            alternative_hint(log),
+        )
+    }
+
+    fn subdependencies_warning(&self, labels: &[String]) -> String {
+        let found = format!("{} deprecated subdependencies found:", labels.len());
+        format!(
+            "{} {} {}",
+            self.rendering.colors.warn_label(),
+            self.rendering.colors.red(&found),
+            labels.join(", "),
+        )
     }
 
     /// Print the held warnings no summary carried.
