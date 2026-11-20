@@ -12,7 +12,10 @@ use super::{
     PathExtenderError,
 };
 use crate::process::Command;
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The change made to one environment variable, used to render the
 /// before/after report.
@@ -24,6 +27,9 @@ pub(super) struct EnvVariableChange {
 }
 
 const REG_KEY: &str = r"HKEY_CURRENT_USER\Environment";
+
+const MACHINE_REG_KEY: &str =
+    r"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment";
 
 const UTF8_CODEPAGE: u32 = 65001;
 
@@ -325,6 +331,60 @@ fn first_number(text: &str) -> Option<u32> {
         .take_while(char::is_ascii_digit)
         .collect();
     digits.parse().ok()
+}
+
+/// The `Path` directories a new process gets: the machine `Path` followed by
+/// the user `Path`, with `%NAME%` references expanded from the user's
+/// registry values first. `None` when the registry cannot be read.
+pub(in crate::cli_args::setup) fn persisted_path_dirs() -> Option<Vec<PathBuf>> {
+    let machine = run_capture("reg", &["query", MACHINE_REG_KEY, "/v", "Path"]).ok()?;
+    let user = get_registry_output().ok()?;
+    let lookup =
+        |name: &str| get_env_value_from_registry(&user, name).or_else(|| std::env::var(name).ok());
+    let mut dirs = split_registry_path(&get_env_value_from_registry(&machine, "Path")?, lookup);
+    if let Some(user_path) = get_env_value_from_registry(&user, "Path") {
+        dirs.extend(split_registry_path(&user_path, lookup));
+    }
+    Some(dirs)
+}
+
+/// Split a registry `Path` value into directories, expanding `%NAME%`
+/// references the way a `REG_EXPAND_SZ` value is expanded.
+fn split_registry_path<Lookup>(value: &str, lookup: Lookup) -> Vec<PathBuf>
+where
+    Lookup: Fn(&str) -> Option<String>,
+{
+    value
+        .split(';')
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| PathBuf::from(expand_env_references(entry, &lookup)))
+        .collect()
+}
+
+fn expand_env_references<Lookup>(entry: &str, lookup: &Lookup) -> String
+where
+    Lookup: Fn(&str) -> Option<String>,
+{
+    let mut parts = entry.split('%');
+    let mut expanded = parts
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    let rest: Vec<&str> = parts.collect();
+    for pair in rest.chunks(2) {
+        match pair {
+            [name, tail] => {
+                expanded.push_str(&lookup(name).unwrap_or_else(|| format!("%{name}%")));
+                expanded.push_str(tail);
+            }
+            [unclosed] => {
+                expanded.push('%');
+                expanded.push_str(unclosed);
+            }
+            _ => {}
+        }
+    }
+    expanded
 }
 
 #[cfg(test)]

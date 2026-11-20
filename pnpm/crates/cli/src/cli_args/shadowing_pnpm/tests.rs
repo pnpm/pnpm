@@ -257,19 +257,34 @@ fn a_project_dependency_is_not_an_npm_global_install() {
 }
 
 #[test]
-fn setup_keeps_the_warning_unless_its_shell_config_puts_the_global_bin_first() {
-    assert!(!SetupPathEntry::PrependedInShellConfig.keeps_shadowing());
-    assert!(SetupPathEntry::AddedToUserPath.keeps_shadowing());
-    assert!(SetupPathEntry::LeftAlone.keeps_shadowing());
+fn setup_keeps_the_warning_unless_its_path_entry_comes_first() {
+    let shadowing = ShadowingPnpm {
+        executable: PathBuf::from("/npm/bin").join(PNPM),
+        origin: InstallOrigin::NpmGlobal,
+        global_bin_on_path: true,
+    };
+    let global_bin = Path::new("/pnpm-home/bin");
+    let saved = |dirs: &[&str]| SetupPathEntry::AddedToUserPath {
+        persisted_path: Some(dirs.iter().map(PathBuf::from).collect()),
+    };
+    let keeps = |entry: SetupPathEntry| entry.keeps_shadowing(&shadowing, global_bin);
+
+    assert!(!keeps(SetupPathEntry::PrependedInShellConfig));
+    assert!(keeps(SetupPathEntry::LeftAlone));
+    assert!(keeps(SetupPathEntry::AddedToUserPath { persisted_path: None }));
+    assert!(keeps(saved(&["/npm/bin", "/pnpm-home/bin"])));
+    assert!(keeps(saved(&["/npm/bin"])));
+    assert!(!keeps(saved(&["/pnpm-home/bin", "/npm/bin"])));
+    assert!(!keeps(saved(&["/pnpm-home/bin"])));
 }
 
 #[test]
 fn a_failed_env_update_leaves_the_path_alone() {
     let failed: Result<(), ()> = Err(());
-    assert_eq!(SetupPathEntry::after_env_update(&failed), SetupPathEntry::LeftAlone);
-    let written = SetupPathEntry::after_env_update(&Ok::<(), ()>(()));
+    assert_eq!(SetupPathEntry::after_env_update(&failed, || None), SetupPathEntry::LeftAlone);
+    let written = SetupPathEntry::after_env_update(&Ok::<(), ()>(()), || None);
     let expected = if cfg!(windows) {
-        SetupPathEntry::AddedToUserPath
+        SetupPathEntry::AddedToUserPath { persisted_path: None }
     } else {
         SetupPathEntry::PrependedInShellConfig
     };

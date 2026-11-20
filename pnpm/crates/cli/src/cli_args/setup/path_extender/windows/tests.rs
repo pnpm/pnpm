@@ -12,10 +12,14 @@ use super::{
     first_number,
     get_env_value_from_registry,
     run_capture_mode_with,
+    split_registry_path,
     update_env_variable_with,
 };
 use pretty_assertions::assert_eq;
-use std::path::Path;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const SAMPLE: &str = "\r\nHKEY_CURRENT_USER\\Environment\r\n    Path    REG_EXPAND_SZ    C:\\Users\\me\\bin\r\n    PNPM_HOME    REG_SZ    C:\\pnpm\r\n";
 
@@ -224,4 +228,22 @@ fn mode_propagates_non_not_found_errors_without_fallback() {
     assert!(matches!(res, Err(PathExtenderError::CommandFailed { .. })));
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0].0, "mode.com");
+}
+
+#[test]
+fn split_registry_path_expands_env_references() {
+    let lookup = |name: &str| (name == "SystemRoot").then(|| r"C:\Windows".to_string());
+    let dirs = split_registry_path(
+        r"%SystemRoot%\system32;;C:\Program Files\nodejs\;%Missing%\bin;C:\50%",
+        lookup,
+    );
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\Windows\system32"),
+            PathBuf::from(r"C:\Program Files\nodejs\"),
+            PathBuf::from(r"%Missing%\bin"),
+            PathBuf::from(r"C:\50%"),
+        ],
+    );
 }

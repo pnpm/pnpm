@@ -160,14 +160,17 @@ fn origin_from_shim_script(executable: &Path) -> Option<InstallOrigin> {
 }
 
 /// What `pnpm setup` does to the user's `PATH`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SetupPathEntry {
     /// Writes a shell configuration block that puts the global bin directory
     /// first on `PATH` in every new shell, wherever it was before.
     PrependedInShellConfig,
-    /// Prepends the global bin directory to the Windows user `Path`, which
-    /// Windows appends after the machine `Path`, so a `pnpm` there still wins.
-    AddedToUserPath,
+    /// Adds the global bin directory to the Windows user `Path`. Windows
+    /// appends that after the machine `Path`, and leaves an existing entry
+    /// where it is, so `persisted_path` (machine then user `Path`, as saved)
+    /// decides which `pnpm` a new process finds. `None` when the registry
+    /// could not be read.
+    AddedToUserPath { persisted_path: Option<Vec<PathBuf>> },
     /// Prints the settings for the user to add, under `--no-modify-path` or
     /// when the shell configuration cannot be written.
     LeftAlone,
@@ -175,20 +178,39 @@ pub(crate) enum SetupPathEntry {
 
 impl SetupPathEntry {
     /// What a `pnpm setup` that tried to update the environment did to it.
-    pub(crate) fn after_env_update<Report, Error>(result: &Result<Report, Error>) -> Self {
+    pub(crate) fn after_env_update<Report, Error, ReadPersistedPath>(
+        result: &Result<Report, Error>,
+        read_persisted_path: ReadPersistedPath,
+    ) -> Self
+    where
+        ReadPersistedPath: FnOnce() -> Option<Vec<PathBuf>>,
+    {
         match result {
-            Ok(_) if cfg!(windows) => Self::AddedToUserPath,
+            Ok(_) if cfg!(windows) => {
+                Self::AddedToUserPath { persisted_path: read_persisted_path() }
+            }
             Ok(_) => Self::PrependedInShellConfig,
             Err(_) => Self::LeftAlone,
         }
     }
 
-    /// Whether a `pnpm` from another installer ahead of the global bin
-    /// directory may still run first in a new shell.
-    pub(crate) fn keeps_shadowing(self) -> bool {
+    /// Whether `shadowing`, found ahead of `global_bin` on the current
+    /// `PATH`, may still run first in a new shell.
+    pub(crate) fn keeps_shadowing(&self, shadowing: &ShadowingPnpm, global_bin: &Path) -> bool {
         match self {
             Self::PrependedInShellConfig => false,
-            Self::AddedToUserPath | Self::LeftAlone => true,
+            Self::AddedToUserPath {
+                persisted_path: Some(persisted_path),
+            } => {
+                let position =
+                    |wanted: &Path| persisted_path.iter().position(|dir| same_dir(dir, wanted));
+                match (shadowing.executable.parent().and_then(position), position(global_bin)) {
+                    (Some(shadowing_dir), Some(bin_dir)) => shadowing_dir < bin_dir,
+                    (Some(_), None) => true,
+                    (None, _) => false,
+                }
+            }
+            Self::AddedToUserPath { persisted_path: None } | Self::LeftAlone => true,
         }
     }
 }
@@ -248,11 +270,11 @@ impl ShadowingPnpm {
 /// place, given what it did to `PATH`.
 pub(crate) fn warn_if_shadowed_after_setup<Logger: Reporter>(
     global_bin: &Path,
-    path_entry: SetupPathEntry,
+    path_entry: &SetupPathEntry,
     prefix: &str,
 ) {
-    if path_entry.keeps_shadowing()
-        && let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
+    if let Some(shadowing) = find_shadowing_pnpm_on_path(global_bin)
+        && path_entry.keeps_shadowing(&shadowing, global_bin)
     {
         shadowing.emit_warning::<Logger>(global_bin, prefix);
     }

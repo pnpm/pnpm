@@ -11,6 +11,7 @@ pub(super) use posix::{
     render_shell_settings,
     sh_quote,
 };
+pub(super) use windows::persisted_path_dirs;
 
 mod posix;
 mod windows;

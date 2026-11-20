@@ -38,7 +38,7 @@ If Homebrew installed pnpm or Corepack runs it, `pnpm self-update` leaves the gl
 
 ### When another pnpm comes first on PATH
 
-After installing, `self-update` looks up `pnpm` on `PATH`. If another installer's copy comes before the global bin directory, your shell keeps running that copy, and `self-update` prints a warning that names it. If pnpm recognizes the installer, the warning gives the command that removes that copy. Otherwise it tells you to move the global bin directory ahead of it on `PATH`. [`pnpm setup`](./setup.md) prints the same warning. It skips the warning when it writes a shell configuration that puts the global bin directory first. On Windows it keeps the warning, because the user `Path` it updates comes after the system `Path`.
+After installing, `self-update` looks up `pnpm` on `PATH`. If another installer's copy comes before the global bin directory, your shell keeps running that copy, and `self-update` prints a warning that names it. If pnpm recognizes the installer, the warning gives the command that removes that copy. Otherwise it tells you to move the global bin directory ahead of it on `PATH`. [`pnpm setup`](./setup.md) prints the same warning. It skips the warning when it writes a shell configuration that puts the global bin directory first. On Windows it checks the saved system and user `Path` instead, and keeps the warning only when the other copy still comes first there.
 
 ## Project settings are ignored
 

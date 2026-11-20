@@ -122,7 +122,7 @@ fn handler<Reporter: self::Reporter + 'static>(
         add_pnpm_home_to_env::<Reporter>(force, &pnpm_home_dir, &bin_dir, dir)?
     };
     remove_legacy_homedir_shims(&pnpm_home_dir);
-    warn_if_shadowed_after_setup::<Reporter>(&bin_dir, path_entry, &dir.to_string_lossy());
+    warn_if_shadowed_after_setup::<Reporter>(&bin_dir, &path_entry, &dir.to_string_lossy());
     Ok(output)
 }
 
@@ -147,7 +147,8 @@ fn add_pnpm_home_to_env<Reporter: self::Reporter + 'static>(
     dir: &Path,
 ) -> miette::Result<(String, SetupPathEntry)> {
     let env_path_result = path_extender::add_dir_to_env_path(pnpm_home_dir, &env_path_opts(force));
-    let path_entry = SetupPathEntry::after_env_update(&env_path_result);
+    let path_entry =
+        SetupPathEntry::after_env_update(&env_path_result, path_extender::persisted_path_dirs);
     let output = render_env_path_outcome(env_path_result, pnpm_home_dir)?;
     gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, pnpm_home_dir, bin_dir);
     Ok((output, path_entry))
