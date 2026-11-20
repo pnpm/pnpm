@@ -39,6 +39,46 @@ interface DirectMapScan {
   mergeNode: Node | null
 }
 
+interface UsesScanContext {
+  document: Document
+  found: Set<Scalar<string>>
+  seenStepSequences: Set<YAMLSeq>
+  source: string
+}
+
+export function findUsesScalars (
+  document: Document,
+  root: Node | null | undefined,
+  source: string
+): Array<Scalar<string>> {
+  const resolvedRoot = derefNode(document, root)
+  if (!isMap(resolvedRoot)) return []
+  const context: UsesScanContext = {
+    document,
+    found: new Set<Scalar<string>>(),
+    seenStepSequences: new Set<YAMLSeq>(),
+    source,
+  }
+  const jobs = findMapValue(document, resolvedRoot, 'jobs')
+  if (isMap(jobs)) {
+    addJobsUses(context, jobs)
+  }
+  const runs = findMapValue(document, resolvedRoot, 'runs')
+  if (isMap(runs)) {
+    addStepUses(context, findMapValue(document, runs, 'steps'))
+  }
+  return [...context.found]
+}
+
+function addJobsUses (context: UsesScanContext, jobs: YAMLMap): void {
+  for (const jobValue of collectMapValues(context.document, jobs)) {
+    if (!isMap(jobValue)) continue
+    const jobUses = findStringScalar(context, jobValue, 'uses')
+    if (jobUses != null) context.found.add(jobUses)
+    addStepUses(context, findMapValue(context.document, jobValue, 'steps'))
+  }
+}
+
 function createCycleTracker (): CycleTracker {
   return {
     confirmed: new Set<YAMLMap>(),
@@ -77,7 +117,17 @@ function evictCycleFrame (tracker: CycleTracker, node: YAMLMap): void {
   }
 }
 
-function exitCycleComplete (tracker: CycleTracker, node: YAMLMap, myPos: number, depMask: bigint): bigint {
+function exitCycleComplete ({
+  depMask,
+  myPos,
+  node,
+  tracker,
+}: {
+  depMask: bigint
+  myPos: number
+  node: YAMLMap
+  tracker: CycleTracker
+}): bigint {
   evictCycleFrame(tracker, node)
   const externalMask = depMask & ((1n << BigInt(myPos)) - 1n)
   if (externalMask === 0n) {
@@ -88,41 +138,6 @@ function exitCycleComplete (tracker: CycleTracker, node: YAMLMap, myPos: number,
   tracker.cycleMasks.set(node, externalMask)
   tracker.evictStack[deepestDep].push(node)
   return externalMask
-}
-
-export function findUsesScalars (
-  document: Document,
-  root: Node | null | undefined,
-  source: string
-): Array<Scalar<string>> {
-  const resolvedRoot = derefNode(document, root)
-  if (!isMap(resolvedRoot)) return []
-  const found = new Set<Scalar<string>>()
-  const seenStepSequences = new Set<YAMLSeq>()
-  const jobs = findMapValue(document, resolvedRoot, 'jobs')
-  if (isMap(jobs)) {
-    addJobsUses(document, source, jobs, found, seenStepSequences)
-  }
-  const runs = findMapValue(document, resolvedRoot, 'runs')
-  if (isMap(runs)) {
-    addStepUses(document, source, findMapValue(document, runs, 'steps'), found, seenStepSequences)
-  }
-  return [...found]
-}
-
-function addJobsUses (
-  document: Document,
-  source: string,
-  jobs: YAMLMap,
-  found: Set<Scalar<string>>,
-  seenStepSequences: Set<YAMLSeq>
-): void {
-  for (const jobValue of collectMapValues(document, jobs)) {
-    if (!isMap(jobValue)) continue
-    const jobUses = findStringScalar(document, source, jobValue, 'uses')
-    if (jobUses != null) found.add(jobUses)
-    addStepUses(document, source, findMapValue(document, jobValue, 'steps'), found, seenStepSequences)
-  }
 }
 
 function collectMapValues (document: Document, rootMap: YAMLMap): Array<Node | null> {
@@ -147,15 +162,20 @@ function visitMapEntries (context: MapEntriesContext, node: Node | null, depth: 
     return { kind: 'complete', depMask: 0n }
   }
   if (depth >= MAX_MERGE_DEPTH) return { kind: 'cutoff' }
-  return descendEntriesMerge(context, node, scan.mergeNode, depth + 1)
+  return descendEntriesMerge({ context, depth: depth + 1, mergeNode: scan.mergeNode, owner: node })
 }
 
-function descendEntriesMerge (
-  context: MapEntriesContext,
-  owner: YAMLMap,
-  mergeNode: Node | null,
+function descendEntriesMerge ({
+  context,
+  depth,
+  mergeNode,
+  owner,
+}: {
+  context: MapEntriesContext
   depth: number
-): CollectOutcome {
+  mergeNode: Node | null
+  owner: YAMLMap
+}): CollectOutcome {
   if (mergeNode == null) {
     context.tracker.confirmed.add(owner)
     return { kind: 'complete', depMask: 0n }
@@ -166,7 +186,10 @@ function descendEntriesMerge (
     evictCycleFrame(context.tracker, owner)
     return outcome
   }
-  return { kind: 'complete', depMask: exitCycleComplete(context.tracker, owner, myPos, outcome.depMask) }
+  return {
+    kind: 'complete',
+    depMask: exitCycleComplete({ depMask: outcome.depMask, myPos, node: owner, tracker: context.tracker }),
+  }
 }
 
 function collectDirectMapValues (context: MapEntriesContext, node: YAMLMap): DirectMapScan {
@@ -221,21 +244,15 @@ function stringKeyName (document: Document, key: unknown): string | null {
   return isScalar(resolved) && typeof resolved.value === 'string' ? resolved.value : null
 }
 
-function addStepUses (
-  document: Document,
-  source: string,
-  node: Node | null,
-  found: Set<Scalar<string>>,
-  seenStepSequences: Set<YAMLSeq>
-): void {
-  const resolved = derefNode(document, node)
-  if (!isSeq(resolved) || seenStepSequences.has(resolved)) return
-  seenStepSequences.add(resolved)
+function addStepUses (context: UsesScanContext, node: Node | null): void {
+  const resolved = derefNode(context.document, node)
+  if (!isSeq(resolved) || context.seenStepSequences.has(resolved)) return
+  context.seenStepSequences.add(resolved)
   for (const item of resolved.items) {
-    const step = derefNode(document, isNode(item) ? item : null)
+    const step = derefNode(context.document, isNode(item) ? item : null)
     if (!isMap(step)) continue
-    const uses = findStringScalar(document, source, step, 'uses')
-    if (uses != null) found.add(uses)
+    const uses = findStringScalar(context, step, 'uses')
+    if (uses != null) context.found.add(uses)
   }
 }
 
@@ -247,9 +264,9 @@ function derefNode (document: Document, node: unknown): Node | null {
   return isNode(current) && !isAlias(current) ? current : null
 }
 
-function findStringScalar (document: Document, source: string, node: Node, key: string): Scalar<string> | null {
-  const value = findMapValue(document, node, key)
-  return isInlineStringScalar(value, source) ? value : null
+function findStringScalar (context: UsesScanContext, node: Node, key: string): Scalar<string> | null {
+  const value = findMapValue(context.document, node, key)
+  return isInlineStringScalar(value, context.source) ? value : null
 }
 
 function isInlineStringScalar (node: unknown, source: string): node is Scalar<string> {
@@ -282,22 +299,30 @@ function lookupMapValue (context: MapLookupContext, node: Node, depth: number): 
     return { kind: 'missing', depMask: 0n }
   }
   if (depth >= MAX_MERGE_DEPTH) return { kind: 'cutoff' }
-  return descendLookupMerge(context, node, mergePair.value, depth + 1)
+  return descendLookupMerge({ context, depth: depth + 1, mergeValue: mergePair.value, owner: node })
 }
 
-function descendLookupMerge (
-  context: MapLookupContext,
-  owner: YAMLMap,
-  mergeValue: unknown,
+function descendLookupMerge ({
+  context,
+  depth,
+  mergeValue,
+  owner,
+}: {
+  context: MapLookupContext
   depth: number
-): LookupOutcome {
+  mergeValue: unknown
+  owner: YAMLMap
+}): LookupOutcome {
   const myPos = enterCycleFrame(context.tracker, owner)
   const outcome = lookupMergedTarget(context, derefNode(context.document, mergeValue), depth)
   if (outcome.kind !== 'missing') {
     evictCycleFrame(context.tracker, owner)
     return outcome
   }
-  return { kind: 'missing', depMask: exitCycleComplete(context.tracker, owner, myPos, outcome.depMask) }
+  return {
+    kind: 'missing',
+    depMask: exitCycleComplete({ depMask: outcome.depMask, myPos, node: owner, tracker: context.tracker }),
+  }
 }
 
 function lookupMergedTarget (context: MapLookupContext, merged: Node | null, depth: number): LookupOutcome {
