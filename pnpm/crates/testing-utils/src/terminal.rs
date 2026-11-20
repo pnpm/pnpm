@@ -2,6 +2,7 @@
 //! must not have one: what pacquet does with a signal depends on whether
 //! it holds a controlling terminal.
 
+use command_extra::CommandExtra;
 use std::{
     fs::File,
     io::{
@@ -129,10 +130,10 @@ impl Terminal {
                     .expect("clone the terminal"),
             )
         };
-        command
-            .stdin(stream())
-            .stdout(stream())
-            .stderr(stream());
+        command = command
+            .with_stdin(stream())
+            .with_stdout(stream())
+            .with_stderr(stream());
         // SAFETY: `setsid`, `ioctl`, `signal` and `sigprocmask` are
         // async-signal-safe, which is all a `pre_exec` hook may call.
         unsafe {
