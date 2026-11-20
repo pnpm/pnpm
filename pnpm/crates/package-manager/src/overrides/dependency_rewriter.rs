@@ -37,7 +37,7 @@ pub fn overrides_catalog_reference_rewriter(
     build_overrides_rewriter(config, catalogs, workspace_dir, CatalogValues::Keep)
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 enum CatalogValues {
     Dereference,
     Keep,
@@ -56,10 +56,13 @@ fn build_overrides_rewriter(
         return Ok(None);
     };
     let mut parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
-    if catalog_values == CatalogValues::Keep {
-        for (entry, raw_value) in parsed.iter_mut().zip(map.values()) {
-            if !entry.converge && parse_catalog_protocol(raw_value).is_some() {
-                entry.new_bare_specifier.clone_from(raw_value);
+    match catalog_values {
+        CatalogValues::Dereference => {}
+        CatalogValues::Keep => {
+            for (entry, raw_value) in parsed.iter_mut().zip(map.values()) {
+                if !entry.converge && parse_catalog_protocol(raw_value).is_some() {
+                    entry.new_bare_specifier.clone_from(raw_value);
+                }
             }
         }
     }

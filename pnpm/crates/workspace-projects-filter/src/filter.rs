@@ -230,19 +230,15 @@ fn changed_selector_projects<Pkg: BaseProject>(
     selector: &ProjectSelector,
     diff: &str,
 ) -> Result<crate::get_changed_projects::ChangedProjects, FilterError> {
-    let project_dependencies = opts.project_dependencies
-        .as_ref()
-        .map_or_else(
-            || {
-                Cow::Owned(
-                    projects_graph
-                        .iter()
-                        .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
-                        .collect(),
-                )
-            },
-            Cow::Borrowed,
-        );
+    let project_dependencies = match &opts.project_dependencies {
+        Some(project_dependencies) => Cow::Borrowed(project_dependencies),
+        None => Cow::Owned(
+            projects_graph
+                .iter()
+                .map(|(dir, node)| (dir.clone(), node.package.merged_dependencies(false)))
+                .collect(),
+        ),
+    };
     get_changed_projects(
         projects_graph.keys().cloned().collect(),
         diff,

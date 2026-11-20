@@ -85,3 +85,14 @@ fn keeps_a_declared_catalog_entry_an_override_rewrites() {
     assert!(has(&dependencies, "lib", "catalog:"), "{dependencies:?}");
     assert!(has(&dependencies, "lib", "3.0.0"), "{dependencies:?}");
 }
+
+#[test]
+fn keeps_a_declared_catalog_entry_whose_name_another_group_declares() {
+    let manifest = json!({
+        "name": "app",
+        "dependencies": { "lib": "^1.0.0" },
+        "peerDependencies": { "lib": "catalog:" },
+    });
+    let dependencies = checked_dependencies(&manifest, &[("lib@^2", "3.0.0")], "2.0.0");
+    assert!(has(&dependencies, "lib", "catalog:"), "{dependencies:?}");
+}

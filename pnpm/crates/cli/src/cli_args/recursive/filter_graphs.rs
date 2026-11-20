@@ -12,8 +12,8 @@ use pnpm_workspace_projects_filter::{
     FilterWorkspaceProjectsOptions, ProjectDependencies, ProjectSelector,
 };
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, DependencyGroups, DependencyRewriter, GraphProject,
-    ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions, DependencyGroups, DependencyRewriter, GraphProject, ProjectGraph,
+    create_projects_graph,
 };
 use std::path::Path;
 
@@ -126,23 +126,27 @@ pub(crate) fn overridden_project_dependencies(
     ))
 }
 
-/// Every group is kept apart rather than merged, so a rewritten entry is
-/// not replaced by a namesake from another group.
+/// Every group, declared and rewritten, is kept apart rather than merged,
+/// so no entry is replaced by a namesake from another group.
 fn declared_and_rewritten(
     project: GraphPkg<'_>,
     rewriter: &dyn DependencyRewriter,
 ) -> Vec<(String, String)> {
-    let mut groups = project.dependency_groups(false);
-    rewriter.rewrite_dependencies(&project, &mut groups);
+    let declared = project.dependency_groups(false);
+    let mut rewritten = declared.clone();
+    rewriter.rewrite_dependencies(&project, &mut rewritten);
+    [declared, rewritten]
+        .into_iter()
+        .flat_map(unmerged_dependencies)
+        .collect()
+}
+
+fn unmerged_dependencies(groups: DependencyGroups) -> impl Iterator<Item = (String, String)> {
     let DependencyGroups { peer, dev, optional, prod } = groups;
-    let mut dependencies = project.merged_dependencies(false);
-    dependencies.extend(
-        peer.into_iter()
-            .chain(dev.into_iter().flatten())
-            .chain(optional)
-            .chain(prod),
-    );
-    dependencies
+    peer.into_iter()
+        .chain(dev.into_iter().flatten())
+        .chain(optional)
+        .chain(prod)
 }
 
 #[cfg(test)]
