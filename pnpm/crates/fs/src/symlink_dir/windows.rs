@@ -37,7 +37,7 @@ static MODE: AtomicU8 = AtomicU8::new(UNDECIDED);
 static JUNCTION_STAGING_ID: AtomicU64 = AtomicU64::new(0);
 static JUNCTION_COMMIT_LOCK: Mutex<()> = Mutex::new(());
 
-/// True symlinks on Windows take a relative target —
+/// True symlinks on Windows take a relative target,
 /// `path.relative(dirname(dest), src)`, the same form used on Unix.
 /// Junctions take the absolute path with a trailing backslash, but
 /// the `junction` crate handles that internally so we pass
@@ -86,7 +86,8 @@ pub(super) fn explain_network_share_refusal(link: &Path, error: io::Error) -> io
         matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::Unsupported);
     let explained = error
         .get_ref()
-        .is_some_and(|inner| inner.downcast_ref::<UnusableShareLinksError>().is_some());
+        .and_then(|inner| inner.downcast_ref::<UnusableShareLinksError>())
+        .is_some();
     if !refused || explained || !crate::mapped_drive_path::is_on_network_drive(link) {
         return error;
     }
@@ -203,7 +204,7 @@ pub(super) fn reparse_tag(path: &Path) -> Option<u32> {
 }
 
 fn probe_and_cache(original: &Path, contents: &Path, link: &Path) -> io::Result<()> {
-    // Try the true directory symlink first — that's what users
+    // Try the true directory symlink first; that's what users
     // running in Developer Mode (or as Administrator) get, and
     // true symlinks are preferred over junctions when allowed.
     // `CreateSymbolicLinkW` returns
@@ -226,7 +227,7 @@ pub(super) fn should_fallback_to_junction(error: &io::Error) -> bool {
     const ERROR_DIRECTORY: i32 = 267;
     // `CreateSymbolicLinkW` without symlink privilege (no Developer
     // Mode, not elevated) fails with `ERROR_PRIVILEGE_NOT_HELD`,
-    // which std maps to `Uncategorized` — not `PermissionDenied` —
+    // which std maps to `Uncategorized` (not `PermissionDenied`)
     // so it must be matched by raw os error.
     const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
     error.kind() == io::ErrorKind::PermissionDenied
@@ -362,7 +363,7 @@ enum CommitAttempt {
 /// Holding the lock for a single inspect-and-rename, rather than across
 /// the retries in [`commit_staged_junction`], keeps one locked path from
 /// stalling every other junction commit in the process and leaves the
-/// slow part — the reparse-point conversion inside [`stage_junction`] —
+/// slow part (the reparse-point conversion inside [`stage_junction`])
 /// running in parallel. Re-inspecting the destination on every try means
 /// a race lost while waiting is reused rather than retried through the
 /// budget. A delete-pending destination can deny inspection temporarily;
@@ -399,7 +400,7 @@ fn inspect_destination(link: &Path) -> Destination {
 
 /// The destination already holds a completed junction. Discard our staging
 /// copy and return `AlreadyExists` so [`super::force_symlink_inner`] reuses
-/// the finished link. A cleanup failure must not suppress that reuse — it
+/// the finished link. A cleanup failure must not suppress that reuse; it
 /// rides along as a [`super::ConcurrentCleanupWarning`] so the orphaned
 /// staging path still reaches the user.
 fn reuse_completed_destination(link: &Path, staging: &Path, context: &str) -> io::Error {
@@ -419,7 +420,7 @@ fn reuse_completed_destination(link: &Path, staging: &Path, context: &str) -> io
 }
 
 /// The destination couldn't be inspected. Discard staging and surface the
-/// inspection error, never as `AlreadyExists` — that kind would let the
+/// inspection error, never as `AlreadyExists`, that kind would let the
 /// caller reuse a link we could not verify. A concurrent cleanup failure
 /// downgrades the kind to `Other` since two independent errors are merged.
 fn inspect_failed(
@@ -441,7 +442,7 @@ fn inspect_failed(
 }
 
 /// The commit genuinely failed and left nothing at `link`. Discard staging
-/// and surface the commit error — but never as `AlreadyExists`, or
+/// and surface the commit error, but never as `AlreadyExists`, or
 /// [`super::force_symlink_inner`] would treat the missing link as reusable.
 /// A rename that lost the race only to have the winner vanish before the
 /// re-inspection can carry that kind, so strip it to `Other`; every other

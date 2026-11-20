@@ -151,7 +151,9 @@ fn opener_at(chars: &[char], index: usize) -> Opener {
     if chars.get(index) == Some(&'"') {
         return Opener::Text;
     }
-    character_literal_width(chars, index).map_or(Opener::Plain, |width| Opener::Character { width })
+    character_literal_width(chars, index)
+        .map(|width| Opener::Character { width })
+        .unwrap_or(Opener::Plain)
 }
 
 /// The opener of a raw string at `index`, as its width and its `#` count.

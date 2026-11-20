@@ -293,7 +293,7 @@ pub(crate) fn parse_cli_args(
     Ok(args)
 }
 
-/// pnpm prints the bare version, not clap's `pnpm <version>` rendering —
+/// pnpm prints the bare version, not clap's `pnpm <version>` rendering,
 /// and a project that pins another pnpm answers for itself first.
 fn print_version(
     argv: &[OsString],
@@ -366,8 +366,8 @@ where
 
 /// Process argv with a leading `dlx` injected when launched as `pnpx`/`pnx`
 /// (shorthand for `pnpm dlx`), mirroring pnpm's `buildArgv`. Only the Windows
-/// hardlink aliases rely on this — the Unix alias scripts inject `dlx`
-/// themselves — and there `current_exe` is the only signal of the launch name.
+/// hardlink aliases rely on this (the Unix alias scripts inject `dlx`
+/// themselves) and there `current_exe` is the only signal of the launch name.
 fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe = pnpm_executor::current_executable().ok();
     let exe_name = exe
