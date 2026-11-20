@@ -204,6 +204,7 @@ miette = { version = "7.6.0", features = ["fancy"] }
 # `extended` carries the option calls; it is the only feature pnpm needs.
 libmimalloc-sys = { version = "0.1.49", features = ["extended"] }
 mimalloc = { version = "0.1.52" }
+ctor = { version = "1.0.14", default-features = false }
 napi = { version = "3.16.2", default-features = false, features = [
   "napi8",
   "object_indexmap",

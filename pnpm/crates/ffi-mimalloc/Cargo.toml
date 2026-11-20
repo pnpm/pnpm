@@ -10,7 +10,12 @@ keywords.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# Sets mimalloc's default purge delay to zero before `main` runs.
+purge-freed-memory-immediately = ["dep:ctor"]
+
 [dependencies]
+ctor = { workspace = true, optional = true }
 libmimalloc-sys = { workspace = true }
 
 [lints]

@@ -5627,6 +5627,7 @@ dependencies = [
 name = "pnpm-ffi-mimalloc"
 version = "0.0.1"
 dependencies = [
+ "ctor",
  "libmimalloc-sys",
 ]
 
