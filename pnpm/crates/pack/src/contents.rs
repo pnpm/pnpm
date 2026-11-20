@@ -154,8 +154,8 @@ pub fn sort_paths_en_locale(paths: &mut [String]) {
     paths.sort_by(|left, right| collator.compare(left, right));
 }
 
-/// Whether a packed path looks like a license file, matching upstream's
-/// anchored `/(?:^|[\\/])LICEN[CS]E(?:\..+)?$/i` presence test.
+/// Whether a packed path looks like a license file: a `LICENSE`,
+/// `LICENCE`, or `COPYING` file name, with or without an extension.
 fn contains_license(path: &Path) -> bool {
     if let Some(file_name) = path.file_name() {
         return is_license_filename(&file_name.to_string_lossy());

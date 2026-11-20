@@ -1,6 +1,21 @@
 use super::{Host, SilentReporter, api, fixture, json, tarball_entry_names, tempdir, touch};
 
 #[test]
+fn workspace_copying_is_injected() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join("COPYING"), "GPL").unwrap();
+    let (dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    opts.workspace_dir = Some(workspace.path().to_path_buf());
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    dbg!(&result.contents);
+    assert!(result.contents.contains(&"COPYING".to_string()));
+    let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    dbg!(&names);
+    assert!(names.contains(&"package/COPYING".to_string()));
+}
+
+#[test]
 fn workspace_copying_with_extension_is_injected() {
     let workspace = tempdir().unwrap();
     std::fs::write(workspace.path().join("COPYING.txt"), "workspace license").unwrap();
