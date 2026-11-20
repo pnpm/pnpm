@@ -277,14 +277,18 @@ fn bare_override_entry(
             writable: governing.target_pkg.dep_type.is_none(),
         })
 }
-/// The `overrides` a project's `packageConfigs` entry sets for it. They
-/// replace the workspace-wide map for that project, and the workspace
+/// The `overrides` a project's `packageConfigs` entry sets for it, when the
+/// workspace applies `packageConfigs` at all. They replace the workspace-wide
+/// map for that project, and the workspace
 /// manifest writer edits only the workspace-wide map, so an entry from them
 /// is reported rather than moved.
 fn project_overrides<'config>(
     manifest: &PackageManifest,
     config: &'config Config,
 ) -> Option<&'config indexmap::IndexMap<String, String>> {
+    if !config.applies_package_configs() {
+        return None;
+    }
     let name = manifest.value().get("name")?.as_str()?;
     config.package_configs
         .as_ref()?

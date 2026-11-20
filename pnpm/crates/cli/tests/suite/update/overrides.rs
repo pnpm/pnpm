@@ -583,3 +583,36 @@ fn update_latest_warns_when_a_package_configs_override_governs_the_dependency() 
 
     drop((root, anchor));
 }
+
+/// A workspace that shares one lockfile applies no `packageConfigs`, so a
+/// project entry there does not keep the workspace-wide override from moving.
+#[test]
+fn update_latest_moves_the_workspace_override_when_package_configs_are_inactive() {
+    let (root, workspace, anchor) = setup();
+    add_workspace_package(&workspace, "pkg", "1.0.0");
+    let project = workspace.join("pkg");
+    fs::write(
+        project.join("package.json"),
+        format!(
+            r#"{{ "name": "pkg", "version": "1.0.0", "dependencies": {{ "{DEP}": "^100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write project package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    yaml.push_str("packageConfigs:\n  pkg:\n    overrides:\n      \"");
+    yaml.push_str(DEP);
+    yaml.push_str("\": 100.0.0\n");
+    fs::write(&yaml_path, yaml).expect("write yaml");
+    set_overrides(&workspace, &[(DEP, "100.0.0")]);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest", DEP, "--recursive"]).assert().success();
+
+    let yaml = fs::read_to_string(&yaml_path).expect("read yaml");
+    assert!(yaml.contains(&format!("overrides:\n  \"{DEP}\": 101.0.0")), "override moved: {yaml}");
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, "pkg", DEP), "101.0.0");
+
+    drop((root, anchor));
+}
