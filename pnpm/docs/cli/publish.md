@@ -47,7 +47,7 @@ Show information in JSON format.
 ### --tag &lt;tag\>
 
 Publishes the package with the given tag. By default, `pnpm publish` updates
-the `latest` tag.
+the tag set by the [`tag`](../settings/other.md#tag) setting, or `latest`.
 
 For example:
 
@@ -83,6 +83,7 @@ It can't be used when publishing a tarball.
 ### --access &lt;public|restricted\>
 
 Tells the registry whether the published package should be public or restricted.
+It overrides the [`access`](#access) setting.
 
 ### --no-git-checks
 
@@ -266,7 +267,7 @@ Otherwise it fails with `ERR_PNPM_PUBLISHED_RELEASE_DIFFERS` and names what diff
 
 ## Configuration
 
-You can also set `gitChecks`, `publishBranch`, `publishWaitTimeout`, and `provenance` options in the `pnpm-workspace.yaml` file.
+You can also set `gitChecks`, `publishBranch`, `publishWaitTimeout`, `provenance`, and `access` options in the `pnpm-workspace.yaml` file.
 
 For example:
 
@@ -319,6 +320,23 @@ provenance: false
 ```
 
 The `PNPM_CONFIG_PROVENANCE` environment variable overrides the
+configuration files. The command-line option takes precedence over both.
+
+### access
+
+* Default: **undefined**
+* Type: **public**, **restricted**
+
+Sets the default for [`--access`](#--access-publicrestricted).
+When unset, pnpm uses `publishConfig.access` from the package's
+`package.json`. When set, it takes precedence over `publishConfig.access`.
+Configure it in `pnpm-workspace.yaml` or the global `config.yaml`:
+
+```yaml title="pnpm-workspace.yaml"
+access: restricted
+```
+
+The `PNPM_CONFIG_ACCESS` environment variable overrides the
 configuration files. The command-line option takes precedence over both.
 
 ## Life cycle scripts

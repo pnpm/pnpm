@@ -17,10 +17,7 @@ use pnpm_network::{
     AuthHeaders,
     ThrottledClient,
 };
-use pnpm_publish::{
-    Access,
-    PublishNetwork,
-};
+use pnpm_publish::PublishNetwork;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -90,6 +87,57 @@ fn publish_branch_flag_overrides_the_workspace_setting() {
 }
 
 #[test]
+fn an_empty_publish_branch_leaves_the_built_in_pair() {
+    let empty = Config { publish_branch: Some(String::new()), ..Config::default() };
+    assert_eq!(configured_publish_branch(None, &empty), None);
+    let blank = Config { publish_branch: Some("  ".to_owned()), ..Config::default() };
+    assert_eq!(configured_publish_branch(None, &blank), Some("  "));
+}
+
+#[test]
+fn publish_options_falls_back_to_the_configured_access_and_tag() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        ..Config::default()
+    };
+    let options = publish_args().publish_options(&config, None, false);
+    assert_eq!(options.registry.access.as_deref(), Some("restricted"));
+    assert_eq!(options.registry.tag, "next");
+}
+
+#[test]
+fn publish_flags_outrank_the_configured_access_and_tag() {
+    let config = Config {
+        access: Some("restricted".to_owned()),
+        tag: Some("next".to_owned()),
+        ..Config::default()
+    };
+    let args = publish_args_with(PublishFlags {
+        registry: crate::cli_args::publish::PublishRegistryArgs {
+            tag: Some("from-flag".to_owned()),
+            access: Some("public".to_owned()),
+            ..publish_flags().registry
+        },
+        ..publish_flags()
+    });
+    let options = args.publish_options(&config, None, false);
+    assert_eq!(options.registry.access.as_deref(), Some("public"));
+    assert_eq!(options.registry.tag, "from-flag");
+}
+
+/// See [`pnpm_publish::resolve_access`] for why an unrecognized value is
+/// not dropped.
+#[test]
+fn an_unrecognized_configured_access_is_kept_verbatim() {
+    let config = Config { access: Some("everyone".to_owned()), ..Config::default() };
+    assert_eq!(
+        publish_args().publish_options(&config, None, false).registry.access.as_deref(),
+        Some("everyone"),
+    );
+}
+
+#[test]
 fn publish_options_defaults_the_tag_to_latest_and_carries_the_otp() {
     let options =
         publish_args().publish_options(&Config::default(), Some("246810".to_owned()), false);
@@ -115,7 +163,7 @@ fn publish_options_applies_tag_access_provenance_and_dry_run() {
     });
     let options = args.publish_options(&Config::default(), None, false);
     assert_eq!(options.registry.tag, "next");
-    assert_eq!(options.registry.access, Some(Access::Restricted));
+    assert_eq!(options.registry.access.as_deref(), Some("restricted"));
     assert_eq!(options.registry.provenance, Some(true));
     assert!(options.dry_run);
     assert_eq!(options.registry.otp, None);

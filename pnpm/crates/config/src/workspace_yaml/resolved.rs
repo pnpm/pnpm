@@ -164,6 +164,7 @@ impl WorkspaceSettings {
 
             frozen_lockfile: config.frozen_lockfile,
             provenance: config.provenance,
+            access: config.access.clone(),
             git_branch_lockfile: Some(config.use_git_branch_lockfile),
             registry: Some(config.registry.clone()),
             pnpr_server: config.pnpr_server.clone(),

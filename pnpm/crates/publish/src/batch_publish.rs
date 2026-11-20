@@ -231,7 +231,7 @@ fn group_packed_pkg<'a>(
         manifest,
         package.tarball_data,
         &registry,
-        resolve_access(opts.registry.access, manifest),
+        resolve_access(opts.registry.access.as_deref(), manifest).as_deref(),
         &opts.registry.tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;

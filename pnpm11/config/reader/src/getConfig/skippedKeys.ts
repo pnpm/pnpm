@@ -3,7 +3,7 @@ import camelcase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 
 import type { Config, ConfigContext } from '../Config.js'
-import { isConfigFileKey } from '../configFileKey.js'
+import { isConfigFileKey, isNeverAFileSetting } from '../configFileKey.js'
 import { CONFIG_CONTEXT_KEY_SET } from './configContext.js'
 
 /**
@@ -180,7 +180,7 @@ export function isProjectManifestSkippedKey (camelKey: string): boolean {
  */
 export function isRefusedByAProjectManifest (key: string): boolean {
   const camelKey = camelcase(key, { locale: 'en-US' })
-  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEY_SET.has(camelKey)
+  return isProjectManifestSkippedKey(camelKey) || CONFIG_CONTEXT_KEY_SET.has(camelKey) || isNeverAFileSetting(kebabCase(camelKey))
 }
 
 /**
@@ -209,6 +209,10 @@ const GLOBAL_EQUIVALENT_KEYS: Record<string, string> = {
  */
 export function whereRefusedKeyBelongs (camelKey: string): string {
   if (camelKey === 'dir') return 'Pass --dir on the command line instead'
+  if (isNeverAFileSetting(kebabCase(camelKey))) {
+    const kebabKey = kebabCase(camelKey)
+    return `Pass it per run instead: --${kebabKey} on the command line, or PNPM_CONFIG_${kebabKey.replaceAll('-', '_').toUpperCase()}`
+  }
   const kebabKey = GLOBAL_EQUIVALENT_KEYS[camelKey] ?? kebabCase(camelKey)
   if (isConfigFileKey(kebabKey)) {
     return `Set it for the machine instead: pnpm config set --global ${kebabKey}`

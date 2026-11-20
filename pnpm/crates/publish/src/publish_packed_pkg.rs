@@ -73,7 +73,6 @@ use crate::{
         generate_provenance,
     },
     publish_options::{
-        Access,
         CreatePublishOptionsError,
         CreatePublishOptionsInput,
         create_publish_options,
@@ -145,7 +144,8 @@ impl PublishPackedPkgOptions {
 pub struct PublishRegistryOptions {
     pub default: String,
     pub scoped: BTreeMap<String, String>,
-    pub access: Option<Access>,
+    /// Sent verbatim; see [`resolve_access`](crate::resolve_access).
+    pub access: Option<String>,
     pub tag: String,
     pub otp: Option<String>,
     pub provenance: Option<bool>,
@@ -266,7 +266,7 @@ where
         pkg.published_manifest,
         pkg.tarball_data,
         &resolved.registry,
-        resolved.access,
+        resolved.access.as_deref(),
         &resolved.default_tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
@@ -287,7 +287,7 @@ impl PublishRegistryOptions {
         CreatePublishOptionsInput {
             default_registry: &self.default,
             scoped_registries: &self.scoped,
-            access: self.access,
+            access: self.access.as_deref(),
             tag: &self.tag,
             otp: self.otp.as_deref(),
             provenance: self.provenance,

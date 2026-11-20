@@ -332,8 +332,12 @@ impl PublishArgs {
     }
 }
 
+/// An empty value means unset, leaving the built-in `master` / `main` pair:
+/// pnpm gates on `opts.publishBranch ? [opts.publishBranch] : ...`, a
+/// truthiness test, so whitespace still counts as a branch name.
 fn configured_publish_branch<'a>(flag: Option<&'a str>, config: &'a Config) -> Option<&'a str> {
     flag.or(config.publish_branch.as_deref())
+        .filter(|branch| !branch.is_empty())
 }
 
 /// Run the publish-lifecycle scripts the manifest declares, in order, with

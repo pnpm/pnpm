@@ -241,6 +241,7 @@ fn create_config(
         git_checks: true,
         publish_wait_timeout: 0,
         provenance: None,
+        access: None,
         tag_version_prefix: "v".to_string(),
         enable_pre_post_scripts: false,
         script_shell: None,

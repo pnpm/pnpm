@@ -246,7 +246,23 @@ pub fn is_ini_config_key(key: &str) -> bool {
 /// is not in the excluded list.
 #[must_use]
 pub fn is_config_file_key(kebab_key: &str) -> bool {
-    pnpm_config_file_keys().contains(kebab_key)
-        || structured_config_file_keys().contains(kebab_key)
-        || (npm_config_type_keys().contains(kebab_key) && !excluded_pnpm_keys().contains(kebab_key))
+    !is_never_a_file_setting(kebab_key)
+        && (pnpm_config_file_keys().contains(kebab_key)
+            || structured_config_file_keys().contains(kebab_key)
+            || (npm_config_type_keys().contains(kebab_key)
+                && !excluded_pnpm_keys().contains(kebab_key)))
+}
+
+/// Settings that carry a per-invocation value, so no config file may set
+/// them. Mirrors `neverAFileSettingKeys` in pnpm's `config.reader`.
+///
+/// A one-time password is valid for about thirty seconds. `--otp` and
+/// `PNPM_CONFIG_OTP` are its channels.
+const NEVER_A_FILE_SETTING: &[&str] = &["otp"];
+
+/// Whether `kebab_key` is a setting no config file may carry, because its
+/// value describes one invocation rather than a project or a machine.
+#[must_use]
+pub fn is_never_a_file_setting(kebab_key: &str) -> bool {
+    NEVER_A_FILE_SETTING.contains(&kebab_key)
 }

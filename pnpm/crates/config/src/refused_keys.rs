@@ -9,7 +9,10 @@
 
 use crate::{
     MachineSettings,
-    config_types::is_config_file_key,
+    config_types::{
+        is_config_file_key,
+        is_never_a_file_setting,
+    },
     naming_cases::{
         to_camel_case,
         to_kebab_case,
@@ -82,7 +85,9 @@ fn refused_keys() -> &'static HashSet<&'static str> {
 #[must_use]
 pub fn is_refused_by_a_project_manifest(key: &str) -> bool {
     let camel_key = to_camel_case(key);
-    refused_keys().contains(camel_key.as_str()) || MachineSettings::keys().contains(&camel_key)
+    refused_keys().contains(camel_key.as_str())
+        || MachineSettings::keys().contains(&camel_key)
+        || is_never_a_file_setting(&to_kebab_case(key))
 }
 
 /// The global config file key that sets a refused setting, where it is not
@@ -111,6 +116,13 @@ pub fn where_refused_key_belongs(camel_key: &str) -> String {
     if camel_key == "macosBackup" {
         return "Set macosBackup.excludeModulesDir or macosBackup.excludeStoreDir in the global config.yaml instead"
             .to_string();
+    }
+    if is_never_a_file_setting(&to_kebab_case(camel_key)) {
+        let kebab_key = to_kebab_case(camel_key);
+        let env_key = kebab_key.to_uppercase().replace('-', "_");
+        return format!(
+            "Pass it per run instead: --{kebab_key} on the command line, or PNPM_CONFIG_{env_key}",
+        );
     }
     let kebab_key = global_equivalent_key(camel_key)
         .map(str::to_string)

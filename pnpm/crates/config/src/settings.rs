@@ -1320,6 +1320,16 @@ pub struct Config {
     /// publishing decide from the package's visibility.
     pub provenance: Option<bool>,
 
+    /// `access` (`--access`). The access level `pnpm publish` records for
+    /// the package, `public` or `restricted`. Unset leaves it to the
+    /// manifest's `publishConfig.access`, then to the registry default.
+    ///
+    /// Kept as the raw string: pnpm assigns a configured `access` unchecked
+    /// and the registry rejects an invalid one. See
+    /// `pnpm_publish::resolve_access`. `PNPM_CONFIG_ACCESS` alone is
+    /// constrained to the closed set, as pnpm's typed env pass is.
+    pub access: Option<String>,
+
     /// `tagVersionPrefix` (`--tag-version-prefix`). Prefix prepended to the
     /// version when `pnpm version` creates its git tag, and stripped when
     /// `pnpm version from-git` reads the version back from the latest tag.
@@ -1812,8 +1822,10 @@ pub struct Config {
     pub save_catalog_name: Option<String>,
 
     /// The dist-tag a dependency with no version resolves to, as in
-    /// `pnpm add foo` or an `npm:foo` alias. The `tag` setting. Unset means
-    /// `latest`; read it through [`Config::default_tag`].
+    /// `pnpm add foo` or an `npm:foo` alias, and the dist-tag `pnpm publish`
+    /// registers a version under when `--tag` is not passed. The `tag`
+    /// setting. Unset means `latest`; an install reads it through
+    /// [`Config::default_tag`].
     pub tag: Option<String>,
 
     /// The range operator `pnpm add` prepends to a resolved version

@@ -1,5 +1,4 @@
 use super::{
-    Access,
     Map,
     NormalizedRegistryUrl,
     PublishPackedPkgError,
@@ -23,7 +22,7 @@ pub(crate) fn build_publish_document(
     manifest: &Value,
     tarball_data: &[u8],
     registry: &NormalizedRegistryUrl,
-    access: Option<Access>,
+    access: Option<&str>,
     tag: &str,
     dist_hashes: &DistHashes<'_>,
 ) -> Result<Value, PublishPackedPkgError> {
@@ -42,7 +41,7 @@ pub(crate) fn build_publish_document(
     }
     let version = clean_version(&manifest_string(manifest, "version"))?;
 
-    if !name.starts_with('@') && access == Some(Access::Restricted) {
+    if !name.starts_with('@') && access == Some("restricted") {
         return Err(PublishPackedPkgError::UnscopedRestricted { name });
     }
 
@@ -71,7 +70,7 @@ pub(crate) fn build_publish_document(
     }
     root.insert("dist-tags".to_owned(), Value::Object(dist_tags));
     root.insert("versions".to_owned(), Value::Object(versions));
-    root.insert("access".to_owned(), Value::from(access.as_ref().map(ToString::to_string)));
+    root.insert("access".to_owned(), Value::from(access));
     root.insert("_attachments".to_owned(), Value::Object(attachments));
     Ok(Value::Object(root))
 }

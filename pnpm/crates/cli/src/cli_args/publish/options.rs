@@ -1,6 +1,5 @@
 use pnpm_config::Config;
 use pnpm_publish::{
-    Access,
     OidcHttpOptions,
     PublishPackedPkgOptions,
 };
@@ -49,8 +48,8 @@ impl PublishArgs {
             registry: pnpm_publish::PublishRegistryOptions {
                 default: config.registry.clone(),
                 scoped: config.registries_by_scope.clone(),
-                access: self.flags.registry.access.as_deref().and_then(Access::parse),
-                tag: self.flags.registry.tag.clone().unwrap_or_else(|| "latest".to_owned()),
+                access: self.access(config),
+                tag: self.tag(config),
                 otp,
                 provenance: self.provenance(config),
                 http: OidcHttpOptions {
@@ -64,6 +63,20 @@ impl PublishArgs {
             release_notes: self.release_notes_target(config),
             pnpr_registries: notes_registries(config),
         }
+    }
+
+    /// `--access`, else the `access` setting. See [`pnpm_publish::resolve_access`]
+    /// for why the value is not validated here.
+    fn access(&self, config: &Config) -> Option<String> {
+        self.flags.registry.access.clone().or_else(|| config.access.clone())
+    }
+
+    /// `--tag`, else the `tag` setting, else `latest`.
+    fn tag(&self, config: &Config) -> String {
+        self.flags.registry.tag
+            .clone()
+            .or_else(|| config.tag.clone())
+            .unwrap_or_else(|| "latest".to_owned())
     }
 
     /// `None` leaves the decision to the OIDC flow.

@@ -67,7 +67,7 @@ export {
 } from './projectConfig.js'
 export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDepsBeforeRun, WantedPackageManager }
 
-export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
+export { type ConfigFileKey, isConfigFileKey, isNeverAFileSetting } from './configFileKey.js'
 export type { CliOptions } from './getConfig/configBuildState.js'
 export { getIgnoredLockfilePnpmFieldKeys } from './getConfig/ignoredPnpmFieldKeys.js'
 export { getWantedPackageManager, type ParsedPackageManager, parsePackageManager, shouldPersistLockfile } from './getConfig/packageManager.js'

@@ -202,6 +202,10 @@ pub enum ConfigError {
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY), help("Try {camel:?}"))]
     SetUnsupportedWorkspaceKey { key: String, camel: String },
 
+    #[display("The key {key:?} holds a per-invocation value, so no config file can carry it")]
+    #[diagnostic(code(ERR_PNPM_CONFIG_SET_NOT_A_FILE_SETTING), help("{hint}"))]
+    SetNotAFileSetting { key: String, hint: String },
+
     #[display("The key {key:?} isn't supported by the global config.yaml file")]
     #[diagnostic(code(ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY), help("{hint}"))]
     SetUnsupportedYamlConfigKey { key: String, hint: String },
@@ -388,6 +392,7 @@ fn set_yaml_setting(
 }
 
 fn validate_yaml_target_key(key: &str, target: YamlConfigTarget) -> Result<String, ConfigError> {
+    reject_never_a_file_setting(key)?;
     match target {
         YamlConfigTarget::Project => {
             let key = validate_workspace_key(key)?;
@@ -404,6 +409,20 @@ fn validate_yaml_target_key(key: &str, target: YamlConfigTarget) -> Result<Strin
             validate_workspace_key(&kebab)
         }
     }
+}
+
+/// Refuse to write a key whose value lasts one invocation. Every loader
+/// ignores it in a file, so writing it would only mislead. Removing one stays
+/// allowed, since a hand-edited file may already carry it.
+fn reject_never_a_file_setting(key: &str) -> Result<(), ConfigError> {
+    let kebab = naming_cases::to_kebab_case(key);
+    if config_types::is_never_a_file_setting(&kebab) {
+        return Err(ConfigError::SetNotAFileSetting {
+            hint: refused_keys::where_refused_key_belongs(&naming_cases::to_camel_case(&kebab)),
+            key: kebab,
+        });
+    }
+    Ok(())
 }
 
 /// A hand-edited file may carry a spelling pnpm did not write, and that is the
