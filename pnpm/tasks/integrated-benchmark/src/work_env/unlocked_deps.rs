@@ -1,6 +1,11 @@
 //! The lockfile the `store-only.unlocked-direct-deps.*` scenario seeds.
 
-use pnpm_lockfile::{ImporterDepVersion, Lockfile, ResolvedDependencyMap, ResolvedDependencySpec};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+};
 use std::path::Path;
 
 /// `lockfile` with every direct dependency of the root importer whose

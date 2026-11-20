@@ -1,12 +1,29 @@
-use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    index_of_dep_path_suffix,
+};
 use pnpm_lockfile::RecordedPeerBindings;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{borrow::Cow, collections::hash_map::Entry, sync::Arc};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    borrow::Cow,
+    collections::hash_map::Entry,
+    sync::Arc,
+};
 
 use crate::{
-    dedupe_injected_deps::{DirectByImporter, prune_unreachable},
+    dedupe_injected_deps::{
+        DirectByImporter,
+        prune_unreachable,
+    },
     dependencies_graph::DependenciesGraph,
-    resolve_peers::{merge_additional_edges, split_peer_suffix_segments},
+    resolve_peers::{
+        merge_additional_edges,
+        split_peer_suffix_segments,
+    },
 };
 
 /// How the peer resolution built the suffixes of the depPaths it emitted.
@@ -168,7 +185,8 @@ impl<'a> SurvivorNamer<'a> {
             // the text.
             None => split_peer_suffix_segments(suffix)?
                 .into_iter()
-                .map(|segment| PeerId::DepPath(DepPath::from(segment)))
+                .map(DepPath::from)
+                .map(PeerId::DepPath)
                 .collect(),
         };
         let mut renamed = false;

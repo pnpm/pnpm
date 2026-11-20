@@ -1,11 +1,22 @@
-use pnpm_config::{Config, NetworkPolicy};
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_config::{
+    Config,
+    NetworkPolicy,
+};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    InMemoryPackageMetaCache,
+    NpmResolver,
+    shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     sync::Arc,
 };
 

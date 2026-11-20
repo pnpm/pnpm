@@ -9,9 +9,16 @@
 //! The fixture names no registry package, so the timed offline resolve
 //! measures the workspace walk and nothing else.
 
-use super::{LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_VERSION, LINKED_WORKSPACE_WIDTH};
+use super::{
+    LINKED_WORKSPACE_DEPTH,
+    LINKED_WORKSPACE_VERSION,
+    LINKED_WORKSPACE_WIDTH,
+};
 use serde_json::Value;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// The workspace project every other project both depends on and declares as
 /// its peer. Present in each consumer's own dependencies, so the peer always

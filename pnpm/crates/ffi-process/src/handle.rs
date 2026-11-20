@@ -7,14 +7,26 @@
 
 use std::{
     os::windows::io::{
-        AsHandle as _, AsRawHandle as _, BorrowedHandle, FromRawHandle as _, OwnedHandle,
+        AsHandle as _,
+        AsRawHandle as _,
+        BorrowedHandle,
+        FromRawHandle as _,
+        OwnedHandle,
     },
     time::Duration,
 };
 use windows_sys::Win32::{
-    Foundation::{DUPLICATE_SAME_ACCESS, DuplicateHandle, WAIT_TIMEOUT},
+    Foundation::{
+        DUPLICATE_SAME_ACCESS,
+        DuplicateHandle,
+        WAIT_TIMEOUT,
+    },
     System::Threading::{
-        GetCurrentProcess, OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, TerminateProcess,
+        GetCurrentProcess,
+        OpenProcess,
+        PROCESS_SYNCHRONIZE,
+        PROCESS_TERMINATE,
+        TerminateProcess,
         WaitForSingleObject,
     },
 };

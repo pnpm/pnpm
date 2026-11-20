@@ -1,8 +1,21 @@
 use super::{
-    LinkRoots, LinkedDependency, LinkedLockfileLoader, Lockfile, PackageManifest, Path, PathBuf,
-    ProjectManifests, manifest_str_field, package_manifest_version,
+    LinkRoots,
+    LinkedDependency,
+    LinkedLockfileLoader,
+    Lockfile,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectManifests,
+    manifest_str_field,
+    package_manifest_version,
 };
-use std::{borrow::Cow, collections::HashMap, path::Component, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    path::Component,
+    sync::Arc,
+};
 
 /// The linked dependencies one walk has read. Most importers of a workspace
 /// link the same packages, so each target is canonicalized and its manifest

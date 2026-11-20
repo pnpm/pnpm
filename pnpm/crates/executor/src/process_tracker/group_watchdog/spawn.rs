@@ -1,5 +1,12 @@
-use super::{Command, GroupWatchdog};
-use std::{io, os::fd::AsFd as _, process::Child};
+use super::{
+    Command,
+    GroupWatchdog,
+};
+use std::{
+    io,
+    os::fd::AsFd as _,
+    process::Child,
+};
 
 pub(super) fn registered(command: &mut Command, watchdog: &GroupWatchdog) -> io::Result<Child> {
     // Platforms without `pipe2` mark pipes `FD_CLOEXEC` after creation, and

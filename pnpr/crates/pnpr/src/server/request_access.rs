@@ -1,6 +1,15 @@
 use super::{
-    Action, AppState, AuthedCaller, HeaderMap, Identity, Next, RegistryError, Request, Response,
-    Upstream, header,
+    Action,
+    AppState,
+    AuthedCaller,
+    HeaderMap,
+    Identity,
+    Next,
+    RegistryError,
+    Request,
+    Response,
+    Upstream,
+    header,
 };
 use axum::response::IntoResponse;
 use pnpr_config::RoutingConfig;
@@ -8,7 +17,7 @@ use pnpr_config::RoutingConfig;
 /// Resolve the upstream behind an authorized `/~<name>/` endpoint request.
 ///
 /// Fails closed: an upstream that does not exist is a `404`, and a caller no
-/// grant lets read through it is a `403`. Returns the [`Upstream`] to fetch *through* —
+/// grant lets read through it is a `403`. Returns the [`Upstream`] to fetch *through*,
 /// `/~<name>/` requests never read or write the shared proxy mirror, so a
 /// private upstream's packuments and tarballs can never leak across the public
 /// path or another upstream.
@@ -52,7 +61,7 @@ pub(super) fn revision_source_registry(state: &AppState, source: &str) -> Option
         .map(|config| config.url.clone())
 }
 
-/// The disposable cache namespace for an upstream registry's `/~<name>/` route —
+/// The disposable cache namespace for an upstream registry's `/~<name>/` route,
 /// the entry precomputed in [`RoutingSnapshot::upstream_cache_namespaces`](super::registry_graph::RoutingSnapshot::upstream_cache_namespaces), falling back
 /// to a fresh computation only for a name outside [`pnpr_config::RoutingConfig::upstreams`] (which
 /// the registry dispatch never produces).
@@ -76,11 +85,11 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// Both shapes fold in the registry's upstream **URL**: the cache is a mirror of
 /// one declared origin, so repointing a registry's `url:` moves to a fresh
 /// namespace and bytes fetched from the previous origin can never answer for
-/// the new one. The cache-first warm tarball path depends on this — it serves
+/// the new one. The cache-first warm tarball path depends on this; it serves
 /// a cached entry without re-binding it against the current packument.
 ///
-/// A **private** registry — any that is not `public` (the
-/// config loader forbids a public registry from carrying any credential) — is
+/// A **private** registry (any that is not `public` (the
+/// config loader forbids a public registry from carrying any credential)) is
 /// namespaced by an HMAC over `(registry, url, credential)` keyed with
 /// the server secret: the on-disk path leaks neither the registry name nor the
 /// credential, and a credential rotation moves to a fresh namespace. Keying on
@@ -109,7 +118,7 @@ pub(crate) fn compute_upstream_cache_namespace(
         // upstream attaches upstream, not just `Authorization`, so repointing
         // the URL or rotating a credential carried in a custom header moves
         // the private cache to a fresh namespace. The NUL separator keeps
-        // `(url, headers)` pairs unambiguous — a URL cannot contain NUL.
+        // `(url, headers)` pairs unambiguous, a URL cannot contain NUL.
         let epoch = pnpr_route::credential_digest(&format!(
             "{url}\0{}",
             pnpr_route::headers_credential_digest(&upstream_config.headers),

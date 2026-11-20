@@ -1,16 +1,29 @@
 use super::{
     super::{
         SqlDatabase,
-        adapter::{Adapter, Connection, ReadSource, Snapshot},
+        adapter::{
+            Adapter,
+            Connection,
+            ReadSource,
+            Snapshot,
+        },
         transactions::Freshness,
     },
     Db,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     sync::{
-        Arc, Condvar, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Condvar,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };

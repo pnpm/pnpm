@@ -2,22 +2,40 @@
 //! calls this server from the same origin.
 
 use std::{
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 use axum::{
     Router,
     extract::Request,
-    http::{HeaderValue, StatusCode, header},
-    middleware::{self, Next},
-    response::{IntoResponse as _, Redirect, Response},
+    http::{
+        HeaderValue,
+        StatusCode,
+        header,
+    },
+    middleware::{
+        self,
+        Next,
+    },
+    response::{
+        IntoResponse as _,
+        Redirect,
+        Response,
+    },
     routing::get,
 };
 use pnpr_config::UiConfig;
 use pnpr_error::RegistryError;
 
-use super::{AppState, streaming};
+use super::{
+    AppState,
+    streaming,
+};
 
 const UI_PATH: &str = "/-/ui";
 const INDEX_FILE: &str = "index.html";
@@ -44,10 +62,12 @@ pub(super) fn locate(config: &UiConfig) -> pnpr_error::Result<Option<PathBuf>> {
     let Some(dir) = &config.dir else {
         return Ok(std::env::current_exe()
             .ok()
-            .and_then(|executable| executable.canonicalize().ok())
+            .map(|executable| executable.canonicalize())
+            .and_then(Result::ok)
             .and_then(|executable| ui_dir_beside(&executable))
             .filter(|dir| dir.join(INDEX_FILE).is_file())
-            .and_then(|dir| dir.canonicalize().ok()));
+            .map(|dir| dir.canonicalize())
+            .and_then(Result::ok));
     };
     let invalid = |reason: String| RegistryError::InvalidConfig {
         reason: format!("ui.dir {}: {reason}", dir.display()),
@@ -57,7 +77,8 @@ pub(super) fn locate(config: &UiConfig) -> pnpr_error::Result<Option<PathBuf>> {
     }
     dir.canonicalize()
         .map(Some)
-        .map_err(|error| invalid(error.to_string()))
+        .map_err(|error| error.to_string())
+        .map_err(invalid)
 }
 
 /// The build in `@pnpm/pnpr-ui`, when `executable` is the `bin/pnpr` of an
@@ -196,12 +217,14 @@ async fn add_security_headers(request: Request, next: Next) -> Response {
         .uri()
         .path()
         .strip_prefix(UI_PATH)
-        .is_some_and(|path| path.trim_start_matches('/').starts_with(HASHED_ASSETS_DIR));
+        .map(|path| path.trim_start_matches('/'))
+        .is_some_and(|trim_start_matches| trim_start_matches.starts_with(HASHED_ASSETS_DIR));
     let mut response = next.run(request).await;
     let is_html = response
         .headers()
         .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
+        .map(HeaderValue::to_str)
+        .and_then(Result::ok)
         .is_some_and(|value| value.starts_with("text/html"));
     let immutable = hashed_asset && !is_html && response.status().is_success();
     let cache_control = if immutable { "public, max-age=31536000, immutable" } else { "no-cache" };

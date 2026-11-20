@@ -15,16 +15,26 @@
 
 pub(crate) use patched::snapshot_is_patched;
 pub use platform::{
-    InstallabilityHost, NodeVersionSource, any_installability_constraint,
-    any_optional_installability_constraint, check_installability, manifest_with_inferred_platform,
+    InstallabilityHost,
+    NodeVersionSource,
+    any_installability_constraint,
+    any_optional_installability_constraint,
+    check_installability,
+    manifest_with_inferred_platform,
     platform_manifest_from_resolve_result,
 };
-pub use project::{ProjectHostRequirements, project_host_requirements};
+pub use project::{
+    ProjectHostRequirements,
+    project_host_requirements,
+};
 pub use skipped_snapshots::SkippedSnapshots;
 
 mod reachability;
 mod skipped_snapshots;
-use reachability::{LockfileEdgeReach, walk_lockfile_edges};
+use reachability::{
+    LockfileEdgeReach,
+    walk_lockfile_edges,
+};
 
 mod patched;
 mod platform;
@@ -32,16 +42,34 @@ mod project;
 use patched::without_published_engines;
 use platform::manifest_from_metadata;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgVerPeer, Prefix, ProjectSnapshot,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgVerPeer,
+    Prefix,
+    ProjectSnapshot,
     SnapshotEntry,
 };
-use pnpm_package_is_installable::{InstallabilityError, InstallabilityOptions, SkipReason};
+use pnpm_package_is_installable::{
+    InstallabilityError,
+    InstallabilityOptions,
+    SkipReason,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{
-    LogEvent, LogLevel, PnpmLog, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
     SkippedOptionalReason,
 };
 
@@ -68,7 +96,7 @@ use pnpm_reporter::{
 /// this pass records it.
 ///
 /// Snapshots without a matching `PackageMetadata` row are skipped
-/// over — `CreateVirtualStore` errors on them separately. An invalid
+/// over. `CreateVirtualStore` errors on them separately. An invalid
 /// `nodeVersion` surfaces as `ERR_PNPM_INVALID_NODE_VERSION`
 /// regardless of edges and strictness.
 pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
@@ -98,8 +126,8 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // Concretely on the integrated benchmark (1352 packages with no
     // platform / engine constraints): drops ~1352 `String` and
     // `PackageKey` allocations and the matching number of
-    // `check_package` calls. The scan is O(N) on `packages` — same
-    // shape as the loop it short-circuits — but does at most four
+    // `check_package` calls. The scan is O(N) on `packages` (same
+    // shape as the loop it short-circuits) but does at most four
     // `Option::is_some` checks per row and short-circuits on the
     // first declared constraint.
     if !any_installability_constraint(snapshots, packages) {
@@ -108,8 +136,8 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
 
     // Build the host-derived part of the options once. Only the
     // (`engine_strict`-irrelevant) `optional` flag varies per
-    // dispatch, but the result of [`check_package`] — "does this
-    // manifest satisfy the host?" — does not. The check verdict is
+    // dispatch, but the result of [`check_package`] ("does this
+    // manifest satisfy the host?") does not. The check verdict is
     // cached per peer-stripped `metadata_key` (see [`cached_check`]);
     // the per-snapshot loop then only needs to apply the
     // optional / engine-strict dispatch.
@@ -174,7 +202,7 @@ impl SkipScan<'_, '_> {
         snapshot_key: &PackageKey,
         snapshot: &SnapshotEntry,
     ) -> Result<(), Box<InstallabilityError>> {
-        // A seeded installability skip is re-evaluated here — the host,
+        // A seeded installability skip is re-evaluated here, the host,
         // `supportedArchitectures`, or the package's constraints may
         // have changed since the skip was recorded, and pnpm recomputes
         // installability fresh on every install. The other categories
@@ -293,8 +321,8 @@ impl SkipScan<'_, '_> {
 /// right before the dependency-closure extension.
 ///
 /// The skips reuse the transient bucket of
-/// [`SkippedSnapshots::add_optional_excluded`], so — like
-/// `--no-optional` — the exclusion is never persisted into
+/// [`SkippedSnapshots::add_optional_excluded`], so (like
+/// `--no-optional`) the exclusion is never persisted into
 /// `.modules.yaml.skipped`.
 pub fn add_direct_runtime_skips(
     skipped: &mut SkippedSnapshots,
@@ -391,7 +419,9 @@ pub fn find_root_runtime_node_key<'a>(
     let ver_peer = root_runtime_node_ver_peer(importers)?;
     snapshots
         .keys()
-        .find(|key| key.name.scope.is_none() && key.name.bare == "node" && key.suffix == *ver_peer)
+        .filter(|key| key.name.scope.is_none())
+        .filter(|key| key.name.bare == "node")
+        .find(|key| key.suffix == *ver_peer)
 }
 
 pub(crate) fn root_runtime_node_ver_peer(

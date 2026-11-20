@@ -6,15 +6,32 @@
 
 use super::{
     PackageKey,
-    adapter::{Connection, Param, Query, Row},
+    adapter::{
+        Connection,
+        Param,
+        Query,
+        Row,
+    },
     batch::Batch,
-    to_column, to_generation,
+    to_column,
+    to_generation,
 };
 use crate::{
-    database::{ArtifactMember, Publication, PublicationRequest, RecordedOutcome},
-    publish::{iso_from_unix_millis, now_millis},
+    database::{
+        ArtifactMember,
+        Publication,
+        PublicationRequest,
+        RecordedOutcome,
+    },
+    publish::{
+        iso_from_unix_millis,
+        now_millis,
+    },
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
 use std::time::Duration;
@@ -323,5 +340,6 @@ pub(super) fn initial_publication(
             params![namespace, ecosystem, name, version],
         )?
         .get(0)?;
-    id.map_or(Ok(None), |id| publication(connection, namespace, &id.to_string()))
+    id.map(|id| publication(connection, namespace, &id.to_string()))
+        .unwrap_or(Ok(None))
 }

@@ -1,16 +1,33 @@
 use super::{
     _utils::{
-        assert_shim_omits_path, assert_success, enable_gvs_in_workspace_yaml, ndjson_records,
+        assert_shim_omits_path,
+        assert_success,
+        enable_gvs_in_workspace_yaml,
+        ndjson_records,
         pacquet_in,
     },
-    workspace_yaml::{allow_builds, append_workspace_yaml_key, set_strict_dep_builds},
+    workspace_yaml::{
+        allow_builds,
+        append_workspace_yaml_key,
+        set_strict_dep_builds,
+    },
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
-use pnpm_modules_yaml::{Host, read_modules_manifest, write_modules_manifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_modules_yaml::{
+    Host,
+    read_modules_manifest,
+    write_modules_manifest,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// `packageNames` from the run's `pnpm:ignored-scripts` NDJSON event.
 /// The build phase emits the event exactly once per install, with an
@@ -295,14 +312,16 @@ fn global_virtual_store_build_shims_do_not_capture_the_project_path() {
     let version_dir = store_dir.join("v11/links/@pnpm.e2e/own-bin-created-by-preinstall/1.0.0");
     let hashes: Vec<_> = fs::read_dir(&version_dir)
         .expect("read GVS hash directories")
-        .map(|entry| entry.expect("read GVS hash directory").path())
+        .map(|entry| entry.expect("read GVS hash directory"))
+        .map(|value| value.path())
         .collect();
     assert_eq!(hashes.len(), 1, "the package has one shared GVS slot");
     let shim_dir =
         hashes[0].join("node_modules/@pnpm.e2e/own-bin-created-by-preinstall/node_modules/.bin");
     let shim = fs::read_dir(&shim_dir)
         .expect("read built package bin shims")
-        .map(|entry| entry.expect("read bin shim").path())
+        .map(|entry| entry.expect("read bin shim"))
+        .map(|value| value.path())
         .find(|path| {
             path.file_name()
                 .is_some_and(|name| {

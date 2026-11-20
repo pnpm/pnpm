@@ -1,34 +1,73 @@
 use crate::{
     State,
     cli_args::patch_state::{
-        EditDirState, StateFileError, read_all_edit_dir_states, read_edit_dir_state,
+        EditDirState,
+        StateFileError,
+        read_all_edit_dir_states,
+        read_edit_dir_state,
     },
 };
-use clap::{Args, ValueHint};
-use derive_more::{Display, Error};
+use clap::{
+    Args,
+    ValueHint,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use lockfile_update::update_lockfile_snapshots;
 use miette::Diagnostic;
 use paths::{
-    PatchFileWriteContext, clean_source_dir, cleanup_after_diff, normalize_patches_dir_name,
-    path_from_forward_slash, remove_dir_if_exists,
+    PatchFileWriteContext,
+    clean_source_dir,
+    cleanup_after_diff,
+    normalize_patches_dir_name,
+    path_from_forward_slash,
+    remove_dir_if_exists,
 };
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_fs::{is_subdir, lexical_normalize};
-use pnpm_lockfile::{LoadLockfileError, Lockfile, PackageKey, SaveLockfileError};
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    Lockfile,
+    PackageKey,
+    SaveLockfileError,
+};
 use pnpm_package_manager::{
-    PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, PkgFilesForDiff,
-    WritePackageForPatch, WritePackageForPatchError, diff_folders, patch_candidates_from_lockfile,
+    PatchCandidate,
+    PatchCandidateSet,
+    PatchTarget,
+    PatchTargetError,
+    PkgFilesForDiff,
+    WritePackageForPatch,
+    WritePackageForPatchError,
+    diff_folders,
+    patch_candidates_from_lockfile,
     prepare_pkg_files_for_diff,
 };
-use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
-use resolution::{format_candidates, resolve_patch_dir};
+use resolution::{
+    format_candidates,
+    resolve_patch_dir,
+};
 use serde_json::Value;
 use std::{
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Args)]

@@ -1,6 +1,16 @@
-use crate::{PkgName, RecordedPeerBindings, SnapshotDepRef};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use crate::{
+    PkgName,
+    RecordedPeerBindings,
+    SnapshotDepRef,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 #[cfg(test)]
 mod tests;
@@ -38,7 +48,7 @@ pub struct SnapshotEntry {
     pub patched: Option<bool>,
 
     /// `true` when every path from any importer to this package
-    /// goes through an `optionalDependencies` edge — folded by
+    /// goes through an `optionalDependencies` edge, folded by
     /// the resolver at install time and written verbatim into
     /// `snapshots[<key>].optional`. Pacquet trusts the precomputed
     /// flag rather than re-deriving from the importer graph.

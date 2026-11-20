@@ -1,28 +1,65 @@
 use crate::{
     features::{
-        feature_selections_for_solution, indexed_version, locked_dependencies,
-        root_feature_selections, supports_features,
+        feature_selections_for_solution,
+        indexed_version,
+        locked_dependencies,
+        root_feature_selections,
+        supports_features,
     },
     lockfile::lockfile_from_solution,
-    metadata::{parse_metadata, root_dependencies},
+    metadata::{
+        parse_metadata,
+        root_dependencies,
+    },
     model::{
-        CancelError, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion,
+        CancelError,
+        FeatureSelection,
+        PackageKey,
+        RegistryDependency,
+        RegistryVersion,
         ensure_not_cancelled,
     },
-    packages::{chosen_line, package_key_with_preferences},
-    preferences::{PreferredVersions, contains as is_preferred, parse as parse_preferred_versions},
-    registry::{Registry, compatibility_line},
+    packages::{
+        chosen_line,
+        package_key_with_preferences,
+    },
+    preferences::{
+        PreferredVersions,
+        contains as is_preferred,
+        parse as parse_preferred_versions,
+    },
+    registry::{
+        Registry,
+        compatibility_line,
+    },
 };
 use miette::Result;
 use pubgrub::{
-    DefaultStringReporter, Dependencies, DependencyProvider, OfflineDependencyProvider,
-    PackageResolutionStatistics, PubGrubError, Ranges, Reporter, resolve,
+    DefaultStringReporter,
+    Dependencies,
+    DependencyProvider,
+    OfflineDependencyProvider,
+    PackageResolutionStatistics,
+    PubGrubError,
+    Ranges,
+    Reporter,
+    resolve,
 };
-use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use semver::{
+    Version,
+    VersionReq,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    VecDeque,
+};
 
 mod registration;
-use registration::{Registration, constraints_for};
+use registration::{
+    Registration,
+    constraints_for,
+};
 
 #[cfg(test)]
 mod tests;

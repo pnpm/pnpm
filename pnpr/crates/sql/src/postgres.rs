@@ -1,5 +1,17 @@
-use super::{Arc, Duration, Pools, Result, SqlBackendSettings, invalid_pool_size, timeout_millis};
-use sqlx::{PgConnection, PgPool, postgres::PgPoolOptions};
+use super::{
+    Arc,
+    Duration,
+    Pools,
+    Result,
+    SqlBackendSettings,
+    invalid_pool_size,
+    timeout_millis,
+};
+use sqlx::{
+    PgConnection,
+    PgPool,
+    postgres::PgPoolOptions,
+};
 
 /// Share a pool for these settings within the current runtime.
 ///

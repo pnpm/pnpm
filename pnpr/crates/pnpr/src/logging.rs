@@ -1,8 +1,14 @@
 //! The `tracing` subscriber behind the `log` config.
 
-use pnpr_config::{LogConfig, LogFormat};
+use pnpr_config::{
+    LogConfig,
+    LogFormat,
+};
 use tracing::Subscriber;
-use tracing_subscriber::{EnvFilter, fmt::MakeWriter};
+use tracing_subscriber::{
+    EnvFilter,
+    fmt::MakeWriter,
+};
 
 /// Builds the subscriber for `logs.format` writing to `writer`.
 ///

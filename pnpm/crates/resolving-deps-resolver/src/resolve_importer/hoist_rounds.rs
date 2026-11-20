@@ -1,9 +1,28 @@
 use super::{
-    Arc, BTreeMap, DependencySpec, DirectDep, HashMap, HashSet, HoistMissingScope,
-    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, OptionalPeerCandidates,
-    ParentPkgAliases, PeerDiscoveryResult, PeerHoistDiscovery, PreferredVersions, RequiredRound,
-    ResolveImporterError, Resolver, WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
-    hoist_peers, index_missing_names, partition_missing_peers,
+    Arc,
+    BTreeMap,
+    DependencySpec,
+    DirectDep,
+    HashMap,
+    HashSet,
+    HoistMissingScope,
+    HoistPeersOptions,
+    ImporterHoistState,
+    MissingPeerInfo,
+    OptionalPeerCandidates,
+    ParentPkgAliases,
+    PeerDiscoveryResult,
+    PeerHoistDiscovery,
+    PreferredVersions,
+    RequiredRound,
+    ResolveImporterError,
+    Resolver,
+    WorkspaceRootDep,
+    apply_hoist_missing_scope,
+    extend_tree,
+    hoist_peers,
+    index_missing_names,
+    partition_missing_peers,
 };
 use crate::peer_provider::optional_peer_specifier;
 
@@ -81,7 +100,7 @@ impl ImporterHoistState {
 
     pub(super) fn begin_required_round(&mut self) {
         // The hoist input must not see missing peers declared inside a
-        // subtree owned by another importer's shared children context —
+        // subtree owned by another importer's shared children context,
         // the owner walk's children report is reused there, so those
         // peers never reach a non-owner importer's hoist. The final peer
         // pass keeps the unscoped options so warnings stay complete.

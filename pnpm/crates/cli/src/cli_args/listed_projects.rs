@@ -1,11 +1,16 @@
 use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+    AutoExcludeRoot,
+    discover_workspace_projects,
+    select_recursive_projects,
 };
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
 use pnpm_workspace_projects_graph::BaseProject;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The directory and manifest name of each project a report covers: the
 /// `--filter` selection under `--recursive`, the project in `dir`

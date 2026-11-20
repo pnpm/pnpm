@@ -1,6 +1,12 @@
 //! The `networkConcurrency` a `registries` entry sets.
 
-use super::{Config, Path, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, fs};
+use super::{
+    Config,
+    Path,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    fs,
+};
 use std::num::NonZeroUsize;
 
 fn load(yaml: &str) -> Result<Config, String> {

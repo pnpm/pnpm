@@ -9,11 +9,17 @@
 use crate::async_process::Command;
 use std::{
     cmp::Reverse,
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     env,
     ffi::OsString,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// How to run one interpreter: the program, and any arguments of its own

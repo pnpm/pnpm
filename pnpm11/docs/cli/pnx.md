@@ -89,3 +89,5 @@ Since v11.0.0, `pnx` (and its `pnpm dlx` / `pnpx` aliases) honors the project-le
 * [`trustPolicy`](../settings/dependency-resolution.md#trustpolicy), [`trustPolicyExclude`](../settings/dependency-resolution.md#trustpolicyexclude), [`trustPolicyIgnoreAfter`](../settings/dependency-resolution.md#trustpolicyignoreafter)
 
 This means `pnx` will refuse to execute freshly published or insufficiently trusted packages the same way a regular `pnpm install` would.
+
+`pnx` ignores other project-local execution, hook, and directory settings in the current directory (`pnpmfile`, `globalPnpmfile`, `configDependencies`, `scriptShell`, `cacheDir`, `storeDir`, `ignoreScripts`, `overrides`, `packageExtensions`, and `patchedDependencies`), while keeping user-level global configuration active.

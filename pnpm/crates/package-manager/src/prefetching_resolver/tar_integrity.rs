@@ -1,14 +1,33 @@
 //! Pinning the tar of a registry package under `lockfile.integrityTarget: tar`.
 
 use super::PrefetchingResolver;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_lockfile::{IntegrityTarget, LockfileResolution, TarballResolution};
-use pnpm_reporter::{Reporter, SilentReporter};
-use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
-use pnpm_store_dir::{StoreIndex, store_index_key};
+use pnpm_lockfile::{
+    IntegrityTarget,
+    LockfileResolution,
+    TarballResolution,
+};
+use pnpm_reporter::{
+    Reporter,
+    SilentReporter,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveError,
+    ResolveResult,
+};
+use pnpm_store_dir::{
+    StoreIndex,
+    store_index_key,
+};
 use pnpm_tarball::{
-    FetchTarballForResolution, IntegrityKind, alias_available_cache_entry, package_mem_cache_key,
+    FetchTarballForResolution,
+    IntegrityKind,
+    alias_available_cache_entry,
+    package_mem_cache_key,
 };
 use ssri::Integrity;
 use std::sync::Arc;

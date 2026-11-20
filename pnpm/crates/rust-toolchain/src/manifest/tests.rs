@@ -1,7 +1,19 @@
-use super::{Archive, Manifest, parse_signed};
-use crate::{Channel, Profile, RustToolchainError, ToolchainRequest};
+use super::{
+    Archive,
+    Manifest,
+    parse_signed,
+};
+use crate::{
+    Channel,
+    Profile,
+    RustToolchainError,
+    ToolchainRequest,
+};
 use pretty_assertions::assert_eq;
-use ssri::{Algorithm, Integrity};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 
 const SIGNED_MANIFEST: &[u8] = include_bytes!("../fixtures/channel-rust-1.8.0.toml");
 const SIGNATURE: &[u8] = include_bytes!("../fixtures/channel-rust-1.8.0.toml.asc");

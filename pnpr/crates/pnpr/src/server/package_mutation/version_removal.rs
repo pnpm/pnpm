@@ -2,14 +2,28 @@
 //! files' mappings go in that commit and their archives are reclaimed.
 
 use super::{
-    super::{Action, AppState, WriteTarget, hosted_storage},
-    read_authorized_packument, reclaim_unpublished_blobs, unpublished_blobs,
+    super::{
+        Action,
+        AppState,
+        WriteTarget,
+        hosted_storage,
+    },
+    read_authorized_packument,
+    reclaim_unpublished_blobs,
+    unpublished_blobs,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentWrite, wait_after_document_write_conflict};
-use serde_json::{Map, Value};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentWrite,
+    wait_after_document_write_conflict,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// Remove `version` from `name`'s packument when it still lists it, and
 /// reclaim the archives only it mapped. Reports whether it was listed. The
@@ -82,7 +96,8 @@ fn drop_version(packument: &mut Map<String, Value>, version: &str) -> bool {
     }
     let highest = versions
         .keys()
-        .filter_map(|left| node_semver::Version::parse(left).ok())
+        .map(node_semver::Version::parse)
+        .filter_map(Result::ok)
         .max()
         .map(|highest| highest.to_string());
     if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {

@@ -2,10 +2,16 @@
 //! covers under `--filter`, `--filter-prod`, or `--workspace-root`.
 
 use super::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, selected_importer_ids,
+    AutoExcludeRoot,
+    discover_workspace_projects,
+    select_recursive_projects,
+    selected_importer_ids,
 };
 use pnpm_config::Config;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// Whether the run asked for a subset of the workspace: any `--filter` /
 /// `--filter-prod` selector, or `--workspace-root`. Without one, a

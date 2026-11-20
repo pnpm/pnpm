@@ -2,16 +2,30 @@ pub(super) use projects::OnDiskProjects;
 
 mod projects;
 
-use super::{FreshInputs, errors::InstallWithFreshLockfileError, resolver_setup};
-use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
-use pnpm_config::{Config, NodeLinker};
+use super::{
+    FreshInputs,
+    errors::InstallWithFreshLockfileError,
+    resolver_setup,
+};
+use crate::{
+    CreateVirtualStore,
+    CreateVirtualStoreOutput,
+    SkippedSnapshots,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::LockfileEntries;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 /// Write the freshly-built wanted lockfile to `target`, first running the
@@ -147,7 +161,7 @@ impl<'a> OnDiskInputs<'a> {
             // batch's only on-disk dedup is the store-index row, which the
             // prefetcher's writer commits asynchronously. Without the
             // shared cache a snapshot whose prefetch hasn't committed its
-            // row yet is classified cold and re-downloaded — a race that
+            // row yet is classified cold and re-downloaded, a race that
             // routing the cold batch through the mem cache fixes by
             // reusing the in-flight download instead.
 

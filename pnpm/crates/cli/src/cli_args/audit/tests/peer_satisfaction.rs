@@ -2,10 +2,18 @@
 //! not a dependency edge: <https://github.com/pnpm/pnpm/issues/13605>.
 
 use super::{
-    Include, all_dependencies, build_audit_path_index, lockfile_to_audit_request, parse_lockfile,
-    path_info, vulnerable_names,
+    Include,
+    all_dependencies,
+    build_audit_path_index,
+    lockfile_to_audit_request,
+    parse_lockfile,
+    path_info,
+    vulnerable_names,
 };
-use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
+use pnpm_lockfile::{
+    Lockfile,
+    PeerEdgeOptions,
+};
 
 fn prod_only() -> Include {
     Include {

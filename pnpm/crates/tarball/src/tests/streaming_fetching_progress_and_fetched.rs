@@ -1,20 +1,45 @@
 use super::{
-    AuthHeaders, Cursor, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL, Integrity,
-    MAX_THROUGHPUT_PRIORITY, PackageFilesIndex, Read, STREAM_ENTRY_BUFFER_MAX,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, SilentReporter, TarballError, ThrottledClient,
-    UNPRIORITIZED, assert_eq, build_zip, download_priority, extract_tarball_entries,
-    extract_zip_entries, fast_retry_opts, fetch_and_extract_with_retry, gzip_bytes,
-    incompressible_tarball, integrity, stream_extract_gzipped_tarball, tar_with_raw_entry_name,
-    tar_with_root_level_entries, tempdir_with_leaked_path, write_zip_entry_to_cas,
+    AuthHeaders,
+    Cursor,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    Integrity,
+    MAX_THROUGHPUT_PRIORITY,
+    PackageFilesIndex,
+    Read,
+    STREAM_ENTRY_BUFFER_MAX,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    SilentReporter,
+    TarballError,
+    ThrottledClient,
+    UNPRIORITIZED,
+    assert_eq,
+    build_zip,
+    download_priority,
+    extract_tarball_entries,
+    extract_zip_entries,
+    fast_retry_opts,
+    fetch_and_extract_with_retry,
+    gzip_bytes,
+    incompressible_tarball,
+    integrity,
+    stream_extract_gzipped_tarball,
+    tar_with_raw_entry_name,
+    tar_with_root_level_entries,
+    tempdir_with_leaked_path,
+    write_zip_entry_to_cas,
 };
-use crate::{ArchiveLimit, TarLimits};
+use crate::{
+    ArchiveLimit,
+    TarLimits,
+};
 
 /// `pnpm:fetching-progress` and `pnpm:progress` fire from inside the
 /// tarball pipeline:
 ///
-/// * `pnpm:fetching-progress started` once per *attempt* — so a 503 +
+/// * `pnpm:fetching-progress started` once per *attempt*, so a 503 +
 ///   200 retry pattern emits twice with `attempt = 1` then
-///   `attempt = 2` (one-indexed, matching pnpm's wire shape — the
+///   `attempt = 2` (one-indexed, matching pnpm's wire shape, the
 ///   default reporter's `reportBigTarballsProgress` filters on
 ///   `attempt === 1`). `size` carries the response's `Content-Length`
 ///   (mockito sends one for `with_body`).
@@ -22,14 +47,18 @@ use crate::{ArchiveLimit, TarLimits};
 ///   tiny FASTIFY tarball used here downloads in well under that, so
 ///   we don't assert any `in_progress` events fire.
 /// * `pnpm:progress fetched` fires once after the retry loop returns
-///   `Ok` — never when an attempt fails — with the `package_id` and
+///   `Ok` (never when an attempt fails) with the `package_id` and
 ///   `requester` threaded down from the install layer.
 #[tokio::test]
 async fn fetching_progress_and_fetched_events_fire_during_download() {
     use std::sync::Mutex;
 
     use pnpm_reporter::{
-        FetchingProgressLog, FetchingProgressMessage, LogEvent, ProgressMessage, Reporter as _,
+        FetchingProgressLog,
+        FetchingProgressMessage,
+        LogEvent,
+        ProgressMessage,
+        Reporter as _,
     };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -173,7 +202,7 @@ fn extract_zip_strips_prefix_from_entry_paths() {
 
 /// The ignore filter must see the *post-strip* path. A filter that
 /// drops `LICENSE` must hit
-/// after the `node-v22.0.0-darwin-arm64/` prefix has been removed —
+/// after the `node-v22.0.0-darwin-arm64/` prefix has been removed;
 /// otherwise the Node-runtime filter (which targets
 /// `^lib/node_modules/(npm|corepack)`) would never match.
 #[test]
@@ -186,8 +215,8 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
     ]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    // Filter matching the `NODE_EXTRAS_IGNORE_PATTERN` shape — strips
-    // bundled npm / corepack — but compiled by hand so the test
+    // Filter matching the `NODE_EXTRAS_IGNORE_PATTERN` shape (strips
+    // bundled npm / corepack) but compiled by hand so the test
     // doesn't pull a regex engine into pnpm-tarball.
     fn node_extras_filter(path: &str) -> bool {
         path.starts_with("lib/node_modules/npm/") || path.starts_with("lib/node_modules/corepack/")
@@ -248,7 +277,7 @@ fn extract_zip_rejects_parent_dir_component() {
 }
 
 /// Path-traversal validation must run *before* the `is_dir()`
-/// early-skip — otherwise an archive carrying a malicious directory
+/// early-skip; otherwise an archive carrying a malicious directory
 /// entry like `../evil/` is silently dropped instead of surfacing
 /// [`TarballError::PathTraversal`].
 #[test]
@@ -319,7 +348,7 @@ fn extract_zip_uses_entry_path_when_no_prefix() {
 /// `enclosed_name()` collapses `.` segments before we build the
 /// canonical `cas_paths` key. A publisher tool that wrote
 /// `pkg/./foo.txt` and `pkg/foo.txt` into the same archive must
-/// land at one `foo.txt` entry after the prefix strip — same key
+/// land at one `foo.txt` entry after the prefix strip, same key
 /// the ignore filter sees, same key downstream consumers look up.
 /// Without the normalization the two would split into separate
 /// `./foo.txt` / `foo.txt` rows.
@@ -437,7 +466,7 @@ fn write_zip_entry_to_cas_streams_a_truthful_oversized_entry() {
 }
 
 /// Saturated `dist` stats must not collide with the latency- or
-/// background-class sentinels — a hostile registry publishing absurd
+/// background-class sentinels, a hostile registry publishing absurd
 /// sizes would otherwise reclassify its downloads as metadata.
 #[test]
 fn download_priority_never_reaches_the_class_sentinels() {
@@ -498,7 +527,10 @@ fn extract_joins_nested_entry_paths_with_forward_slashes() {
 async fn in_progress_events_fire_only_for_big_tarballs() {
     use std::sync::Mutex;
 
-    use pnpm_reporter::{FetchingProgressMessage, LogEvent};
+    use pnpm_reporter::{
+        FetchingProgressMessage,
+        LogEvent,
+    };
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
@@ -679,7 +711,7 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
 }
 
 /// A chunked response advertises no length, so nothing decides up front
-/// that its body is large — the buffered path has to notice while it
+/// that its body is large, the buffered path has to notice while it
 /// runs. Past the point where the archive would be extracted as a stream
 /// anyway, it is, and the download completes as it would have with a
 /// `Content-Length`.
@@ -853,7 +885,7 @@ fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
 }
 
 /// An entry at the archive root has no top-level directory on it to
-/// strip, so it is keyed by its own name — what pnpm does, and what
+/// strip, so it is keyed by its own name, what pnpm does, and what
 /// keeps the shared `index.db` describing one file layout. Rejecting
 /// such an entry fails the whole archive, which npm and pnpm both
 /// install.

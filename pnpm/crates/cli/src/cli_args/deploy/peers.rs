@@ -1,8 +1,26 @@
 use super::{
-    Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, ImporterDepVersion,
-    Lockfile, PackageKey, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo,
-    ProjectSnapshot, ResolveBases, SnapshotDepRef, SnapshotEntry, Value, VecDeque, VersionPart,
-    convert_importer_version_to_snapshot_ref, convert_package_key,
+    Config,
+    ConvertCtx,
+    DependencyGroup,
+    DeployError,
+    HashMap,
+    HashSet,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PeerSatisfactionEdges,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectInfo,
+    ProjectSnapshot,
+    ResolveBases,
+    SnapshotDepRef,
+    SnapshotEntry,
+    Value,
+    VecDeque,
+    VersionPart,
+    convert_importer_version_to_snapshot_ref,
+    convert_package_key,
 };
 
 use indexmap::IndexSet;
@@ -10,8 +28,12 @@ use indexmap::IndexSet;
 mod deployed_graph;
 
 use deployed_graph::{
-    DeployedGraph, ancestor_peer_providers, dependents_by_snapshot, is_package_root_link,
-    resolution_candidates, snapshot_dependencies,
+    DeployedGraph,
+    ancestor_peer_providers,
+    dependents_by_snapshot,
+    is_package_root_link,
+    resolution_candidates,
+    snapshot_dependencies,
 };
 
 /// A workspace package the deployed graph links rather than injects.
@@ -64,7 +86,8 @@ impl LinkedWorkspaceProject {
             peer_names: project.peer_set
                 .taken()
                 .keys()
-                .filter_map(|name| name.parse().ok())
+                .map(|name| name.parse())
+                .filter_map(Result::ok)
                 .collect(),
             deduped_peer_resolutions: None,
         }

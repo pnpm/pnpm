@@ -1,6 +1,19 @@
 use super::{
-    Arc, DerivedPackuments, File, MAX_FRAGMENT_LEN, MAX_HEADERS_LEN, MAX_INDEX_LEN, MetaHeaders,
-    MirrorFile, MirrorIndex, Package, PackageVersions, Path, Read, fs, parse_format_line,
+    Arc,
+    DerivedPackuments,
+    File,
+    MAX_FRAGMENT_LEN,
+    MAX_HEADERS_LEN,
+    MAX_INDEX_LEN,
+    MetaHeaders,
+    MirrorFile,
+    MirrorIndex,
+    Package,
+    PackageVersions,
+    Path,
+    Read,
+    fs,
+    parse_format_line,
     raise_open_file_limit_once,
 };
 
@@ -92,8 +105,8 @@ pub(super) fn read_mirror_records(
     Some((headers, index, file_size))
 }
 
-/// Rebase the relative spans and reject any that fall outside the file
-/// — a truncated or hand-edited mirror reads as a miss rather than
+/// Rebase the relative spans and reject any that fall outside the file,
+/// a truncated or hand-edited mirror reads as a miss rather than
 /// handing out garbage fragments later.
 pub(super) fn absolute_spans(
     versions: Vec<(String, u64, u32)>,
@@ -187,7 +200,9 @@ pub(super) fn held_mirror_file_cap() -> usize {
     static CAP: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *CAP.get_or_init(|| {
         raise_open_file_limit_once();
-        soft_open_file_limit().map_or(1 << 19, |soft| (soft / 2).min(1 << 19))
+        soft_open_file_limit()
+            .map(|soft| (soft / 2).min(1 << 19))
+            .unwrap_or(1 << 19)
     })
 }
 

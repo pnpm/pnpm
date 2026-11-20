@@ -7,10 +7,21 @@
 //! `<identity>.<incarnation>`, where the database counts
 //! incarnations up and never reuses one (see [`crate::database::BlobRow`]).
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpr_package_name::Ecosystem;
-use ssri::{Algorithm, Integrity, IntegrityOpts};
-use std::{fmt, io::Read, path::Path};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityOpts,
+};
+use std::{
+    fmt,
+    io::Read,
+    path::Path,
+};
 
 /// The digest algorithms an identity is spelled with, and their hex length.
 const ALGORITHMS: [(&str, usize); 2] = [("sha256", 64), ("sha512", 128)];

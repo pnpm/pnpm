@@ -1,7 +1,17 @@
 use super::{
-    Arc, BTreeSet, DepsRequiringBuildSink, EngineMode, HashMap, NodeApiProject, TestRegistry,
-    WELL_FORMED_PATCH, install_options, install_options_for, run_install_inner,
-    script_deps_install_options, take_deps_requiring_build,
+    Arc,
+    BTreeSet,
+    DepsRequiringBuildSink,
+    EngineMode,
+    HashMap,
+    NodeApiProject,
+    TestRegistry,
+    WELL_FORMED_PATCH,
+    install_options,
+    install_options_for,
+    run_install_inner,
+    script_deps_install_options,
+    take_deps_requiring_build,
 };
 
 /// The result preserves the sink's order so a consumer diffing it against

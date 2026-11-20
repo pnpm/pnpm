@@ -1,4 +1,8 @@
-use super::{Config, SettingsComparison, WorkspaceStateSettings};
+use super::{
+    Config,
+    SettingsComparison,
+    WorkspaceStateSettings,
+};
 use pnpm_config::default_virtual_store_dir_max_length;
 use std::path::Path;
 

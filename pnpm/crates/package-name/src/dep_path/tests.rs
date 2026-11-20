@@ -1,4 +1,8 @@
-use super::{is_git_hosted_dep_path, parse_dep_path_name_version, short_package_label};
+use super::{
+    is_git_hosted_dep_path,
+    parse_dep_path_name_version,
+    short_package_label,
+};
 
 #[test]
 fn labels_registry_and_source_dependencies() {

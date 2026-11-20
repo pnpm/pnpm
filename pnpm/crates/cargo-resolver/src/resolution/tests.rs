@@ -1,5 +1,11 @@
 use super::{
-    BTreeMap, CancellableProvider, InnerProvider, PackageKey, Ranges, Version, compatibility_line,
+    BTreeMap,
+    CancellableProvider,
+    InnerProvider,
+    PackageKey,
+    Ranges,
+    Version,
+    compatibility_line,
 };
 
 #[test]

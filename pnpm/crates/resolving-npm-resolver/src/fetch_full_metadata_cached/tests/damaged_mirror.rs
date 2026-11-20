@@ -1,7 +1,17 @@
 use super::{
-    AuthHeaders, FULL_META_DIR, FetchFullMetadataCachedOptions, FetchMetadataError, Matcher,
-    PACKAGE_BODY, TempDir, ThrottledClient, fetch_full_metadata_cached,
-    fetch_full_metadata_projected, load_meta, no_retry_opts, write_stale_mirror,
+    AuthHeaders,
+    FULL_META_DIR,
+    FetchFullMetadataCachedOptions,
+    FetchMetadataError,
+    Matcher,
+    PACKAGE_BODY,
+    TempDir,
+    ThrottledClient,
+    fetch_full_metadata_cached,
+    fetch_full_metadata_projected,
+    load_meta,
+    no_retry_opts,
+    write_stale_mirror,
 };
 
 fn count_versions(meta: &pnpm_registry::Package) -> usize {

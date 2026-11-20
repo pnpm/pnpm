@@ -1,39 +1,75 @@
-//! `pacquet publish --recursive` — publish every selected workspace package.
+//! `pacquet publish --recursive`: publish every selected workspace package.
 //!
 //! Selects the workspace projects the `--filter` selectors pick, drops the
 //! private / unnamed / already-published ones (unless `--force`), then
 //! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
-use super::{PublishArgs, PublishScope, new_version::BumpedPackages, notes::check_packed_members};
+use super::{
+    PublishArgs,
+    PublishScope,
+    new_version::BumpedPackages,
+    notes::check_packed_members,
+};
 use crate::cli_args::{
     changelog::published_name,
     recursive::filtered_projects_dependencies,
-    registry_client::{build_publish_client, build_registry_client},
+    registry_client::{
+        build_publish_client,
+        build_registry_client,
+    },
     workspace_packages::build_workspace_package_manifest_map,
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network::{
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_publish::{
-    Host, PublishFailure, PublishNetwork, PublishSummary, batch_publish_packed_pkgs,
-    find_registry_info, publish_config_registry, resolve_otp_from_env,
+    Host,
+    PublishFailure,
+    PublishNetwork,
+    PublishSummary,
+    batch_publish_packed_pkgs,
+    find_registry_info,
+    publish_config_registry,
+    resolve_otp_from_env,
     validate_batch_publish_options,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_npm_resolver::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
+    FetchFullMetadataOptions,
+    FetchFullMetadataOutcome,
+    fetch_full_metadata,
 };
 use pnpm_workspace_task_scheduler::{
-    ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
+    ScheduleGraphAsyncOptions,
+    TaskCompletion,
+    graph_sequencer,
+    schedule_graph_async,
 };
 use serde_json::Value;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 type RecursivePublishError = PublishFailure<miette::Report>;
@@ -271,7 +307,7 @@ impl PublishArgs {
         }
     }
     /// The selected projects that should be published: those with a name
-    /// and version, not private, and — unless `--force` — not already on
+    /// and version, not private, and (unless `--force`) not already on
     /// their registry.
     ///
     /// The already-published probes are independent registry reads, so
@@ -330,8 +366,8 @@ impl PublishArgs {
 /// A package's `(published name, version)` when it is eligible to be published,
 /// or `None` when it should be skipped before any registry lookup: an unnamed,
 /// unversioned, or private package is never published recursively. The name is
-/// the one the registry knows — the `publishConfig.name` rename, when the
-/// project has one — since it is only used to address the registry.
+/// the one the registry knows (the `publishConfig.name` rename, when the
+/// project has one) since it is only used to address the registry.
 pub(super) fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     if manifest
         .get("private")
@@ -351,8 +387,8 @@ pub(super) fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     Some((published_name(manifest).unwrap_or(name), version))
 }
 
-/// Whether `name@version` already exists on its target registry. Any failure —
-/// a 404 for a brand-new package, a transient network error — is treated as
+/// Whether `name@version` already exists on its target registry. Any failure
+/// (a 404 for a brand-new package, a transient network error) is treated as
 /// "not published" (a failed resolve means the version is absent, so the
 /// publish proceeds).
 async fn is_already_published(

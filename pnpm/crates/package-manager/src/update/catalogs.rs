@@ -1,12 +1,32 @@
 use super::UpdateError;
-use crate::{CatalogDecision, CatalogModeDep, decide_catalog};
+use crate::{
+    CatalogDecision,
+    CatalogModeDep,
+    decide_catalog,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{CatalogMode, Config};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_config::{
+    CatalogMode,
+    Config,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use std::path::PathBuf;
+
+/// The catalog side of an update: the entries it rewrote, the complete set
+/// to resolve against while the write-back is pending, and the workspace
+/// directory those writes belong to.
+#[derive(Default)]
+pub(super) struct CatalogUpdates {
+    pub(super) updated_catalogs: Catalogs,
+    pub(super) catalogs_override: Option<Catalogs>,
+    pub(super) workspace_dir_for_catalogs: Option<PathBuf>,
+}
 
 /// Route each rewrite through the catalog mode, returning the workspace
 /// directory whose manifest holds the catalogs when any were consulted.

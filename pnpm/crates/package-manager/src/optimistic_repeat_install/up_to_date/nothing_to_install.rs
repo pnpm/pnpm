@@ -1,6 +1,12 @@
 use super::{
-    Config, PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, build_project_manifests_list,
-    discovery::GateInputs, load_workspace_projects, project_requires_lifecycle_scripts,
+    Config,
+    PROJECT_LIFECYCLE_STAGES,
+    PackageManifest,
+    Path,
+    build_project_manifests_list,
+    discovery::GateInputs,
+    load_workspace_projects,
+    project_requires_lifecycle_scripts,
 };
 use pnpm_executor::DEV_PREINSTALL_STAGE;
 

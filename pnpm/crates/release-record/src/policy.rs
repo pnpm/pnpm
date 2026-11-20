@@ -18,12 +18,23 @@
 
 use crate::{
     identity::Authority,
-    tuf::{TrustedRepository, TufError},
+    tuf::{
+        TrustedRepository,
+        TufError,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use jiff::Timestamp;
 use pnpm_transparency_log::{
-    CheckpointPolicy, KeyAlgorithm, KeyError, KeySet, PolicyError, VerifierKey,
+    CheckpointPolicy,
+    KeyAlgorithm,
+    KeyError,
+    KeySet,
+    PolicyError,
+    VerifierKey,
 };
 use serde::Deserialize;
 

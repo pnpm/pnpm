@@ -1,6 +1,17 @@
-use super::{KeyAlgorithm, KeyError, VerifierKey};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use ed25519_dalek::{SignatureError, Signer as _, SigningKey};
+use super::{
+    KeyAlgorithm,
+    KeyError,
+    VerifierKey,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
+use ed25519_dalek::{
+    SignatureError,
+    Signer as _,
+    SigningKey,
+};
 use std::fmt;
 use zeroize::Zeroizing;
 

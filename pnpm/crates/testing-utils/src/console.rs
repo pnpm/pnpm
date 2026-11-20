@@ -3,7 +3,11 @@
 //! to it, so the console running the test suite must not be the one.
 
 use windows_sys::Win32::System::Console::{
-    AllocConsole, CTRL_BREAK_EVENT, CTRL_C_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
+    AllocConsole,
+    CTRL_BREAK_EVENT,
+    CTRL_C_EVENT,
+    FreeConsole,
+    GenerateConsoleCtrlEvent,
     SetConsoleCtrlHandler,
 };
 
@@ -73,7 +77,10 @@ impl PrivateConsole {
     pub fn close(self) {
         use windows_sys::Win32::{
             System::Console::GetConsoleWindow,
-            UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE},
+            UI::WindowsAndMessaging::{
+                PostMessageW,
+                WM_CLOSE,
+            },
         };
 
         // SAFETY: plain FFI call with no arguments.

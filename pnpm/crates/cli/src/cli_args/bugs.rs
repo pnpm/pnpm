@@ -1,16 +1,26 @@
 use crate::cli_args::{
     package_spec::PackageSpec,
     registry_client::{
-        build_registry_client, resolve_registries_with_override,
+        build_registry_client,
+        resolve_registries_with_override,
         resolve_target_registry_for_package,
     },
 };
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_config::Config;
 use pnpm_network_web_auth::OpenUrl;
 use pnpm_package_manifest::safe_read_project_manifest_from_dir;
-use pnpm_registry::{PackageTag, PackageVersion};
+use pnpm_registry::{
+    PackageTag,
+    PackageVersion,
+};
 use serde_json::Value;
 use std::path::Path;
 use url::Url;
@@ -290,7 +300,7 @@ fn try_hosted_git_shorthand(input: &str) -> Option<String> {
         return Some(format!("https://bitbucket.org/{user}/{project}/issues"));
     }
 
-    // `owner/repo` shorthand — only when no `:`, `//`, or `@` is present,
+    // `owner/repo` shorthand, only when no `:`, `//`, or `@` is present,
     // to avoid matching `git+<https://`>, SCP-style SSH, etc.
     if !input.contains(':') && !input.contains("//") && !input.contains('@') {
         let (user, project) = split_user_project(input)?;

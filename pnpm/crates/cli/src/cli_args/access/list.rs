@@ -1,14 +1,24 @@
 use super::{
     AccessError,
     registry::{
-        AccessContext, auth_header_for_list, fetch_error_from_response, list_packages_url,
-        package_collaborators_url, send_get,
+        AccessContext,
+        auth_header_for_list,
+        fetch_error_from_response,
+        list_packages_url,
+        package_collaborators_url,
+        send_get,
     },
 };
 use crate::cli_args::registry_client::auth_header_for_package;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::HashMap;
 
 pub(super) async fn list_packages(

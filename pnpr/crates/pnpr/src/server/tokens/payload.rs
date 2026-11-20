@@ -203,7 +203,7 @@ fn reject_unsupported_restrictions(payload: &CreateTokenPayload) -> Result<(), R
             reason: "organization-scoped token permissions are not supported; omit 'orgs' and 'orgs_permission'".to_string(),
         });
     }
-    if payload.packages_all == Some(false) {
+    if !payload.packages_all.unwrap_or(true) {
         return Err(RegistryError::BadRequest {
             reason: "packages_all cannot be false".to_string(),
         });
@@ -261,7 +261,9 @@ fn check_cidr_whitelist_within(
     let allowed = pnpr_config::IpNetworkSet::new(
         allowed
             .iter()
-            .filter_map(|entry| pnpr_config::IpNetwork::parse(entry.trim()).ok()),
+            .map(|entry| entry.trim())
+            .map(pnpr_config::IpNetwork::parse)
+            .filter_map(Result::ok),
     );
     for entry in requested {
         let inside = pnpr_config::IpNetwork::parse(entry.trim())

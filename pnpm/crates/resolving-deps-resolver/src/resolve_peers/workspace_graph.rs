@@ -1,23 +1,35 @@
 //! The workspace graph rebuilt with full peer suffixes, before the dedupe passes.
 
 use super::{
-    ImporterPeerInput, Walker,
+    ImporterPeerInput,
+    Walker,
     context::importer_relative_link_dep_path,
-    finalize::{FinalDepPaths, PeerIdRecording},
+    finalize::{
+        FinalDepPaths,
+        PeerIdRecording,
+    },
 };
 use crate::{
     PeerDependentsDedupe,
     dedupe_injected_deps::dedupe_injected_deps,
     dedupe_peer_dependents::{
-        PeerSuffixes, collect_unbound_optional_peers, dedupe_peer_dependents,
+        PeerSuffixes,
+        collect_unbound_optional_peers,
+        dedupe_peer_dependents,
     },
     dependencies_graph::DependenciesGraph,
     node_id::NodeId,
     peer_dependents_dedupe::UnboundOptionalPeers,
 };
-use pnpm_deps_path::{DepPath, PeerId};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+};
 use rustc_hash::FxHashMap as HashMap;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 pub(super) struct FinishedWorkspaceGraph {
     pub(super) graph: DependenciesGraph,

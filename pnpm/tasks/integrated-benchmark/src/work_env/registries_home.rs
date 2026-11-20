@@ -1,6 +1,9 @@
 //! Where the `pnpr` of a compared revision reads its registries from.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// The loopback networks the benchmark's servers listen on, for
 /// `routes.allowedPrivateNetworks`.

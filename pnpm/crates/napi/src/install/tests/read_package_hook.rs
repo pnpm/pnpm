@@ -1,14 +1,26 @@
 use super::{
-    Arc, EngineMode, InstallOptions, install_options_for, rebuild_options, run_install_inner,
+    Arc,
+    EngineMode,
+    InstallOptions,
+    install_options_for,
+    rebuild_options,
+    run_install_inner,
 };
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use pnpm_hooks::{
-    HookContext, HookError, PnpmfileHooks, PreResolutionHookContext, PreResolutionHookLogger,
+    HookContext,
+    HookError,
+    PnpmfileHooks,
+    PreResolutionHookContext,
+    PreResolutionHookLogger,
     ReadPackageResult,
 };
 use serde_json::Value;
-use std::{path::Path, sync::Mutex};
+use std::{
+    path::Path,
+    sync::Mutex,
+};
 
 const FOO: &str = "@pnpm.e2e/foo";
 const BAR: &str = "@pnpm.e2e/bar";

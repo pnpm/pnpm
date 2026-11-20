@@ -1,22 +1,28 @@
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use std::collections::{HashMap, HashSet};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// The set of snapshot keys skipped on this host.
 ///
 /// Disjoint origin classes are tracked separately because
 /// they behave differently across installs:
 ///
-/// - **Installability skips** (`installability`) — engine, platform,
+/// - **Installability skips** (`installability`), engine, platform,
 ///   or libc mismatch surfaced by [`compute_skipped_snapshots`].
 ///   Persisted to `.modules.yaml.skipped` and re-seeded on every
 ///   subsequent install.
 ///
-/// - **Fetch-failure skips** (`fetch_failed`) — an `optional: true`
+/// - **Fetch-failure skips** (`fetch_failed`), an `optional: true`
 ///   snapshot whose tarball / metadata / extract step blew up
 ///   during the install. **Not** persisted: the catch site never
 ///   records the skip, so a subsequent install retries the fetch.
 ///
-/// - **`--no-optional` exclusions** (`optional_excluded`) —
+/// - **`--no-optional` exclusions** (`optional_excluded`),
 ///   snapshots whose lockfile entry has `optional: true` AND the
 ///   user passed `--no-optional` (or `IncludedDependencies::optional_dependencies`
 ///   is false). **Not** persisted: the filter sits downstream of the
@@ -26,7 +32,7 @@ use std::collections::{HashMap, HashSet};
 ///   directly rather than a pre-pruned graph, so a separate filter
 ///   is needed here.
 ///
-/// All subsets contribute to [`contains`] and [`iter`] —
+/// All subsets contribute to [`contains`] and [`iter`],
 /// downstream walkers treat skipped-for-any-reason uniformly. Only
 /// the `installability` subset survives [`iter_installability`],
 /// which is what `.modules.yaml.skipped` writes.
@@ -60,7 +66,7 @@ impl SkippedSnapshots {
     /// Seed the installability set with snapshot keys recorded as
     /// skipped by a previous install (read from
     /// `.modules.yaml.skipped`). Unparsable strings are silently
-    /// dropped — the seed is only consulted by membership lookup; a
+    /// dropped, the seed is only consulted by membership lookup; a
     /// nonsense string never matches any current snapshot, so the
     /// orphan is harmless.
     pub fn from_strings<Iter>(iter: Iter) -> Self
@@ -157,7 +163,7 @@ impl SkippedSnapshots {
         self.installability.is_empty() && self.fetch_failed.is_empty()
     }
 
-    /// The same set with the `installability` subset dropped — the
+    /// The same set with the `installability` subset dropped, the
     /// skips a written current lockfile has to reflect.
     ///
     /// `.modules.yaml.skipped` carries the installability subset from
@@ -212,7 +218,7 @@ impl SkippedSnapshots {
             && self.optional_excluded.is_empty()
     }
 
-    /// Insert into the installability set — the persisted subset
+    /// Insert into the installability set, the persisted subset
     /// written to `.modules.yaml.skipped`.
     pub fn insert_installability(&mut self, key: PackageKey) {
         self.fetch_failed.remove(&key);
@@ -226,13 +232,13 @@ impl SkippedSnapshots {
     }
 
     /// Drop a seeded installability skip whose package passes the
-    /// current installability check — e.g. after `--os` / `--cpu` /
+    /// current installability check, e.g. after `--os` / `--cpu` /
     /// `supportedArchitectures` changed between installs.
     pub fn remove_installability(&mut self, key: &PackageKey) {
         self.installability.remove(key);
     }
 
-    /// Iterate over the **installability** subset only — the entries
+    /// Iterate over the **installability** subset only, the entries
     /// written to `.modules.yaml.skipped`. Fetch-failure and
     /// `--no-optional` entries are transient and intentionally
     /// excluded so they aren't persisted across installs.
@@ -240,7 +246,7 @@ impl SkippedSnapshots {
         self.installability.iter()
     }
 
-    /// Iterate over the union of all subsets — every snapshot that
+    /// Iterate over the union of all subsets; every snapshot that
     /// downstream consumers should treat as absent from the install,
     /// regardless of origin. Used by `hoist.rs` and similar
     /// graph-walking passes that don't care why a snapshot is gone.

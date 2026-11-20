@@ -2,11 +2,26 @@
 
 pub use architecture::Architecture;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_platform_tags::{Floor, Platform};
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
-use std::{fmt, str::FromStr};
+use pnpm_platform_tags::{
+    Floor,
+    Platform,
+};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    Serializer,
+    de,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
 
 mod aliases;
 mod architecture;

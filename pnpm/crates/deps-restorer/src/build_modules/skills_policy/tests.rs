@@ -1,4 +1,9 @@
-use super::{ConservativeUpsert, HashMap, SkillsPermission, SkillsPolicy};
+use super::{
+    ConservativeUpsert,
+    HashMap,
+    SkillsPermission,
+    SkillsPolicy,
+};
 use pretty_assertions::assert_eq;
 
 fn chosen(skills: &[&str]) -> SkillsPermission {

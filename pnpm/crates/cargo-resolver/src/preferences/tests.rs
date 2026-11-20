@@ -1,4 +1,7 @@
-use super::{contains, parse};
+use super::{
+    contains,
+    parse,
+};
 use semver::Version;
 use std::collections::BTreeMap;
 

@@ -1,13 +1,28 @@
-use super::{super::removed_child_aliases, name, snapshot};
+use super::{
+    super::removed_child_aliases,
+    name,
+    snapshot,
+};
 use crate::create_virtual_store::slot_linking::{
-    emit_warm_snapshot_progress, warm_progress_already_reported,
+    emit_warm_snapshot_progress,
+    warm_progress_already_reported,
 };
 use pnpm_lockfile::PkgName;
-use pnpm_reporter::{LogEvent, ProgressMessage, Reporter};
-use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
+use pnpm_reporter::{
+    LogEvent,
+    ProgressMessage,
+    Reporter,
+};
+use pnpm_tarball::{
+    SharedReportedProgressKeys,
+    pending_progress_key,
+};
 use std::sync::{
     Mutex,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 #[test]
@@ -26,7 +41,7 @@ fn removed_child_aliases_reports_dropped_children_only() {
 }
 /// `emit_warm_snapshot_progress` fires `resolved` then
 /// `found_in_store` when no earlier fetch path already emitted the
-/// package status. Both events carry the same identifiers — pnpm's
+/// package status. Both events carry the same identifiers, pnpm's
 /// per-package counter relies on the pair to pin the tick to the right
 /// package row.
 #[test]

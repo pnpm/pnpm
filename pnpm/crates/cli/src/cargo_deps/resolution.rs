@@ -1,9 +1,25 @@
-use super::{CargoLockfilePolicy, build_std, ensure_workspace_directory, git, read_workspace_file};
+use super::{
+    CargoLockfilePolicy,
+    build_std,
+    ensure_workspace_directory,
+    git,
+    read_workspace_file,
+};
 use crate::process::Command;
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_config::Config;
 use pnpm_network::redact_and_sanitize_multiline;
-use std::{collections::BTreeMap, env, fs, io, path::Path};
+use std::{
+    collections::BTreeMap,
+    env,
+    fs,
+    io,
+    path::Path,
+};
 
 pub(super) fn has_git_dependencies(metadata: &str) -> Result<bool> {
     let sources = pnpm_cargo_resolver::git_dependency_sources(metadata)?;

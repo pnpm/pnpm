@@ -1,9 +1,17 @@
 use super::MemoryTree;
 use crate::{
     boundary,
-    graph::{self, CrateGraph, DependencyKind, Edge},
+    graph::{
+        self,
+        CrateGraph,
+        DependencyKind,
+        Edge,
+    },
     layers::Layers,
-    problem::{BoundaryViolation, Problem},
+    problem::{
+        BoundaryViolation,
+        Problem,
+    },
 };
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;

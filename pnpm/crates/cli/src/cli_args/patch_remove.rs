@@ -3,21 +3,34 @@ use crate::dialoguer_wasm::MultiSelect;
 use crate::{
     State,
     cli_args::patch_state::{
-        StateFileError, clean_patch_state_and_edit_dirs, read_all_edit_dir_states,
+        StateFileError,
+        clean_patch_state_and_edit_dirs,
+        read_all_edit_dir_states,
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 #[cfg(not(target_family = "wasm"))]
 use dialoguer::MultiSelect;
 use indexmap::IndexMap;
 use miette::Diagnostic;
-use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
 use pnpm_workspace_manifest_writer::UpdateWorkspaceManifestError;
 use std::{
     collections::HashSet,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Args)]
@@ -389,7 +402,7 @@ struct RealPatchRemoveFs;
 
 impl PatchRemoveFs for RealPatchRemoveFs {
     fn is_dir_empty(&self, path: &Path) -> io::Result<bool> {
-        fs::read_dir(path).map(|mut entries| entries.next().is_none())
+        fs::read_dir(path).map(|mut entries| entries.next()).map(|next| next.is_none())
     }
 
     fn remove_dir(&self, path: &Path) -> io::Result<()> {

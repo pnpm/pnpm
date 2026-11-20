@@ -6,7 +6,11 @@
     reason = "developer tool, not part of the pnpm binary"
 )]
 
-use clap::{Args, Parser, Subcommand};
+use clap::{
+    Args,
+    Parser,
+    Subcommand,
+};
 use cochange::CoChange;
 use dependencies::Reach;
 use graph::CrateGraph;
@@ -15,10 +19,17 @@ use problem::Metric;
 use std::{
     collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::ExitCode,
 };
-use tree::{GitRevision, Tree, WorkingTree};
+use tree::{
+    GitRevision,
+    Tree,
+    WorkingTree,
+};
 
 mod boundary;
 mod cfg;

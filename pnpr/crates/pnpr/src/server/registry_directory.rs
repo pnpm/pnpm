@@ -1,14 +1,32 @@
 use axum::{
     Json,
     extract::State,
-    response::{IntoResponse as _, Response},
+    response::{
+        IntoResponse as _,
+        Response,
+    },
 };
 use pnpr_config::RoutingConfig;
-use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
-use serde_json::{Value, json};
+use pnpr_registry::{
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
-use super::{AppState, AuthedCaller, private_no_cache};
-use pnpr_policy::{Identity, PackageRules};
+use super::{
+    AppState,
+    AuthedCaller,
+    private_no_cache,
+};
+use pnpr_policy::{
+    Identity,
+    PackageRules,
+};
 
 pub(super) async fn serve(
     State(state): State<AppState>,
@@ -115,13 +133,15 @@ fn disclosed_sources(sources: &[&str], visible: &impl Fn(&str) -> bool) -> Optio
         .then(|| {
             sources
                 .iter()
-                .map(|source| Registries::local_name(source).to_string())
+                .copied()
+                .map(Registries::local_name)
+                .map(str::to_string)
                 .collect()
         })
 }
 
 /// A registry's claimed patterns, disclosed only when its rules do not refine
-/// access per package — otherwise the pattern list would say what a caller may
+/// access per package; otherwise the pattern list would say what a caller may
 /// not read.
 fn disclosed_patterns(rules: &PackageRules, patterns: &[PackagePattern]) -> Option<Vec<String>> {
     (!rules.refines_access()).then(|| {

@@ -1,4 +1,4 @@
-//! `pacquet audit signatures` — verify ECDSA registry signatures for the
+//! `pacquet audit signatures`: verify ECDSA registry signatures for the
 //! installed packages.
 //!
 //! For every installed `name@version`, the package's own registry is asked
@@ -8,37 +8,64 @@
 //! ECDSA-P256 key. Registries that advertise no signing keys are skipped
 //! (there is no trust root to check against); a package whose registry does
 //! provide keys but whose signature is absent is **missing**, and one whose
-//! signature is present but does not validate is **invalid** — a tamper
+//! signature is present but does not validate is **invalid**, a tamper
 //! signal.
 
-use super::{bold, red, sanitize_response_body};
-use owo_colors::{OwoColorize, Stream};
+use super::{
+    bold,
+    red,
+    sanitize_response_body,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
 use pnpm_network::{
-    ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
+    ThrottledClient,
+    encode_package_name,
+    redact_url_credentials,
+    send_with_retry,
     walk_reqwest_chain,
 };
 mod keys;
 mod tar_binding;
 
-use keys::{key_is_expired, verify_one};
+use keys::{
+    key_is_expired,
+    verify_one,
+};
 
 use registry::{
-    PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
+    PackageSignature,
+    Packument,
+    RegistryKey,
+    fetch_packument,
+    fetch_registry_keys,
+    parse_timestamp,
 };
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashMap,
+};
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct SignaturePackage {
+    pub name: String,
+    pub version: String,
+    pub registry: String,
+    pub package_id: String,
     pub integrity: Option<String>,
     /// Whether `integrity` is the hash of the package's tar, which no
     /// registry signature covers directly.
     pub pins_tar: bool,
-    pub name: String,
-    pub registry: String,
-    pub version: String,
 }
 
 /// A package that failed (or lacks) signature verification. JSON-serialized
@@ -221,7 +248,7 @@ fn process_version(
         return;
     };
     let dist = version.and_then(|version| version.dist.as_ref());
-    let resolved = dist.and_then(|dist| dist.tarball.clone());
+    let resolved = dist.and_then(|dist| dist.tarball.as_deref());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
     let Some(signatures) = parse_signatures(raw_signatures) else {
@@ -250,7 +277,7 @@ fn process_version(
         pkg,
         &signed,
         packument.time.get(&pkg.version).and_then(serde_json::Value::as_str),
-        resolved.as_deref(),
+        resolved,
         &signatures,
         keys,
     ) {
@@ -270,13 +297,15 @@ fn parse_signatures(raw_signatures: Option<&serde_json::Value>) -> Option<Vec<Pa
     };
     elements
         .iter()
-        .map(|element| serde_json::from_value(element.clone()).ok())
+        .cloned()
+        .map(serde_json::from_value)
+        .map(Result::ok)
         .collect()
 }
 
 /// Returns `None` as soon as one signature validates against a trusted key.
 /// Unknown-key, expired-key, and invalid-signature outcomes are recorded but
-/// do not on their own fail the package — only the absence of any valid
+/// do not on their own fail the package, only the absence of any valid
 /// signature does. This keeps a key rotation (multiple signatures in the
 /// packument) working and stops a mirror from forcing a failure by appending
 /// junk. The surfaced reason prefers an invalid-signature failure (a tamper
@@ -327,7 +356,7 @@ fn verify_package_signatures(
     Some(issue(
         pkg,
         Some(integrity.to_string()),
-        resolved.map(str::to_string),
+        resolved,
         Some(most_telling_failure(pkg, &failures)),
     ))
 }
@@ -349,16 +378,16 @@ fn most_telling_failure(pkg: &SignaturePackage, failures: &[String]) -> String {
 fn issue(
     pkg: &SignaturePackage,
     integrity: Option<String>,
-    resolved: Option<String>,
+    resolved: Option<&str>,
     reason: Option<String>,
 ) -> SignatureIssue {
     SignatureIssue {
         name: pkg.name.clone(),
-        registry: pkg.registry.clone(),
+        registry: redact_url_credentials(&pkg.registry),
         version: pkg.version.clone(),
         integrity,
         reason,
-        resolved,
+        resolved: resolved.map(redact_url_credentials),
     }
 }
 
@@ -417,7 +446,7 @@ fn push_missing_signatures(lines: &mut Vec<String>, missing: &[SignatureIssue]) 
     lines.push(String::new());
 }
 
-/// Packages whose signature did not verify — the tampering warning.
+/// Packages whose signature did not verify, the tampering warning.
 fn push_invalid_signatures(lines: &mut Vec<String>, invalid: &[SignatureIssue]) {
     let count = invalid.len();
     if count == 0 {
@@ -444,7 +473,10 @@ fn push_invalid_signatures(lines: &mut Vec<String>, invalid: &[SignatureIssue]) 
 }
 
 fn issue_table(issues: &[SignatureIssue], with_reason: bool) -> String {
-    use tabled::{builder::Builder, settings::Style};
+    use tabled::{
+        builder::Builder,
+        settings::Style,
+    };
 
     let mut builder = Builder::default();
     for issue in issues {

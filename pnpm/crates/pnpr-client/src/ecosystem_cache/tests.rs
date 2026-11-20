@@ -1,4 +1,9 @@
-use crate::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM, PnprClient, server_resolves};
+use crate::{
+    CARGO_ECOSYSTEM,
+    PYPI_ECOSYSTEM,
+    PnprClient,
+    server_resolves,
+};
 
 #[tokio::test]
 async fn caches_supported_and_unsupported_ecosystems_across_clients() {

@@ -1,11 +1,11 @@
-//! `pacquet shim add|rm|ls` — context-aware shims for packages that are
+//! `pacquet shim add|rm|ls`: context-aware shims for packages that are
 //! not installed globally.
 //!
 //! A shim pnpm links for a globally installed package defers to the
 //! project's own copy when there is one. These shims have no global
 //! install behind them at all: they exist only to let a project decide
 //! what runs. That is what makes `yarn` work in a Yarn project on a
-//! machine that has only pnpm — the shim resolves the project's
+//! machine that has only pnpm, the shim resolves the project's
 //! `packageManager` pin and provisions it.
 //!
 //! Creating one is deliberate. Nothing here happens as a side effect of
@@ -17,35 +17,74 @@ pub(crate) use virtual_state::record_virtual_shim_state;
 
 mod policy;
 mod virtual_state;
-use virtual_state::{read_virtual_shim_state, remove_virtual_shim_state, virtual_shim_state_path};
+use virtual_state::{
+    read_virtual_shim_state,
+    remove_virtual_shim_state,
+    virtual_shim_state_path,
+};
 
 use crate::{
     cli_args::global_bin_lock::acquire_global_bin_lock,
     config_deps,
     engine_pm::channel::PackageManager,
     shim_dispatch::{
-        ShimTarget, install_native_shim, migrate_legacy_shims, native_shim_target, native_shims,
+        ShimTarget,
+        install_native_shim,
+        migrate_legacy_shims,
+        native_shim_target,
+        native_shims,
         remove_native_shim,
-        rust_toolchain::{RUST_SHIM_BINS, RUST_SHIM_PACKAGE, remove_global_toolchain},
+        rust_toolchain::{
+            RUST_SHIM_BINS,
+            RUST_SHIM_PACKAGE,
+            remove_global_toolchain,
+        },
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest, is_safe_bin_name};
-use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_cmd_shim::{
+    Host as CmdShimHost,
+    get_bins_from_package_manifest,
+    is_safe_bin_name,
+};
+use pnpm_config::{
+    Config,
+    NamedShimPolicy,
+    ShimPolicyValue,
+};
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_global::bin_slot_exists;
 use pnpm_package_name::is_valid_old_npm_package_name;
 
-use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
-use serde::{Deserialize, Serialize};
+use policy::{
+    global_config_dir,
+    set_policy,
+    shims_disabled_globally,
+    would_dispatch,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fmt::Write as _,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const MAX_VIRTUAL_SHIM_METADATA_BYTES: u64 = 64 * 1024;
@@ -212,7 +251,7 @@ pub(crate) async fn add_shims(
     let mut report = String::new();
     for (package, bins) in bins_by_package {
         // A bin already in the global bin directory belongs to something
-        // else — a globally installed package, or another shim. Replacing
+        // else, a globally installed package, or another shim. Replacing
         // it would take a working command away, and `pnpm shim rm` would
         // then delete it rather than give it back.
         if let Some(bin) = bins.iter().find(|bin| taken_by_another(bin_dir, bin, package)) {

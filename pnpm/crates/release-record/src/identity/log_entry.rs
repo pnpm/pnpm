@@ -1,11 +1,23 @@
-use super::{RecordIdentity, RecordKey};
+use super::{
+    RecordIdentity,
+    RecordKey,
+};
 use crate::{
     digest::RecordDigest,
     profile::Profile,
-    purl::{Purl, PurlError},
+    purl::{
+        Purl,
+        PurlError,
+    },
 };
-use derive_more::{Display, Error};
-use std::collections::{HashMap, hash_map::Entry};
+use derive_more::{
+    Display,
+    Error,
+};
+use std::collections::{
+    HashMap,
+    hash_map::Entry,
+};
 
 /// The first line of every log entry.
 pub const LOG_ENTRY_SCHEMA: &str = "pnpr-log-entry/1";

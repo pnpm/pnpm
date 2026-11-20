@@ -1,6 +1,10 @@
 use pnpm_tarball::CacheHeaders;
 
-use super::{CacheControl, Freshness, TarballResolutionRecord};
+use super::{
+    CacheControl,
+    Freshness,
+    TarballResolutionRecord,
+};
 
 fn record(cache_control: &str, fetched_at: u64) -> TarballResolutionRecord {
     TarballResolutionRecord::from_response(

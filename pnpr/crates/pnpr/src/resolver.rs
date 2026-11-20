@@ -4,9 +4,9 @@
 //!
 //! Two routes, built on pacquet's resolver:
 //!
-//! * `GET /-/pnpr` — capability handshake; advertises the supported
+//! * `GET /-/pnpr`, capability handshake; advertises the supported
 //!   protocol versions so a client can negotiate or fail fast.
-//! * `POST /-/pnpr/v0/resolve` — resolve a project **against the registries
+//! * `POST /-/pnpr/v0/resolve`, resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
 //!   the client), verify the client's input lockfile under the client's
 //!   policy, and **stream** the result back as NDJSON: one `package`
@@ -17,7 +17,7 @@
 //!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
 //!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
-//! * `POST /-/pnpr/v0/verify-lockfile` — verify an already-fresh client
+//! * `POST /-/pnpr/v0/verify-lockfile`, verify an already-fresh client
 //!   lockfile under the same policy without resolving. A frozen restore
 //!   can start local fetch/materialization immediately and only use this
 //!   endpoint as the trust verdict.
@@ -51,15 +51,22 @@ use dispatch::extract_admitted_body;
 
 mod request_auth;
 mod streaming;
-use streaming::{StreamedResolveInputs, stream_resolve_response};
+use streaming::{
+    StreamedResolveInputs,
+    stream_resolve_response,
+};
 
 mod verify_lockfile;
 use verify_lockfile::verify_request_lockfile;
 
 mod config_cache;
 use config_cache::{
-    ActiveConfig, CONFIG_KEY_TOO_LARGE_MESSAGE, ConfigCache, MAX_CACHED_CONFIGS,
-    MAX_CONFIG_KEY_BYTES, intern_config,
+    ActiveConfig,
+    CONFIG_KEY_TOO_LARGE_MESSAGE,
+    ConfigCache,
+    MAX_CACHED_CONFIGS,
+    MAX_CONFIG_KEY_BYTES,
+    intern_config,
 };
 
 mod cache;
@@ -75,8 +82,16 @@ mod wire;
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Mutex, OnceLock},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+        OnceLock,
+    },
     time::Duration,
 };
 
@@ -84,37 +99,74 @@ use pnpr_config::Config as RegistryConfig;
 use pnpr_osv::OsvIndex;
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_route::{Footprint, RouteContext};
+use pnpr_route::{
+    Footprint,
+    RouteContext,
+};
 
-use axum::{body::Bytes, http::StatusCode, response::Response};
+use axum::{
+    body::Bytes,
+    http::StatusCode,
+    response::Response,
+};
 use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
-use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pnpm_network::{AuthHeaders, GuardedDnsResolver, ThrottledClient, native_dns_resolver};
-use pnpm_package_manager::build_resolution_verifiers;
-use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
+use pnpm_lockfile_verification::{
+    collect_resolution_policy_violations,
+    collect_resolution_shape_violations,
+    with_offline_check_cache_identities,
 };
-use pnpm_resolving_resolver_base::{PackageVersionGuard, ResolutionVerifier};
+use pnpm_network::{
+    AuthHeaders,
+    GuardedDnsResolver,
+    ThrottledClient,
+    native_dns_resolver,
+};
+use pnpm_package_manager::build_resolution_verifiers_with_artifacts;
+use pnpm_resolving_npm_resolver::{
+    InMemoryPackageMetaCache,
+    ObservedDistStats,
+    PackageMetaCache,
+    VerificationArtifacts,
+    observed_dist_stats_sink,
+};
+use pnpm_resolving_resolver_base::{
+    PackageVersionGuard,
+    ResolutionVerifier,
+};
 use pnpm_store_dir::StoreDir;
 
 use self::{
     cache::{
-        CachedResolution, StoreCandidate, cached_resolution, resolution_cache_key,
+        CachedResolution,
+        StoreCandidate,
+        cached_resolution,
+        resolution_cache_key,
         store_resolution_candidate,
     },
     limits::ResolverLimits,
     protocol::ResolveRequest,
     request_validation::{
-        parse_request, reject_inline_url_auth, reject_invalid_registries,
+        parse_request,
+        reject_inline_url_auth,
+        reject_invalid_lockfile_dependency_names,
+        reject_invalid_registries,
         reject_off_allowlist_fetches,
     },
     verdict_cache::VerdictCache,
     wire::{
-        KEEPALIVE_INTERVAL, StreamObserver, TarballRouter, error_frame_with_code,
-        ndjson_single_frame, ndjson_stream_response, osv_violations_for_lockfile_until,
-        progress_frame, try_done_frame_until, verify_done_frame, violations_frame,
+        KEEPALIVE_INTERVAL,
+        StreamObserver,
+        TarballRouter,
+        error_frame_with_code,
+        ndjson_single_frame,
+        ndjson_stream_response,
+        osv_violations_for_lockfile_until,
+        progress_frame,
+        try_done_frame_until,
+        verify_done_frame,
+        violations_frame,
     },
 };
 
@@ -158,13 +210,19 @@ pub(crate) struct ResolverShared {
 }
 
 impl ResolverShared {
-    /// Drop every cached resolution. Called when the registry graph changes:
-    /// a resolution may have read a name the new graph routes elsewhere.
+    /// Drop every cached resolution and lockfile verdict. Called when the
+    /// registry graph or its grants change: a resolution or verdict cached as
+    /// public under the previous policy may depend on a route the new one
+    /// restricts or routes elsewhere.
     pub(crate) fn forget_results(&self) {
+        self.cache.generation.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         self.cache.entries
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clear();
+        if let Some(verdicts) = self.cache.verdicts.as_ref() {
+            verdicts.clear();
+        }
     }
 
     fn new(config: &RegistryConfig) -> Self {
@@ -192,11 +250,15 @@ struct ResolverCache {
     entries: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
     ttl: Duration,
     /// SQLite-backed whole-lockfile verification verdict cache. `None`
-    /// only if the database couldn't be opened — verification then runs
+    /// only if the database couldn't be opened, verification then runs
     /// every time (uncached) rather than failing the server.
     verdicts: Option<VerdictCache>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     secret: Arc<[u8]>,
+    /// Monotonic counter incremented by [`ResolverShared::forget_results`], so
+    /// an in-flight resolve started before a grant or graph change cannot
+    /// populate the post-change cache namespace when it finishes.
+    generation: std::sync::atomic::AtomicU64,
 }
 
 struct IndexCache {
@@ -225,6 +287,7 @@ impl ResolverCache {
             ttl: config.http.packument_ttl,
             verdicts: verdict_cache,
             secret: Arc::clone(&config.resolution_cache_secret),
+            generation: std::sync::atomic::AtomicU64::new(0),
         }
     }
 
@@ -330,9 +393,21 @@ impl Resolver {
         }
     }
 
-    /// `key`, a resolution cache key, scoped to this engine's graph.
+    pub(super) fn cache_generation(&self) -> u64 {
+        self.cache.generation.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// `key`, a resolution cache key, scoped to this engine's graph and the
+    /// active invalidation `generation`.
+    pub(super) fn scoped_cache_key(&self, generation: u64, key: &str) -> String {
+        format!("{}:{generation}:{key}", self.graph_epoch)
+    }
+
+    /// `key`, a resolution cache key, scoped to this engine's graph and
+    /// current invalidation generation.
+    #[cfg(test)]
     fn graph_cache_key(&self, key: &str) -> String {
-        format!("{}:{key}", self.graph_epoch)
+        self.scoped_cache_key(self.cache_generation(), key)
     }
 
     /// Where `registry`'s Cargo sparse-index files are cached. The origin
@@ -422,4 +497,5 @@ fn request_tarball_router(
             .into_iter()
             .collect(),
     )
+    .with_registries_by_prefix(config.registries_by_prefix.clone())
 }

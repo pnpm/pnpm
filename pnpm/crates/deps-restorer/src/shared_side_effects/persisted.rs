@@ -1,15 +1,37 @@
 use super::planning::CandidateGroup;
-use crate::{SideEffectsBySnapshot, SideEffectsMapsBySnapshot};
+use crate::{
+    SideEffectsBySnapshot,
+    SideEffectsMapsBySnapshot,
+};
 use pnpm_lockfile::PackageKey;
-use pnpm_pnpr_client::{ArtifactCandidate, ArtifactManifest, RejectedArtifact, blob_id};
+use pnpm_pnpr_client::{
+    ArtifactCandidate,
+    ArtifactManifest,
+    RejectedArtifact,
+    blob_id,
+};
 use pnpm_shared_artifact_protocol::compatibility_rank;
 use pnpm_store_dir::{
-    CafsFileInfo, SideEffectsDiff, SideEffectsOverlay, StoreDir, StoreIndexWriter,
+    CafsFileInfo,
+    SideEffectsDiff,
+    SideEffectsOverlay,
+    StoreDir,
+    StoreIndexWriter,
 };
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -234,8 +256,8 @@ pub(super) async fn store_holds(path: &Path, digest: &str) -> Result<bool, Strin
     // reparse point instead of the file it names.
     #[cfg(windows)]
     options.custom_flags(windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT);
-    // Whatever turned the open away — absent, a directory, a symlink
-    // `O_NOFOLLOW` refused, a permission error — names something the caller
+    // Whatever turned the open away (absent, a directory, a symlink
+    // `O_NOFOLLOW` refused, a permission error) names something the caller
     // cannot reuse, and its fallback is a verified download that reports any
     // real fault itself. A failure once the file is open is different: that
     // one is reported below, since the store handed over a file it then could

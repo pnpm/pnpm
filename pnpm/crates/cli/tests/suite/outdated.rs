@@ -1,18 +1,27 @@
 use crate::_utils::{
-    append_workspace_yaml_key, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
-    set_ignore_dependencies, set_minimum_release_age,
+    append_workspace_yaml_key,
+    bravo_dep_mature_up_to_1_0_1_minimum_release_age,
+    set_ignore_dependencies,
+    set_minimum_release_age,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use std::{
     ffi::OsStr,
-    fs, io,
+    fs,
+    io,
     path::Path,
-    process::{Command, Stdio},
+    process::{
+        Command,
+        Stdio,
+    },
 };
 use tempfile::TempDir;
 
@@ -538,14 +547,16 @@ fn outdated_recursive_aggregates_workspace_dependents() {
     assert!(
         dependents[0]["location"]
             .as_str()
-            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-a"))),
+            .map(Path::new)
+            .is_some_and(|value| value.ends_with(Path::new("packages").join("app-a"))),
         "unexpected app-a location: {}",
         dependents[0]["location"],
     );
     assert!(
         dependents[1]["location"]
             .as_str()
-            .is_some_and(|path| Path::new(path).ends_with(Path::new("packages").join("app-b"))),
+            .map(Path::new)
+            .is_some_and(|value| value.ends_with(Path::new("packages").join("app-b"))),
         "unexpected app-b location: {}",
         dependents[1]["location"],
     );
@@ -654,7 +665,7 @@ fn outdated_recursive_reads_dedicated_project_lockfiles() {
 }
 
 /// A dependency-free manifest is reported as up to date (exit 0) even
-/// when there is no lockfile — the no-lockfile error only fires for a
+/// when there is no lockfile, the no-lockfile error only fires for a
 /// manifest that actually declares dependencies. Ports pnpm's "should
 /// return empty when there is no lockfile and no dependencies".
 #[test]

@@ -1,8 +1,18 @@
-use super::{pacquet_in, write_manifest, write_workspace_yaml};
+use super::{
+    pacquet_in,
+    write_manifest,
+    write_workspace_yaml,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn external_virtual_store_packages_resolve_root_dependencies() {

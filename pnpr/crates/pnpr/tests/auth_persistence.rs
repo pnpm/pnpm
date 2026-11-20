@@ -1,20 +1,44 @@
-//! Acceptance tests for issue [#11974] — pnpr must keep user
+//! Acceptance tests for issue [#11974], pnpr must keep user
 //! accounts and bearer tokens across process restarts so an
 //! operator can run it as a hosted registry without losing every
 //! account on the next container redeploy.
 //!
 //! [#11974]: https://github.com/pnpm/pnpm/issues/11974
+use command_extra::CommandExtra;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{AuthState, BackendConfig, Config, MaxUsers, router, router_with_auth};
+use pnpr::{
+    AuthState,
+    BackendConfig,
+    Config,
+    MaxUsers,
+    router,
+    router_with_auth,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 use tempfile::TempDir;
@@ -125,7 +149,7 @@ async fn user_and_token_survive_restart() {
     let app = router_with_auth(config, auth);
 
     // The token issued before the "restart" must still resolve to
-    // alice — proves token hash round-tripped through SQLite.
+    // alice, proves token hash round-tripped through SQLite.
     let response = app
         .clone()
         .oneshot(
@@ -137,7 +161,7 @@ async fn user_and_token_survive_restart() {
         )
         .await
         .unwrap();
-    // 404 from the dist-tag handler is fine — the point is we got
+    // 404 from the dist-tag handler is fine, the point is we got
     // past the 401 gate, which proves the token still authenticates.
     assert_ne!(response.status(), StatusCode::UNAUTHORIZED, "token should still authenticate");
 
@@ -218,11 +242,11 @@ async fn unreadable_auth_database_fails_startup() {
 #[tokio::test]
 async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
     if Command::new("htpasswd")
-        .arg("-h")
+        .with_arg("-h")
         .output()
         .is_err()
     {
-        eprintln!("apache htpasswd not on PATH — skipping cross-tool compat test");
+        eprintln!("apache htpasswd not on PATH, skipping cross-tool compat test");
         return;
     }
 
@@ -247,10 +271,10 @@ async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
 
     // `htpasswd -v` (verify-only) exits 0 when the password matches.
     let status = Command::new("htpasswd")
-        .args(["-v", "-b"])
-        .arg(&htpasswd)
-        .arg("alice")
-        .arg("compat-secret")
+        .with_args(["-v", "-b"])
+        .with_arg(&htpasswd)
+        .with_arg("alice")
+        .with_arg("compat-secret")
         .status()
         .expect("spawn htpasswd");
     assert!(
@@ -260,10 +284,10 @@ async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
 
     // And a wrong password should be rejected by the same tool.
     let status = Command::new("htpasswd")
-        .args(["-v", "-b"])
-        .arg(&htpasswd)
-        .arg("alice")
-        .arg("wrong-password")
+        .with_args(["-v", "-b"])
+        .with_arg(&htpasswd)
+        .with_arg("alice")
+        .with_arg("wrong-password")
         .status()
         .expect("spawn htpasswd");
     assert!(
@@ -272,7 +296,7 @@ async fn stored_password_hash_is_verifiable_by_apache_htpasswd_tool() {
     );
 }
 
-/// `auth.users.max_users: -1` blocks new registrations — but
+/// `auth.users.max_users: -1` blocks new registrations, but
 /// existing users can still log in. Wired end-to-end through the
 /// adduser HTTP endpoint to confirm the policy surfaces as a 403,
 /// not a silent 201.

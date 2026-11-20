@@ -6,20 +6,37 @@
 //! instead, which `interrupt_windows` tests rather than porting these.
 #![cfg(unix)]
 
-use crate::_utils::terminal::{Terminal, spawn_without_terminal};
+use crate::_utils::terminal::{
+    Terminal,
+    spawn_without_terminal,
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 use std::{
     ffi::OsString,
     fs,
-    io::{self, Read},
+    io::{
+        self,
+        Read,
+    },
     os::unix::process::ExitStatusExt,
     path::Path,
-    process::{Child, Command, ExitStatus, Stdio},
+    process::{
+        Child,
+        Command,
+        ExitStatus,
+        Stdio,
+    },
     sync::mpsc,
-    thread::{self, sleep},
-    time::{Duration, Instant},
+    thread::{
+        self,
+        sleep,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// How long a script is given to shut down before the test gives up. Well

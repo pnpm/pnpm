@@ -1,6 +1,15 @@
-use reqwest::dns::{Addrs, Name, Resolve, Resolving};
+use reqwest::dns::{
+    Addrs,
+    Name,
+    Resolve,
+    Resolving,
+};
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{
+        IpAddr,
+        Ipv4Addr,
+        Ipv6Addr,
+    },
     sync::Arc,
 };
 

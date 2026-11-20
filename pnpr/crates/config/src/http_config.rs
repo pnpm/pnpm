@@ -1,7 +1,20 @@
 use super::{
-    ByteSize, Config, ConfigFile, HttpConfig, Interval, MetricsConfig, Path, RegistryError,
-    SocketAddr, build_cors_config, build_oci_config, build_package_documents_config,
-    build_ui_config, cdn, parse_interval, parse_trusted_proxies,
+    ByteSize,
+    Config,
+    ConfigFile,
+    HttpConfig,
+    Interval,
+    MetricsConfig,
+    Path,
+    RegistryError,
+    SocketAddr,
+    build_cors_config,
+    build_oci_config,
+    build_package_documents_config,
+    build_ui_config,
+    cdn,
+    parse_interval,
+    parse_trusted_proxies,
 };
 use crate::byte_size::parse_positive_byte_size;
 
@@ -89,9 +102,8 @@ fn build_packument_ttl(raw: Option<Interval>) -> Result<std::time::Duration, Reg
 /// The `maxTarballSize:` key as bytes, defaulting to
 /// [`HttpConfig::DEFAULT_MAX_TARBALL_BYTES`].
 fn build_max_tarball_bytes(raw: Option<ByteSize>) -> Result<u64, RegistryError> {
-    raw.map_or(Ok(HttpConfig::DEFAULT_MAX_TARBALL_BYTES), |raw| {
-        parse_positive_byte_size("maxTarballSize", &raw)
-    })
+    raw.map(|raw| parse_positive_byte_size("maxTarballSize", &raw))
+        .unwrap_or(Ok(HttpConfig::DEFAULT_MAX_TARBALL_BYTES))
 }
 
 fn build_metrics_config(

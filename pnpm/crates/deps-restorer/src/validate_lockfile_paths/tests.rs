@@ -1,8 +1,14 @@
 use super::validate_virtual_store_slot_containment;
 use crate::VirtualStoreLayout;
 use miette::Diagnostic;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
-use std::{collections::HashMap, path::PathBuf};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 fn assert_invalid_dependency_name_code(err: &pnpm_lockfile_verification::VerifyError) {
     let code = err.code().map(|code| code.to_string());
@@ -28,7 +34,7 @@ fn rejects_a_global_virtual_store_version_escape() {
     // segment as a raw path component (unlike the legacy flat name, which
     // escapes `/`). A traversal-bearing version escapes the store root
     // even though the package name itself is valid, so the containment
-    // check — not the name check — is what rejects it.
+    // check (not the name check) is what rejects it.
     let key: PackageKey = "evil@../../../escaped".parse().expect("parse escaping version key");
 
     let mut config = pnpm_config::Config::new();

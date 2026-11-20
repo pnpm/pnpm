@@ -1,9 +1,19 @@
 use super::{
-    Host, LinkBinsOptions, create_dir_all, json, link_bins, read_to_string, tempdir, write_file,
+    Host,
+    LinkBinsOptions,
+    create_dir_all,
+    json,
+    link_bins,
+    read_to_string,
+    tempdir,
+    write_file,
 };
 use std::{
     fs,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 #[test]

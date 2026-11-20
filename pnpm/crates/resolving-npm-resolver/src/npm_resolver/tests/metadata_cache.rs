@@ -1,8 +1,23 @@
 use super::{
-    Arc, AuthHeaders, HashMap, InMemoryPackageMetaCache, LockfileResolution,
-    MalformedRevisionHistoryError, NpmResolver, ResolveOptions, RetryOpts, TarballRevision,
-    TempDir, ThrottledClient, WantedDependency, assert_eq, build_resolver, json,
-    revision_package_body, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    Arc,
+    AuthHeaders,
+    HashMap,
+    InMemoryPackageMetaCache,
+    LockfileResolution,
+    MalformedRevisionHistoryError,
+    NpmResolver,
+    ResolveOptions,
+    RetryOpts,
+    TarballRevision,
+    TempDir,
+    ThrottledClient,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    json,
+    revision_package_body,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
 
@@ -55,7 +70,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         .create_async()
         .await;
 
-    // Shared cache — the leak path. The fix is the cache key
+    // Shared cache, the leak path. The fix is the cache key
     // including the registry; without it, whichever resolver runs
     // second would return the other's manifest.
     let shared_picked_cache = shared_picked_manifest_cache();

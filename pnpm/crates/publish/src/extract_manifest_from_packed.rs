@@ -4,14 +4,24 @@
 
 use std::{
     fs::File,
-    io::{self, Read},
+    io::{
+        self,
+        Read,
+    },
     path::Path,
 };
 
 use flate2::read::GzDecoder;
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_package_manifest::{
-    ReadmeKind, decode_readme, is_preferred_readme, parse_manifest, readme_kind,
+    ReadmeKind,
+    decode_readme,
+    is_preferred_readme,
+    parse_manifest,
+    readme_kind,
 };
 use serde_json::Value;
 

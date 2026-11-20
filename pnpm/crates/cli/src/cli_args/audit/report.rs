@@ -1,9 +1,24 @@
 //! The registry audit response, and the report shape derived from it.
 
 use super::{
-    AuditIndexRequest, AuditPathIndex, BTreeMap, ConfigAuditLevel, Deserialize, Diagnostic,
-    Display, EnvLockfile, Error, HashSet, Include, Lockfile, PathInfo, Serialize,
-    build_audit_path_index, infer_patched_versions, lockfile_to_audit_request, parse_audit_level,
+    AuditIndexRequest,
+    AuditPathIndex,
+    BTreeMap,
+    ConfigAuditLevel,
+    Deserialize,
+    Diagnostic,
+    Display,
+    EnvLockfile,
+    Error,
+    HashSet,
+    Include,
+    Lockfile,
+    PathInfo,
+    Serialize,
+    build_audit_path_index,
+    infer_patched_versions,
+    lockfile_to_audit_request,
+    parse_audit_level,
     satisfies_safe,
 };
 
@@ -23,6 +38,15 @@ pub(crate) enum AuditError {
     #[display("No installed packages found to audit")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_PACKAGES))]
     NoPackages,
+
+    #[display(
+        "Cannot audit signatures of package \"{package_key}\": its registry prefix '{registry_name}:' is not declared by the registries setting."
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_MISSING_NAMED_REGISTRY),
+        help("Add a registries entry with \"prefix: {registry_name}\" to pnpm-workspace.yaml.")
+    )]
+    MissingNamedRegistry { package_key: String, registry_name: String },
 
     #[display("No pnpm-lock.yaml found after update: Cannot report fixed vulnerabilities")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]

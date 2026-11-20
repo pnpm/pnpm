@@ -1,4 +1,9 @@
-use super::{Floor, Libc, NodeAbi, Platform};
+use super::{
+    Floor,
+    Libc,
+    NodeAbi,
+    Platform,
+};
 use pretty_assertions::assert_eq;
 
 fn tag(value: &str) -> Platform {

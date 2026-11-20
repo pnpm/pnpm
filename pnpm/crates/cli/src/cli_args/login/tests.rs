@@ -1,10 +1,16 @@
 use super::LoginArgs;
 use pnpm_config::Config;
-use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
+use pnpm_network_web_auth_testing::{
+    ok_token,
+    web_auth_fake,
+};
 use pnpm_reporter::SilentReporter;
 use std::{
     cell::RefCell,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Add the login-specific capability impls to the `web_auth_fake!`-generated
@@ -174,8 +180,8 @@ fn written_config_yaml(writes: &[(PathBuf, String)]) -> serde_json::Value {
 }
 
 /// Pins the composition the option-level tests above and the write-path tests
-/// in `pnpm-auth-commands` each cover only half of: [`Config::scope`] —
-/// wherever it came from — reaching `auth.ini` and `config.yaml` through the
+/// in `pnpm-auth-commands` each cover only half of: [`Config::scope`]
+/// (wherever it came from) reaching `auth.ini` and `config.yaml` through the
 /// adapter.
 #[tokio::test]
 async fn a_config_scope_persists_the_scoped_token_and_registry_mapping() {

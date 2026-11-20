@@ -1,9 +1,19 @@
 use super::{
-    PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_USERNAME,
-    registries_home::{fixture_registries, revision_source},
+    PNPR_BENCHMARK_HTPASSWD,
+    PNPR_BENCHMARK_USERNAME,
+    registries_home::{
+        fixture_registries,
+        revision_source,
+    },
 };
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[cfg(test)]
 mod tests;

@@ -18,17 +18,31 @@
 //! demands it.
 
 use pnpm_network::{
-    AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, read_self_delimiting_body,
-    redact_url_credentials, redact_url_for_display, retry_async, send_with_retry_at_priority,
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+    ThrottledClientGuard,
+    read_self_delimiting_body,
+    redact_url_credentials,
+    redact_url_for_display,
+    retry_async,
+    send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
-use reqwest::{Response, StatusCode, header};
+use reqwest::{
+    Response,
+    StatusCode,
+    header,
+};
 use std::time::Duration;
 
 use crate::{
     FetchMetadataError,
     decode_pool::run_decode,
-    metadata_cache_policy::{DocumentKind, normalizes_to_abbreviated},
+    metadata_cache_policy::{
+        DocumentKind,
+        normalizes_to_abbreviated,
+    },
     mirror::clear_meta,
     registry_url::to_registry_url,
 };
@@ -71,7 +85,8 @@ pub(crate) fn metadata_response_is_uncacheable(headers: &header::HeaderMap) -> b
     headers
         .get_all(header::CACHE_CONTROL)
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .filter_map(Result::ok)
         .any(cache_control_value_is_uncacheable)
 }
 
@@ -98,7 +113,8 @@ fn cache_control_value_is_uncacheable(value: &str) -> bool {
 pub(crate) fn is_abbreviated_content_type(headers: &header::HeaderMap) -> bool {
     headers
         .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .is_some_and(|value| {
             let media_type = value.split_once(';').map_or(value, |(media_type, _)| media_type);
             let media_type = media_type.trim();
@@ -116,9 +132,11 @@ fn parse_metadata(body: &str, install_v2: bool) -> serde_json::Result<Package> {
 fn is_install_v2_content_type(headers: &header::HeaderMap) -> bool {
     headers
         .get(header::CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .and_then(|value| value.split(';').next())
-        .is_some_and(|media_type| media_type.trim().eq_ignore_ascii_case(INSTALL_V2_CONTENT_TYPE))
+        .map(str::trim)
+        .is_some_and(|trimmed| trimmed.eq_ignore_ascii_case(INSTALL_V2_CONTENT_TYPE))
 }
 
 /// Warn, once per registry, that `registry` sent a package document with
@@ -152,7 +170,7 @@ pub struct FetchFullMetadataOptions<'a> {
     /// instead of a body.
     pub etag: Option<&'a str>,
     /// Optional `If-Modified-Since` header value. Same role as
-    /// [`Self::etag`] — gives the registry a chance to short-circuit
+    /// [`Self::etag`], gives the registry a chance to short-circuit
     /// the body re-download.
     pub modified: Option<&'a str>,
     pub http: crate::MetadataHttpClient<'a>,
@@ -337,7 +355,7 @@ fn metadata_headers(
         (header::IF_NONE_MATCH, validators.etag),
         (header::IF_MODIFIED_SINCE, validators.modified.as_deref()),
     ] {
-        if let Some(value) = value.and_then(|value| value.parse().ok()) {
+        if let Some(value) = value.map(str::parse).and_then(Result::ok) {
             headers.insert(name, value);
         }
     }
@@ -347,14 +365,14 @@ fn metadata_headers(
     headers
 }
 
-/// Convert a stored `modified` value — the packument's ISO-8601
-/// `time.modified` — to the HTTP-date form `If-Modified-Since` requires
+/// Convert a stored `modified` value (the packument's ISO-8601
+/// `time.modified`) to the HTTP-date form `If-Modified-Since` requires
 /// (RFC 9110 §8.8.3), the same conversion the TypeScript CLI applies with
 /// `toUTCString()`. A date without a time is midnight UTC, as JavaScript's
 /// `Date` reads it. A value already in HTTP-date form is kept. `None` when
 /// the value parses as none of these, or names a time outside the years
 /// 1970 to 9999 that an HTTP date can carry, so it is dropped instead of
-/// sent — a recipient must ignore a malformed `If-Modified-Since` anyway.
+/// sent, a recipient must ignore a malformed `If-Modified-Since` anyway.
 fn to_http_date(value: &str) -> Option<String> {
     let time: jiff::Timestamp = if let Ok(datetime) = pnpm_time::parse_rfc3339(value) {
         datetime

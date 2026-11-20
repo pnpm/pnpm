@@ -15,23 +15,31 @@
 //! entry point with the `commonjs` format, which hands it back to the CJS
 //! loader, as Node.js does without `--import`. Entry points ending in `.js`
 //! or without an extension are left alone, because Node.js may detect
-//! module syntax in them.
+//! module syntax in them. A `require()` from a module without a filename
+//! also has no parent URL. Unless the user adds `--conditions=import`, only
+//! the entry point resolves with the `import` condition, so the hook leaves
+//! such a `require()` to `require.extensions`. Some Node.js versions pass
+//! the conditions of a `require()` as a `Set`, so the hook spreads them
+//! before searching.
 //!
 //! The hook sources are identical copies of the ones the TypeScript CLI
-//! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`) — the two must
+//! embeds (`pnpm11/exec/esm-node-path-loader/src/index.ts`), the two must
 //! stay in sync so both CLIs inject the same `NODE_OPTIONS` value.
 
-use std::{fmt::Write, sync::LazyLock};
+use std::{
+    fmt::Write,
+    sync::LazyLock,
+};
 
 const RESOLVE_HELPERS: &str = r"const nodePaths = (process.env.NODE_PATH ?? '').split(delimiter).filter(Boolean)
 const isBareSpecifier = (specifier) => !specifier.startsWith('.') && !specifier.startsWith('/') && !specifier.startsWith('#') && !specifier.includes(':')
-const isEntryPointUnknownToEsm = (resolved, context) => context.parentURL === undefined && resolved.format == null && resolved.url.startsWith('file:') && !['', '.js'].includes(extname(new URL(resolved.url).pathname))
+const isEntryPointUnknownToEsm = (resolved, context) => context.parentURL === undefined && [...(context.conditions ?? ['import'])].includes('import') && resolved.format == null && resolved.url.startsWith('file:') && !['', '.js'].includes(extname(new URL(resolved.url).pathname))
 const markUnknownEntryPointAsCommonJs = (resolved, context) => isEntryPointUnknownToEsm(resolved, context) ? { ...resolved, format: 'commonjs' } : resolved";
 
 /// Fallback for Node.js versions that have `module.register()` but not
 /// `module.registerHooks()` (>=18.19 <22.15): an off-thread hooks module
 /// for `module.register()`. Runtimes with neither API (`--import` parses
-/// from 18.18/19.0) get no hook at all — CJS `NODE_PATH` resolution still
+/// from 18.18/19.0) get no hook at all, CJS `NODE_PATH` resolution still
 /// works natively there. The retry goes through the default resolver with
 /// a synthetic parent inside each `NODE_PATH` entry, so the caller's
 /// export conditions (import vs require) are preserved; every entry pnpm
@@ -118,7 +126,7 @@ pub fn esm_node_path_loader_import_flag() -> &'static str {
 
 /// Percent-encodes everything outside the RFC 3986 unreserved set, exactly
 /// like the TypeScript side's `strictUriEncode`. Unlike JavaScript's
-/// `encodeURIComponent`, this also encodes `!` `'` `(` `)` `*` — the single
+/// `encodeURIComponent`, this also encodes `!` `'` `(` `)` `*`, the single
 /// quote in particular, which Node's `NODE_OPTIONS` tokenizer treats as a
 /// quote delimiter and would strip from the flag.
 fn strict_uri_encode(text: &str) -> String {

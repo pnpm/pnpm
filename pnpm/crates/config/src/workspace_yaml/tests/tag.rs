@@ -1,4 +1,10 @@
-use super::{BTreeMap, Config, Path, WorkspaceSettings, assert_eq};
+use super::{
+    BTreeMap,
+    Config,
+    Path,
+    WorkspaceSettings,
+    assert_eq,
+};
 use crate::TrustedSettings;
 
 #[test]

@@ -1,7 +1,14 @@
 #[cfg(unix)]
 use super::{
-    Command, CommandExtra, CommandTempCwd, CommandTestExt, fs, global_command, global_shim_command,
-    prepare_global_home, symlink_entries,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    CommandTestExt,
+    fs,
+    global_command,
+    global_shim_command,
+    prepare_global_home,
+    symlink_entries,
 };
 
 /// A `globalShims` entry for the package writes context-aware shims: the
@@ -364,13 +371,15 @@ fn global_shims_auto_writes_native_dispatcher_for_node_runtime() {
 }
 
 /// A shim invocation forwards its arguments to the target untouched: pnpm
-/// must not interpret the target's `--env-file` — a missing file must not
+/// must not interpret the target's `--env-file`, a missing file must not
 /// fail the launch, and a present file's variables must not be injected.
 #[cfg(unix)]
 #[test]
 fn shim_invocation_forwards_env_file_flag_untouched() {
-    use std::os::unix::ffi::OsStrExt as _;
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::{
+        ffi::OsStrExt as _,
+        fs::PermissionsExt,
+    };
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

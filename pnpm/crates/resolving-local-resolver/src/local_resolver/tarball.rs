@@ -1,12 +1,24 @@
 use std::sync::Arc;
 
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    TarballResolution,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
-use pnpm_tarball::{LocalTarballMetadata, TarballError, read_local_tarball_metadata};
+use pnpm_tarball::{
+    LocalTarballMetadata,
+    TarballError,
+    read_local_tarball_metadata,
+};
 
 use super::{
-    LocalFilesystemPolicy, LocalResolveResult, LocalResolverContext, LocalResolverOptions,
-    LocalResolverUpdate, LocalTarballResolution, ResolveLocalError,
+    LocalFilesystemPolicy,
+    LocalResolveResult,
+    LocalResolverContext,
+    LocalResolverOptions,
+    LocalResolverUpdate,
+    LocalTarballResolution,
+    ResolveLocalError,
 };
 use crate::parse_bare_specifier::LocalPackageSpec;
 

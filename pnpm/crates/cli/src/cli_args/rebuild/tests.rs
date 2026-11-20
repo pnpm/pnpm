@@ -1,7 +1,10 @@
 use super::rebuild_dependency_groups;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// A `Config` whose `modules_dir` is a `node_modules` under `dir`. When

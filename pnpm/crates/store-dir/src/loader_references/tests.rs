@@ -1,4 +1,8 @@
-use crate::{CAS_MANIFEST_FILENAME, StoreDir, register_project};
+use crate::{
+    CAS_MANIFEST_FILENAME,
+    StoreDir,
+    register_project,
+};
 use std::fs;
 
 #[test]

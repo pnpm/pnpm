@@ -1,16 +1,33 @@
 use super::{
-    PNPR_BENCHMARK_PASSWORD, PNPR_BENCHMARK_USERNAME,
-    registries_home::{LOOPBACK_NETWORKS, RegistriesHome},
+    PNPR_BENCHMARK_PASSWORD,
+    PNPR_BENCHMARK_USERNAME,
+    registries_home::{
+        LOOPBACK_NETWORKS,
+        RegistriesHome,
+    },
 };
 use crate::latency_proxy::LatencyProxy;
+use command_extra::CommandExtra;
 use serde::Serialize;
 use serde_json::Value;
 use std::{
-    fs::{self, OpenOptions},
+    fs::{
+        self,
+        OpenOptions,
+    },
     io::Write,
-    net::{TcpListener, TcpStream},
-    path::{Path, PathBuf},
-    process::{Child, Command},
+    net::{
+        TcpListener,
+        TcpStream,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Child,
+        Command,
+    },
     thread,
     time::Duration,
 };
@@ -188,20 +205,19 @@ pub(super) fn cold_revision_mock_command(
         "Serving {}'s tarballs from a COLD mock built from pnpr@{} on 127.0.0.1:{} (origin {origin_url})...",
         mock.revision, mock.revision, mock.port,
     );
-    let mut command = Command::new(mock.binary);
-    command
-        .arg("--config")
-        .arg(&config_path)
-        .arg("--storage")
-        .arg(&cold_storage)
-        .arg("--cache")
-        .arg(cold_storage.join("cache"))
-        .arg("--listen")
-        .arg(format!("127.0.0.1:{}", mock.port))
-        .arg("--public-url")
-        .arg(mock.public_url)
-        .arg("--packument-ttl")
-        .arg("31536000");
+    let command = Command::new(mock.binary)
+        .with_arg("--config")
+        .with_arg(&config_path)
+        .with_arg("--storage")
+        .with_arg(&cold_storage)
+        .with_arg("--cache")
+        .with_arg(cold_storage.join("cache"))
+        .with_arg("--listen")
+        .with_arg(format!("127.0.0.1:{}", mock.port))
+        .with_arg("--public-url")
+        .with_arg(mock.public_url)
+        .with_arg("--packument-ttl")
+        .with_arg("31536000");
     if mock.registries.in_database() {
         let document = mock.bench_dir.join("cold-mock-registries.yaml");
         fs::write(&document, cold_mock_registries_yaml(origin_url))
@@ -231,7 +247,7 @@ pub(super) struct ColdMockGraph {
     #[serde(rename = "defaultRegistry")]
     default_registry: &'static str,
 }
-/// The `registries:` table — a single-upstream entry.
+/// The `registries:` table, a single-upstream entry.
 #[derive(Serialize)]
 pub(super) struct ColdMockUpstreamTable {
     npmjs: ColdMockUpstreamEntry,
@@ -376,7 +392,7 @@ pub(super) fn serves_npm_under_base_path(port: u16) -> bool {
             response.status(),
         );
         let directory: Value = response.json().await.expect("parse the registry directory");
-        directory["ecosystems"]["npm"]["prefixed"].as_bool() == Some(true)
+        directory["ecosystems"]["npm"]["prefixed"].as_bool().unwrap_or(false)
     })
 }
 /// Log in as the seeded benchmark user and return a bearer token.

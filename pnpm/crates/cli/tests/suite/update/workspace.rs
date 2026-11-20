@@ -1,16 +1,33 @@
 use super::{
-    BAR, DEP, FOO, add_workspace_package, append_workspace_yaml_key, assert_eq,
-    assert_update_fails, dep_spec, fs, list_virtual_store, lockfile_package_keys, pacquet,
-    read_workspace_yaml, set_ignore_dependencies, set_named_catalog, set_overrides,
-    set_strict_catalog, setup, setup_with_own_registry, virtual_store_has, write_manifest,
+    BAR,
+    DEP,
+    FOO,
+    add_workspace_package,
+    append_workspace_yaml_key,
+    assert_eq,
+    assert_update_fails,
+    dep_spec,
+    fs,
+    list_virtual_store,
+    lockfile_package_keys,
+    pacquet,
+    read_workspace_yaml,
+    set_ignore_dependencies,
+    set_named_catalog,
+    set_overrides,
+    set_strict_catalog,
+    setup,
+    setup_with_own_registry,
+    virtual_store_has,
+    write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
 use std::fmt::Write as _;
 
 /// `--latest` must not rewrite a `workspace:` dependency that points at a
 /// local path. Resolving it against the registry would either fail (the
-/// package is workspace-only, not published) or replace the path — which can
-/// target a publish directory — with a version range. Regression test for
+/// package is workspace-only, not published) or replace the path (which can
+/// target a publish directory) with a version range. Regression test for
 /// <https://github.com/pnpm/pnpm/issues/3902>.
 #[test]
 fn update_latest_preserves_workspace_local_path_specifier() {
@@ -57,7 +74,7 @@ fn update_patches_preserves_an_implicit_workspace_dependency() {
 /// `--workspace` re-points a dependency that a workspace project
 /// publishes at the local copy. Under the default `rolling`
 /// `saveWorkspaceProtocol`, an exactly-pinned dependency becomes
-/// `workspace:*` — a specifier the sibling's next release does not
+/// `workspace:*`, a specifier the sibling's next release does not
 /// invalidate.
 #[test]
 fn update_workspace_links_to_the_local_package() {
@@ -89,7 +106,7 @@ fn update_workspace_keeps_the_declared_range_operator() {
 }
 
 /// With `saveWorkspaceProtocol: false` the linked version is written out
-/// in full — the protocol itself is kept regardless, since dropping it
+/// in full, the protocol itself is kept regardless, since dropping it
 /// would send the dependency back to the registry.
 #[test]
 fn update_workspace_writes_the_version_when_not_rolling() {
@@ -169,7 +186,7 @@ fn update_workspace_rejects_a_dependency_outside_the_workspace() {
 }
 
 /// A `--workspace` selector that matches no direct dependency links
-/// nothing — the run falls back to an ordinary update of that selector,
+/// nothing, the run falls back to an ordinary update of that selector,
 /// rather than linking every workspace dependency the user never named.
 #[test]
 fn update_workspace_with_an_unmatched_selector_links_nothing() {
@@ -238,7 +255,7 @@ fn update_latest_unmatched_selector_does_not_read_catalogs() {
 
 /// `pacquet update --latest` on a `catalog:` dependency keeps the
 /// `catalog:` reference in `package.json` and bumps the catalog entry to
-/// the latest version, preserving the entry's own range operator — even
+/// the latest version, preserving the entry's own range operator, even
 /// under the default `manual` catalogMode (which does not auto-catalog).
 #[test]
 fn update_latest_catalog_preserves_reference_and_operator() {
@@ -529,7 +546,7 @@ fn update_recursive_strict_catalog_range_covering_the_wanted_version_moves_the_e
 
 /// A root `update --no-save` in a workspace pre-hooks only the root manifest,
 /// so the install layer must still run `readPackage` over the workspace
-/// projects it discovers itself — exactly once each. Regression test for the
+/// projects it discovers itself, exactly once each. Regression test for the
 /// review finding on <https://github.com/pnpm/pnpm/pull/13812>.
 #[test]
 fn update_no_save_applies_read_package_to_workspace_projects() {

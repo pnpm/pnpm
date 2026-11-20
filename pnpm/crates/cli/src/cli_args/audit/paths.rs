@@ -4,8 +4,22 @@ mod live_graph;
 use live_graph::LiveGraph;
 
 use super::{
-    AuditGraph, BTreeMap, DepClass, Edge, EnvLockfile, HashMap, HashSet, Include, Lockfile,
-    MAX_PATHS_PER_FINDING, PackageKey, Rc, classify_graph, root_included,
+    AuditGraph,
+    BTreeMap,
+    DepClass,
+    Edge,
+    EnvLockfile,
+    HashMap,
+    HashSet,
+    Include,
+    Lockfile,
+    MAX_PATHS_PER_FINDING,
+    PackageKey,
+    PackageMetadata,
+    Rc,
+    Version,
+    classify_graph,
+    root_included,
 };
 
 #[derive(Debug, Default)]
@@ -94,11 +108,12 @@ pub(crate) struct PathWalk<'a> {
 
 fn finding_saturated(
     key: &PackageKey,
+    packages: &HashMap<PackageKey, PackageMetadata>,
     class: DepClass,
     paths: &AuditPathIndex,
     importer_findings: &HashSet<(String, String)>,
 ) -> bool {
-    let version = package_version(key).expect("vulnerable target has a version");
+    let version = package_version(key, Some(packages)).expect("vulnerable target has a version");
     if !importer_findings.contains(&(key.name.to_string(), version.clone())) {
         return false;
     }
@@ -123,14 +138,16 @@ impl<'a> PathWalk<'a> {
         let targets = classes
             .keys()
             .filter(|key| {
-                vulnerable_names.contains(&key.name.to_string()) && package_version(key).is_some()
+                vulnerable_names.contains(&key.name.to_string())
+                    && package_version(key, Some(graph.packages)).is_some()
             })
             .cloned()
             .collect::<Vec<_>>();
         let live = LiveGraph::new(graph, include, &classes, &targets);
         let mut pending: BTreeMap<String, BTreeMap<String, Vec<PackageKey>>> = BTreeMap::new();
         for key in targets {
-            let version = package_version(&key).expect("vulnerable target has a version");
+            let version = package_version(&key, Some(graph.packages))
+                .expect("vulnerable target has a version");
             pending
                 .entry(key.name.to_string())
                 .or_default()
@@ -154,7 +171,8 @@ impl<'a> PathWalk<'a> {
         self.importer_findings.clear();
         for key in std::mem::take(&mut self.saturated) {
             self.live.add_target(&key);
-            let version = package_version(&key).expect("vulnerable target has a version");
+            let version = package_version(&key, Some(self.graph.packages))
+                .expect("vulnerable target has a version");
             self.pending
                 .get_mut(&key.name.to_string())
                 .and_then(|versions| versions.get_mut(&version))
@@ -169,7 +187,13 @@ impl<'a> PathWalk<'a> {
             .and_then(|versions| versions.get_mut(version))
             .expect("recorded finding has pending targets");
         for key in std::mem::take(targets) {
-            if finding_saturated(&key, self.classes[&key], paths, &self.importer_findings) {
+            if finding_saturated(
+                &key,
+                self.graph.packages,
+                self.classes[&key],
+                paths,
+                &self.importer_findings,
+            ) {
                 self.live.remove_target(&key);
                 self.saturated.push(key);
             } else {
@@ -212,7 +236,7 @@ pub(crate) fn open_path_node(
     let name = key.name.to_string();
     let trail = Rc::new(TrailNode { name: name.clone(), parent: Some(parent_trail) });
     if walk.vulnerable_names.contains(&name)
-        && let Some(version) = package_version(&key)
+        && let Some(version) = package_version(&key, Some(walk.graph.packages))
     {
         let class = walk.classes
             .get(&key)
@@ -291,12 +315,35 @@ pub(crate) fn join_trail(node: &Rc<TrailNode>) -> String {
     parts.join(">")
 }
 
-/// The registry version an audit checks, or `None` for an entry the registry
-/// does not serve. A `runtime:` entry is a Node.js, Deno, or Bun release, not
-/// the npm package of the same name.
-pub(crate) fn package_version(key: &PackageKey) -> Option<String> {
+/// The semver version an audit checks against advisory ranges, or `None` for
+/// an entry with no auditable version. A `runtime:` entry is a Node.js, Deno,
+/// or Bun release rather than the npm package of the same name, and a
+/// `directory` entry is a local workspace package.
+pub(crate) fn package_semver(
+    key: &PackageKey,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+) -> Option<Version> {
     if key.suffix.prefix() == pnpm_lockfile::Prefix::Runtime {
         return None;
     }
-    key.suffix.version_semver().map(ToString::to_string)
+    let metadata = packages.and_then(|packages| packages.get(&key.without_peer()));
+    if metadata.is_some_and(|metadata| {
+        matches!(metadata.resolution, pnpm_lockfile::LockfileResolution::Directory(_))
+    }) {
+        return None;
+    }
+    if let Some(version) = key.suffix.registry_version() {
+        return Some(version.clone());
+    }
+    metadata
+        .and_then(|metadata| metadata.version.as_deref())
+        .map(str::parse::<Version>)
+        .and_then(Result::ok)
+}
+
+pub(crate) fn package_version(
+    key: &PackageKey,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+) -> Option<String> {
+    package_semver(key, packages).map(|version| version.to_string())
 }

@@ -3,7 +3,10 @@ use pretty_assertions::assert_eq;
 use std::{
     env,
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(unix)]
@@ -103,7 +106,7 @@ fn virtual_store_walk_orders_deepest_first() {
 
 /// A scoped package contributes one path component per name segment.
 /// Pushed whole, `@scope/pkg` would leave its `/` inside a Windows path
-/// string — see [`pnpm_fs::push_slash_separated_path`].
+/// string; see [`pnpm_fs::push_slash_separated_path`].
 #[test]
 fn scoped_package_slot_bins_use_native_separators() {
     let wd = Path::new("proj")
@@ -174,14 +177,14 @@ fn original_path_is_appended_last() {
 }
 
 /// Regression: a path component containing the platform separator
-/// must not cause `extend_path` to drop the computed entries. The
+/// must not drop the computed entries from the extended `PATH`. The
 /// plain string join embeds the separator verbatim. Skipping on
 /// Windows where `;` is far less likely to appear in real paths, but
 /// the invariant holds there too.
 #[cfg(unix)]
 #[test]
 fn separator_in_path_component_does_not_drop_other_entries() {
-    // A bin path that itself contains a colon — exotic, but valid
+    // A bin path that itself contains a colon, exotic, but valid
     // on POSIX. `env::join_paths` would reject it; the naive join
     // embeds it verbatim.
     let wd = Path::new("/proj");

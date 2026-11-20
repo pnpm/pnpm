@@ -29,7 +29,8 @@ fn parse_https_url(url: &str) -> Option<(&str, &str, Option<&str>)> {
     let path_and_query = path_and_query.split_once('#').map_or(path_and_query, |(path, _)| path);
     let (path, query) = path_and_query
         .split_once('?')
-        .map_or((path_and_query, None), |(path, query)| (path, Some(query)));
+        .map(|(path, query)| (path, Some(query)))
+        .unwrap_or((path_and_query, None));
     Some((host, path, query))
 }
 

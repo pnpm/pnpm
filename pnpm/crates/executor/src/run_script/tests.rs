@@ -1,7 +1,20 @@
-use super::{RunScript, ScriptOutput, parsed_by_cmd, run_script};
+use super::{
+    RunScript,
+    ScriptOutput,
+    parsed_by_cmd,
+    run_script,
+};
 use crate::script_exit::ScriptExit;
-use pnpm_reporter::{LifecycleMessage, LogEvent};
-use std::{collections::HashMap, fs, path::Path, sync::Mutex};
+use pnpm_reporter::{
+    LifecycleMessage,
+    LogEvent,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    sync::Mutex,
+};
 use tempfile::tempdir;
 
 #[test]

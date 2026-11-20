@@ -2,8 +2,17 @@
 //! mapping on the path that is missing.
 
 use super::{
-    Inline, Manifest, flow, insert_top_level_block, locate, locate_mapping, mapping_keys, render,
-    replace_value_text_at, splice, write_rendered_entry_at,
+    Inline,
+    Manifest,
+    flow,
+    insert_top_level_block,
+    locate,
+    locate_mapping,
+    mapping_keys,
+    render,
+    replace_value_text_at,
+    splice,
+    write_rendered_entry_at,
 };
 
 /// The deepest mapping of a key path that the document has.

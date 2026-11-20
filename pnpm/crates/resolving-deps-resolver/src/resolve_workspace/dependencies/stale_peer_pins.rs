@@ -1,16 +1,40 @@
-use super::super::{importers::SortedImporters, options::WorkspaceImporter};
+use super::super::{
+    importers::SortedImporters,
+    options::WorkspaceImporter,
+};
 use crate::{
-    resolve_dependency_tree::{DependencySpec, WorkspaceTreeCtx, importer_direct_wanted_specs},
+    resolve_dependency_tree::{
+        DependencySpec,
+        WorkspaceTreeCtx,
+        importer_direct_wanted_specs,
+    },
     resolve_importer::ResolveImporterOptions,
 };
-use node_semver::{Range, Version};
-use pnpm_lockfile::{Lockfile, PkgName};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors, parse_strict_semver_range, pinned_by_lockfile,
+use node_semver::{
+    Range,
+    Version,
 };
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_resolving_resolver_base::{
+    EXISTING_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
+    VersionSelectors,
+    parse_strict_semver_range,
+    pinned_by_lockfile,
+};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::sync::Arc;
 
 /// Re-resolve the auto-installed peers [`find_stale_peer_pins`] finds

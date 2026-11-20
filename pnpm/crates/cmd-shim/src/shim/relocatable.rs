@@ -6,8 +6,14 @@
 
 #[cfg(not(windows))]
 use super::relative_path_from;
-use pnpm_fs::{is_subdir, realpath_missing};
-use std::{borrow::Cow, path::Path};
+use pnpm_fs::{
+    is_subdir,
+    realpath_missing,
+};
+use std::{
+    borrow::Cow,
+    path::Path,
+};
 
 /// Sets `$basedir_abs`, and `$basedir` with it, to the shim's physical
 /// directory so Node's lexical normalization of `..` cannot escape through a
@@ -28,7 +34,9 @@ pub(crate) fn is_within_root(
     target: &Path,
 ) -> bool {
     cfg!(any(unix, target_os = "wasi"))
-        && relocatable_root.is_some_and(|root| is_subdir(root, shim_dir) && is_subdir(root, target))
+        && relocatable_root
+            .filter(|root| is_subdir(root, shim_dir))
+            .is_some_and(|root| is_subdir(root, target))
 }
 
 /// What the target marker of a shim in `shim_dir` names: `sh_target`, the
@@ -137,7 +145,8 @@ pub(crate) fn is_relocatable_shim(shim_content: &str, shim_dir: &Path, root: &Pa
         && markers.all(resolves_in_root)
         && shim_content
             .lines()
-            .filter_map(|line| line.trim_start().strip_prefix("export NODE_PATH="))
+            .map(str::trim_start)
+            .filter_map(|trim_start| trim_start.strip_prefix("export NODE_PATH="))
             .all(entries_resolve_in_root)
 }
 
@@ -223,7 +232,8 @@ fn wasm_shim_resolves_in_root(
                 .is_some_and(|paths| {
                     paths
                         .iter()
-                        .all(|entry| entry.as_str().is_some_and(&resolves_in_root))
+                        .map(serde_json::Value::as_str)
+                        .all(|text| text.is_some_and(&resolves_in_root))
                 }),
     )
 }

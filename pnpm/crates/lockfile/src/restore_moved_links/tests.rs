@@ -1,4 +1,7 @@
-use crate::{ProjectSnapshot, importer_link_target};
+use crate::{
+    ProjectSnapshot,
+    importer_link_target,
+};
 
 fn importer(source: &str) -> ProjectSnapshot {
     serde_saphyr::from_str(source).expect("parse importer")

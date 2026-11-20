@@ -13,13 +13,18 @@ mod source_keys;
 mod tests;
 
 use serde_json::Value;
-use serde_saphyr::granit_parser::{Scanner, StrInput, TokenType};
+use serde_saphyr::granit_parser::{
+    Scanner,
+    StrInput,
+    TokenType,
+};
 use yamlpath::Document;
 
 /// Decode a manifest, coercing scalar mapping keys to JSON property names.
 pub fn parse(text: &str) -> Result<Value, Box<Error>> {
-    let value: Option<yaml_serde::Value> =
-        serde_saphyr::from_str(text).map_err(|error| Error::InvalidOperation(error.to_string()))?;
+    let value: Option<yaml_serde::Value> = serde_saphyr::from_str(text)
+        .map_err(|error| error.to_string())
+        .map_err(Error::InvalidOperation)?;
     let value = value.unwrap_or(yaml_serde::Value::Null);
     json_value(value)
 }
@@ -34,9 +39,9 @@ fn json_value(value: yaml_serde::Value) -> Result<Value, Box<Error>> {
                 .collect::<Result<_, _>>()?,
         ),
         yaml_serde::Value::Tagged(tagged) => json_value(tagged.value)?,
-        value => {
-            serde_json::to_value(value).map_err(|error| Error::InvalidOperation(error.to_string()))?
-        }
+        value => serde_json::to_value(value)
+            .map_err(|error| error.to_string())
+            .map_err(Error::InvalidOperation)?,
     })
 }
 
@@ -115,7 +120,9 @@ fn inline(value: &Value) -> Result<String, Box<Error>> {
             .is_some_and(|s| s.contains(['\n', '\r', ',', '[', ']', '{', '}']))
     {
         serde_json::to_string(value)
-            .map_err(|error| Box::new(Error::InvalidOperation(error.to_string())))
+            .map_err(|error| error.to_string())
+            .map_err(Error::InvalidOperation)
+            .map_err(Box::new)
     } else {
         Ok(serialize(value)?.trim_end().to_string())
     }
@@ -123,5 +130,5 @@ fn inline(value: &Value) -> Result<String, Box<Error>> {
 
 /// Serialize a new YAML document.
 pub fn serialize(value: &Value) -> Result<String, Box<Error>> {
-    yaml_serde::to_string(value).map_err(|error| Box::new(Error::from(error)))
+    yaml_serde::to_string(value).map_err(Error::from).map_err(Box::new)
 }

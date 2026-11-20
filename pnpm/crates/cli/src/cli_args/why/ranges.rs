@@ -4,10 +4,19 @@
 use std::collections::BTreeMap;
 
 use pnpm_deps_inspection::{
-    dependents::{DependentNode, DependentsTree},
-    render::{bold_styled, plain},
+    dependents::{
+        DependentNode,
+        DependentsTree,
+    },
+    render::{
+        bold_styled,
+        plain,
+    },
 };
-use pnpm_deps_inspection_peers::{render_installed, render_wanted};
+use pnpm_deps_inspection_peers::{
+    render_installed,
+    render_wanted,
+};
 
 /// Stands in for a range whose declaring manifest could not be read.
 const UNKNOWN_RANGE: &str = "<unknown>";

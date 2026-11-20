@@ -1,14 +1,28 @@
 //! Phase 1 of the hoisted linker: clearing the directories the new plan
 //! does not place.
 
-use super::{LinkHoistedModulesError, LinkHoistedModulesOpts, containing_modules_dir};
-use crate::{DepHierarchy, prune_direct_deps::remove_dep_bins};
-use pnpm_fs::{read_modules_dir, rename_to_free_name};
+use super::{
+    LinkHoistedModulesError,
+    LinkHoistedModulesOpts,
+    containing_modules_dir,
+};
+use crate::{
+    DepHierarchy,
+    prune_direct_deps::remove_dep_bins,
+};
+use pnpm_fs::{
+    read_modules_dir,
+    rename_to_free_name,
+};
 use rayon::prelude::*;
 use std::{
     collections::BTreeSet,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A package directory on disk that the hoisting plan does not place.
@@ -27,7 +41,7 @@ struct UnplannedDir {
 /// never cleared: `.modules.yaml` can record any path.
 ///
 /// A directory the previous install recorded is pnpm's to delete. One
-/// that only the on-disk scan found is not — pnpm has no record of
+/// that only the on-disk scan found is not, pnpm has no record of
 /// putting it there, so it is quarantined under `.ignored` instead, the
 /// way an alien package directory already is. Both are best-effort with
 /// the same `EPERM`/`EBUSY` tolerance: a directory we cannot clear right
@@ -262,7 +276,7 @@ fn find_unplanned_dirs(
 /// Single-directory rimraf with error-swallowing semantics.
 /// `NotFound` is a no-op (someone else already removed it);
 /// everything else (`PermissionDenied`, `Other`) is silently
-/// dropped — a stale directory is less bad than a panicked install.
+/// dropped, a stale directory is less bad than a panicked install.
 fn try_remove_dir(dir: &Path) -> io::Result<()> {
     match fs::remove_dir_all(dir) {
         Ok(()) => Ok(()),

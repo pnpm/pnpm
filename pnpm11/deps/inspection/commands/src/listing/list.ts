@@ -171,6 +171,7 @@ async function listGlobal (
         depth: ctx.depth,
         include: ctx.include,
         lockfileDir: installDirToRender.installDir,
+        modulesDir: undefined,
         checkWantedLockfileOnly: opts.lockfileOnly,
         onlyProjects: opts.cliOptions?.['only-projects'] ?? opts.onlyProjects,
       })

@@ -3,10 +3,19 @@
 //! directory's `pnpm-workspace.yaml` still holds.
 
 use super::{
-    ApprovalStore, Config, GlobalPackagesStore, Path, Reporter, WorkspaceSettings,
-    load_global_packages_config, load_legacy_global_settings,
+    ApprovalStore,
+    Config,
+    GlobalPackagesStore,
+    Path,
+    Reporter,
+    WorkspaceSettings,
+    load_global_packages_config,
+    load_legacy_global_settings,
 };
-use pnpm_config::{GLOBAL_CONFIG_YAML_FILENAME, GLOBAL_PACKAGES_UNSUPPORTED_KEYS};
+use pnpm_config::{
+    GLOBAL_CONFIG_YAML_FILENAME,
+    GLOBAL_PACKAGES_UNSUPPORTED_KEYS,
+};
 use pnpm_reporter::emit_global_warning;
 
 /// Where the build decisions of the global packages are recorded.
@@ -63,14 +72,12 @@ pub(super) fn warn_about_legacy_global_settings<Reporter: self::Reporter>(
         .collect();
     let global_config = config.config_dir
         .as_deref()
-        .map_or_else(
-            || GLOBAL_CONFIG_YAML_FILENAME.to_string(),
-            |dir| {
-                dir.join(GLOBAL_CONFIG_YAML_FILENAME)
-                    .display()
-                    .to_string()
-            },
-        );
+        .map(|dir| {
+            dir.join(GLOBAL_CONFIG_YAML_FILENAME)
+                .display()
+                .to_string()
+        })
+        .unwrap_or_else(|| GLOBAL_CONFIG_YAML_FILENAME.to_string());
     for warning in legacy_settings_warnings(&path.display().to_string(), &global_config, &keys) {
         emit_global_warning::<Reporter>(&warning);
     }

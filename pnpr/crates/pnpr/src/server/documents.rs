@@ -1,8 +1,8 @@
 //! The hosted document each surface keeps per package, and the publish that
 //! records a blob in one.
 //!
-//! A hosted registry keeps one document per package — an npm packument, a
-//! crate's index entries, a Python project's file list — in its metadata,
+//! A hosted registry keeps one document per package (an npm packument, a
+//! crate's index entries, a Python project's file list) in its metadata,
 //! beside the blobs it serves. Publishing a blob and recording it in the
 //! document has to be one operation: a blob no document mentions is
 //! invisible, and a document entry with no blob behind it is a broken
@@ -10,19 +10,46 @@
 //! the npm publish flow uses.
 
 use super::{
-    Action, AppState, Ownership, RegistrySource, authorize_with_ownership, hosted_read_namespace,
-    publishing::{StagedBase, StagedPublish, Verification, cleanup_tmp_slots, commit_publishes},
+    Action,
+    AppState,
+    Ownership,
+    RegistrySource,
+    authorize_with_ownership,
+    hosted_read_namespace,
+    publishing::{
+        StagedBase,
+        StagedPublish,
+        Verification,
+        cleanup_tmp_slots,
+        commit_publishes,
+    },
 };
-use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument};
+use pnpr_cargo::{
+    CRATE_DOCUMENT_FORMAT_VERSION,
+    CrateDocument,
+};
 use pnpr_error::RegistryError;
-use pnpr_oci::{IMAGE_DOCUMENT_FORMAT_VERSION, ImageDocument};
+use pnpr_oci::{
+    IMAGE_DOCUMENT_FORMAT_VERSION,
+    ImageDocument,
+};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
+use pnpr_pypi::{
+    PROJECT_DOCUMENT_FORMAT_VERSION,
+    ProjectDocument,
+};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    BlobId, BlobSlot, HostedDocumentVersion, Storage,
-    database::{ArtifactBlob, BlobLookup, HostedLookup},
+    BlobId,
+    BlobSlot,
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        ArtifactBlob,
+        BlobLookup,
+        HostedLookup,
+    },
 };
 
 /// The per-project document a hosted registry keeps in its document slot: a
@@ -245,8 +272,8 @@ where
 }
 
 /// Publish one blob: store `bytes` as `filename` under `key` in the hosted
-/// `namespace` and record `addition` — the document holding just that
-/// blob's entry — in the project's document, as one commit.
+/// `namespace` and record `addition` (the document holding just that
+/// blob's entry) in the project's document, as one commit.
 ///
 /// Writers of the same key on this instance are serialized by the package
 /// lock; `refuse` rejects a document the publish must not land on (an entry

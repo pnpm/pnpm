@@ -1,16 +1,22 @@
-//! `pacquet bugs` / `pacquet issues` — open the bug tracker URL of a package
+//! `pacquet bugs` / `pacquet issues`: open the bug tracker URL of a package
 //! in the browser.
 //!
 //! The URL-opening happy paths are covered by the unit tests in
-//! `src/cli_args/bugs/tests.rs` through the `OpenUrl` seam — running them
+//! `src/cli_args/bugs/tests.rs` through the `OpenUrl` seam, running them
 //! against the real binary would launch the developer's browser.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    command_env::CommandTestExt,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 

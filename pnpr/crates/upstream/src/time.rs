@@ -44,7 +44,7 @@ pub fn coarsen_time_map(
             }
             Some(format_coarsened_timestamp(parsed, rounded, horizon))
         });
-        out.insert(key.clone(), coarsened.map_or_else(|| value.clone(), Value::String));
+        out.insert(key.clone(), coarsened.map(Value::String).unwrap_or_else(|| value.clone()));
     }
     out
 }
@@ -82,7 +82,7 @@ fn exact_version_timestamps(
 /// otherwise the next whole minute (unless already on a minute boundary).
 /// Rounding up keeps the coarsened value at or after the real publish
 /// time, so `minimumReleaseAge` and trust checks can only ever read a
-/// version as *newer* than it is — the fail-safe direction (a too-new
+/// version as *newer* than it is, the fail-safe direction (a too-new
 /// version is never coarsened into looking mature).
 fn coarsen_timestamp_dt(parsed: Timestamp, horizon: Timestamp) -> Option<Timestamp> {
     let (unit, increment) =

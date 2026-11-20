@@ -1,8 +1,8 @@
-//! `readConfig` — expose the engine's resolved configuration to the embedder.
+//! `readConfig`: expose the engine's resolved configuration to the embedder.
 //!
 //! Hosts like Bit historically parsed `.npmrc` themselves (via
 //! `@pnpm/config.reader`) to learn registries, credentials, proxy, and TLS
-//! settings — only to hand most of it straight back to the engine. This
+//! settings, only to hand most of it straight back to the engine. This
 //! binding inverts that: the engine resolves the exact configuration its own
 //! installs use (see [`crate::config::resolve_config`]) and returns the
 //! subset an embedder consumes, so the host needs no JavaScript config
@@ -11,16 +11,24 @@
 use std::collections::HashMap;
 
 use napi_derive::napi;
-use pnpm_network::{AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, NoProxySetting, nerf_dart};
+use pnpm_network::{
+    AuthHeadersByScope,
+    DEFAULT_REGISTRY_SCOPE,
+    NoProxySetting,
+    nerf_dart,
+};
 
 use crate::{
-    config::{ConfigOverlay, resolve_config},
+    config::{
+        ConfigOverlay,
+        resolve_config,
+    },
     error::to_napi_error,
 };
 
 #[napi(object)]
 pub struct ReadConfigOptions {
-    /// Directory whose config cascade to resolve — its `.npmrc`, the
+    /// Directory whose config cascade to resolve; its `.npmrc`, the
     /// enclosing workspace's `pnpm-workspace.yaml` and `.npmrc`, the user
     /// and global config files, and `npm_config_*` environment variables.
     pub dir: String,
@@ -49,7 +57,7 @@ pub struct ResolvedRegistry {
 pub struct ResolvedConfig {
     pub registries: Vec<ResolvedRegistry>,
     /// Static `Authorization` headers keyed by nerf-darted registry URI
-    /// (`//host[:port]/path/`) — the shape [`fn@crate::install`]'s
+    /// (`//host[:port]/path/`), the shape [`fn@crate::install`]'s
     /// `authHeaderByUri` accepts.
     pub auth_header_by_uri: HashMap<String, String>,
     pub http_proxy: Option<String>,
@@ -82,7 +90,7 @@ pub struct ResolvedConfig {
     pub fetch_warn_timeout_ms: u32,
     pub fetch_min_speed_ki_bps: u32,
     /// The explicitly configured user agent, when the cascade set one.
-    /// The engine's own computed default is omitted — an embedder that
+    /// The engine's own computed default is omitted, an embedder that
     /// passes nothing back to `install` gets that same default.
     pub user_agent: Option<String>,
     pub engine_strict: bool,
@@ -95,7 +103,7 @@ pub struct ResolvedConfig {
     /// reflects it, exposed for embedders that branch on the flag itself.
     pub shamefully_hoist: bool,
     /// The engine's pnpm home directory (`PNPM_HOME` or the platform
-    /// default) — not a per-project setting. `None` when no home
+    /// default), not a per-project setting. `None` when no home
     /// directory is resolvable.
     pub pnpm_home_dir: Option<String>,
     /// The camelCase names of settings the cascade set explicitly
@@ -163,15 +171,15 @@ fn resolved_config_values(
         global_virtual_store_dir: display_path(&config.global_virtual_store_dir),
         virtual_store_dir: display_path(&config.install_state_dir),
         effective_virtual_store_dir: display_path(config.virtual_store_dir()),
-        network_concurrency: u32::try_from(config.network_concurrency).unwrap_or(u32::MAX),
-        max_sockets: config.max_sockets.map(|value| u32::try_from(value).unwrap_or(u32::MAX)),
+        network_concurrency: bounded_u32(config.network_concurrency),
+        max_sockets: config.max_sockets.map(bounded_u32),
         fetch_retries: config.fetch_retries,
         fetch_retry_factor: config.fetch_retry_factor,
-        fetch_retry_mintimeout: u32::try_from(config.fetch_retry_mintimeout).unwrap_or(u32::MAX),
-        fetch_retry_maxtimeout: u32::try_from(config.fetch_retry_maxtimeout).unwrap_or(u32::MAX),
-        fetch_timeout: u32::try_from(config.fetch_timeout).unwrap_or(u32::MAX),
-        fetch_warn_timeout_ms: u32::try_from(config.fetch_warn_timeout_ms).unwrap_or(u32::MAX),
-        fetch_min_speed_ki_bps: u32::try_from(config.fetch_min_speed_ki_bps).unwrap_or(u32::MAX),
+        fetch_retry_mintimeout: bounded_u32(config.fetch_retry_mintimeout),
+        fetch_retry_maxtimeout: bounded_u32(config.fetch_retry_maxtimeout),
+        fetch_timeout: bounded_u32(config.fetch_timeout),
+        fetch_warn_timeout_ms: bounded_u32(config.fetch_warn_timeout_ms),
+        fetch_min_speed_ki_bps: bounded_u32(config.fetch_min_speed_ki_bps),
         user_agent: explicit_user_agent(config),
         engine_strict: config.engine_strict,
         node_version: config.node_version.clone(),
@@ -188,8 +196,8 @@ fn resolved_config_values(
     }
 }
 
-fn bounded_u32(value: u64) -> u32 {
-    u32::try_from(value).unwrap_or(u32::MAX)
+fn bounded_u32(value: impl TryInto<u32>) -> u32 {
+    value.try_into().unwrap_or(u32::MAX)
 }
 fn display_path(path: impl AsRef<std::path::Path>) -> String {
     path.as_ref().display().to_string()

@@ -7,15 +7,28 @@
 
 use std::{
     io,
-    os::windows::io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle},
-    ptr::{null, null_mut},
+    os::windows::io::{
+        AsRawHandle as _,
+        FromRawHandle as _,
+        OwnedHandle,
+    },
+    ptr::{
+        null,
+        null_mut,
+    },
 };
 use windows_sys::Win32::{
     Security::{
-        AdjustTokenPrivileges, ImpersonateSelf, RevertToSelf, SecurityImpersonation,
+        AdjustTokenPrivileges,
+        ImpersonateSelf,
+        RevertToSelf,
+        SecurityImpersonation,
         TOKEN_ADJUST_PRIVILEGES,
     },
-    System::Threading::{GetCurrentThread, OpenThreadToken},
+    System::Threading::{
+        GetCurrentThread,
+        OpenThreadToken,
+    },
 };
 
 /// Run `operation` on this thread with every privilege disabled.

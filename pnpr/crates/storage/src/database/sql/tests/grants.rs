@@ -1,6 +1,14 @@
-use super::{Db, storage};
+use super::{
+    Db,
+    storage,
+};
 use crate::database::{
-    GrantContent, GrantWrite, NewRegistryGraph, RegistryGraphWrite, StoredGrant, TeamRemoval,
+    GrantContent,
+    GrantWrite,
+    NewRegistryGraph,
+    RegistryGraphWrite,
+    StoredGrant,
+    TeamRemoval,
 };
 
 fn content(name: &str, registries: &[&str], subjects: &[(&str, &str)]) -> GrantContent {

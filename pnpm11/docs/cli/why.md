@@ -28,6 +28,10 @@ Show verbose output.
 
 Show parseable output instead of tree view.
 
+### --global, -g
+
+Inspect packages in the global install directory instead of in the current project.
+
 ### --prod, -P
 
 Only display the dependency tree for packages in `dependencies` and `optionalDependencies`.

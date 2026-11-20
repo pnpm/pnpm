@@ -3,8 +3,15 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
@@ -63,7 +70,8 @@ fn reported_prefix(workspace: &Path) -> String {
 fn scope_records(printed: &str) -> Vec<serde_json::Value> {
     printed
         .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .map(serde_json::from_str::<serde_json::Value>)
+        .filter_map(Result::ok)
         .filter(|record| record["name"] == "pnpm:scope")
         .collect()
 }
@@ -88,7 +96,7 @@ fn install_reports_the_whole_workspace_as_its_scope() {
     assert!(printed.contains("Scope: all 3 workspace projects"), "output:\n{printed}");
 
     // The repeat-install short-circuit is the common case, and it covers
-    // the same projects — it reports the scope rather than going quiet
+    // the same projects; it reports the scope rather than going quiet
     // about what it just decided was current.
     let printed = output_of(pacquet(&workspace).with_arg("install"));
     assert!(printed.contains("Already up to date"), "the short-circuit ran:\n{printed}");
@@ -113,7 +121,7 @@ fn a_filtered_install_reports_how_much_of_the_workspace_it_selected() {
 }
 
 /// A single selected project is the directory the user is standing in,
-/// and `add` is not one of the commands pnpm reports scope for — neither
+/// and `add` is not one of the commands pnpm reports scope for; neither
 /// says anything.
 #[test]
 fn a_single_project_selection_and_a_non_reporting_command_stay_silent() {
@@ -172,7 +180,7 @@ fn a_recursive_run_reports_the_scope_it_selected() {
 
 /// With `sharedWorkspaceLockfile: false` a filtered install runs each
 /// selected project separately. The scope is resolved once, so it must be
-/// reported once — a child install reporting the whole workspace would
+/// reported once, a child install reporting the whole workspace would
 /// both duplicate the record and overwrite the filtered count.
 #[test]
 fn a_dedicated_lockfile_install_reports_its_scope_once() {
@@ -203,7 +211,7 @@ fn a_dedicated_lockfile_install_reports_its_scope_once() {
 
 /// pnpm reports the workspace only for a run that covers it. A partial
 /// install targets the project it was run in, and says so with the
-/// single-project payload — `selected: 1` and no `total` — which is also
+/// single-project payload, `selected: 1` and no `total`, which is also
 /// what stops the reporter rendering a `Scope:` line for it.
 #[test]
 fn a_partial_install_reports_the_single_project_shape() {

@@ -1,8 +1,14 @@
 //! Creating an SSL trust policy, and reading a refusal as a refusal.
 
-use core_foundation::{base::TCFType as _, string::CFString};
+use core_foundation::{
+    base::TCFType as _,
+    string::CFString,
+};
 use security_framework::policy::SecPolicy;
-use security_framework_sys::{base::SecPolicyRef, policy::SecPolicyCreateSSL};
+use security_framework_sys::{
+    base::SecPolicyRef,
+    policy::SecPolicyCreateSSL,
+};
 
 /// A server-side SSL policy for `hostname`, or `None` when
 /// `Security.framework` declines to create one.

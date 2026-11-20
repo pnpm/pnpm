@@ -1,48 +1,103 @@
 mod archive_contract;
 
 use super::{
-    ArchiveIntegrity, ArchiveStoreProjection, FetchTarballForResolution, IgnoreEntryFilter,
-    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, Reporter, RetryOpts, SharedReportedProgressKeys,
+    ArchiveIntegrity,
+    ArchiveStoreProjection,
+    FetchTarballForResolution,
+    IgnoreEntryFilter,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    MemCache,
+    Reporter,
+    RetryOpts,
+    SharedReportedProgressKeys,
     TarLimits,
     archive_integrity::ArchiveVerification,
     archive_retry::is_transient_error,
     auth_header_for_package_download,
     download::{
-        IngestTarballToStore, download_priority, fetch_and_extract_archive_with_retry,
-        slow_download_warning, store_index_cache_key,
+        IngestTarballToStore,
+        download_priority,
+        fetch_and_extract_archive_with_retry,
+        slow_download_warning,
+        store_index_cache_key,
     },
-    error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
+    error::{
+        HttpStatusError,
+        NetworkError,
+        TarballError,
+        VerifyChecksumError,
+    },
     extract::{
-        STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
-        apply_append_manifest, apply_placeholder_manifest, decompress_gzip,
-        extract_gzipped_tarball_with_tar, extract_tarball_entries_with_bins,
-        gzip::{bounded_gzip_size_hint, gzip_isize_hint, should_stream_extract},
-        is_eager_decode_limit_exceeded, stream_extract_gzipped_tarball_with_tar,
+        STREAM_ENTRY_BUFFER_MAX,
+        STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+        allocate_tarball_buffer,
+        apply_append_manifest,
+        apply_placeholder_manifest,
+        decompress_gzip,
+        extract_gzipped_tarball_with_tar,
+        extract_tarball_entries_with_bins,
+        gzip::{
+            bounded_gzip_size_hint,
+            gzip_isize_hint,
+            should_stream_extract,
+        },
+        is_eager_decode_limit_exceeded,
+        stream_extract_gzipped_tarball_with_tar,
     },
     local_tarball::{
-        allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
-        read_local_tarball_buffer, read_local_tarball_metadata,
+        allocate_local_tarball_buffer,
+        local_file_tarball_path,
+        open_local_tarball,
+        read_local_tarball_buffer,
+        read_local_tarball_metadata,
     },
-    prefetch::{PrefetchIntegrityCheck, PrefetchedCasPaths, prefetch_cas_paths},
-    zip_archive::{extract_zip_entries, write_zip_entry_to_cas},
+    prefetch::{
+        PrefetchIntegrityCheck,
+        PrefetchedCasPaths,
+        prefetch_cas_paths,
+    },
+    zip_archive::{
+        extract_zip_entries,
+        write_zip_entry_to_cas,
+    },
 };
 use pipe_trait::Pipe;
-use pnpm_network::{AuthHeaders, MAX_THROUGHPUT_PRIORITY, ThrottledClient, UNPRIORITIZED};
+use pnpm_network::{
+    AuthHeaders,
+    MAX_THROUGHPUT_PRIORITY,
+    ThrottledClient,
+    UNPRIORITIZED,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
-    StoreIndexWriter, store_index_key,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+    store_index_key,
 };
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::{
     collections::HashMap,
-    io::{Cursor, ErrorKind, Read},
-    path::{Path, PathBuf},
+    io::{
+        Cursor,
+        ErrorKind,
+        Read,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// The store file each name maps to, without the modes the install read.
 fn store_paths(files: &pnpm_fs::CasPaths) -> HashMap<&str, &Path> {
@@ -140,7 +195,7 @@ fn fast_fail_client_with_connect_timeout(connect_timeout: Duration) -> Throttled
 
 /// Default `RetryOpts` for unit tests. We don't want the suite to
 /// sit through pnpm's 10 s + 60 s production backoff just to assert
-/// that an unreachable URL eventually fails — every test that
+/// that an unreachable URL eventually fails; every test that
 /// exercises a network call here either short-circuits to a cache
 /// hit or expects the failure path. `retries: 0` keeps the failure
 /// path deterministic and bounded by [`fast_fail_client`]'s 1 s
@@ -196,7 +251,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
 
 /// Build a gzipped tar that inflates to more than
 /// [`MAX_UNTRUSTED_PREALLOC_BYTES`] from a compressed body small enough
-/// that [`should_stream_extract`] sees nothing suspicious about it — the
+/// that [`should_stream_extract`] sees nothing suspicious about it, the
 /// gzip bomb the eager decode ceiling exists for.
 ///
 /// `generated` entries are `(path, size)` pairs of filler produced
@@ -280,8 +335,8 @@ fn gzip_bytes(bytes: &[u8]) -> Vec<u8> {
 
 /// Real pnpm-published tarball (`@fastify/error@3.3.0`, 4.4 KiB).
 /// Embedded so the retry-success test below has a body that
-/// integrity-checks and extracts successfully on the retry attempt
-/// — which is the only way to exercise the post-network steps of
+/// integrity-checks and extracts successfully on the retry attempt,
+/// which is the only way to exercise the post-network steps of
 /// the retry loop without going to the live registry.
 const FASTIFY_ERROR_TARBALL: &[u8] =
     include_bytes!("../../../tasks/micro-benchmark/fixtures/@fastify+error-3.3.0.tgz");
@@ -346,8 +401,8 @@ fn gzipped_archive(entries: &[(&str, &str)]) -> Vec<u8> {
 /// entries. Entries are stored uncompressed (`Stored`) so the test
 /// doesn't depend on the deflate backend the production reader
 /// uses; the zip reader handles both transparently. The high byte
-/// of `unix_mode` is the entry type per stat(2) — `0o100000` for a
-/// regular file — and the low bytes are the permission bits.
+/// of `unix_mode` is the entry type per stat(2) (`0o100000` for a
+/// regular file) and the low bytes are the permission bits.
 fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
     use std::io::Write;
     let mut buf = Vec::new();

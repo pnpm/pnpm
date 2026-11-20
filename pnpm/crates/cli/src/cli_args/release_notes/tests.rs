@@ -1,4 +1,7 @@
-use super::{NotesReader, render_upgrade_notes};
+use super::{
+    NotesReader,
+    render_upgrade_notes,
+};
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;

@@ -1,25 +1,53 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use axum::{
     body::Bytes,
     http::HeaderMap,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::Ecosystem;
 use pnpr_policy::Identity;
-use pnpr_upstream::{FetchOutcome, Upstream};
-use serde_json::{Map, Value};
+use pnpr_upstream::{
+    FetchOutcome,
+    Upstream,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use super::{
-    AppState, PackageDestination, addressed_registry, authorized_upstream, bad_request_json,
+    AppState,
+    PackageDestination,
+    addressed_registry,
+    authorized_upstream,
+    bad_request_json,
     encoding::decode_request_body,
     json_response,
-    legacy_merge::{merge_upstream_legacy_responses, sanitize_upstream_legacy_response},
-    legacy_nodes::{LegacyClassification, classify_legacy_packages, collect_installed_nodes},
-    legacy_report::{InstalledNode, LegacyAuditReport, build_osv_legacy_report},
+    legacy_merge::{
+        merge_upstream_legacy_responses,
+        sanitize_upstream_legacy_response,
+    },
+    legacy_nodes::{
+        LegacyClassification,
+        classify_legacy_packages,
+        collect_installed_nodes,
+    },
+    legacy_report::{
+        InstalledNode,
+        LegacyAuditReport,
+        build_osv_legacy_report,
+    },
     legacy_sanitize::build_upstream_legacy_payload,
-    not_found, upstream_sources,
+    not_found,
+    upstream_sources,
 };
 
 struct PreparedLegacyUpstream {
@@ -185,7 +213,8 @@ fn payload_has_any_dependency_entries(payload: &Map<String, Value>) -> bool {
     let has_packages = payload
         .get("packages")
         .and_then(Value::as_object)
-        .is_some_and(|map| map.keys().any(|key| !key.is_empty()));
+        .map(Map::keys)
+        .is_some_and(|mut keys| keys.any(|key| !key.is_empty()));
     let has_arrays = ["install", "remove"]
         .iter()
         .any(|key| {

@@ -2,11 +2,22 @@
 //! installs, and the source distribution it builds where none of them
 //! installs here.
 
-use crate::candidates::{WheelFilename, source_version, wheel_identity};
-use miette::{IntoDiagnostic, Result, bail};
+use crate::candidates::{
+    WheelFilename,
+    source_version,
+    wheel_identity,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep440_rs::Version;
 use pep508_rs::PackageName;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

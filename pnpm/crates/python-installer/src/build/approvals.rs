@@ -52,7 +52,8 @@ impl Approvals {
             let Some(spec) = spec.strip_prefix(PYPI_PURL) else { continue };
             let (name, version) = spec
                 .rsplit_once('@')
-                .map_or((spec, None), |(name, version)| (name, Some(version)));
+                .map(|(name, version)| (name, Some(version)))
+                .unwrap_or((spec, None));
             // The key is read as a distribution name, so it names the
             // same one however it is spelled.
             if let Ok(name) = name.parse::<pep508_rs::PackageName>() {

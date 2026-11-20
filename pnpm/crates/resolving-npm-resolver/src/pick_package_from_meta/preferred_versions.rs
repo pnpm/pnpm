@@ -1,5 +1,9 @@
 use super::{
-    BTreeMap, Package, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
+    BTreeMap,
+    Package,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectors,
     semver_satisfies_loose,
 };
 use pnpm_resolving_resolver_base::RESOLVED_VERSION_SELECTOR_WEIGHT;
@@ -95,7 +99,7 @@ pub(super) fn prioritize_preferred_versions(
 
     // Seed every range-satisfying version at weight 0. JS treats 0
     // as falsy, so a later positive-weight `add` overwrites this
-    // sentinel rather than summing with it — preserved below in
+    // sentinel rather than summing with it, preserved below in
     // [`PreferredVersionsPrioritizer::add`].
     for version in meta.versions.keys() {
         if semver_satisfies_loose(version, version_range) {

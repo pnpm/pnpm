@@ -1,6 +1,10 @@
 use super::{
-    INDENT, resolves_implicitly,
-    style::{CollectionStyle, ScalarLines},
+    INDENT,
+    resolves_implicitly,
+    style::{
+        CollectionStyle,
+        ScalarLines,
+    },
 };
 
 /// Scalar styles, mirroring the fork's `STYLE_*` constants. `Folded` never

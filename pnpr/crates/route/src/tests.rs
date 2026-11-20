@@ -1,16 +1,40 @@
 use std::{
     net::SocketAddr,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
-use pnpm_network::{MetadataCacheScope, UpstreamRouteHook};
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
+use pnpm_network::{
+    MetadataCacheScope,
+    UpstreamRouteHook,
+};
+use reqwest::header::{
+    AUTHORIZATION,
+    HeaderMap,
+    HeaderValue,
+};
 
-use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
-use pnpr_config::{Config, PublicRoute, UpstreamConfig};
+use super::{
+    Footprint,
+    PrivateAccessDescriptor,
+    RouteClass,
+    RouteContext,
+    RouteHook,
+};
+use pnpr_config::{
+    Config,
+    PublicRoute,
+    UpstreamConfig,
+};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_policy::{AccessList, Identity, RuleOverride};
+use pnpr_policy::{
+    AccessList,
+    Identity,
+    RuleOverride,
+};
 
 fn base_config() -> Config {
     Config::proxy("127.0.0.1:7677".parse::<SocketAddr>().unwrap(), PathBuf::from("/tmp/pnpr-route"))
@@ -346,7 +370,7 @@ fn validation_refuses_a_public_route_with_an_invalid_field() {
 }
 
 /// The standard bearer token every test upstream uses, and the credential digest
-/// it produces — what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
+/// it produces, what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
 /// for such an upstream carries.
 const UPSTREAM_TOKEN: &str = "Bearer upstream-secret";
 
@@ -376,7 +400,11 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 
 #[test]
 fn a_fetch_keeps_its_package_when_readers_differ_between_packages() {
-    use pnpr_policy::{Action, Grant, GrantSpec};
+    use pnpr_policy::{
+        Action,
+        Grant,
+        GrantSpec,
+    };
     use pnpr_registry::Ecosystem;
 
     let grant = |name: &str, include: &[&str], subject: &str| {
@@ -440,8 +468,14 @@ fn a_fetch_keeps_its_package_when_readers_differ_between_packages() {
 
 #[test]
 fn upstream_per_package_rules_gate_alias_selection() {
-    use pnpr_policy::{PackageRule, PackageRules};
-    use pnpr_registry::{Ecosystem, PackagePattern};
+    use pnpr_policy::{
+        PackageRule,
+        PackageRules,
+    };
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+    };
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
@@ -467,7 +501,7 @@ fn upstream_per_package_rules_gate_alias_selection() {
         RouteClass::Proxied { .. },
     ));
     // Bob holds registry-level access but the per-package rule denies him:
-    // no credential is handed out, matching the serving endpoint's denial —
+    // no credential is handed out, matching the serving endpoint's denial,
     // his anonymous fetch fails closed instead of warming a private cache.
     assert_eq!(context.classify(&user("bob"), url, Some("@corp/secret")), RouteClass::Public);
     // Other names on the registry stay proxied for bob.
@@ -480,7 +514,12 @@ fn upstream_per_package_rules_gate_alias_selection() {
 
 #[test]
 fn upstream_credential_is_bounded_by_its_packages_claim() {
-    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+        Registries,
+        Registry,
+    };
 
     let mut config = base_config();
     config.routing.upstreams.insert(
@@ -522,7 +561,12 @@ fn upstream_credential_is_bounded_by_its_packages_claim() {
 
 #[test]
 fn a_resolution_through_an_alias_an_earlier_one_skips_replays() {
-    use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+        Registries,
+        Registry,
+    };
 
     let mut config = base_config();
     for name in ["scoped", "fallback"] {
@@ -683,7 +727,11 @@ fn upstream_without_access_is_an_anonymous_route() {
 
 #[test]
 fn proxied_alias_accepts_team_member_identity() {
-    use pnpr_policy::{AccessList, AccessToken, Identity};
+    use pnpr_policy::{
+        AccessList,
+        AccessToken,
+        Identity,
+    };
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
@@ -781,7 +829,7 @@ fn overlapping_upstream_access_reuses_only_the_selected_alias() {
     assert!(via_primary.allows(&context, &user("alice")));
 
     // A lockfile routed through `secondary` must NOT be replayed for alice,
-    // even though she is authorized for it — she resolves through `primary`.
+    // even though she is authorized for it; she resolves through `primary`.
     let mut via_secondary = Footprint::default();
     via_secondary.add(PrivateAccessDescriptor::Alias {
         alias: "secondary".to_string(),

@@ -1,16 +1,30 @@
 //! Warming the store from a package tarball on disk, such as one a
 //! sandboxed build downloaded before it lost network access.
 
-use super::{AddOne, ArchiveToAdd, Reporter, lockfile_entries::LockfileEntries};
-use miette::{IntoDiagnostic, WrapErr};
-use pnpm_local_spec::{is_filespec, is_tarball_filename};
+use super::{
+    AddOne,
+    ArchiveToAdd,
+    Reporter,
+    lockfile_entries::LockfileEntries,
+};
+use miette::{
+    IntoDiagnostic,
+    WrapErr,
+};
+use pnpm_local_spec::{
+    is_filespec,
+    is_tarball_filename,
+};
 use pnpm_resolving_local_resolver::local_spec_path;
 use pnpm_store_dir::store_index_key;
 use pnpm_tarball::local_file_tarball_path;
 use rustc_hash::FxHashSet;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The `resolved_via` of a `file:` tarball the local resolver resolved.

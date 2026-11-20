@@ -1,4 +1,8 @@
-use super::{HashSet, OnceLock, npm_config_type_keys};
+use super::{
+    HashSet,
+    OnceLock,
+    npm_config_type_keys,
+};
 
 /// Keys from `pnpmTypes` that are valid in a global config file
 /// (`pnpmConfigFileKeys` in `configFileKey.ts`).
@@ -100,7 +104,7 @@ pub(super) const STRUCTURED_CONFIG_FILE_KEYS: &[&str] = &[
 ];
 
 /// Keys present in `pnpmTypes` but excluded from the global config file
-/// (`excludedPnpmKeys` in `configFileKey.ts`) — CLI flags and workspace-only
+/// (`excludedPnpmKeys` in `configFileKey.ts`), CLI flags and workspace-only
 /// settings.
 pub(super) const EXCLUDED_PNPM_KEYS: &[&str] = &[
     "auto-install-peers",

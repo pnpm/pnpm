@@ -12,8 +12,13 @@
 
 use crate::{
     local_resolver::{
-        LocalCurrentPkg, LocalResolverContext, LocalResolverOptions, LocalResolverUpdate,
-        ResolveLocalError, resolve_from_local_path, resolve_from_local_scheme,
+        LocalCurrentPkg,
+        LocalResolverContext,
+        LocalResolverOptions,
+        LocalResolverUpdate,
+        ResolveLocalError,
+        resolve_from_local_path,
+        resolve_from_local_scheme,
         resolve_latest_from_local,
     },
     parse_bare_specifier::WantedLocalDependency,
@@ -22,8 +27,15 @@ use std::sync::Arc;
 
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
-    Resolver, UpdateBehavior, WantedDependency,
+    LatestQuery,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
 
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /
@@ -73,8 +85,8 @@ impl Resolver for LocalSchemeResolver {
 }
 
 /// `Resolver` for the path-shape branch (`./foo`, `foo.tgz`,
-/// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain —
-/// after named-registry — so a `<alias>:@scope/pkg` specifier reaches
+/// `/abs/path`, `~/dir`, `C:\drive`). Runs **last** in the chain
+/// (after named-registry) so a `<alias>:@scope/pkg` specifier reaches
 /// the named-registry resolver instead of being misrouted here on
 /// the strength of an embedded `/` (`contains_path_sep` in
 /// `parse_bare_specifier.rs`).

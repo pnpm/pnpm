@@ -1,6 +1,15 @@
 use super::{
-    Component, PatchCommitError, Path, PathBuf, PkgFilesForDiff, State, create_short_hash, fs, io,
-    is_subdir, lexical_normalize,
+    Component,
+    PatchCommitError,
+    Path,
+    PathBuf,
+    PkgFilesForDiff,
+    State,
+    create_short_hash,
+    fs,
+    io,
+    is_subdir,
+    lexical_normalize,
 };
 
 pub(super) struct PatchFileWriteContext {

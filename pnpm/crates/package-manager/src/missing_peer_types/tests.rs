@@ -1,6 +1,9 @@
 use super::add_missing_peer_types;
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::sync::Arc;
 
 fn transform(manifest: Value) -> Value {

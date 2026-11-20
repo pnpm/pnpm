@@ -9,19 +9,46 @@
 //! The documents themselves live in [`super::documents`].
 
 use super::{
-    Action, AppState, RegistrySource, authorize, authorized_upstream, cached_upstream_tarball,
-    default_registry_target, hosted_read_namespace, not_found, private_no_cache,
-    resolves_to_private_source, tarball_response, tarball_stream_error, upstream_cache_namespace,
+    Action,
+    AppState,
+    RegistrySource,
+    authorize,
+    authorized_upstream,
+    cached_upstream_tarball,
+    default_registry_target,
+    hosted_read_namespace,
+    not_found,
+    private_no_cache,
+    resolves_to_private_source,
+    tarball_response,
+    tarball_stream_error,
+    upstream_cache_namespace,
 };
-use axum::response::{IntoResponse, Response};
+use axum::response::{
+    IntoResponse,
+    Response,
+};
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::{Ecosystem, Registry};
+use pnpr_registry::{
+    Ecosystem,
+    Registry,
+};
 use pnpr_storage::streaming;
-use pnpr_upstream::{FetchOutcome, FetchedDocument, Upstream};
-use sha2::{Digest, Sha256};
-use ssri::{Algorithm, Integrity};
+use pnpr_upstream::{
+    FetchOutcome,
+    FetchedDocument,
+    Upstream,
+};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 use std::sync::Arc;
 
 /// The registry a request addressed: the `~<name>` it named, else the
@@ -44,7 +71,7 @@ pub(super) fn addressed_registry(
 /// The two addresses a surface answers on: the default target, and one named
 /// registry.
 ///
-/// Route templates rather than URLs — `{registry}` is a path parameter the
+/// Route templates rather than URLs, `{registry}` is a path parameter the
 /// [`TargetRegistry`](super::TargetRegistry) extractor reads back.
 pub(super) fn mount_bases(ecosystem: Ecosystem) -> [String; 2] {
     let prefix = ecosystem.base_path();
@@ -204,7 +231,7 @@ pub(super) struct UpstreamDocument<'request> {
 }
 
 /// A fresh cached copy of an upstream document, else the document fetched
-/// and cached — `encode` turns the fetched response into the cached bytes,
+/// and cached, `encode` turns the fetched response into the cached bytes,
 /// so a surface can keep the response URL beside the body. A definitive
 /// upstream 404 purges the cache entry. On an upstream failure a stale
 /// cached copy is served instead, so a transient outage does not break

@@ -1,4 +1,8 @@
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+};
 use std::collections::BTreeMap;
 
 /// Availability and optional digests of a PEP 658 metadata sidecar.

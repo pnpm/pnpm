@@ -1,5 +1,12 @@
-use super::{DirCloneCache, retires_dir_clone};
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use super::{
+    DirCloneCache,
+    retires_dir_clone,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
 use pnpm_fs::LinkFailure;
 
 #[test]
@@ -55,11 +62,27 @@ fn not_eligible_when_deploy_uses_the_virtual_store_as_the_global_store() {
 
 #[cfg(target_os = "macos")]
 mod macos {
-    use super::{Config, DirCloneCache, NodeLinker, PackageImportMethod};
+    use super::{
+        Config,
+        DirCloneCache,
+        NodeLinker,
+        PackageImportMethod,
+    };
     use crate::dir_clone_cache::EngineNameSource;
-    use pnpm_lockfile::{PackageKey, SnapshotEntry};
-    use pnpm_reporter::{LogEvent, Reporter};
-    use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::AtomicU8};
+    use pnpm_lockfile::{
+        PackageKey,
+        SnapshotEntry,
+    };
+    use pnpm_reporter::{
+        LogEvent,
+        Reporter,
+    };
+    use std::{
+        collections::HashMap,
+        fs,
+        path::PathBuf,
+        sync::atomic::AtomicU8,
+    };
     use tempfile::tempdir;
 
     struct NullReporter;
@@ -74,7 +97,7 @@ mod macos {
     /// Build a cache whose canonical root is `cache_root`, with
     /// `snapshots` so the layout precomputes their hashed slots. The
     /// virtual-store dir is pinned next to the cache root so the
-    /// capability probe in `build` clones within one volume — the
+    /// capability probe in `build` clones within one volume, the
     /// default would point at the crate's working directory, which may
     /// live on another volume than the temp root.
     fn cache_for_snapshots<'a>(

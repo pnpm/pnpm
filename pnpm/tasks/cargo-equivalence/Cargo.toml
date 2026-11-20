@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 cargo-lock = { workspace = true }
 clap = { workspace = true }
+command-extra = { workspace = true }
 which = { workspace = true }
 
 [lints]

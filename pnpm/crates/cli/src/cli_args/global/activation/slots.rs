@@ -1,6 +1,18 @@
 use super::{
-    ArtifactCleanupError, BTreeMap, Context, FsRename, GlobalActivationError, HashSet,
-    IntoDiagnostic, Path, PathBuf, fs, io, read_symlink_dir, remove_bin, remove_symlink_dir,
+    ArtifactCleanupError,
+    BTreeMap,
+    Context,
+    FsRename,
+    GlobalActivationError,
+    HashSet,
+    IntoDiagnostic,
+    Path,
+    PathBuf,
+    fs,
+    io,
+    read_symlink_dir,
+    remove_bin,
+    remove_symlink_dir,
 };
 
 #[derive(Debug)]
@@ -310,7 +322,10 @@ fn backup_symlink(original: &Path, backup: &Path, _kind: BinSlotKind) -> io::Res
 
 #[cfg(windows)]
 fn backup_symlink(original: &Path, backup: &Path, kind: BinSlotKind) -> io::Result<()> {
-    use std::os::windows::fs::{symlink_dir, symlink_file};
+    use std::os::windows::fs::{
+        symlink_dir,
+        symlink_file,
+    };
     let target = fs::read_link(original)?;
     match kind {
         BinSlotKind::FileSymlink => symlink_file(target, backup),
@@ -328,7 +343,8 @@ pub(super) fn read_hash_target(hash_link: &Path) -> miette::Result<Option<PathBu
         Ok(target) => Ok(Some(
             hash_link
                 .parent()
-                .map_or_else(|| target.clone(), |parent| parent.join(&target)),
+                .map(|parent| parent.join(&target))
+                .unwrap_or_else(|| target.clone()),
         )),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error)

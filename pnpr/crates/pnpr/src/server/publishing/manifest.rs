@@ -1,17 +1,29 @@
 use std::collections::HashSet;
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{
-    HostedDocumentForUpdate, HostedDocumentVersion, Storage,
-    publish::{extract_predicate_type, merge_manifest},
+    HostedDocumentForUpdate,
+    HostedDocumentVersion,
+    Storage,
+    publish::{
+        extract_predicate_type,
+        merge_manifest,
+    },
 };
 
 use super::{
-    attachments::{AttachmentKind, PreparedAttachment, PublishedTar},
+    attachments::{
+        AttachmentKind,
+        PreparedAttachment,
+        PublishedTar,
+    },
     restore_tgz_integrities,
 };
 

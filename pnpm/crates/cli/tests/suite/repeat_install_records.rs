@@ -8,8 +8,14 @@ use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[cfg(target_os = "linux")]
 mod opens;
@@ -615,13 +621,13 @@ fn a_malformed_declaration_is_left_to_the_install() {
     )
     .expect("write .pnpmfile.cjs");
     let install = |repair: bool| {
-        let mut command = pacquet_in(&workspace);
-        command.env("PNPM_CONFIG_REGISTRY", mock_instance.url());
+        let mut command =
+            pacquet_in(&workspace).with_env("PNPM_CONFIG_REGISTRY", mock_instance.url());
         if repair {
-            command.env("REPAIR", "1");
+            command = command.with_env("REPAIR", "1");
         }
         command
-            .arg("install")
+            .with_arg("install")
             .output()
             .expect("run pnpm install")
     };

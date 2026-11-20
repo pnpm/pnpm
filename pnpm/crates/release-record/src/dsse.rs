@@ -7,11 +7,27 @@
 
 use base64::{
     Engine as _,
-    engine::general_purpose::{STANDARD, STANDARD_NO_PAD, URL_SAFE, URL_SAFE_NO_PAD},
+    engine::general_purpose::{
+        STANDARD,
+        STANDARD_NO_PAD,
+        URL_SAFE,
+        URL_SAFE_NO_PAD,
+    },
 };
-use derive_more::{Display, Error};
-use pnpm_transparency_log::{KeyAlgorithm, KeySet, NoteSigner, VerifierKey};
-use serde::{Deserialize, Serialize};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_transparency_log::{
+    KeyAlgorithm,
+    KeySet,
+    NoteSigner,
+    VerifierKey,
+};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::collections::HashSet;
 
 /// The payload type of an in-toto Statement.
@@ -135,7 +151,8 @@ fn signs(key: &VerifierKey, signature: &EnvelopeSignature, message: &[u8], sig: 
 pub fn decode_base64(encoded: &str) -> Option<Vec<u8>> {
     [STANDARD, URL_SAFE, STANDARD_NO_PAD, URL_SAFE_NO_PAD]
         .iter()
-        .find_map(|engine| engine.decode(encoded).ok())
+        .map(|engine| engine.decode(encoded))
+        .find_map(Result::ok)
 }
 
 fn decode(encoded: &str) -> Result<Vec<u8>, DsseError> {

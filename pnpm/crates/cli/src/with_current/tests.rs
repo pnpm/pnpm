@@ -1,4 +1,7 @@
-use super::{MissingWithCurrentCommand, plan};
+use super::{
+    MissingWithCurrentCommand,
+    plan,
+};
 use std::ffi::OsString;
 
 /// Build an argv (with a leading program name) from string slices.
@@ -11,7 +14,8 @@ fn argv(tokens: &[&str]) -> Vec<OsString> {
 
 fn strings(argv: &[OsString]) -> Vec<String> {
     argv.iter()
-        .map(|token| token.to_string_lossy().into_owned())
+        .map(|token| token.to_string_lossy())
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 
@@ -73,7 +77,7 @@ fn skips_a_with_consumed_by_a_value_taking_option() {
 
 #[test]
 fn does_not_rewrite_with_current_inside_another_subcommand() {
-    // `with current` as data for another command must be left alone — only
+    // `with current` as data for another command must be left alone, only
     // `with` at the subcommand position is the sugar.
     for tokens in [
         vec!["exec", "with", "current", "install"],

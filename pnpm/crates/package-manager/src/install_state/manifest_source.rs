@@ -5,7 +5,10 @@ use pnpm_hooks::PnpmfileHooks;
 use pnpm_package_manifest::PackageManifest;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

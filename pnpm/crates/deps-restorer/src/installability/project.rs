@@ -1,5 +1,8 @@
 use super::platform::read_string_list;
-use pnpm_package_is_installable::{PackageInstallabilityManifest, WantedEngine};
+use pnpm_package_is_installable::{
+    PackageInstallabilityManifest,
+    WantedEngine,
+};
 use serde_json::Value;
 
 /// What a project requires of the host, per [`project_host_requirements`].

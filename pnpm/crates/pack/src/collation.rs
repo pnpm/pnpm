@@ -4,13 +4,28 @@ use icu_collator::{
     Collator,
     options::CollatorOptions,
     provider::{
-        CollationDiacriticsV1, CollationJamoV1, CollationMetadataV1, CollationReorderingV1,
-        CollationRootV1, CollationSpecialPrimariesV1, CollationTailoringV1,
+        CollationDiacriticsV1,
+        CollationJamoV1,
+        CollationMetadataV1,
+        CollationReorderingV1,
+        CollationRootV1,
+        CollationSpecialPrimariesV1,
+        CollationTailoringV1,
     },
 };
 use icu_locale_core::locale;
-use icu_normalizer::provider::{NormalizerNfdDataV1, NormalizerNfdTablesV1};
-use icu_provider::{DataError, DataErrorKind, DataMarker, DataProvider, DataRequest, DataResponse};
+use icu_normalizer::provider::{
+    NormalizerNfdDataV1,
+    NormalizerNfdTablesV1,
+};
+use icu_provider::{
+    DataError,
+    DataErrorKind,
+    DataMarker,
+    DataProvider,
+    DataRequest,
+    DataResponse,
+};
 
 /// A collator equivalent to JavaScript's `localeCompare(b, 'en')`, which
 /// pnpm 11 sorts packed paths with and npm-packlist orders a tarball's

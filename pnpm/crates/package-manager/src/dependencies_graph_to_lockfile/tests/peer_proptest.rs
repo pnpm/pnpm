@@ -12,18 +12,37 @@ mod hashed_cycles;
 mod model;
 mod moving_providers;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 use model::{
-    IMPORTER_IDS, Outcome, Settings, StubResolver, Workspace, lockfile_of, lockfile_with_settings,
-    move_dependency, outcome_of,
+    IMPORTER_IDS,
+    Outcome,
+    Settings,
+    StubResolver,
+    Workspace,
+    lockfile_of,
+    lockfile_with_settings,
+    move_dependency,
+    outcome_of,
 };
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
-use proptest::{prelude::*, test_runner::RngSeed};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    ResolveOptions,
+};
+use proptest::{
+    prelude::*,
+    test_runner::RngSeed,
+};
 
 use pnpm_resolving_deps_resolver::{
-    ResolveImporterOptions, ResolveWorkspaceResult, WorkspaceImporter, WorkspaceResolveOptions,
+    ResolveImporterOptions,
+    ResolveWorkspaceResult,
+    WorkspaceImporter,
+    WorkspaceResolveOptions,
     resolve_workspace,
 };
 
@@ -315,7 +334,14 @@ proptest! {
 
 #[test]
 fn optional_provider_outside_a_same_named_cycle_keeps_its_context() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer_package = |target, range, optional| PackageVersion {
         dependencies: vec![],
@@ -357,7 +383,14 @@ fn optional_provider_outside_a_same_named_cycle_keeps_its_context() {
 
 #[test]
 fn cyclic_transitive_peers_round_trip_with_ordinary_children() {
-    use model::{Edge, PackageVersion, Peer, PeerRange, Settings, Workspace};
+    use model::{
+        Edge,
+        PackageVersion,
+        Peer,
+        PeerRange,
+        Settings,
+        Workspace,
+    };
     let leaf = || PackageVersion { dependencies: vec![], peers: vec![] };
     let peer = |target, major| Peer {
         target,

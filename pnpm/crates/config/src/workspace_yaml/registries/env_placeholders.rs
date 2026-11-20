@@ -1,5 +1,12 @@
-use super::{IndexMap, LoadWorkspaceYamlError, RegistryEntry};
-use crate::workspace_yaml::{WORKSPACE_MANIFEST_FILENAME, redact_registry_url};
+use super::{
+    IndexMap,
+    LoadWorkspaceYamlError,
+    RegistryEntry,
+};
+use crate::workspace_yaml::{
+    WORKSPACE_MANIFEST_FILENAME,
+    redact_registry_url,
+};
 
 /// Fail with [`LoadWorkspaceYamlError::RegistryEnvNotExpanded`] on the first
 /// entry whose registry URL carries an unexpanded `${VAR}`.

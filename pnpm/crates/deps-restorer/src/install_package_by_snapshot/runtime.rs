@@ -1,12 +1,28 @@
 use super::InstallPackageBySnapshotError;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PlatformSelector,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PackageKey,
+    PlatformSelector,
     select_platform_variant,
 };
-use pnpm_package_is_installable::{SupportedArchitectures, SupportedPlatform};
+use pnpm_package_is_installable::{
+    SupportedArchitectures,
+    SupportedPlatform,
+};
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{IgnoreEntryFilter, IngestTarballToStore, IngestZipArchiveToStore};
+use pnpm_tarball::{
+    IgnoreEntryFilter,
+    IngestTarballToStore,
+    IngestZipArchiveToStore,
+};
 use std::sync::Arc;
 
 /// The archive a `Variations` resolution offers for this host.
@@ -172,7 +188,7 @@ pub(super) fn bundled_tooling_bin(path: &str) -> bool {
 }
 /// `^(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$`
 ///
-/// These are *not* under `bin/` — they live at the runtime archive root
+/// These are *not* under `bin/`; they live at the runtime archive root
 /// after the `node-vX.Y.Z-<platform>-<arch>/` prefix strip.
 pub(super) fn bundled_tooling_root_entry(path: &str) -> bool {
     let stem = path
@@ -185,7 +201,7 @@ pub(super) fn bundled_tooling_root_entry(path: &str) -> bool {
 /// installed.
 ///
 /// The filter is cached in a [`std::sync::LazyLock`] so per-snapshot
-/// `Arc::clone`s share one trait object — `IgnoreEntryFilter` is
+/// `Arc::clone`s share one trait object. `IgnoreEntryFilter` is
 /// a `dyn Fn`, so cheap to clone, and we don't want to allocate
 /// the Arc once per runtime install.
 pub(crate) fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>> {
@@ -227,10 +243,10 @@ pub(crate) async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     // Deno) don't ship, and hand it to the fetcher as `append_manifest`.
     // The fetcher folds it into both this install's `cas_paths` and the
     // persisted store-index row (its `files` map and bundled `manifest`),
-    // so a later *warm* install — which materializes straight from the
-    // row and never re-runs this function — still lands a `package.json`
+    // so a later *warm* install (which materializes straight from the
+    // row and never re-runs this function) still lands a `package.json`
     // slot and lets the bin linker find the runtime's bin. The object
-    // carries `name`, `version`, and `bin` — the three fields pacquet's
+    // carries `name`, `version`, and `bin`, the three fields pacquet's
     // bin linking and `dlx` look at.
     let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
     let fetch = BinaryArchiveFetch {

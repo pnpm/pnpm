@@ -3,15 +3,29 @@
 //! tree still works where it is now.
 
 use super::{
-    Catalogs, Config, Host, Lockfile, OptimisticRepeatInstallCheck, PackageManifest, Path, PathBuf,
+    Catalogs,
+    Config,
+    Host,
+    Lockfile,
+    OptimisticRepeatInstallCheck,
+    PackageManifest,
+    Path,
+    PathBuf,
     WorkspaceState,
     current_lockfile::assert_loaded_current_lockfile_records,
     current_pnpmfiles,
-    freshness::{InputDrift, validation_now},
+    freshness::{
+        InputDrift,
+        validation_now,
+    },
     manifest_agreement::check_projects_content,
-    project_structure_matches, recorded_elsewhere,
+    project_structure_matches,
+    recorded_elsewhere,
 };
-use std::{collections::BTreeSet, path::Component};
+use std::{
+    collections::BTreeSet,
+    path::Component,
+};
 
 /// `state` re-keyed onto `workspace_root` when it records these same
 /// projects under one other root, or `None` when it records them in place or

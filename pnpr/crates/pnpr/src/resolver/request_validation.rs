@@ -1,22 +1,30 @@
 pub(super) use local_specs::reject_local_dependency_specs;
 
-use axum::{http::StatusCode, response::Response};
+use axum::{
+    http::StatusCode,
+    response::Response,
+};
 use pnpm_lockfile::LockfileResolution;
+use pnpm_lockfile_verification::verify_lockfile_dependency_names;
 
 use pnpr_route::RouteContext;
 
 mod local_specs;
 
 use super::{
-    json_error, json_error_with_code,
+    json_error,
+    json_error_with_code,
     protocol::{
-        INCOMPATIBLE_LOCKFILE_FORMAT_CODE, LockfileFormat, ProjectDeps, ResolveRequest,
+        INCOMPATIBLE_LOCKFILE_FORMAT_CODE,
+        LockfileFormat,
+        ProjectDeps,
+        ResolveRequest,
         UNSUPPORTED_REQUEST_FIELD_CODE,
     },
 };
 
 /// Reject a request that would have pnpr fetch from an origin that is not on
-/// the route allowlist (see [`RouteContext::allows_registry`]) — the
+/// the route allowlist (see [`RouteContext::allows_registry`]), the
 /// resolver's SSRF boundary, run before any server-side fetch. pnpr fetches
 /// only from operator-configured registries, so a caller cannot point it at
 /// cloud instance metadata, an internal service, or any other off-allowlist
@@ -101,11 +109,11 @@ fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps])
 
 /// Whether `spec` would trigger a server-side fetch to an origin that is not on
 /// the allowlist. Covers any `scheme://host` URL (an `http(s)` tarball and
-/// every git transport — `git`/`ssh`/`rsync`/`ftp`/`file`/... — with a `git+`
+/// every git transport, `git`/`ssh`/`rsync`/`ftp`/`file`/... with a `git+`
 /// prefix stripped) and scp-style git remotes (`[user@]host:path`), which
-/// pacquet routes to the ssh git resolver. Specs that never reach the network —
+/// pacquet routes to the ssh git resolver. Specs that never reach the network,
 /// semver ranges, `npm:`/`workspace:`/`file:`/`link:` aliases (no `://`),
-/// scoped names — return `false`.
+/// scoped names, return `false`.
 fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
     let url = match spec.get(..4) {
         Some(head) if head.eq_ignore_ascii_case("git+") => &spec[4..],
@@ -113,7 +121,7 @@ fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
     };
     if url.contains("://") {
         // Gate by origin regardless of scheme: any transport that reaches a
-        // host can be an SSRF vector (every git transport — git/ssh/rsync/ftp/
+        // host can be an SSRF vector (every git transport, git/ssh/rsync/ftp/
         // file/...), and a scheme with no allowlistable host (e.g. `file://`,
         // which would read a server-local path) nerf-darts to nothing and is
         // rejected.
@@ -130,7 +138,7 @@ fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
 
 /// The host of a scp-style git remote (`[user@]host:path`), or `None`. The
 /// distinguishing shape is a `user@host` authority before the first `:` with a
-/// path after it — generalizing the `git@...` form pacquet's git resolver treats
+/// path after it, generalizing the `git@...` form pacquet's git resolver treats
 /// as ssh. A protocol spec (`npm:...`, `file:...`) has no `@` in its authority, and
 /// a `scheme://...` URL is handled before this is reached.
 fn scp_git_host(spec: &str) -> Option<&str> {
@@ -242,7 +250,7 @@ fn escapes_its_project(directory: &str) -> bool {
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
 /// the default and named registries, every dependency spec, catalog and
 /// package-extension value, override values, and the tarball URLs of an input
-/// lockfile — every surface a tarball/registry URL can reach the resolver (or
+/// lockfile; every surface a tarball/registry URL can reach the resolver (or
 /// be echoed back) through.
 /// Returns a `400` response when one is found.
 pub(super) fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
@@ -291,6 +299,18 @@ fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
         serde_json::Value::Object(map) => map.values().any(overrides_have_inline_url_auth),
         _ => false,
     }
+}
+
+pub(super) fn reject_invalid_lockfile_dependency_names(
+    request: &ResolveRequest,
+) -> Option<Response> {
+    let lockfile = request.lockfile.as_ref()?;
+    let err = verify_lockfile_dependency_names(lockfile).err()?;
+    Some(json_error_with_code(
+        StatusCode::BAD_REQUEST,
+        &err.to_string(),
+        Some("ERR_PNPR_INVALID_DEPENDENCY_NAME"),
+    ))
 }
 
 pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {

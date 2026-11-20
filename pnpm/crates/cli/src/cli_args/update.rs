@@ -1,7 +1,10 @@
 pub(crate) mod options;
 
 pub use options::{
-    UpdateDependencyOptions, UpdateInstallArgs, UpdateSaveArgs, UpdateSelectionArgs,
+    UpdateDependencyOptions,
+    UpdateInstallArgs,
+    UpdateSaveArgs,
+    UpdateSelectionArgs,
 };
 
 use crate::{
@@ -11,23 +14,42 @@ use crate::{
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::{InteractiveUpdateOptions, UpdateDetails, UpdatePrompt},
-        workspace_option::{WorkspaceOptionError, workspace_link_root},
+        update_interactive::{
+            InteractiveUpdateOptions,
+            UpdateDetails,
+            UpdatePrompt,
+        },
+        workspace_option::{
+            WorkspaceOptionError,
+            workspace_link_root,
+        },
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_config::Config;
 use pnpm_github_actions as github_actions;
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_matcher::Matcher;
-use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_package_manager::{
+    Update,
+    build_workspace_packages_map,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::VersionSelectorType;
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// Update package and GitHub Actions dependencies to newer compatible versions.
 #[derive(Debug, Clone, Args)]
@@ -104,6 +126,7 @@ impl UpdateArgs {
         &'a self,
         include_direct: &'a [DependencyGroup],
         update_actions: bool,
+        packages: &'a [String],
     ) -> InteractiveUpdateOptions<'a> {
         // `--no-save` keeps the manifest ranges, so the update stays inside
         // them whatever `--latest` or `--tag` asks for.
@@ -112,10 +135,17 @@ impl UpdateArgs {
         } else {
             TargetVersion::from_update_flags(self.selection.latest, self.selection.tag.as_deref())
         };
+        let package_selectors = (!update_actions
+            || !crate::github_actions::selects_actions_only(&self.packages, packages))
+        .then_some(packages);
         InteractiveUpdateOptions {
             target_version,
             include_direct,
+            package_selectors,
             include_github_actions: update_actions,
+            action_matcher: update_actions
+                .then(|| github_actions::selector_matcher(&self.packages))
+                .flatten(),
             latest_github_actions: self.selection.latest,
             prompt: self.prompt,
             details: if self.selection.display.long {
@@ -280,7 +310,7 @@ impl UpdateArgs {
     /// Validate `--workspace` against the rest of the invocation,
     /// returning the workspace root the link targets are read from.
     /// `Ok(None)` means the flag was not passed. Every dispatch path
-    /// calls this before any resolution happens, `--global` included —
+    /// calls this before any resolution happens, `--global` included,
     /// the global directory is never a workspace.
     fn check_workspace_option<'root>(
         &self,

@@ -2,17 +2,28 @@
 //! that was itself resolved from a local directory.
 //!
 //! Such a specifier is relative to the manifest that declares it, not to
-//! the importer that pulled the chain in — pnpm's `parentPkg.rootDir`.
+//! the importer that pulled the chain in, pnpm's `parentPkg.rootDir`.
 //! Covers pnpm/pnpm#13323.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
@@ -90,7 +101,7 @@ fn nested_file_dep_resolves_against_the_declaring_manifest() {
 /// The vite layout from pnpm/pnpm#13323: a workspace project depends on
 /// a sibling directory that in turn depends on another one a level up.
 /// Both the resolved directory and the snapshot's reference to it must
-/// match what pnpm writes — the reference drops the `<name>@` prefix
+/// match what pnpm writes, the reference drops the `<name>@` prefix
 /// because the alias equals the package's own name.
 #[test]
 fn nested_file_dep_of_a_workspace_project_matches_the_pnpm_lockfile() {

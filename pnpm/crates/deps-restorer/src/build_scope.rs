@@ -1,7 +1,10 @@
 //! Which snapshots the build phase may build, patch, or restore a cached
 //! build into.
 
-use crate::{UnbuiltBuilds, linking::LinkPhaseInputs};
+use crate::{
+    UnbuiltBuilds,
+    linking::LinkPhaseInputs,
+};
 use pnpm_lockfile::PackageKey;
 use std::collections::HashSet;
 

@@ -1,10 +1,23 @@
-use super::{oci_download_allowed, parse_challenge, token_realm_allowed};
-use crate::{FetchOutcome, Upstream};
+use super::{
+    oci_download_allowed,
+    parse_challenge,
+    token_realm_allowed,
+};
+use crate::{
+    FetchOutcome,
+    Upstream,
+};
 use pnpr_config::UpstreamConfig;
-use reqwest::{Url, header::HeaderMap};
+use reqwest::{
+    Url,
+    header::HeaderMap,
+};
 use std::time::Duration;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{
+        AsyncReadExt,
+        AsyncWriteExt,
+    },
     net::TcpListener,
 };
 
@@ -81,7 +94,10 @@ async fn negotiates_pull_scope_and_reuses_token_without_forwarding_client_scope(
 
 #[tokio::test]
 async fn rejects_an_untrusted_token_realm_without_contacting_it() {
-    use reqwest::header::{AUTHORIZATION, HeaderValue};
+    use reqwest::header::{
+        AUTHORIZATION,
+        HeaderValue,
+    };
     let mut server = mockito::Server::new_async().await;
     let mut attacker = mockito::Server::new_async().await;
     let stolen = attacker

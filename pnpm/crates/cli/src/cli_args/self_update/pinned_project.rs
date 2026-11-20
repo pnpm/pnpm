@@ -1,9 +1,21 @@
 use super::{
-    Config, Context, ExternalManager, PNPM_VERSION, Path,
+    Config,
+    Context,
+    ExternalManager,
+    PNPM_VERSION,
+    Path,
     externally_managed::refuse_without_pin,
-    project_pin::{project_pin_refusal, read_project_pinned_pnpm_version, update_project_pin},
+    project_pin::{
+        project_pin_refusal,
+        read_project_pinned_pnpm_version,
+        update_project_pin,
+    },
 };
-use crate::cli_args::package_manager::{PinRoots, WantedPackageManager, wanted_package_manager};
+use crate::cli_args::package_manager::{
+    PinRoots,
+    WantedPackageManager,
+    wanted_package_manager,
+};
 
 /// The project's package-manager pin, read from where the pre-command pass
 /// reads it (see [`PinRoots`]).
@@ -25,8 +37,10 @@ impl ProjectPin {
         let manifest = roots.read_manifest();
         let external_manager = refuse_without_pin(external_manager, manifest.as_ref().ok())?;
         let manifest = manifest.wrap_err("read the project manifest")?;
-        let wanted =
-            manifest.as_ref().and_then(|manifest| wanted_package_manager(manifest.value()));
+        let wanted = manifest
+            .as_ref()
+            .map(pnpm_package_manifest::PackageManifest::value)
+            .and_then(wanted_package_manager);
         Ok((Self { roots, wanted }, external_manager))
     }
 
@@ -44,7 +58,7 @@ impl ProjectPin {
         let previous_version = match self.pinned_pnpm() {
             // A range pin (`^10.0.0`) has no recoverable major on its own, so
             // read the resolved version from the env lockfile to drive the
-            // hint — otherwise crossing a major would silently skip it.
+            // hint; otherwise crossing a major would silently skip it.
             Some(pm) => read_project_pinned_pnpm_version(&self.roots.env, pm.version.as_deref())
                 .filter(|version| version != target_version),
             None if PNPM_VERSION != target_version => Some(PNPM_VERSION.to_string()),

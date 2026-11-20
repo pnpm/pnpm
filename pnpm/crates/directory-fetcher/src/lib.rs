@@ -6,7 +6,10 @@
 
 pub use copy_files::CopyFiles;
 pub use error::DirectoryFetcherError;
-pub use fetcher::{DirectoryFetchOutput, DirectoryFetcher};
+pub use fetcher::{
+    DirectoryFetchOutput,
+    DirectoryFetcher,
+};
 
 mod copy_files;
 mod error;

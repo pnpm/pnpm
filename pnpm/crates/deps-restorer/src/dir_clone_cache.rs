@@ -4,7 +4,7 @@
 //! APFS serializes metadata-write syscalls volume-wide: measured on the
 //! alotta-files fixture, `clonefile` throughput never exceeds its
 //! single-thread rate (~6k files/s) no matter how many threads issue
-//! it, and `link` scales *negatively* — extra rayon workers only deepen
+//! it, and `link` scales *negatively*, extra rayon workers only deepen
 //! the kernel lock convoy, which is what regressed large hot installs
 //! on many-core Macs (pnpm/pnpm issue 14231). Cloning a whole directory
 //! is one syscall for the entire tree, ~20x cheaper than per-file
@@ -27,14 +27,14 @@
 //! an explicit `hardlink` promises store-shared inodes and an explicit
 //! `copy` promises independent data, and a clone of the canonical copy
 //! would deliver neither. Per-slot qualification is decided by the
-//! caller — see `create_virtual_store::dir_clone_cacheable` for the
+//! caller; see `create_virtual_store::dir_clone_cacheable` for the
 //! exclusions and their reasons. Excluded slots take the per-file
 //! import, so cached slots are always plain pre-build CAS content,
 //! stored separately from installed global virtual store packages, so
 //! pruning can discard the cache without project reachability information.
 //!
 //! The cache is strictly best-effort: a per-install capability probe
-//! (`dir_clone_supported`) declines the whole cache up front when the
+//! declines the whole cache up front when the
 //! canonical root and the project's virtual store can't share clones
 //! (cross-volume stores, non-APFS filesystems), so no canonical slot is
 //! ever populated that the clone step can't use. Past the probe, any
@@ -43,25 +43,51 @@
 //! `ENOTSUP`, ...) disable the cache for the rest of the process.
 
 use crate::{
-    AllowBuildPolicy, VirtualStoreLayout,
-    import_indexed_dir::{ImportIndexedDirOpts, marker_present},
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+    import_indexed_dir::{
+        ImportIndexedDirOpts,
+        marker_present,
+    },
     safe_join_modules_dir::safe_join_modules_dir,
 };
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-use pnpm_fs::{LinkFailure, LinkFallback, LinkFallbackPolicy};
-use pnpm_lockfile::{PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
+use pnpm_fs::{
+    LinkFailure,
+    LinkFallback,
+    LinkFallbackPolicy,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    PlatformSelector,
+    SnapshotEntry,
+};
 use pnpm_reporter::Reporter;
 use std::{
     collections::HashMap,
-    fs, io,
-    path::{Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
-        Arc, OnceLock,
-        atomic::{AtomicBool, AtomicU8, Ordering},
+        Arc,
+        OnceLock,
+        atomic::{
+            AtomicBool,
+            AtomicU8,
+            Ordering,
+        },
     },
 };
 
-/// The engine name that keys the cache's canonical slots — the same
+/// The engine name that keys the cache's canonical slots, the same
 /// value a GVS-enabled install computes (see
 /// [`crate::materialization_plan::resolve_engine_name`]).
 pub enum EngineNameSource {
@@ -81,7 +107,7 @@ pub enum EngineNameSource {
 pub struct DirCloneCache<'install> {
     layout_inputs: CanonicalLayoutInputs<'install>,
     /// Layout rooted at [`pnpm_store_dir::StoreDir::dir_clone_cache`].
-    /// Built on first use — see [`Self::layout`].
+    /// Built on first use; see [`Self::layout`].
     layout: OnceLock<VirtualStoreLayout>,
     /// Under `frozenStore` the store is read-only: the cache may serve
     /// canonical slots that already exist but must not populate new
@@ -131,7 +157,7 @@ impl<'install> DirCloneCache<'install> {
         // wave of parallel slot links each populate a canonical slot
         // only to fall back per-file after the clone fails. Under
         // `frozenStore` the cache never writes canonical slots, so
-        // there is no duplicated work to prevent — and the store must
+        // there is no duplicated work to prevent, and the store must
         // not be written a probe directory either.
         let destination = match node_linker {
             NodeLinker::Hoisted => &config.modules_dir,
@@ -166,7 +192,7 @@ impl<'install> DirCloneCache<'install> {
     /// here so a still-running `node --version` probe overlaps the
     /// virtual-store partition and warm-batch I/O that run between
     /// [`Self::build`] and the first [`Self::try_import`]. May block on
-    /// that probe, so it must only run on a worker thread — which
+    /// that probe, so it must only run on a worker thread, which
     /// [`Self::try_import`]'s calling convention already guarantees.
     fn layout(&self) -> &VirtualStoreLayout {
         self.layout.get_or_init(|| self.layout_inputs.build())
@@ -183,7 +209,7 @@ impl<'install> DirCloneCache<'install> {
     /// Must be called from a worker thread (the link pass runs on
     /// rayon, under `block_in_place` on the multi-thread runtime): the
     /// first call may block on the deferred engine probe while it
-    /// builds the layout — see `Self::layout`.
+    /// builds the layout; see `Self::layout`.
     pub fn try_import<Reporter: self::Reporter>(
         &self,
         logged_methods: &AtomicU8,
@@ -195,8 +221,8 @@ impl<'install> DirCloneCache<'install> {
         if self.disabled.load(Ordering::Relaxed) {
             return false;
         }
-        // An existing dirent at the target — a completed slot, a
-        // partial import to repair, or stale junk — is
+        // An existing dirent at the target (a completed slot, a
+        // partial import to repair, or stale junk) is
         // `import_indexed_dir`'s business; `clonefile` requires a
         // fresh destination.
         match fs::symlink_metadata(save_path) {
@@ -227,7 +253,7 @@ impl<'install> DirCloneCache<'install> {
         // A scoped package's directory sits below a `@scope/` component
         // the per-file importer would have created; the clone needs the
         // parent in place itself. Unscoped packages sit directly in the
-        // `node_modules` the caller created — probing it again would
+        // `node_modules` the caller created, probing it again would
         // cost every slot a syscall on the APFS-serialized metadata
         // path.
         if package_key.name.scope.is_some()
@@ -317,11 +343,11 @@ fn retires_dir_clone(error: &io::Error) -> bool {
 }
 
 /// Whether a directory `clonefile` from under `links_root` can land in
-/// `destination` — the project's virtual store, or its `node_modules`
+/// `destination`, the project's virtual store, or its `node_modules`
 /// under the hoisted linker: clone an empty probe directory across and
 /// remove both. The store side is created if absent (the caller
 /// guarantees the store is writable), but nothing is created on the
-/// project side — the probe lands in the deepest existing ancestor of
+/// project side, the probe lands in the deepest existing ancestor of
 /// the destination, which is on the same volume, so an install the
 /// lockfile checks later reject leaves no directory behind. A stale
 /// destination from a crashed probe is removed first so pid reuse

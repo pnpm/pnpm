@@ -1,4 +1,7 @@
-use crate::{Config, NetworkPolicy};
+use crate::{
+    Config,
+    NetworkPolicy,
+};
 
 impl Config {
     /// See [`NetworkPolicy::from_settings`].

@@ -1,6 +1,9 @@
 //! Error surface for the lockfile-verification gate.
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::fmt::Write as _;
 
@@ -33,7 +36,7 @@ const MISSING_DEPENDENCY_HINT: &str = "This issue is probably caused by a badly 
 To fix the lockfile, run 'pnpm install --fix-lockfile'.";
 
 /// One verifier rejection rendered for the error breakdown.
-/// Internal-only data shape — the runner builds these from
+/// Internal-only data shape, the runner builds these from
 /// `ResolutionPolicyViolation` after sorting.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenderedViolation {
@@ -46,7 +49,7 @@ pub struct RenderedViolation {
 /// Errors raised by [`crate::verify_lockfile_resolutions()`]. Each
 /// variant carries its own stable `PnpmError` code. The formatted
 /// message includes the count + per-entry breakdown, trimmed to
-/// `MAX_VIOLATIONS_TO_PRINT`.
+/// the print limit.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum VerifyError {
@@ -67,8 +70,8 @@ pub enum VerifyError {
     },
 
     /// The registry couldn't be reached to verify an entry
-    /// (auth/network/5xx). Surfaces the registry's own fetch error — which
-    /// already explains the auth situation — rather than a tampering-style
+    /// (auth/network/5xx). Surfaces the registry's own fetch error (which
+    /// already explains the auth situation) rather than a tampering-style
     /// mismatch or a lockfile-policy batch. The message is credential-redacted
     /// at the verifier before it reaches here.
     #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
@@ -152,8 +155,8 @@ pub enum VerifyError {
 impl VerifyError {
     /// Build the [`VerifyError::InvalidDependencyAlias`] variant from a
     /// list of offending aliases. Sorts for determinism and caps the
-    /// printed breakdown at `MAX_VIOLATIONS_TO_PRINT`. Empty input is
-    /// a logic error — callers must check before constructing.
+    /// printed breakdown at the print limit. Empty input is
+    /// a logic error, callers must check before constructing.
     #[must_use]
     pub fn invalid_dependency_aliases(aliases: &[String]) -> Self {
         debug_assert!(!aliases.is_empty(), "no invalid aliases → no error");
@@ -185,7 +188,7 @@ impl VerifyError {
     /// Build the appropriate variant from a list of rendered
     /// violations. The list is **already sorted** by `name@version`
     /// (the runner sorts before calling). Empty input is a logic
-    /// error — callers must check before constructing.
+    /// error, callers must check before constructing.
     #[must_use]
     pub fn from_rendered(violations: &[RenderedViolation]) -> Self {
         debug_assert!(!violations.is_empty(), "no violations → no error");

@@ -1,11 +1,25 @@
 use super::{
-    DEV_PREINSTALL_ALREADY_RAN_ENV, EnvOptions, ROOT_PREINSTALL_ALREADY_RAN_ENV,
-    VERIFY_DEPS_BEFORE_RUN_ENV, build_env, build_env_for_platform, escape_newlines,
-    is_delegation_marker, is_stamping_key, path_value, sanitize_env_key, stamp_package,
+    DEV_PREINSTALL_ALREADY_RAN_ENV,
+    EnvOptions,
+    ROOT_PREINSTALL_ALREADY_RAN_ENV,
+    VERIFY_DEPS_BEFORE_RUN_ENV,
+    build_env,
+    build_env_for_platform,
+    escape_newlines,
+    is_delegation_marker,
+    is_stamping_key,
+    path_value,
+    sanitize_env_key,
+    stamp_package,
 };
+#[cfg(not(windows))]
+use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 fn empty_extra() -> HashMap<String, String> {
     HashMap::new()
@@ -94,7 +108,7 @@ fn make_env_preserves_user_config_and_strips_auth_and_package_leakage() {
     assert_eq!(
         built.env.get("PNPM_HOME").map(String::as_str),
         Some("/opt/pnpm"),
-        "pnpm_* (incl. PNPM_HOME) keys are NOT in upstream's strip filter — they must pass through",
+        "pnpm_* (incl. PNPM_HOME) keys are NOT in upstream's strip filter; they must pass through",
     );
     assert_eq!(
         built.env.get("HOME").map(String::as_str),
@@ -152,7 +166,7 @@ fn make_env_stamps_lifecycle_specific_keys() {
 
     // Compute expected paths through the same `join` so the
     // assertions are correct on Windows (`\\` separator) as well as
-    // POSIX. Path-separator handling itself is `std`'s job — these
+    // POSIX. Path-separator handling itself is `std`'s job; these
     // tests verify build_env's mapping, not separator policy.
     let expected_package_json = pkg_root
         .join("package.json")
@@ -363,7 +377,7 @@ fn stamp_package_recurses_into_kept_buckets() {
     assert_eq!(
         env.get("npm_package_config_deep_nested").map(String::as_str),
         Some("value"),
-        "recursion must keep going beneath config/* — only the top-level filter restricts",
+        "recursion must keep going beneath config/*, only the top-level filter restricts",
     );
     assert_eq!(env.get("npm_package_engines_node").map(String::as_str), Some(">=18"));
     assert_eq!(env.get("npm_package_bin_foo").map(String::as_str), Some("./bin/foo.js"));
@@ -462,12 +476,12 @@ fn a_differently_cased_delegation_marker_is_dropped_on_windows() {
 fn is_stamping_key_handles_non_ascii_keys_without_panicking() {
     // 1 ASCII byte + 4-byte UTF-8 codepoint = 5 bytes; byte 4 is
     // mid-char. Comparison must be byte-safe.
-    assert!(!is_stamping_key("x\u{10000}", true));
-    assert!(!is_stamping_key("x\u{10000}", false));
+    assert!(!is_stamping_key("x𐀀", true));
+    assert!(!is_stamping_key("x𐀀", false));
     // 2-byte codepoint repeated: byte 4 IS a char boundary, but
     // the leading bytes are not ASCII so the comparison must
     // still return false.
-    assert!(!is_stamping_key("\u{0419}\u{0419}", true));
+    assert!(!is_stamping_key("ЙЙ", true));
     // 1-character ASCII (< 4 bytes): byte slice short-circuits.
     assert!(!is_stamping_key("abc", true));
     assert!(!is_stamping_key("", true));
@@ -512,7 +526,11 @@ fn escape_newlines_json_encodes_multi_line_only() {
 #[cfg(unix)]
 #[test]
 fn package_manager_environment_preserves_native_node_paths() {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt, process::Command};
+    use std::{
+        ffi::OsStr,
+        os::unix::ffi::OsStrExt,
+        process::Command,
+    };
 
     let node = b"/node-\xff/node";
     let env = super::package_manager_env(
@@ -522,8 +540,8 @@ fn package_manager_environment_preserves_native_node_paths() {
         None,
     );
     let output = Command::new("/bin/sh")
-        .args(["-c", r#"printf '%s\n' "$NODE" "$npm_node_execpath""#])
-        .envs(env)
+        .with_args(["-c", r#"printf '%s\n' "$NODE" "$npm_node_execpath""#])
+        .with_envs(env)
         .output()
         .expect("spawn shell");
     assert!(output.status.success());

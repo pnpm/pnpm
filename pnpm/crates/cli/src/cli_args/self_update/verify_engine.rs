@@ -3,7 +3,7 @@
 //!
 //! The wanted pnpm version comes from the resolved env lockfile, and the
 //! project controls the lockfile integrity and the registry the bytes are
-//! fetched from — so without this check a cloned repository could make
+//! fetched from, so without this check a cloned repository could make
 //! pnpm download and run an arbitrary native binary. The signed message
 //! is built from the lockfile integrity and verified against npm's
 //! embedded public keys (so a project-controlled registry cannot answer
@@ -16,19 +16,44 @@
 
 use super::{
     SelfUpdateError,
-    install_pnpm::{exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, native_target_name},
+    install_pnpm::{
+        exe_platform_pkg_dir_name,
+        exe_platform_pkg_dir_name_next,
+        native_target_name,
+    },
 };
-use p256::ecdsa::{Signature, VerifyingKey};
+use p256::ecdsa::{
+    Signature,
+    VerifyingKey,
+};
 use pnpm_config::Config;
-use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
-use pnpm_lockfile::{EnvLockfile, PackageKey, PkgName, SnapshotDepRef};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_libc,
+    host_platform,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+};
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize, send_with_retry,
+    RetryOpts,
+    ThrottledClient,
+    encode_package_name,
+    redact_and_sanitize,
+    send_with_retry,
 };
 use serde::Deserialize;
 use signatures::{
-    CANONICAL_NPM_REGISTRY, FailureCategory, NPM_SIGNING_KEYS, SignatureFailure, build_client,
-    find_signature_failure, pick_registry,
+    CANONICAL_NPM_REGISTRY,
+    FailureCategory,
+    NPM_SIGNING_KEYS,
+    SignatureFailure,
+    build_client,
+    find_signature_failure,
+    pick_registry,
 };
 use std::collections::HashMap;
 
@@ -83,11 +108,11 @@ pub(crate) enum PlatformBinaries {
 /// proves exactly the same thing. When no signature can be obtained from
 /// either source (both unreachable, or the integrity is a non-sha512 pin no
 /// npm signature can cover), the check returns a warning for the caller to
-/// emit and lets the install proceed — but only when every engine component
+/// emit and lets the install proceed, but only when every engine component
 /// resolves through a non-canonical registry. Such a registry can only come
 /// from the user's own trusted (non-project) configuration, the download URL
 /// is derived from it rather than read from the lockfile, and the bytes stay
-/// pinned by the lockfile integrity — so a cloned repository still cannot
+/// pinned by the lockfile integrity, so a cloned repository still cannot
 /// steer pnpm to attacker-controlled bytes; the residual trust is the same
 /// the user already places in that registry for every package installed
 /// from it.
@@ -97,7 +122,7 @@ pub(crate) enum PlatformBinaries {
 /// detects tampering (an invalid signature), when a component is absent from
 /// a reachable canonical registry, when a component carries no integrity
 /// metadata, or when the canonical registry is the configured registry and
-/// is unreachable — the lockfile integrity is project-controlled and not a
+/// is unreachable, the lockfile integrity is project-controlled and not a
 /// safe fallback there.
 pub(crate) async fn verify_engine_identity(
     env: &EnvLockfile,
@@ -144,7 +169,7 @@ fn collect_engine_components(
     // `link_exe_platform_binary` hardlinks the host's platform binary over
     // the engine's own `pnpm` bin, so whenever the lockfile carries a
     // candidate for this host those are the bytes that execute and they must
-    // be verified — whichever engine lists them.
+    // be verified, whichever engine lists them.
     let snapshot_key = package_label.parse::<PackageKey>().map_err(|_| {
         SelfUpdateError::EngineIdentityUnverifiable {
             message: format!(
@@ -331,7 +356,7 @@ fn classify_signature_failures(
         return failure(secondary.0, secondary.1);
     }
     // The primary registry had no usable signature (a mirror commonly serves
-    // none) and the fallback could not be consulted — nothing suspicious was
+    // none) and the fallback could not be consulted; nothing suspicious was
     // observed, the signature was unobtainable.
     failure(
         format!(

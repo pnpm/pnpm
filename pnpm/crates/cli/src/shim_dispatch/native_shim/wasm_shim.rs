@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 pub(super) fn publish(_source: &Path, executable: &Path) -> io::Result<()> {
     let runtime = std::env::var("PNPM_WASM_RUNTIME").map_err(io::Error::other)?;

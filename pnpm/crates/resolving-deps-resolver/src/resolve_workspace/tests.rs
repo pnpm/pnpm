@@ -3,9 +3,15 @@
 
 mod lockfile_fixtures;
 use lockfile_fixtures::{
-    graph_versions_of, importer_scoped_update_lockfile, lockfile_recording_time,
-    lockfile_with_package, recorded_time, resolve_importer_scoped_update_direct,
-    resolve_pinned_versus_fresh, reuse_graph_lockfile, reuse_steal_lockfile,
+    graph_versions_of,
+    importer_scoped_update_lockfile,
+    lockfile_recording_time,
+    lockfile_with_package,
+    recorded_time,
+    resolve_importer_scoped_update_direct,
+    resolve_pinned_versus_fresh,
+    reuse_graph_lockfile,
+    reuse_steal_lockfile,
 };
 
 mod optional_dependencies;
@@ -25,30 +31,62 @@ mod resolution_order;
 
 mod snapshot_budget;
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
     collections::BTreeMap,
     str::FromStr,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
 
 use jiff::Timestamp;
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution, RegistryContext};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+    RegistryContext,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, LinkWorkspacePackages, NoMatchingVersionError, PkgResolutionId, PreferredVersions,
-    RegistryResponseError, RegistryResponseErrorOptions, ResolveError, ResolveFuture,
-    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestQuery,
+    LinkWorkspacePackages,
+    NoMatchingVersionError,
+    PkgResolutionId,
+    PreferredVersions,
+    RegistryResponseError,
+    RegistryResponseErrorOptions,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use pretty_assertions::assert_eq;
 
-use super::{WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace};
+use super::{
+    WorkspaceImporter,
+    WorkspaceResolveOptions,
+    resolve_workspace,
+};
 use crate::{
     resolve_importer::ResolveImporterOptions,
-    tests::{RecordedReadPackageCalls, RecordingHooks},
+    tests::{
+        RecordedReadPackageCalls,
+        RecordingHooks,
+    },
 };
 
 /// The `(pick_lowest_version, published_by)` pair recorded per alias.
@@ -187,7 +225,12 @@ fn fake_result(
     published_at: Option<&str>,
     manifest: serde_json::Value,
 ) -> ResolveResult {
-    use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer, TarballResolution};
+    use pnpm_lockfile::{
+        LockfileResolution,
+        PkgName,
+        PkgNameVer,
+        TarballResolution,
+    };
     let name_ver = PkgNameVer::new(
         PkgName::parse(name).unwrap(),
         node_semver::Version::from_str(version).unwrap(),
@@ -810,7 +853,7 @@ impl Resolver for WarmupProbeResolver {
             .cloned();
         let (held, release) = self.gate
             .as_ref()
-            .map_or((false, false), |(held, release)| (*held == alias, *release == alias));
+            .map_or_default(|(held, release)| (*held == alias, *release == alias));
         if release {
             self.released.store(true, std::sync::atomic::Ordering::Release);
         }

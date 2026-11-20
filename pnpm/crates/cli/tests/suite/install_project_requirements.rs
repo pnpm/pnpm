@@ -3,12 +3,23 @@
 
 use crate::{
     _utils,
-    repeat_install_records::{DECIDED_FROM_RECORDS, traced_install, trust_recorded_stats},
+    repeat_install_records::{
+        DECIDED_FROM_RECORDS,
+        traced_install,
+        trust_recorded_stats,
+    },
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Output};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Output,
+};
 
 /// A workspace of the root and `packages/app`, whose manifest adds `extra`.
 fn write_workspace(workspace: &Path, extra: &serde_json::Value) {

@@ -1,7 +1,19 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Path, append_workspace_yaml_key,
-    assert_no_post_import_linking, fs, gvs_root, harness_store_and_cache_yaml, pacquet,
-    pkg_in_slot, pkg_version_dir, read_modules_manifest, set_gvs_workspace_yaml, sole_hash_dir,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    append_workspace_yaml_key,
+    assert_no_post_import_linking,
+    fs,
+    gvs_root,
+    harness_store_and_cache_yaml,
+    pacquet,
+    pkg_in_slot,
+    pkg_version_dir,
+    read_modules_manifest,
+    set_gvs_workspace_yaml,
+    sole_hash_dir,
     write_manifest,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -114,7 +126,7 @@ fn virtual_store_only_with_no_modules_dir_works_when_gvs_is_enabled() {
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     fs::remove_dir_all(gvs_root(&store_dir)).expect("remove the GVS root");
 
-    eprintln!("Now virtualStoreOnly + enableModulesDir=false + GVS — must not throw...");
+    eprintln!("Now virtualStoreOnly + enableModulesDir=false + GVS, must not throw...");
     set_gvs_workspace_yaml(&workspace, "virtualStoreOnly: true\nenableModulesDir: false\n");
     pacquet(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -275,7 +287,7 @@ fn virtual_store_only_suppresses_hoisting_even_with_explicit_hoist_pattern() {
 }
 
 /// A `virtualStoreOnly` install must leave the project in a state a
-/// following ordinary install completes rather than purges — the empty
+/// following ordinary install completes rather than purges, the empty
 /// hoist patterns it records are deliberate, not drift.
 ///
 /// Pacquet-only: upstream encodes this as the `!modules.virtualStoreOnly`
@@ -370,7 +382,8 @@ fn scripts_resolve_phantom_esm_imports_through_the_private_hoist() {
     assert!(
         node_path
             .split(path_delimiter)
-            .any(|entry| Path::new(entry).ends_with("node_modules/.pnpm/node_modules")),
+            .map(Path::new)
+            .any(|value| value.ends_with("node_modules/.pnpm/node_modules")),
         "NODE_PATH must carry the private hoist dir: {node_path}",
     );
     let node_options =
@@ -488,7 +501,7 @@ fn virtual_store_type_selects_where_packages_are_materialized() {
 /// a previous install left: `pnpm run` finds the file by existence, so
 /// a map kept across a dependency change would describe a `node_modules`
 /// that has moved on. A repeat install with nothing to do never reaches
-/// the link phase and so leaves the file alone, which is harmless —
+/// the link phase and so leaves the file alone, which is harmless,
 /// with the setting off nothing reads it, and it still matches the
 /// installed tree.
 #[test]

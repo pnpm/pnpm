@@ -2,14 +2,30 @@
 //! stores, as YAML, read and written through the configured database without
 //! a running server.
 
-use crate::{Config, GrantsSubcommand, RegistryError, audit::Actor, server::validate_grant};
+use crate::{
+    Config,
+    GrantsSubcommand,
+    RegistryError,
+    audit::Actor,
+    server::validate_grant,
+};
 use indexmap::IndexMap;
-use pnpm_diagnostics::{print, println};
+use pnpm_diagnostics::{
+    print,
+    println,
+};
 use pnpr_storage::{
     Storage,
-    database::{GrantContent, GrantWrite, StoredGrant},
+    database::{
+        GrantContent,
+        GrantWrite,
+        StoredGrant,
+    },
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::path::Path;
 
 /// The file `export` writes and `import` reads.

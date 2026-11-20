@@ -10,7 +10,7 @@
 //! the larger one, and the orphaned variant drops out of the lockfile.
 //!
 //! The collapse target is chosen by a total order over `(dep count, dep
-//! path)` so it never depends on the order importers were resolved in —
+//! path)` so it never depends on the order importers were resolved in,
 //! the determinism fix from
 //! [pnpm/pnpm#12179](https://github.com/pnpm/pnpm/pull/12179). A variant
 //! that is a subset of two mutually incompatible larger variants of
@@ -20,7 +20,10 @@
 pub(crate) use survivor_names::PeerSuffixes;
 pub(crate) use unbound_optional_peers::collect_unbound_optional_peers;
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::collections::BTreeMap;
 
 use pnpm_deps_path::DepPath;
@@ -33,10 +36,20 @@ use cycles::collapse_cycles;
 
 use crate::{
     PeerDependentsDedupe,
-    dedupe_injected_deps::{DirectByImporter, prune_unreachable},
-    dep_path_compatibility::{is_compatible_and_has_more_deps, node_deps_count},
+    dedupe_injected_deps::{
+        DirectByImporter,
+        prune_unreachable,
+    },
+    dep_path_compatibility::{
+        is_compatible_and_has_more_deps,
+        node_deps_count,
+    },
     dependencies_graph::DependenciesGraph,
-    peer_dependents_dedupe::{CollapseGuard, OptionalPeerScope, UnboundOptionalPeers},
+    peer_dependents_dedupe::{
+        CollapseGuard,
+        OptionalPeerScope,
+        UnboundOptionalPeers,
+    },
 };
 
 /// Collapse peer-dependent duplicate variants in `graph` into their
@@ -106,7 +119,7 @@ fn merge_renames(
 /// instead of threading a parallel map through the walk.
 ///
 /// Groups are keyed through a `BTreeMap` only to make the outer order
-/// stable for readers — group order does not affect the collapse, since
+/// stable for readers, group order does not affect the collapse, since
 /// each `pkgIdWithPatchHash` group is processed independently. The order
 /// *within* a group is left as the graph yields it; determinism comes
 /// from the total-order sorter in [`deduplicate_dep_paths`], the fix this

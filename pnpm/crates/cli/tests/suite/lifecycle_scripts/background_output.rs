@@ -1,9 +1,15 @@
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::{
     fs,
     process::Command,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// [pnpm/pnpm#5730](https://github.com/pnpm/pnpm/issues/5730)
@@ -35,7 +41,7 @@ fn install_finishes_while_a_prepare_script_leaves_a_process_holding_its_output()
     let background =
         fs::read_to_string(workspace.join("background.pid")).expect("read background pid");
     Command::new("kill")
-        .arg(background.trim())
+        .with_arg(background.trim())
         .status()
         .expect("kill background process");
 

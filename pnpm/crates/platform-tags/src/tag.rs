@@ -1,6 +1,13 @@
 //! The string form of platform tags.
 
-use super::{Floor, Libc, NodeAbi, Platform, TagError, parse_number};
+use super::{
+    Floor,
+    Libc,
+    NodeAbi,
+    Platform,
+    TagError,
+    parse_number,
+};
 use std::iter::Peekable;
 
 /// `<prefix><major>_<minor>`, such as `manylinux_2_28`.
@@ -66,7 +73,8 @@ fn parse_node_abi(part: &str) -> Option<Result<NodeAbi, TagError>> {
         return Some(parse_number(abi).map(NodeAbi::Node));
     }
     part.strip_prefix("electron")
-        .map(|abi| parse_number(abi).map(NodeAbi::Electron))
+        .map(parse_number)
+        .map(|number| number.map(NodeAbi::Electron))
 }
 
 impl Platform {

@@ -7,23 +7,48 @@
 //! neither protocol defines one.
 
 use super::{
-    AppState, AuthedCaller, RegistrySource, TargetRegistry,
-    documents::{HostedDocument, read_hosted_document},
+    AppState,
+    AuthedCaller,
+    RegistrySource,
+    TargetRegistry,
+    documents::{
+        HostedDocument,
+        read_hosted_document,
+    },
     ecosystem::addressed_registry,
-    private_no_cache, require_caller, resolve_ecosystem_source, resolve_write_target_for,
+    private_no_cache,
+    require_caller,
+    resolve_ecosystem_source,
+    resolve_write_target_for,
 };
 use axum::{
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, State},
-    response::{IntoResponse, Response},
-    routing::{MethodRouter, get},
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        State,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
+    routing::{
+        MethodRouter,
+        get,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
+use pnpr_storage::{
+    DOCUMENT_WRITE_RETRIES,
+    DocumentUpdate,
+};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::collections::HashMap;
 
 /// The owner requests of the Python and OCI surfaces, which answer errors as

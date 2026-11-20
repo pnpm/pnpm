@@ -1,12 +1,36 @@
-use super::{super::CreateVirtualStore, DUMMY_SHA512, key, metadata_with_integrity};
-use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{LockfileEntries, SnapshotEntry};
+use super::{
+    super::CreateVirtualStore,
+    DUMMY_SHA512,
+    key,
+    metadata_with_integrity,
+};
+use crate::{
+    AllowBuildPolicy,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    LockfileEntries,
+    SnapshotEntry,
+};
 use pnpm_reporter::SilentReporter;
-use pnpm_store_dir::{StoreIndexWriter, store_index_key};
-use pnpm_tarball::{SharedReportedProgressKeys, pending_progress_key};
+use pnpm_store_dir::{
+    StoreIndexWriter,
+    store_index_key,
+};
+use pnpm_tarball::{
+    SharedReportedProgressKeys,
+    pending_progress_key,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
     sync::atomic::AtomicU8,
 };

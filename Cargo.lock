@@ -4870,6 +4870,7 @@ version = "0.0.0"
 dependencies = [
  "cargo-lock",
  "clap",
+ "command-extra",
  "which 8.0.6",
 ]
 
@@ -5077,6 +5078,7 @@ dependencies = [
 name = "pnpm-cmd-shim"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "derive_more",
  "dunce",
  "miette 7.6.0",
@@ -5098,6 +5100,7 @@ name = "pnpm-config"
 version = "0.0.1"
 dependencies = [
  "base64 0.23.1",
+ "command-extra",
  "derive_more",
  "dunce",
  "home",
@@ -5162,6 +5165,7 @@ name = "pnpm-crate-layers"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "command-extra",
  "pretty_assertions",
  "serde",
  "tempfile",
@@ -5282,6 +5286,7 @@ version = "0.0.1"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
+ "command-extra",
  "derive_more",
  "dunce",
  "flate2",
@@ -5391,6 +5396,7 @@ name = "pnpm-ecosystem-e2e"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "command-extra",
  "serde_json",
  "which 8.0.6",
 ]
@@ -5489,6 +5495,7 @@ name = "pnpm-engine-size"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "command-extra",
  "object 0.41.0",
  "pretty_assertions",
  "rustc-demangle",
@@ -5558,6 +5565,7 @@ dependencies = [
 name = "pnpm-executor"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "deno_task_shell",
  "derive_more",
  "dunce",
@@ -5674,6 +5682,7 @@ dependencies = [
 name = "pnpm-fs"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "dashmap",
  "derive_more",
  "dunce",
@@ -5704,6 +5713,7 @@ dependencies = [
 name = "pnpm-fs-packlist"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "derive_more",
  "pnpm-diagnostics",
  "pnpm-fs",
@@ -5748,6 +5758,7 @@ dependencies = [
 name = "pnpm-git-utils"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "libc",
  "pnpm-process",
  "tempfile",
@@ -5757,6 +5768,7 @@ dependencies = [
 name = "pnpm-github-actions"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "futures-util",
  "jiff 1.0.1",
  "miette 7.6.0",
@@ -5769,6 +5781,7 @@ dependencies = [
  "pnpm-process",
  "pnpm-reporter",
  "pnpm-resolving-git-resolver",
+ "serde-saphyr",
  "tempfile",
  "tokio",
  "url",
@@ -5847,6 +5860,7 @@ dependencies = [
 name = "pnpm-injected-deps-syncer"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "derive_more",
  "miette 7.6.0",
  "pnpm-cmd-shim",
@@ -5885,6 +5899,7 @@ version = "0.0.0"
 dependencies = [
  "base64 0.23.1",
  "clap",
+ "command-extra",
  "flate2",
  "itertools 0.15.0",
  "os_display",
@@ -6068,6 +6083,7 @@ name = "pnpm-napi"
 version = "0.0.1"
 dependencies = [
  "async-trait",
+ "command-extra",
  "dashmap",
  "indexmap 2.14.2",
  "miette 7.6.0",
@@ -6229,6 +6245,7 @@ version = "0.0.1"
 dependencies = [
  "async-recursion",
  "async-trait",
+ "command-extra",
  "console",
  "dashmap",
  "derive_more",
@@ -6332,6 +6349,7 @@ dependencies = [
 name = "pnpm-package-manifest"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "derive_more",
  "insta",
  "json5",
@@ -6590,6 +6608,7 @@ name = "pnpm-registry-mock"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "command-extra",
  "home",
  "pipe-trait",
  "pnpr-fixtures",
@@ -7134,6 +7153,7 @@ name = "pnpm-workspace"
 version = "0.0.1"
 dependencies = [
  "cap-primitives",
+ "command-extra",
  "derive_more",
  "indexmap 2.14.2",
  "libc",
@@ -7187,6 +7207,7 @@ dependencies = [
 name = "pnpm-workspace-projects-filter"
 version = "0.0.1"
 dependencies = [
+ "command-extra",
  "derive_more",
  "indexmap 2.14.2",
  "miette 7.6.0",
@@ -7286,6 +7307,7 @@ dependencies = [
  "base64 0.23.1",
  "bcrypt",
  "clap",
+ "command-extra",
  "dashmap",
  "derive_more",
  "dialoguer",
@@ -7622,6 +7644,8 @@ dependencies = [
  "pnpr-policy",
  "pnpr-registry",
  "reqwest",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
  "tracing",
  "url",

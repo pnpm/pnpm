@@ -1,8 +1,23 @@
 use super::{
-    Arc, BTreeSet, DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput,
-    NoProxySetting, ProxyConfigInput, begin_stats, build_overlay, install_options,
-    install_options_for, is_lockfile_only, network_config, reject_unsupported_install_options,
-    run_install_inner, script_deps_install_options, take_deps_requiring_build, take_stats,
+    Arc,
+    BTreeSet,
+    DepsRequiringBuildSink,
+    EngineMode,
+    InstallOptions,
+    NetworkConfigInput,
+    NoProxySetting,
+    ProxyConfigInput,
+    begin_stats,
+    build_overlay,
+    install_options,
+    install_options_for,
+    is_lockfile_only,
+    network_config,
+    reject_unsupported_install_options,
+    run_install_inner,
+    script_deps_install_options,
+    take_deps_requiring_build,
+    take_stats,
 };
 
 #[test]
@@ -268,12 +283,14 @@ fn enable_modules_dir_false_writes_no_node_modules_and_fills_the_store() {
     let store_dir = options.store_dir.as_deref().expect("the test options pin a store dir");
     let store_versions: Vec<_> = std::fs::read_dir(store_dir)
         .expect("the store directory exists")
-        .map(|entry| entry.expect("store entry").path())
+        .map(|entry| entry.expect("store entry"))
+        .map(|value| value.path())
         .collect();
     assert!(
         store_versions
             .iter()
-            .any(|version| version.join("files").is_dir()),
+            .map(|version| version.join("files"))
+            .any(|joined| joined.is_dir()),
         "the packages are fetched into the store: {store_versions:?}",
     );
 }

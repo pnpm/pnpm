@@ -1,9 +1,31 @@
 use super::{
-    CaptureWriter, FsReadToString, FsWrite, Host, LogEvent, LogLevel, LogoutOptions, PnpmLog,
-    Reporter, RetryOpts, RevokeOutcome, RevokeToken, ThrottledClient, auth_config, logout,
-    no_retry, refused_local_addr, revoke_log_url, unused_client, warns,
+    CaptureWriter,
+    FsReadToString,
+    FsWrite,
+    Host,
+    LogEvent,
+    LogLevel,
+    LogoutOptions,
+    PnpmLog,
+    Reporter,
+    RetryOpts,
+    RevokeOutcome,
+    RevokeToken,
+    ThrottledClient,
+    auth_config,
+    logout,
+    no_retry,
+    refused_local_addr,
+    revoke_log_url,
+    unused_client,
+    warns,
 };
-use std::{io, path::Path, sync::Mutex, time::Duration};
+use std::{
+    io,
+    path::Path,
+    sync::Mutex,
+    time::Duration,
+};
 
 #[test]
 fn revoke_log_url_drops_the_token_segment() {

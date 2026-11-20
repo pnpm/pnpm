@@ -1,11 +1,23 @@
 //! A record's digest: the SHA-512 of the bytes the registry stored and
 //! serves at the record route.
 
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use derive_more::{Display, Error};
-use sha2::{Digest as _, Sha512};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::{
-    fmt::{self, Write as _},
+    fmt::{
+        self,
+        Write as _,
+    },
     str::FromStr,
 };
 

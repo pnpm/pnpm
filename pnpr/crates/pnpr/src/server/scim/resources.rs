@@ -1,7 +1,14 @@
 //! SCIM 2.0 (RFC 7643, RFC 7644) message shapes for the `User` resource.
 
-use super::{super::RegistryError, directory::ScimUser};
-use serde_json::{Map, Value, json};
+use super::{
+    super::RegistryError,
+    directory::ScimUser,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
 pub(super) const USER_SCHEMA: &str = "urn:ietf:params:scim:schemas:core:2.0:User";
 const LIST_SCHEMA: &str = "urn:ietf:params:scim:api:messages:2.0:ListResponse";

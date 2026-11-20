@@ -1,17 +1,28 @@
 use super::{
-    CanonicalPackageName, DistBlock, PackumentDists, Value, tarball_basename_for_package,
-    tgz_integrity_key, version_route_tarball_version,
+    CanonicalPackageName,
+    DistBlock,
+    PackumentDists,
+    UpstreamTarballRoute,
+    Value,
+    tarball_basename_for_package,
+    tgz_integrity_key,
 };
 use pnpr_storage::DocumentStamp;
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 pub(super) struct VersionTgz {
     pub(super) filename: String,
-    pub(super) version_route: Option<String>,
+    pub(super) route: UpstreamTarballRoute,
     pub(super) dist: DistBlock,
     pub(super) integrity_key: Option<String>,
     pub(super) manifest_generation: Option<u64>,
@@ -68,7 +79,7 @@ pub(super) fn version_manifest_tgz(
 fn dist_tgz(name: &CanonicalPackageName, dist: DistBlock) -> Option<VersionTgz> {
     let url = dist.tarball.as_deref()?;
     let filename = tarball_basename_for_package(url, name)?.into_owned();
-    let version_route = version_route_tarball_version(url, name).map(str::to_string);
+    let route = UpstreamTarballRoute::from_dist_tarball(Some(url), name);
     let mut fields = serde_json::Map::new();
     if let Some(integrity) = &dist.integrity {
         fields.insert("integrity".to_string(), Value::String(integrity.clone()));
@@ -78,7 +89,7 @@ fn dist_tgz(name: &CanonicalPackageName, dist: DistBlock) -> Option<VersionTgz> 
     }
     Some(VersionTgz {
         filename,
-        version_route,
+        route,
         integrity_key: tgz_integrity_key(&fields),
         dist,
         manifest_generation: None,
@@ -155,6 +166,16 @@ impl VersionTgzCache {
         }
         let key = (namespace, name.as_str().to_string(), version.to_string());
         entries.insert(key, CachedVersionTgz { origin, tgz });
+    }
+
+    pub(in super::super) fn invalidate_version(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) {
+        let mut entries = self.entries.lock().expect("version dist cache lock poisoned");
+        entries.remove(&(namespace.to_string(), name.as_str().to_string(), version.to_string()));
     }
 }
 

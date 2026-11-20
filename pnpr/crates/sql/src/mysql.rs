@@ -1,8 +1,18 @@
 use super::{
-    Arc, Duration, Pools, Result, SqlBackendSettings, invalid_pool_size, timeout_millis,
+    Arc,
+    Duration,
+    Pools,
+    Result,
+    SqlBackendSettings,
+    invalid_pool_size,
+    timeout_millis,
     timeout_seconds,
 };
-use sqlx::{MySqlConnection, MySqlPool, mysql::MySqlPoolOptions};
+use sqlx::{
+    MySqlConnection,
+    MySqlPool,
+    mysql::MySqlPoolOptions,
+};
 
 /// Share a pool for these settings within the current runtime.
 ///

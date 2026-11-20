@@ -1,4 +1,8 @@
-use super::{NodeLinker, PackError, Value};
+use super::{
+    NodeLinker,
+    PackError,
+    Value,
+};
 use pnpm_package_manifest::is_truthy;
 
 pub(super) fn prevent_bundled_dependencies_with_pnp(

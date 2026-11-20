@@ -1,13 +1,28 @@
 use super::{
-    AbortOnUnwind, Condvar, HashMap, IndexMap, Mutex, MutexGuard, NodeConcurrencyLimit, NodeEdges,
-    ScheduleGraphOptions, ScheduleTasksOptions, SchedulerState, TaskCompletion, TaskDeclaration,
-    TaskGraph, TaskKey, TaskNode, VecDeque, graph_sequencer,
+    AbortOnUnwind,
+    Condvar,
+    HashMap,
+    IndexMap,
+    Mutex,
+    MutexGuard,
+    NodeConcurrencyLimit,
+    NodeEdges,
+    ScheduleGraphOptions,
+    ScheduleTasksOptions,
+    SchedulerState,
+    TaskCompletion,
+    TaskDeclaration,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    VecDeque,
+    graph_sequencer,
 };
 
 /// Dispatch every task whose dependencies have all completed successfully,
 /// in dependency order, with at most `concurrency` tasks running at once.
-/// Returns once no task can make further progress: all settled, or — under
-/// `bail` after a failure — all in-flight work finished.
+/// Returns once no task can make further progress: all settled, or (under
+/// `bail` after a failure) all in-flight work finished.
 ///
 /// The graph must be acyclic ([`sequence_tasks`](crate::graph::sequence_tasks) proves it); a cycle would
 /// deadlock this scheduler.
@@ -134,7 +149,8 @@ pub(super) fn node_edges<Node: Clone + Eq + std::hash::Hash>(
 pub(super) fn task_concurrency(settings: &impl TaskDeclaration) -> Option<usize> {
     settings
         .concurrency()
-        .map(|concurrency| usize::try_from(concurrency).unwrap_or(usize::MAX))
+        .map(usize::try_from)
+        .map(|converted| converted.unwrap_or(usize::MAX))
 }
 
 fn sequenced_order<Node: Clone + Eq + std::hash::Hash>(

@@ -2,11 +2,14 @@ use crate::VirtualStoreLayout;
 use pnpm_config::Config;
 use pnpm_lockfile::PackageKey;
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 use tempfile::tempdir;
 
 /// With an override map (the hoisted linker), the helper returns
-/// the override entry verbatim — no virtual-store layout lookup.
+/// the override entry verbatim, no virtual-store layout lookup.
 #[test]
 fn pkg_root_for_key_hoisted_uses_override() {
     let dir = tempdir().unwrap();

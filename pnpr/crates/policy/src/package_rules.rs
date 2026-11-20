@@ -1,5 +1,17 @@
-use super::{AccessList, Action, Grant, Identity, PackagePattern, PackageRule, RuleTable};
-use std::sync::{Arc, PoisonError, RwLock};
+use super::{
+    AccessList,
+    Action,
+    Grant,
+    Identity,
+    PackagePattern,
+    PackageRule,
+    RuleTable,
+};
+use std::sync::{
+    Arc,
+    PoisonError,
+    RwLock,
+};
 
 /// A registry's live rules: a handle on its current [`RuleTable`].
 ///

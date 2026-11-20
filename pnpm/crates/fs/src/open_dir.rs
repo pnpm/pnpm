@@ -1,15 +1,28 @@
 #[cfg(not(any(unix, windows)))]
 use crate::remove_dirent;
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs,
-    io::{self, ErrorKind},
-    path::{Component, Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
     time::SystemTime,
 };
 
 #[cfg(unix)]
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{
+    MetadataExt,
+    OpenOptionsExt,
+};
 
 mod child_ops;
 #[cfg(unix)]

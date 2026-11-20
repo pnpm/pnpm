@@ -1,15 +1,34 @@
 mod line_limits;
 
 use super::{
-    PackageExtension, PnprClient, PnprClientError, ResolutionMode, ResolveOutcome, ResolveProject,
-    ResolveProjectsOptions, ResolvedPackage, TrustPolicy, VerifyError, build_verify_error,
-    resolve::{Frame, parse_frame},
+    PackageExtension,
+    PnprClient,
+    PnprClientError,
+    ResolutionMode,
+    ResolveOutcome,
+    ResolveProject,
+    ResolveProjectsOptions,
+    ResolvedPackage,
+    TrustPolicy,
+    VerifyError,
+    build_verify_error,
+    resolve::{
+        Frame,
+        parse_frame,
+    },
 };
 use indexmap::IndexMap;
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
-use serde_json::{Value, json};
-use std::{collections::BTreeMap, future::pending, time::Duration};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeMap,
+    future::pending,
+    time::Duration,
+};
 use tokio::net::TcpListener;
 
 #[tokio::test]
@@ -913,7 +932,10 @@ async fn handshake_errors_preserve_the_server_code() {
 
 #[tokio::test]
 async fn a_stalled_handshake_error_body_has_a_deadline() {
-    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    use tokio::io::{
+        AsyncReadExt as _,
+        AsyncWriteExt as _,
+    };
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -1046,7 +1068,10 @@ async fn a_cargo_resolve_accepts_a_server_that_predates_lockfile_format() {
 
 #[test]
 fn a_sole_lockfile_format_may_be_omitted_but_not_replaced() {
-    use super::lockfile_format::{PYLOCK, expect_sole_lockfile_format};
+    use super::lockfile_format::{
+        PYLOCK,
+        expect_sole_lockfile_format,
+    };
 
     assert!(expect_sole_lockfile_format(None, PYLOCK).is_ok());
     assert!(expect_sole_lockfile_format(Some(PYLOCK), PYLOCK).is_ok());

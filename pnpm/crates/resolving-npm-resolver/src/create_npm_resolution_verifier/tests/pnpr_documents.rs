@@ -1,7 +1,17 @@
 use super::{
-    LockfileResolution, PkgName, REVISION_ONE_DIGEST, REVISION_TWO_DIGEST, RegistryResolution,
-    ResolutionVerification, TarballRevision, assert_eq, create_npm_resolution_verifier, ctx,
-    default_opts, now_at, revision_integrity,
+    LockfileResolution,
+    PkgName,
+    REVISION_ONE_DIGEST,
+    REVISION_TWO_DIGEST,
+    RegistryResolution,
+    ResolutionVerification,
+    TarballRevision,
+    assert_eq,
+    create_npm_resolution_verifier,
+    ctx,
+    default_opts,
+    now_at,
+    revision_integrity,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 

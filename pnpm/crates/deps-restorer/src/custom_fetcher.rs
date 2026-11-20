@@ -3,22 +3,45 @@ mod metadata;
 mod outcomes;
 
 use crate::{
-    InstallPackageBySnapshotError, install_package_by_snapshot::local_file_tarball_install_url,
+    InstallPackageBySnapshotError,
+    install_package_by_snapshot::local_file_tarball_install_url,
 };
-use callbacks::{NativeCallbacks, NativeFetcherResult, Verified, WalkedDirectory, drive_fetcher};
-use outcomes::{decode_fetch_outcome, decode_resolution};
+use callbacks::{
+    NativeCallbacks,
+    NativeFetcherResult,
+    Verified,
+    WalkedDirectory,
+    drive_fetcher,
+};
+use outcomes::{
+    decode_fetch_outcome,
+    decode_resolution,
+};
 use pnpm_config::Config;
 use pnpm_directory_fetcher::CopyFiles;
-use pnpm_hooks::{CustomFetcher, custom_fetcher_adapter::CustomFetcherPicker};
+use pnpm_hooks::{
+    CustomFetcher,
+    custom_fetcher_adapter::CustomFetcherPicker,
+};
 use pnpm_lockfile::LockfileResolution;
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{FetchedTarball, IngestTarballToStore, TarballError};
+use pnpm_tarball::{
+    FetchedTarball,
+    IngestTarballToStore,
+    TarballError,
+};
 use serde_json::Value;
 use ssri::Integrity;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 #[derive(serde::Deserialize)]
@@ -231,7 +254,7 @@ fn fetch_identity(
 }
 
 /// `None` when the hook pointed the package at a source that carries no archive
-/// digest — a directory or a git checkout — or at a registry resolution while
+/// digest (a directory or a git checkout) or at a registry resolution while
 /// the caller has no URL for it. Only a fresh install's missing-metadata
 /// discovery calls this, so there is nothing to hash and nothing to verify; the
 /// install pass materializes such a resolution through its own dispatch.

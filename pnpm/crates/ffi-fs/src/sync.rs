@@ -1,6 +1,10 @@
 //! Flushing a file to the storage device on Apple platforms.
 
-use std::{fs::File, io, os::fd::AsRawFd as _};
+use std::{
+    fs::File,
+    io,
+    os::fd::AsRawFd as _,
+};
 
 /// Flush `file`'s data to the storage device with `fsync`.
 ///

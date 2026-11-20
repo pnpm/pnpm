@@ -1,26 +1,46 @@
-use crate::_utils::{importer_version, read_lockfile};
+use crate::_utils::{
+    importer_version,
+    read_lockfile,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pretty_assertions::assert_eq;
 use std::{
     ffi::OsStr,
     fs,
-    io::{BufRead, BufReader, Write},
-    net::{TcpListener, TcpStream},
-    path::{Path, PathBuf},
+    io::{
+        BufRead,
+        BufReader,
+        Write,
+    },
+    net::{
+        TcpListener,
+        TcpStream,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
     thread,
 };
 use tempfile::TempDir;
 
+const BAR: &str = "@pnpm.e2e/bar";
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const FOO: &str = "@pnpm.e2e/foo";
 
@@ -351,6 +371,274 @@ fn outdated_json_routes_github_actions_skip_warning_to_stderr() {
             serde_json::from_slice(&output.stdout).expect("stdout must be pure JSON");
         assert_eq!(report, serde_json::json!({}), "args={args:?}");
     }
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_github_actions_handles_yaml_anchors_aliases_and_multibyte_comments() {
+    let (root, workspace, anchor) = setup();
+    let git_server = LocalGitHttpServer::start();
+    let checkout_shas = git_server.create_action_repo("actions/checkout", &["v4.1.1000", "v4.2.0"]);
+
+    write_manifest(&workspace, "{}");
+    let workflows = workspace.join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("mkdir workflows");
+    let workflow = workflows.join("ci.yml");
+    fs::write(
+        &workflow,
+        format!(
+            concat!(
+                "on: push\n",
+                "jobs:\n",
+                "  first:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps: &shared\n",
+                "      - uses: 'actions/checkout@{0}' # v4.1.1000\n",
+                "# café: éééé\n",
+                "  second:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps: *shared\n",
+            ),
+            checkout_shas[0],
+        ),
+    )
+    .expect("write ci.yml");
+
+    pacquet(&workspace, &git_server.url(), ["update", "--include-github-actions"])
+        .assert()
+        .success();
+
+    let updated = fs::read_to_string(&workflow).expect("read ci.yml");
+    assert_eq!(
+        updated,
+        format!(
+            concat!(
+                "on: push\n",
+                "jobs:\n",
+                "  first:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps: &shared\n",
+                "      - uses: 'actions/checkout@{0}' # v4.2.0\n",
+                "# café: éééé\n",
+                "  second:\n",
+                "    runs-on: ubuntu-latest\n",
+                "    steps: *shared\n",
+            ),
+            checkout_shas[1],
+        ),
+    );
+    pacquet(&workspace, &git_server.url(), ["outdated", "--include-github-actions", "--json"])
+        .assert()
+        .success();
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_action_selector_with_negated_package_selector_updates_only_action() {
+    let (root, workspace, anchor) = setup();
+    let git_server = LocalGitHttpServer::start();
+    let checkout_shas = git_server.create_action_repo("actions/checkout", &["v4.1.0", "v4.2.0"]);
+    let cache_shas = git_server.create_action_repo("actions/cache", &["v4.1.0", "v4.2.0"]);
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "100.0.0" }}"#));
+    pacquet(&workspace, &git_server.url(), ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^100.0.0" }}"#));
+
+    let workflows = workspace.join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("mkdir workflows");
+    let workflow = workflows.join("ci.yml");
+    fs::write(
+        &workflow,
+        format!(
+            concat!(
+                "jobs:\n  test:\n    steps:\n",
+                "      - uses: actions/checkout@{} # v4\n",
+                "      - uses: actions/cache@{} # v4\n",
+            ),
+            checkout_shas[0], cache_shas[0],
+        ),
+    )
+    .expect("write workflow");
+
+    pacquet(
+        &workspace,
+        &git_server.url(),
+        ["update", "actions/checkout", &format!("!{FOO}"), "--include-github-actions"],
+    )
+    .assert()
+    .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", DEP), "100.0.0");
+    assert_eq!(importer_version(&lockfile, ".", FOO), "100.0.0");
+    assert_eq!(
+        fs::read_to_string(&workflow).expect("read workflow"),
+        format!(
+            concat!(
+                "jobs:\n  test:\n    steps:\n",
+                "      - uses: actions/checkout@{} # v4.2.0\n",
+                "      - uses: actions/cache@{} # v4\n",
+            ),
+            checkout_shas[1], cache_shas[0],
+        ),
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_negated_package_selector_updates_unexcluded_packages_and_actions() {
+    let (root, workspace, anchor) = setup();
+    let git_server = LocalGitHttpServer::start();
+    let checkout_shas = git_server.create_action_repo("actions/checkout", &["v4.1.0", "v4.2.0"]);
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "100.0.0" }}"#));
+    pacquet(&workspace, &git_server.url(), ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^100.0.0" }}"#));
+
+    let workflows = workspace.join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("mkdir workflows");
+    let workflow = workflows.join("ci.yml");
+    fs::write(
+        &workflow,
+        format!(
+            "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@{} # v4\n",
+            checkout_shas[0],
+        ),
+    )
+    .expect("write workflow");
+
+    pacquet(
+        &workspace,
+        &git_server.url(),
+        ["update", &format!("!{FOO}"), "--include-github-actions"],
+    )
+    .assert()
+    .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", DEP), "100.1.0");
+    assert_eq!(importer_version(&lockfile, ".", FOO), "100.0.0");
+    assert_eq!(
+        fs::read_to_string(&workflow).expect("read workflow"),
+        format!(
+            "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@{} # v4.2.0\n",
+            checkout_shas[1],
+        ),
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn update_positive_package_and_action_selectors_with_negated_package_selector() {
+    let (root, workspace, anchor) = setup();
+    let git_server = LocalGitHttpServer::start();
+    let checkout_shas = git_server.create_action_repo("actions/checkout", &["v4.1.0", "v4.2.0"]);
+    let cache_shas = git_server.create_action_repo("actions/cache", &["v4.1.0", "v4.2.0"]);
+
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{BAR}": "100.0.0", "{DEP}": "100.0.0", "{FOO}": "100.0.0" }}"#),
+    );
+    pacquet(&workspace, &git_server.url(), ["install"]).assert().success();
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{BAR}": "^100.0.0", "{DEP}": "^100.0.0", "{FOO}": "^100.0.0" }}"#),
+    );
+
+    let workflows = workspace.join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("mkdir workflows");
+    let workflow = workflows.join("ci.yml");
+    fs::write(
+        &workflow,
+        format!(
+            concat!(
+                "jobs:\n  test:\n    steps:\n",
+                "      - uses: actions/checkout@{} # v4\n",
+                "      - uses: actions/cache@{} # v4\n",
+            ),
+            checkout_shas[0], cache_shas[0],
+        ),
+    )
+    .expect("write workflow");
+
+    pacquet(
+        &workspace,
+        &git_server.url(),
+        ["update", DEP, "actions/checkout", &format!("!{FOO}"), "--include-github-actions"],
+    )
+    .assert()
+    .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(importer_version(&lockfile, ".", BAR), "100.0.0");
+    assert_eq!(importer_version(&lockfile, ".", DEP), "100.1.0");
+    assert_eq!(importer_version(&lockfile, ".", FOO), "100.0.0");
+    assert_eq!(
+        fs::read_to_string(&workflow).expect("read workflow"),
+        format!(
+            concat!(
+                "jobs:\n  test:\n    steps:\n",
+                "      - uses: actions/checkout@{} # v4.2.0\n",
+                "      - uses: actions/cache@{} # v4\n",
+            ),
+            checkout_shas[1], cache_shas[0],
+        ),
+    );
+
+    drop((root, anchor));
+}
+
+#[test]
+fn outdated_action_selector_with_negated_package_selector_checks_only_action() {
+    let (root, workspace, anchor) = setup();
+    let git_server = LocalGitHttpServer::start();
+    let checkout_shas = git_server.create_action_repo("actions/checkout", &["v4.1.0", "v4.2.0"]);
+    let cache_shas = git_server.create_action_repo("actions/cache", &["v4.1.0", "v4.2.0"]);
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0", "{FOO}": "100.0.0" }}"#));
+    pacquet(&workspace, &git_server.url(), ["install"]).assert().success();
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0", "{FOO}": "^100.0.0" }}"#));
+
+    let workflows = workspace.join(".github/workflows");
+    fs::create_dir_all(&workflows).expect("mkdir workflows");
+    fs::write(
+        workflows.join("ci.yml"),
+        format!(
+            concat!(
+                "jobs:\n  test:\n    steps:\n",
+                "      - uses: actions/checkout@{} # v4\n",
+                "      - uses: actions/cache@{} # v4\n",
+            ),
+            checkout_shas[0], cache_shas[0],
+        ),
+    )
+    .expect("write workflow");
+
+    let output = pacquet(
+        &workspace,
+        &git_server.url(),
+        ["outdated", "actions/checkout", &format!("!{FOO}"), "--include-github-actions", "--json"],
+    )
+    .output()
+    .expect("run outdated");
+    assert_eq!(output.status.code(), Some(1));
+    let report: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("parse outdated JSON");
+    assert_eq!(
+        report
+            .as_object()
+            .expect("json object")
+            .len(),
+        1,
+        "{report}",
+    );
+    assert_eq!(report["actions/checkout"]["current"], "4.1.0");
+    assert_eq!(report["actions/checkout"]["latest"], "4.2.0");
+    assert_eq!(report["actions/checkout"]["dependencyType"], "githubAction");
 
     drop((root, anchor));
 }

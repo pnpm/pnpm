@@ -1,9 +1,15 @@
 mod purl;
 
-use crate::{cli_args::add::AddRequest, engine_pm::selector::rust_toolchain_request};
+use crate::{
+    cli_args::add::AddRequest,
+    engine_pm::selector::rust_toolchain_request,
+};
 use miette::Result;
 use percent_encoding::percent_decode_str;
-use purl::{Purl, PurlType};
+use purl::{
+    Purl,
+    PurlType,
+};
 
 const CARGO_PROTOCOL: &str = "crate:";
 const PYTHON_PROTOCOL: &str = "pypi:";
@@ -379,7 +385,8 @@ fn parse_registry_specifier(
 ) -> Result<RegistryPackageSpecifier> {
     let (name, version_spec) = specifier
         .rsplit_once('@')
-        .map_or((specifier, None), |(name, version)| (name, Some(version)));
+        .map(|(name, version)| (name, Some(version)))
+        .unwrap_or((specifier, None));
     reject_invalid_cargo_name(name, source)?;
     if version_spec == Some("") {
         return Err(miette::miette!("missing version after `@` in {source}"));

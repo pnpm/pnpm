@@ -2,7 +2,11 @@
 //! handler replaced.
 
 use crate::Interrupt;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
 
 /// A handler for one interrupt.
 ///

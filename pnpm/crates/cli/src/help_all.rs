@@ -5,9 +5,15 @@
 //! every command and declares no options, so the flag is dropped before
 //! clap parses argv.
 
-use crate::flag_relocation::{ArgTable, find_positional};
+use crate::flag_relocation::{
+    ArgTable,
+    find_positional,
+};
 use clap::Command;
-use std::ffi::{OsStr, OsString};
+use std::ffi::{
+    OsStr,
+    OsString,
+};
 
 /// Remove `--all`, `-a`, and the other spellings of the boolean (`--all=<value>`,
 /// `--no-all`) from the arguments of the `help` subcommand. Their value is

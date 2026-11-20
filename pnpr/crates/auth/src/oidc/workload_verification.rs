@@ -1,6 +1,14 @@
 use super::{
-    MetadataFreshness, OidcState, OidcWorkload, Provider, Result, Value, match_workload_binding,
-    rejected, token_payload, verify_workload,
+    MetadataFreshness,
+    OidcState,
+    OidcWorkload,
+    Provider,
+    Result,
+    Value,
+    match_workload_binding,
+    rejected,
+    token_payload,
+    verify_workload,
 };
 
 impl OidcState {

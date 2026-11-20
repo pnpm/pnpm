@@ -2,14 +2,34 @@
 //! lockfile pins and the projects in this repository built from source.
 
 use super::{
-    Lockfile, Registry, Reporter, build,
-    environment::{EnvironmentStore, Generation, PythonPrepare},
-    host, projects, resolver, workspace,
+    Lockfile,
+    Registry,
+    Reporter,
+    build,
+    environment::{
+        EnvironmentStore,
+        Generation,
+        PythonPrepare,
+    },
+    host,
+    projects,
+    resolver,
+    workspace,
 };
-use miette::{Result, bail};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
+use miette::{
+    Result,
+    bail,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::Path,
 };
 

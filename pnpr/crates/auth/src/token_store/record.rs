@@ -1,4 +1,7 @@
-use super::{RegistryError, Result};
+use super::{
+    RegistryError,
+    Result,
+};
 
 /// Supported personal token kinds.
 #[non_exhaustive]

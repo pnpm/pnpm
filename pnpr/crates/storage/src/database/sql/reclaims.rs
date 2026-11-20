@@ -6,20 +6,39 @@
 
 use super::{
     SqlDatabase,
-    adapter::{Connection, Query, Row},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
     batch::WriteTransaction,
-    blobs::{ROWS, id_from, json_array, rows_from},
-    to_column, to_generation,
+    blobs::{
+        ROWS,
+        id_from,
+        json_array,
+        rows_from,
+    },
+    to_column,
+    to_generation,
     transactions::Freshness,
 };
 use crate::{
     BlobId,
-    database::{BlobRef, BlobRow, BlobState, Uncommitted},
+    database::{
+        BlobRef,
+        BlobRow,
+        BlobState,
+        Uncommitted,
+    },
 };
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::Duration,
+};
 
 /// The live blobs of a namespace nothing maps, with their rows. `?3` narrows
 /// them to a JSON array of identities, or is `NULL` for all of them.

@@ -3,8 +3,14 @@ use std::time::Duration;
 use axum::{
     Router,
     extract::Request,
-    http::{Method, StatusCode},
-    middleware::{self, Next},
+    http::{
+        Method,
+        StatusCode,
+    },
+    middleware::{
+        self,
+        Next,
+    },
     response::Response,
 };
 use tokio::time::Instant;

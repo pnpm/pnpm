@@ -13,19 +13,40 @@
 #![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
 
 #[cfg(windows)]
-pub use console::{Handled, on_console_closing, on_console_event};
+pub use console::{
+    Handled,
+    on_console_closing,
+    on_console_event,
+};
 #[cfg(unix)]
 pub use death::die_from;
 #[cfg(unix)]
-pub use disposition::{Handler, Replaced, carries_handler, install};
+pub use disposition::{
+    Handler,
+    Replaced,
+    carries_handler,
+    install,
+};
 #[cfg(unix)]
 pub use pending::pending_count;
 #[cfg(target_os = "linux")]
-pub use pinned_target::{Pin, PinnedTarget, Reaping, Waiting};
+pub use pinned_target::{
+    Pin,
+    PinnedTarget,
+    Reaping,
+    Waiting,
+};
 #[cfg(unix)]
 pub use relay::{
-    Target, group_has_members, has_controlling_terminal, holds_the_terminal, process_group_of,
-    reap, signal_target, target_exists, try_signal_target,
+    Target,
+    group_has_members,
+    has_controlling_terminal,
+    holds_the_terminal,
+    process_group_of,
+    reap,
+    signal_target,
+    target_exists,
+    try_signal_target,
 };
 
 /// An interrupt pnpm handles, under the name it has on both platforms.

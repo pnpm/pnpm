@@ -5,7 +5,10 @@
 use super::HoistedDependencies;
 use pnpm_matcher::Matcher;
 use pnpm_modules_yaml::HoistKind;
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::HashSet,
+    path::PathBuf,
+};
 
 /// `hoist-workspace-packages` placements for the hoisted linker, whose
 /// packages all live in the root `node_modules`: a project the patterns

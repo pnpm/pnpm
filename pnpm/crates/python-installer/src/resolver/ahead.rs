@@ -1,11 +1,36 @@
-use super::super::registry::{CachedIndex, Fetcher, Registry, checked_metadata_digests};
-use futures_util::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
+use super::super::registry::{
+    CachedIndex,
+    Fetcher,
+    Registry,
+    checked_metadata_digests,
+};
+use futures_util::{
+    FutureExt,
+    StreamExt,
+    future::BoxFuture,
+    stream::FuturesUnordered,
+};
 use miette::Result;
-use pep440_rs::{Version, VersionSpecifiers};
-use pep508_rs::{ExtraName, PackageName, Requirement, VersionOrUrl};
-use pnpm_python_resolver::{IndexCandidate, WheelMetadata, parse_requirement};
+use pep440_rs::{
+    Version,
+    VersionSpecifiers,
+};
+use pep508_rs::{
+    ExtraName,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
+use pnpm_python_resolver::{
+    IndexCandidate,
+    WheelMetadata,
+    parse_requirement,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     future::Future,
 };
 
@@ -258,7 +283,8 @@ impl<'a> Ahead<'a> {
             .unwrap_or_default();
         let requirements = metadata.requires_dist
             .iter()
-            .filter_map(|declared| parse_requirement(declared).ok())
+            .map(|declared| parse_requirement(declared))
+            .filter_map(Result::ok)
             .collect::<Vec<_>>();
         self.read_requirements(registry, &requirements, &extras);
         registry.resolution.packages.metadata.entry(key).or_insert(metadata);

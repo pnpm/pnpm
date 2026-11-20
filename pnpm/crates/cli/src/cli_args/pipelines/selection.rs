@@ -2,23 +2,42 @@
 //! `--filter` / `-r` selection, and how it is dispatched.
 
 use super::{
-    DedicatedProjects, InstallFamilyPlan, InstallFamilySelection, configuration,
-    nested_workspace_manifests::report_nested_workspace_manifests, precomputed_workspace_cycles,
-    project_dependencies, sequence_project_dependencies,
+    DedicatedProjects,
+    InstallFamilyPlan,
+    InstallFamilySelection,
+    configuration,
+    nested_workspace_manifests::report_nested_workspace_manifests,
+    precomputed_workspace_cycles,
+    project_dependencies,
+    sequence_project_dependencies,
 };
 use crate::{
     cli_args::recursive::{
-        AutoExcludeRoot, RecursiveSelection, UnmatchedFilters, discover_workspace_projects,
+        AutoExcludeRoot,
+        RecursiveSelection,
+        UnmatchedFilters,
+        discover_workspace_projects,
         select_recursive_projects_deferring_no_match,
     },
-    state::{ProjectHost, host_requirements},
+    state::{
+        ProjectHost,
+        host_requirements,
+    },
 };
 use indexmap::IndexMap;
 use pnpm_config::Config;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    ScopeLog,
+};
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -99,7 +118,7 @@ pub(super) fn select_install_family<Reporter: self::Reporter>(
     let scope = workspace_scope(cfg, &selection, root_selector);
     // Report what the `--filter` / `-r` selection resolved to, so the user
     // can confirm it before the install acts on it. Emitted once here for
-    // every plan shape below — a `PerProject` plan installs each selected
+    // every plan shape below, a `PerProject` plan installs each selected
     // project separately, and those child installs must not each report
     // the workspace again. The unnarrowed install reports its own scope
     // from inside the installer, where the workspace walk it already does
@@ -195,7 +214,7 @@ pub(crate) fn select_workspace_projects(
 /// [`select_workspace_projects`], optionally running the install's
 /// workspace-cycle search over the selection graph while it is still in
 /// hand. Callers pass `true` only for a run that is certain to reach
-/// the cycle check — the "Already up to date" fast path returns before
+/// the cycle check, the "Already up to date" fast path returns before
 /// it, and a search it never reads would tax exactly that path.
 fn select_workspace_projects_with_cycles(
     cfg: &Config,

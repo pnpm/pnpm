@@ -1,7 +1,17 @@
 use super::{
-    CurrentPkg, LockfileResolution, PkgResolutionId, RegistryResolution, ResolveOptions,
-    TrustPolicy, UpdateBehavior, WantedDependency, assert_eq, build_resolver,
-    build_workspace_packages, build_workspace_packages_at, single_version_body,
+    CurrentPkg,
+    LockfileResolution,
+    PkgResolutionId,
+    RegistryResolution,
+    ResolveOptions,
+    TrustPolicy,
+    UpdateBehavior,
+    WantedDependency,
+    assert_eq,
+    build_resolver,
+    build_workspace_packages,
+    build_workspace_packages_at,
+    single_version_body,
     workspace_resolve_options,
 };
 use pnpm_resolving_resolver_base::Resolver;

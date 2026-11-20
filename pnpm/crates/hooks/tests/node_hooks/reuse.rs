@@ -1,4 +1,7 @@
-use super::{TempDir, finder};
+use super::{
+    TempDir,
+    finder,
+};
 use pnpm_hooks::PnpmfileHooks as _;
 
 fn write_pnpmfile(dir: &std::path::Path, file_name: &str, source: &str) -> std::path::PathBuf {
@@ -42,7 +45,11 @@ async fn untracked_read_package_hook_detects_global_hook() {
         "module.exports = { hooks: { readPackage (pkg) { return pkg } } }",
     );
     assert!(
-        hooks.untracked_read_package_hook().await.unwrap() == Some(true),
+        hooks
+            .untracked_read_package_hook()
+            .await
+            .unwrap()
+            .unwrap_or(false),
         "a readPackage hook on the checksum-excluded global pnpmfile must be reported",
     );
 }
@@ -58,7 +65,11 @@ async fn untracked_read_package_hook_stays_quiet_without_global_hook() {
         "module.exports = { hooks: { updateConfig (config) { return config } } }",
     );
     assert!(
-        hooks.untracked_read_package_hook().await.unwrap() == Some(false),
+        !hooks
+            .untracked_read_package_hook()
+            .await
+            .unwrap()
+            .unwrap_or(true),
         "a global pnpmfile without readPackage must not disable reuse",
     );
 }
@@ -77,7 +88,11 @@ async fn untracked_read_package_hook_ignores_project_hook() {
         "module.exports = {}",
     );
     assert!(
-        hooks.untracked_read_package_hook().await.unwrap() == Some(false),
+        !hooks
+            .untracked_read_package_hook()
+            .await
+            .unwrap()
+            .unwrap_or(true),
         "a checksum-tracked project readPackage must not count as untracked",
     );
 }

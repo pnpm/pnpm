@@ -1,12 +1,26 @@
-use super::{PublishArgs, PublishFlags, configured_publish_branch, run_publish_scripts};
+use super::{
+    PublishArgs,
+    PublishFlags,
+    configured_publish_branch,
+    run_publish_scripts,
+};
 use crate::{
     boolean_values::resolve_boolean_values,
-    cli_args::{CliArgs, cli_command::CliCommand},
+    cli_args::{
+        CliArgs,
+        cli_command::CliCommand,
+    },
 };
 use clap::Parser;
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_publish::{Access, PublishNetwork};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
+use pnpm_publish::{
+    Access,
+    PublishNetwork,
+};
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -224,7 +238,7 @@ fn run_publish_scripts_is_a_noop_when_no_script_is_declared() {
 }
 
 /// Publishing a directory that has no `package.json` fails with
-/// `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` before any packing or network work —
+/// `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` before any packing or network work,
 /// the only branch of `publish_directory` reachable without a live registry.
 #[tokio::test]
 async fn publish_directory_errors_when_no_manifest_is_present() {

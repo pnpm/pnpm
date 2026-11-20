@@ -1,12 +1,22 @@
 use std::{
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
-use crate::{error::VersioningError, intents::CHANGES_DIR, pending::PENDING_CHANGELOGS_DIR};
+use crate::{
+    error::VersioningError,
+    intents::CHANGES_DIR,
+    pending::PENDING_CHANGELOGS_DIR,
+};
 
 /// Directory, under the parked changelogs, holding the parked
 /// publications.

@@ -1,5 +1,12 @@
 use super::{
-    CommandExtra, CommandTempCwd, Path, Value, append_line_script, fs, json, sorted_lines,
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    Value,
+    append_line_script,
+    fs,
+    json,
+    sorted_lines,
 };
 use assert_cmd::assert::OutputAssertExt;
 

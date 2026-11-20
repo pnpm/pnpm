@@ -1,8 +1,16 @@
 use super::{
-    JsonValue, LockfileResolution, RegistryArtifact, RegistryArtifactHistory,
-    ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-    TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision, has_complete_sha512_digest,
+    JsonValue,
+    LockfileResolution,
+    PublishedTarballUrlMapper,
+    RegistryArtifact,
+    RegistryArtifactHistory,
+    ResolutionVerification,
+    TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+    TARBALL_URL_MISMATCH_VIOLATION_CODE,
+    TarballRevision,
+    has_complete_sha512_digest,
     is_revision_registry_tarball_url,
+    redact_url_for_display,
 };
 
 pub(super) fn same_tarball_url(left: &str, right: &str) -> bool {
@@ -28,8 +36,41 @@ pub(super) fn missing_artifact_violation(
     })
 }
 
+/// Bind `lockfile_tarball` against `registry_tarball`, honoring an optional
+/// [`PublishedTarballUrlMapper`] when a registry server rewrites split-domain
+/// upstream tarballs onto its own endpoint routes.
+pub(super) fn mapped_tarball_url_violation(
+    lockfile_tarball: Option<&str>,
+    registry_tarball: Option<&str>,
+    (registry, name, version): (&str, &str, &str),
+    mapper: Option<&PublishedTarballUrlMapper>,
+) -> Option<ResolutionVerification> {
+    let Some(mapper) = mapper else {
+        return tarball_url_violation(lockfile_tarball, registry_tarball);
+    };
+    let Some(published) = registry_tarball else {
+        return tarball_url_violation(lockfile_tarball, None);
+    };
+    let lockfile = lockfile_tarball?;
+    let mapped = mapper(registry, name, version, lockfile, published);
+    let matches_routed = mapped.accepted_routed_url
+        .as_deref()
+        .is_some_and(|routed| same_tarball_url(lockfile, routed));
+    let matches_published = mapped.accept_published_url && same_tarball_url(lockfile, published);
+    if matches_routed || matches_published {
+        return None;
+    }
+    Some(ResolutionVerification::Err {
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: format!(
+            "has a tarball URL that does not match the registry's published metadata ({})",
+            redact_url_for_display(&mapped.display_url),
+        ),
+    })
+}
+
 /// A recorded tarball URL must be the one the registry publishes.
-pub(super) fn tarball_url_violation(
+fn tarball_url_violation(
     lockfile_tarball: Option<&str>,
     registry_tarball: Option<&str>,
 ) -> Option<ResolutionVerification> {
@@ -39,7 +80,9 @@ pub(super) fn tarball_url_violation(
         (Some(lockfile), Some(registry)) => Some(ResolutionVerification::Err {
             code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
             reason: format!(
-                "has a tarball URL ({lockfile}) that does not match the registry's published metadata ({registry})",
+                "has a tarball URL ({}) that does not match the registry's published metadata ({})",
+                redact_url_for_display(lockfile),
+                redact_url_for_display(registry),
             ),
         }),
         (Some(_), None) => Some(ResolutionVerification::Err {
@@ -62,7 +105,8 @@ pub(super) fn current_revision_number(
     };
     let revision = raw_revision
         .as_u64()
-        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok)
         .map(TarballRevision::get);
     revision.ok_or_else(|| ResolutionVerification::Err {
         code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
@@ -172,7 +216,7 @@ pub(super) fn lockfile_revision(resolution: &LockfileResolution) -> Option<u64> 
 
 /// Canonicalize a tarball URL: parse-and-reserialize to drop default
 /// ports (`:443`/`:80`), decode the `%2f` scoped-name separator, then
-/// ignore the scheme — so a benign http/https, default-port, or
+/// ignore the scheme, so a benign http/https, default-port, or
 /// encoding difference between the lockfile URL and the registry
 /// metadata isn't read as tampering.
 pub(super) fn canonical_tarball_url(url: &str) -> String {

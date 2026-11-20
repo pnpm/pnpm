@@ -1,27 +1,73 @@
 use super::{
-    BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, MAX_PATHS_PER_FINDING,
-    PackageVersionGuard, PackageVersionGuardDecision, Range, filter_ignored_advisories,
+    BTreeMap,
+    Config,
+    ConfigAuditLevel,
+    GuardExhaustionPolicy,
+    HashMap,
+    LockedPackageRegistry,
+    MAX_PATHS_PER_FINDING,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    Range,
+    filter_ignored_advisories,
     fix::{
-        PackumentPublishInfo, VulnerabilityGuard, filter_advisories_for_fix,
-        format_fix_with_update_output, minimum_release_age_excludes, overrides::create_overrides,
+        PackumentPublishInfo,
+        PublishInfoLookup,
+        VulnerabilityGuard,
+        filter_advisories_for_fix,
+        format_fix_with_update_output,
+        minimum_release_age_excludes,
+        overrides::create_overrides,
         prune_subsumed_advisories,
     },
-    paths::{AuditPathIndex, PathInfo, build_audit_path_index},
-    render::{render_json_report, render_text_report},
-    report::{
-        AdvisoryId, AuditAdvisory, AuditFinding, AuditMetadata, AuditReport,
-        AuditVulnerabilityCounts, Cwe, RawBulkAdvisory, bulk_response_to_audit_report,
-        normalize_ghsa_id, sanitize_control_chars,
+    locked_package_registries,
+    paths::{
+        AuditPathIndex,
+        PathInfo,
+        build_audit_path_index,
+        package_version,
     },
-    request::{Include, lockfile_to_audit_request},
-    version_ranges::{is_range_subset, patched_range_for_style, satisfies_safe},
+    render::{
+        render_json_report,
+        render_text_report,
+    },
+    report::{
+        AdvisoryId,
+        AuditAdvisory,
+        AuditFinding,
+        AuditMetadata,
+        AuditReport,
+        AuditVulnerabilityCounts,
+        Cwe,
+        RawBulkAdvisory,
+        bulk_response_to_audit_report,
+        normalize_ghsa_id,
+        sanitize_control_chars,
+    },
+    request::{
+        Include,
+        lockfile_to_audit_request,
+    },
+    version_ranges::{
+        is_range_subset,
+        patched_range_for_style,
+        satisfies_safe,
+    },
 };
 use crate::cli_args::audit::fix::update::{
-    InstalledPackages, advisory_choices, classify_for_update, report_fixed_remaining,
+    InstalledPackages,
+    advisory_choices,
+    classify_for_update,
+    report_fixed_remaining,
 };
 use jiff::Timestamp;
 use pnpm_lockfile::{
-    EnvLockfile, Lockfile, PeerEdgeOptions, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    EnvLockfile,
+    Lockfile,
+    PeerEdgeOptions,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
 };
 use pnpm_network::redact_url_credentials;
 use pnpm_registry::RangeSpecStyle;
@@ -742,13 +788,10 @@ fn age_cutoff() -> Timestamp {
     pnpm_time::parse_rfc3339("2026-01-01T00:00:00Z").expect("valid cutoff")
 }
 
-fn publish_times(
-    package: &str,
-    entries: &[(&str, &str)],
-) -> HashMap<String, Option<PackumentPublishInfo>> {
+fn publish_times(package: &str, entries: &[(&str, &str)]) -> HashMap<String, PublishInfoLookup> {
     HashMap::from([(
         package.to_string(),
-        Some(PackumentPublishInfo {
+        PublishInfoLookup::Resolved(PackumentPublishInfo {
             time: entries
                 .iter()
                 .map(|(version, time)| (version.to_string(), time.to_string()))
@@ -758,20 +801,16 @@ fn publish_times(
     )])
 }
 
-fn deprecate(
-    publish_infos: &mut HashMap<String, Option<PackumentPublishInfo>>,
-    package: &str,
-    version: &str,
-) {
-    publish_infos
-        .get_mut(package)
-        .and_then(Option::as_mut)
-        .expect("publish info for the package")
-        .deprecated
-        .insert(version.parse().expect("valid deprecated version"));
+fn deprecate(publish_infos: &mut HashMap<String, PublishInfoLookup>, package: &str, version: &str) {
+    let Some(PublishInfoLookup::Resolved(info)) = publish_infos.get_mut(package) else {
+        panic!("publish info for the package");
+    };
+    info.deprecated.insert(version.parse().expect("valid deprecated version"));
 }
 
 mod dependency_paths;
+
+mod dependency_sources;
 
 mod remediation;
 

@@ -1,19 +1,38 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use node_semver::{Range, Version};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef,
+    LockfileResolution,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    SnapshotDepRef,
     SnapshotEntry,
 };
 use pnpm_resolving_resolver_base::get_peer_version_range;
 
 use crate::{
-    ParentPkg, PeerIssues,
+    ParentPkg,
+    PeerIssues,
     linked::{
-        LinkRoots, record_bad_peer, record_missing_peer, resolve_link_version, resolve_peer_range,
+        LinkRoots,
+        record_bad_peer,
+        record_missing_peer,
+        resolve_link_version,
+        resolve_peer_range,
     },
-    ranges::{parse_range_to_intervals, preprocess_hyphen_ranges},
+    ranges::{
+        parse_range_to_intervals,
+        preprocess_hyphen_ranges,
+    },
 };
 
 pub(super) fn walk_snapshot(
@@ -172,7 +191,8 @@ fn get_pkg_version(
 pub(super) fn extract_peer_version(ver_peer: &PkgVerPeer) -> String {
     ver_peer
         .registry_qualified()
-        .map_or_else(|| ver_peer.version().to_string(), |(_, version)| version.to_string())
+        .map(|(_, version)| version.to_string())
+        .unwrap_or_else(|| ver_peer.version().to_string())
 }
 
 pub(super) fn satisfies(version: &str, range: &str) -> bool {
@@ -193,7 +213,7 @@ pub(super) fn satisfies(version: &str, range: &str) -> bool {
     }
     // pnpm asks semver for `includePrerelease`, which drops the rule
     // that a prerelease only satisfies a comparator carrying a
-    // prerelease of its own `major.minor.patch` — `node-semver`'s Rust
+    // prerelease of its own `major.minor.patch`, `node-semver`'s Rust
     // port applies that rule unconditionally. What is left is the plain
     // bound check, and ordering still holds: `18.3.0-canary` satisfies
     // `^18.0.0`, while `2.0.0-beta.1` stays below `>=2.0.0`.

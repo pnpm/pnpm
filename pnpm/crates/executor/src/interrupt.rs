@@ -44,7 +44,11 @@ use crate::ScriptExit;
 use pnpm_signal_registry::SignalList;
 #[cfg(unix)]
 use std::sync::Once;
-use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicI32,
+    AtomicUsize,
+    Ordering,
+};
 
 /// The number of interrupts pnpm relays to a child before it stops
 /// waiting for that child. Once every child it reaches has had them, the

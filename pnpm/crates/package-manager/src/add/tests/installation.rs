@@ -1,15 +1,30 @@
 use super::{
-    super::{Add, AddError},
-    add_jsr_selector, add_npm_selector, add_npm_selector_with_ranges, package_body,
+    super::{
+        Add,
+        AddError,
+    },
+    add_jsr_selector,
+    add_npm_selector,
+    add_npm_selector_with_ranges,
+    package_body,
 };
-use crate::{ResolvedPackages, add::specifier::ProtocolSelector};
+use crate::{
+    ResolvedPackages,
+    add::specifier::ProtocolSelector,
+};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::SilentReporter;
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
     time::Duration,
 };
 use tempfile::tempdir;
@@ -329,7 +344,7 @@ async fn add_does_not_wait_for_a_slower_later_resolution_after_an_error() {
     drop(servers);
 }
 /// A signed tarball URL carries its token in the query string, which
-/// `redact_and_sanitize` keeps — and `reqwest` echoes the request URL back
+/// `redact_and_sanitize` keeps, and `reqwest` echoes the request URL back
 /// in its own message, so the cause has to be scrubbed as well as the
 /// specifier.
 #[test]
@@ -356,8 +371,8 @@ fn a_tarball_error_chain_drops_url_secrets() {
         );
     }
 }
-/// A password containing `?` or `#` defeats the userinfo scan — it reads the
-/// `?` as the end of the authority and leaves `user:pa?ss@host` in place —
+/// A password containing `?` or `#` defeats the userinfo scan; it reads the
+/// `?` as the end of the authority and leaves `user:pa?ss@host` in place,
 /// so cutting the URL there would publish the password's prefix. Such a
 /// token fails closed rather than being shortened.
 #[test]

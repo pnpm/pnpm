@@ -5,12 +5,26 @@
 
 use crate::{
     cfg,
-    extent::{Nesting, Stop, closing_brace, item_end},
+    extent::{
+        Nesting,
+        Stop,
+        closing_brace,
+        item_end,
+    },
     item::{
-        ItemHeader, Namespace, is_ident, item_header, paths_in, skip_qualifiers, skip_visibility,
+        ItemHeader,
+        Namespace,
+        is_ident,
+        item_header,
+        paths_in,
+        skip_qualifiers,
+        skip_visibility,
     },
     lexer::Token,
-    use_tree::{self, UsePath},
+    use_tree::{
+        self,
+        UsePath,
+    },
 };
 
 #[derive(Debug, Default, PartialEq, Eq)]

@@ -6,19 +6,41 @@ mod bundles;
 mod tests;
 
 use super::{
-    LOG_NAMESPACE, LogId, Storage, StoredCheckpoint, TileReader, check_sequenced_at_least_head,
-    checkpoint::{validate_refreshed_checkpoint, verify_stored_checkpoint},
-    integrated_head, log_error,
+    LOG_NAMESPACE,
+    LogId,
+    Storage,
+    StoredCheckpoint,
+    TileReader,
+    check_sequenced_at_least_head,
+    checkpoint::{
+        validate_refreshed_checkpoint,
+        verify_stored_checkpoint,
+    },
+    integrated_head,
+    log_error,
 };
 use bundles::{
-    check_authenticated_bound, check_bundle_bounds, check_prior_full_bundle_keys,
-    decode_bundle_exact, max_partial_width_of_keys, parse_imported_entries,
+    check_authenticated_bound,
+    check_bundle_bounds,
+    check_prior_full_bundle_keys,
+    decode_bundle_exact,
+    max_partial_width_of_keys,
+    parse_imported_entries,
 };
 use pnpm_transparency_log::{
-    Hash, NoteSigner, TILE_WIDTH, TilePath, TreeHead, integrate, prove_consistency,
+    Hash,
+    NoteSigner,
+    TILE_WIDTH,
+    TilePath,
+    TreeHead,
+    integrate,
+    prove_consistency,
     verify_consistency,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 enum ReconcileOutcome {
     Reconciled,
@@ -82,7 +104,9 @@ impl Storage {
             .transpose()?;
         let origin = signer
             .as_ref()
-            .map(|signer| signer.verifier_key().name().to_string())
+            .map(NoteSigner::verifier_key)
+            .map(pnpm_transparency_log::VerifierKey::name)
+            .map(std::string::ToString::to_string)
             .unwrap_or_else(|| log.path());
         loop {
             let mut target = self.read_reconcile_target(log, &origin, signer.as_ref()).await?;

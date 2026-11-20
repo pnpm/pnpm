@@ -1,5 +1,14 @@
-use super::{CmdShimBatch, ScriptRuntime, generate_cmd_shim};
-use std::{fs, path::Path, process::Command};
+use super::{
+    CmdShimBatch,
+    ScriptRuntime,
+    generate_cmd_shim,
+};
+use command_extra::CommandExtra;
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::tempdir;
 
 #[test]
@@ -65,8 +74,8 @@ fn cmd_shim_runs_unicode_target_and_preserves_codepage_and_exit_status() {
             );
             fs::write(root.path().join("run.cmd"), driver).unwrap();
             let output = cmd_in_own_console()
-                .args(["/d", "/c", "run.cmd"])
-                .current_dir(root.path())
+                .with_args(["/d", "/c", "run.cmd"])
+                .with_current_dir(root.path())
                 .output()
                 .unwrap();
             eprintln!("CP {codepage}, exit {exit_code}: {output:?}");
@@ -94,9 +103,9 @@ fn cmd_shim_runs_unicode_target_and_preserves_codepage_and_exit_status() {
                 )
                 .unwrap();
                 let shadowed_output = cmd_in_own_console()
-                    .args(["/d", "/c", "exit-only.cmd"])
-                    .env("ERRORLEVEL", "99")
-                    .current_dir(root.path())
+                    .with_args(["/d", "/c", "exit-only.cmd"])
+                    .with_env("ERRORLEVEL", "99")
+                    .with_current_dir(root.path())
                     .output()
                     .unwrap();
                 eprintln!("inherited ERRORLEVEL override: {shadowed_output:?}");
@@ -171,8 +180,8 @@ fn batchless_cmd_shim_runs_unicode_target_and_preserves_codepage_and_exit_status
             );
             fs::write(root.path().join("run.cmd"), driver).unwrap();
             let output = cmd_in_own_console()
-                .args(["/d", "/c", "run.cmd"])
-                .current_dir(root.path())
+                .with_args(["/d", "/c", "run.cmd"])
+                .with_current_dir(root.path())
                 .output()
                 .unwrap();
             eprintln!("CP {codepage}, exit {exit_code}: {output:?}");
@@ -247,8 +256,8 @@ fn cmd_shim_resolves_a_module_through_a_unicode_node_path() {
     fs::write(root.path().join("run.cmd"), driver).unwrap();
 
     let output = cmd_in_own_console()
-        .args(["/d", "/c", "run.cmd"])
-        .current_dir(root.path())
+        .with_args(["/d", "/c", "run.cmd"])
+        .with_current_dir(root.path())
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(0), "{output:?}");
@@ -259,7 +268,7 @@ fn cmd_shim_resolves_a_module_through_a_unicode_node_path() {
 /// a version manager's launcher may dispatch on its own file name.
 fn node_executable() -> std::path::PathBuf {
     let output = Command::new("node")
-        .args(["-p", "process.execPath"])
+        .with_args(["-p", "process.execPath"])
         .output()
         .unwrap();
     String::from_utf8(output.stdout)

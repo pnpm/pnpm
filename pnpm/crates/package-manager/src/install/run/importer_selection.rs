@@ -1,6 +1,11 @@
 //! The importers a run installs, as a selection narrows them.
 
-use super::super::{HashSet, PackageManifest, Path, PathBuf};
+use super::super::{
+    HashSet,
+    PackageManifest,
+    Path,
+    PathBuf,
+};
 
 /// The importers a selection narrows the run to.
 pub(super) struct ImporterSelection {

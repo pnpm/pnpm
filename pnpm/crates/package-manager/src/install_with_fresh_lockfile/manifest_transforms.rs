@@ -7,21 +7,35 @@
 //! [`super::resolve`].
 
 use super::{
-    InstallWithFreshLockfileError, compose_manifest_hooks, parse_config_overrides,
+    InstallWithFreshLockfileError,
+    compose_manifest_hooks,
+    parse_config_overrides,
     resolved_overrides_map,
 };
 use crate::{
-    VersionsOverrider, apply_deploy_manifest_hook, install::apply_deploy_manifest_hook_to_arc,
+    VersionsOverrider,
+    apply_deploy_manifest_hook,
+    install::apply_deploy_manifest_hook_to_arc,
     package_extender::InvalidPackageExtensionSelector,
 };
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{DependencyOverrider, ManifestHook};
+use pnpm_resolving_deps_resolver::{
+    DependencyOverrider,
+    ManifestHook,
+};
 use serde_json::Value;
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// pnpm's built-in read-package hook chain for the manifests fresh
 /// resolution consumes, plus the pieces later phases read off it.
@@ -195,8 +209,8 @@ impl ImporterTransforms {
         if !self.is_active() {
             return BTreeMap::new();
         }
-        // Every importer's transform is independent — a clone of its own
-        // manifest plus in-place rewrites — so a workspace-scale set fans
+        // Every importer's transform is independent (a clone of its own
+        // manifest plus in-place rewrites) so a workspace-scale set fans
         // out across rayon. The rebuilt `BTreeMap` restores the ordering
         // regardless of completion order.
         use rayon::prelude::*;
@@ -299,7 +313,7 @@ fn transform_importer_manifest(
 /// The `optionalDependencies` entries `ignoredOptionalDependencies` matches.
 ///
 /// Callers query this before mutating, so a shared manifest with no match
-/// skips the copy-on-write clone — the common case across the thousands of
+/// skips the copy-on-write clone, the common case across the thousands of
 /// dependency manifests one resolve reads.
 fn ignored_optional_names(manifest: &Value, matcher: &Matcher) -> Vec<String> {
     if matcher.is_empty() {

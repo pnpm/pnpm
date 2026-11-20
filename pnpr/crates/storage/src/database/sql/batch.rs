@@ -4,13 +4,21 @@
 pub(super) use super::adapter::WriteTransaction;
 use super::{
     PackageKey,
-    adapter::{Connection, Query, Row},
+    adapter::{
+        Connection,
+        Query,
+        Row,
+    },
     advance_namespace,
     commit::Commit,
-    to_column, to_generation,
+    to_column,
+    to_generation,
 };
 use crate::database::ArtifactMember;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::cell::RefCell;
 
 /// Whether a batch refuses to change a package of a hosted namespace that the
@@ -61,7 +69,8 @@ impl<'conn> Batch<'conn> {
         let mut results = transaction.query_all(&queries)?.into_iter();
         let (current, cdn_enabled) = results
             .next()
-            .and_then(|rows| rows.into_iter().next())
+            .map(std::iter::IntoIterator::into_iter)
+            .and_then(|mut rows| rows.next())
             .map(|mut row| {
                 Ok::<_, RegistryError>((to_generation(row.get(0)?), row.get::<i64>(1)? != 0))
             })

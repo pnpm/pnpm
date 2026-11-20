@@ -4,16 +4,26 @@
 //! the second `SQLite` that dependency brings.
 
 use libsql::Builder;
-use pnpm_testing_utils::{env_guard::EnvGuard, trusted_tls_server::TrustedTlsServer};
+use pnpm_testing_utils::{
+    env_guard::EnvGuard,
+    trusted_tls_server::TrustedTlsServer,
+};
 use pnpr_config::LibsqlSettings;
 use pnpr_error::Result;
 use pnpr_libsql::{
     LibsqlConnector,
-    testing::{EXECUTE_RESPONSE, serve_plain_http},
+    testing::{
+        EXECUTE_RESPONSE,
+        serve_plain_http,
+    },
 };
 use rustls::{
-    ClientConfig, RootCertStore,
-    pki_types::{CertificateDer, pem::PemObject},
+    ClientConfig,
+    RootCertStore,
+    pki_types::{
+        CertificateDer,
+        pem::PemObject,
+    },
 };
 use std::sync::Arc;
 use tower_0_4::ServiceExt;

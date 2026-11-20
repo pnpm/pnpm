@@ -1,4 +1,7 @@
-use std::io::{self, Read};
+use std::io::{
+    self,
+    Read,
+};
 
 /// A stream that ends in an error once it has given out more than `limit`
 /// bytes, for unpacking an archive whose compressed size does not bound

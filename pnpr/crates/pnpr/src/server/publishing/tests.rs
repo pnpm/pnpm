@@ -1,17 +1,32 @@
 use super::{
-    attachments::{AttachmentKind, PreparedAttachment, TarballStorage, write_attachment_slots},
+    attachments::{
+        AttachmentKind,
+        PreparedAttachment,
+        TarballStorage,
+        write_attachment_slots,
+    },
     manifest::record_publisher,
 };
 use base64::Engine;
 use pnpr_config::HostedStoreConfig;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::Identity;
 use pnpr_storage::{
     Storage,
-    publish::{AttachmentPayload, PendingAttachment},
+    publish::{
+        AttachmentPayload,
+        PendingAttachment,
+    },
 };
 use serde_json::json;
-use std::{io::Write, sync::Arc, time::Duration};
+use std::{
+    io::Write,
+    sync::Arc,
+    time::Duration,
+};
 
 #[test]
 fn publisher_attribution_comes_only_from_an_authenticated_identity() {
@@ -134,7 +149,8 @@ fn a_response_carries_a_bounded_size_of_notices() {
         .headers()
         .get_all("npm-notice")
         .iter()
-        .map(|value| value.to_str().unwrap())
+        .map(reqwest::header::HeaderValue::to_str)
+        .map(Result::unwrap)
         .collect();
     // Nine 200-byte notices fit beside the summary, which counts the rest.
     assert_eq!(sent.len(), 10);
@@ -167,7 +183,7 @@ fn semver_validation_is_strict() {
         "=1.0.0",
         "1.0.0-01",
         "1.0.0-0000000000000000000018446744073709551616",
-        "1.0.0-\u{141}",
+        "1.0.0-Ł",
         " 1.0.0",
         "1.0",
         "1.0.0+",

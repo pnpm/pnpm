@@ -1,9 +1,24 @@
 use super::{
-    DirectoryAccess, FileMode, create_directory_at, create_file_at, open_directory_at,
-    open_directory_for_traversal, open_file_at, open_file_at_without_blocking, read_link_at,
-    rename_at, symlink_at, unlink_at,
+    DirectoryAccess,
+    FileMode,
+    create_directory_at,
+    create_file_at,
+    open_directory_at,
+    open_directory_for_traversal,
+    open_file_at,
+    open_file_at_without_blocking,
+    read_link_at,
+    rename_at,
+    symlink_at,
+    unlink_at,
 };
-use std::{ffi::OsStr, fs, io, os::unix::fs::FileTypeExt as _, path::Path};
+use std::{
+    ffi::OsStr,
+    fs,
+    io,
+    os::unix::fs::FileTypeExt as _,
+    path::Path,
+};
 
 fn open_root(path: &Path) -> fs::File {
     fs::File::open(path).expect("open the fixture root")

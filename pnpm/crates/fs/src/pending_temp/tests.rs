@@ -1,5 +1,11 @@
-use super::{remove_pending_temp_files, track_temp_file};
-use std::{fs, sync::Mutex};
+use super::{
+    remove_pending_temp_files,
+    track_temp_file,
+};
+use std::{
+    fs,
+    sync::Mutex,
+};
 
 /// The registry is process-global and `cargo test` runs these tests on
 /// threads of one process, so a cleanup in one test could unlink a temp
@@ -77,7 +83,12 @@ fn a_slot_released_during_a_cleanup_stays_usable() {
 #[cfg(unix)]
 #[test]
 fn die_from_signal_does_not_dump_core() {
-    use std::{env, os::unix::process::ExitStatusExt, path::Path, process::Command};
+    use std::{
+        env,
+        os::unix::process::ExitStatusExt,
+        path::Path,
+        process::Command,
+    };
 
     const CHILD_TEMP_ENV: &str = "PNPM_FS_DIE_FROM_SIGNAL_TEMP";
     if let Some(temp) = env::var_os(CHILD_TEMP_ENV) {

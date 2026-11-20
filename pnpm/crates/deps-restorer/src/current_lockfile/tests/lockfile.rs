@@ -1,14 +1,28 @@
 use super::{
-    empty_lockfile, importer_link, importer_map, include_all, key, lockfile_with_top_level,
-    package_metadata, pkg, snapshot_with_deps,
+    empty_lockfile,
+    importer_link,
+    importer_map,
+    include_all,
+    key,
+    lockfile_with_top_level,
+    package_metadata,
+    pkg,
+    snapshot_with_deps,
 };
 use crate::SkippedSnapshots;
 use pnpm_lockfile::{
-    Lockfile, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+    Lockfile,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     path::Path,
 };
 
@@ -271,8 +285,8 @@ fn merge_filtered_wanted_lockfile_keeps_a_dependency_free_importer() {
     // importer. So an unfiltered full-workspace merge that lists a dep-free
     // project in `real_importer_ids` finds its empty snapshot and merges it
     // without a `MissingImporter` error (that error is reserved for an
-    // importer genuinely absent from the fresh lockfile — a partial
-    // resolution — as the sibling test above covers).
+    // importer genuinely absent from the fresh lockfile (a partial
+    // resolution) as the sibling test above covers).
     let app_id = "packages/app".to_string();
     let lib_id = "packages/lib".to_string();
     let fresh_app = ProjectSnapshot {
@@ -409,7 +423,7 @@ fn merge_filtered_current_lockfile_does_not_restore_a_skipped_selected_snapshot(
     assert!(packages.contains_key(&key("child", "1.0.0")));
 }
 /// The filtered-install path has to agree with
-/// [`super::super::filter_lockfile_for_current`] here — it writes the same file.
+/// [`super::super::filter_lockfile_for_current`] here; it writes the same file.
 #[test]
 fn merge_filtered_current_lockfile_keeps_an_installability_skipped_snapshot() {
     let selected_id = "packages/selected".to_string();

@@ -2,22 +2,45 @@
 //! `pnpm-fs-packlist`, `DirectoryFetcher`, `GitFetcher`, `patch-commit`,
 //! `deploy`, and the injected-copy install and sync writers) agrees on the
 //! selected file and link set (pnpm/tasks#223).
+use command_extra::CommandExtra;
 
-use crate::_utils::{WorkspaceFixture, assert_success};
+use crate::_utils::{
+    WorkspaceFixture,
+    assert_success,
+};
 use flate2::read::GzDecoder;
 use pnpm_directory_fetcher::DirectoryFetcher;
 use pnpm_git_fetcher::{
-    GitFetcher, GitSource, GitSourceCache, GitStoreContext, PrepareScriptOptions, RunningPnpm,
+    GitFetcher,
+    GitSource,
+    GitSourceCache,
+    GitStoreContext,
+    PrepareScriptOptions,
+    RunningPnpm,
 };
-use pnpm_injected_deps_syncer::{CopyFiles, DirPatcher, PublishSource, publish_edits};
-use pnpm_patching::{PkgFilesForDiff, prepare_pkg_files_for_diff};
+use pnpm_injected_deps_syncer::{
+    CopyFiles,
+    DirPatcher,
+    PublishSource,
+    publish_edits,
+};
+use pnpm_patching::{
+    PkgFilesForDiff,
+    prepare_pkg_files_for_diff,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
     time::SystemTime,
 };
@@ -173,8 +196,8 @@ fn unpack_tarball_entries(tgz_path: &Path) -> BTreeSet<String> {
 
 fn run_git(repo: &Path, args: &[&str]) {
     let ok = Command::new("git")
-        .args(args)
-        .current_dir(repo)
+        .with_args(args)
+        .with_current_dir(repo)
         .status()
         .expect("spawn git")
         .success();
@@ -201,8 +224,8 @@ async fn fetch_git_paths(selected: &pnpm_fs_packlist::SelectedPackageFiles) -> B
     run_git(&git_repo, &["commit", "-m", "init"]);
     let commit = String::from_utf8(
         Command::new("git")
-            .args(["rev-parse", "HEAD"])
-            .current_dir(&git_repo)
+            .with_args(["rev-parse", "HEAD"])
+            .with_current_dir(&git_repo)
             .output()
             .unwrap()
             .stdout,

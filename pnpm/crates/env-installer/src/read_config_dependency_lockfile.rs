@@ -1,7 +1,14 @@
-use crate::{ConfigDepError, ConfigDepsInstallMode, install_config_deps::read_dir_names};
+use crate::{
+    ConfigDepError,
+    ConfigDepsInstallMode,
+    install_config_deps::read_dir_names,
+};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_workspace_state::ConfigDependency;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 /// Load reconciliation state without opening the store or initializing resolvers.
 pub fn read_config_dependency_lockfile(

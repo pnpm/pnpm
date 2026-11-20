@@ -1,9 +1,28 @@
 use super::{
-    AuditLevel, BTreeMap, Config, GetHomeDir, LoadWorkspaceYamlError, NodeLinker, Path, PathBuf,
-    RegistryDeclaration, RegistryEntry, RegistryOptions, RegistryServerType, ResolutionMode,
-    TrustPolicy, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
+    AuditLevel,
+    BTreeMap,
+    Config,
+    GetHomeDir,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    Path,
+    PathBuf,
+    RegistryDeclaration,
+    RegistryEntry,
+    RegistryOptions,
+    RegistryServerType,
+    ResolutionMode,
+    TrustPolicy,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
 };
-use crate::{MachineSettings, RegistryPrefixes, TrustedSettings};
+use crate::{
+    MachineSettings,
+    RegistryPrefixes,
+    TrustedSettings,
+};
 
 /// `trustPolicy` accepts the two upstream string values; an absent
 /// key leaves the [`TrustPolicy::Off`] default in place.
@@ -353,7 +372,7 @@ fn rebuilds_the_declarations_from_the_lookups() {
 }
 
 /// The resolved view declares every route: the default registry appears as
-/// the bare `@` scope — first in the scope list it shares with real scopes —
+/// the bare `@` scope (first in the scope list it shares with real scopes)
 /// and the built-in `@jsr` scope and `gh` / `npmjs` prefixes are declared
 /// unless the user pointed them elsewhere.
 #[test]
@@ -593,7 +612,7 @@ fn parses_a_valid_tasks_section_and_applies_it() {
             .as_deref(),
         Some(&["build".to_string()][..]),
     );
-    // `lint: {}` declares an explicitly empty dependency list — a different
+    // `lint: {}` declares an explicitly empty dependency list, a different
     // statement from omitting the entry.
     assert_eq!(config.tasks.get("lint").unwrap().depends_on, None);
 }

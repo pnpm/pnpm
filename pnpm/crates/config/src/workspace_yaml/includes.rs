@@ -1,12 +1,22 @@
 use super::{
-    LoadWorkspaceYamlError, WorkspaceSettings, parse_settings_file, read_readable_settings,
+    LoadWorkspaceYamlError,
+    WorkspaceSettings,
+    parse_settings_file,
+    read_readable_settings,
     select_settings,
 };
 use crate::{
-    SettingsRead, api::EnvVar, known_settings::is_known_setting_key, naming_cases::is_camel_case,
+    SettingsRead,
+    api::EnvVar,
+    known_settings::is_known_setting_key,
+    naming_cases::is_camel_case,
 };
 use pnpm_workspace::{
-    Delegation, IncludeError, IncludeSource, SettingSlot, WorkspaceIncludes,
+    Delegation,
+    IncludeError,
+    IncludeSource,
+    SettingSlot,
+    WorkspaceIncludes,
     WorkspaceManifestDocument,
 };
 use std::path::Path;

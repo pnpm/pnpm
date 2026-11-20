@@ -1,7 +1,11 @@
 //! A `--global` command rejects the command-line settings it cannot
 //! honour, with pnpm's `CONFIG_CONFLICT_*_WITH_GLOBAL` errors.
 
-use super::{CommandTempCwd, Path, global_command};
+use super::{
+    CommandTempCwd,
+    Path,
+    global_command,
+};
 use assert_cmd::assert::OutputAssertExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;

@@ -1,11 +1,20 @@
 use super::{
-    Arc, AuthHeaders, FetchTarballForResolution, SilentReporter, StoreIndex, StoreIndexWriter,
-    ThrottledClient, fast_retry_opts, gzipped_archive, store_index_key, tempdir_with_leaked_path,
+    Arc,
+    AuthHeaders,
+    FetchTarballForResolution,
+    SilentReporter,
+    StoreIndex,
+    StoreIndexWriter,
+    ThrottledClient,
+    fast_retry_opts,
+    gzipped_archive,
+    store_index_key,
+    tempdir_with_leaked_path,
 };
 
 /// The row would be keyed by the subpackage (read from
 /// `<subdir>/package.json`) while carrying an index built from the
-/// whole archive — the repo's manifest and every repo file. Writing
+/// whole archive, the repo's manifest and every repo file. Writing
 /// that would hand any consumer trusting the key a payload describing
 /// the repo, so no row is written at all.
 #[tokio::test]

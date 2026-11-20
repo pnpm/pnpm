@@ -7,12 +7,23 @@
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    HoistKind, Host, LayoutVersion, Modules, read_modules_layout, read_modules_manifest,
+    HoistKind,
+    Host,
+    LayoutVersion,
+    Modules,
+    read_modules_layout,
+    read_modules_manifest,
     write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn manifest_from_json(value: Value) -> Modules {
     serde_json::from_value(value).expect("deserialize Modules fixture")
@@ -271,7 +282,7 @@ fn yaml_fallback_keeps_depth_budget() {
 }
 
 /// A `layoutVersion` naming a layout this build does not emit reads as
-/// `None` through both readers — the install rebuilds `node_modules`
+/// `None` through both readers, the install rebuilds `node_modules`
 /// rather than failing on a manifest it could otherwise read. `5.0` is
 /// the same number as `5` in JSON, so it is the same version here.
 #[test]

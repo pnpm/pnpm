@@ -9,19 +9,44 @@
 //! match pnpm exactly, and reads parse JSON first, falling back to a YAML
 //! parser for manifests written by old pnpm versions.
 
-pub use capabilities::{Clock, FsCreateDirAll, FsReadToString, FsWrite, Host};
+pub use capabilities::{
+    Clock,
+    FsCreateDirAll,
+    FsReadToString,
+    FsWrite,
+    Host,
+};
 pub use hoisted_dir::hoisted_dir;
 
-use derive_more::{Display, Error, From, Into};
-use indexmap::{IndexMap, IndexSet};
+use derive_more::{
+    Display,
+    Error,
+    From,
+    Into,
+};
+use indexmap::{
+    IndexMap,
+    IndexSet,
+};
 use pipe_trait::Pipe;
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_fs::lexical_normalize;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{
+    Deserialize,
+    Serialize,
+    de::DeserializeOwned,
+};
 use std::{
     collections::BTreeMap,
-    io, iter,
-    path::{Path, PathBuf},
+    io,
+    iter,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Filename of the modules manifest inside `node_modules/`.
@@ -68,7 +93,7 @@ impl DepPath {
 /// field via [`IndexSet`]'s deduplicating `Deserialize` impl, so a
 /// separate raw-shape type is not needed. `IndexSet` (insertion-ordered)
 /// is chosen over `HashSet` / `BTreeSet` to match JavaScript `Set`'s
-/// iteration semantics — the on-disk array order round-trips
+/// iteration semantics, the on-disk array order round-trips
 /// byte-for-byte.
 ///
 /// Every required field carries a `#[serde(default)]` so
@@ -291,7 +316,7 @@ pub enum NodeLinker {
 /// serializes as the integer `5` and converts from `u32` only when the
 /// on-disk value is exactly `5`. On [`Modules`] and [`ModulesLayout`] it
 /// is wrapped in an [`Option`] whose `None` means "not the layout this
-/// build emits" — a missing field and an unsupported version read alike,
+/// build emits", a missing field and an unsupported version read alike,
 /// so an old layout rebuilds `node_modules` instead of making the whole
 /// manifest unreadable.
 ///
@@ -327,7 +352,7 @@ impl TryFrom<u32> for LayoutVersion {
 }
 
 /// Read `layoutVersion`, reporting any number that is not the version
-/// this build supports as `None` — the same "layout predates this pnpm"
+/// this build supports as `None`, the same "layout predates this pnpm"
 /// signal a missing field carries, which the caller reacts to by
 /// rebuilding `node_modules`. Rejecting it at parse time instead would
 /// make the whole manifest unreadable, and an unreadable manifest fails
@@ -345,7 +370,8 @@ where
     Ok(Option::<f64>::deserialize(deserializer)?
         .filter(|found| found.fract() == 0.0)
         .and_then(|found| u32::try_from(found as i64).ok())
-        .and_then(|found| LayoutVersion::try_from(found).ok()))
+        .map(LayoutVersion::try_from)
+        .and_then(Result::ok))
 }
 
 /// Returned by [`LayoutVersion::try_from`] when the on-disk `layoutVersion`
@@ -557,7 +583,7 @@ fn resolve_virtual_store_dir(manifest: &mut Modules, modules_dir: &Path) {
         // relative path like `../../Users/.../store/v11/links` joined
         // with `<workspace>/node_modules` round-trips as
         // `<workspace>/node_modules/../../Users/...`, which never byte-
-        // matches the config's `virtual_store_dir()` — and
+        // matches the config's `virtual_store_dir()`, and
         // [`crate::Install`]'s no-op short-circuit relies on that
         // equality to skip materialization on a clean install.
         (false, false) => lexical_normalize(&modules_dir.join(stored_path)),

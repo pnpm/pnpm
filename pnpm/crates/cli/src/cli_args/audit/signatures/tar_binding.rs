@@ -1,10 +1,25 @@
 //! Tying a lockfile's tar integrity to the `.tgz` integrity a registry
 //! signature covers.
 
-use super::{Config, HashMap, Packument, SignaturePackage, ThrottledClient};
+use super::{
+    Config,
+    HashMap,
+    Packument,
+    SignaturePackage,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
-use pnpm_store_dir::{StoreIndex, StoreIndexWriter, store_index_key};
-use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, ResolutionStore, TarballPackage};
+use pnpm_store_dir::{
+    StoreIndex,
+    StoreIndexWriter,
+    store_index_key,
+};
+use pnpm_tarball::{
+    FetchTarballForResolution,
+    IntegrityKind,
+    ResolutionStore,
+    TarballPackage,
+};
 use ssri::Integrity;
 
 /// The integrity a registry signature covers, for every package whose
@@ -57,12 +72,11 @@ pub(super) fn signed_integrity(
     }
 }
 
-/// One lockfile entry: a `name@version` from a registry, pinned by an
-/// integrity.
-pub(super) type TieKey = (String, String, String, Option<String>);
+/// One lockfile entry: a package from a registry, pinned by an integrity.
+pub(super) type TieKey = (String, String, Option<String>);
 
 pub(super) fn tie_key(pkg: &SignaturePackage) -> TieKey {
-    (pkg.registry.clone(), pkg.name.clone(), pkg.version.clone(), pkg.integrity.clone())
+    (pkg.registry.clone(), pkg.package_id.clone(), pkg.integrity.clone())
 }
 
 /// The signed versions whose lockfile entry pins their tar.
@@ -110,10 +124,6 @@ struct PendingTie<'a> {
 }
 
 impl PendingTie<'_> {
-    fn package_id(&self) -> String {
-        format!("{}@{}", self.pkg.name, self.pkg.version)
-    }
-
     /// The signed integrity this entry is tied to: directly when the registry
     /// publishes the tar's, through the store row that recorded the tar, or by
     /// downloading the archive.
@@ -139,7 +149,7 @@ impl PendingTie<'_> {
         }
         let tied = signed == self.lockfile_integrity
             || stored
-                .get(&store_index_key(signed, &self.package_id()))
+                .get(&store_index_key(signed, &self.pkg.package_id))
                 .map(String::as_str)
                 == Some(self.lockfile_integrity);
         if !tied {
@@ -158,7 +168,7 @@ fn stored_tar_integrities(pending: &[PendingTie<'_>], config: &Config) -> HashMa
         .iter()
         .filter_map(|tie| {
             let (signed, _) = tie.published?;
-            let key = store_index_key(signed, &tie.package_id());
+            let key = store_index_key(signed, &tie.pkg.package_id);
             let row = index.get(&key).ok().flatten()?;
             Some((key, row.tar_integrity?))
         })
@@ -172,10 +182,10 @@ async fn download_tie(
     downloads: &DownloadContext<'_>,
 ) -> Result<(), String> {
     let DownloadContext { config, http_client, index_writer } = *downloads;
-    let package_id = tie.package_id();
+    let display_id = format!("{}@{}", tie.pkg.name, tie.pkg.version);
     let signed_integrity: Integrity = signed
         .parse()
-        .map_err(|_| format!("{package_id} has an unparsable published integrity"))?;
+        .map_err(|_| format!("{display_id} has an unparsable published integrity"))?;
     let resolved = FetchTarballForResolution {
         http_client,
         store: ResolutionStore {
@@ -188,7 +198,7 @@ async fn download_tie(
             unpacked_size: None,
             file_count: None,
             url: tarball,
-            id: &package_id,
+            id: &tie.pkg.package_id,
         },
         auth_headers: &config.auth_headers,
         retry_opts: config.retry_opts(),
@@ -199,12 +209,12 @@ async fn download_tie(
     .run::<SilentReporter>(None)
     .await
     .map_err(|error| {
-        format!("{package_id} could not be downloaded to tie its tar integrity: {error}")
+        format!("{display_id} could not be downloaded to tie its tar integrity: {error}")
     })?;
     match resolved.tar_integrity {
         Some(tar) if tar.to_string() == tie.lockfile_integrity => Ok(()),
         _ => Err(format!(
-            "{package_id} has a lockfile tar integrity that does not match the published archive",
+            "{display_id} has a lockfile tar integrity that does not match the published archive",
         )),
     }
 }

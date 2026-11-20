@@ -1,23 +1,52 @@
 use crate::{
-    CommandLockfile, Install, InstallError, ProjectMutation, ResolvedPackages, SelectedProjects,
+    CommandLockfile,
+    Install,
+    InstallError,
+    ProjectMutation,
+    ResolvedPackages,
+    SelectedProjects,
     UpdateSeedPolicy,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
-        write_workspace_catalogs_selected, written_lockfile_catalogs,
+        WriteWorkspaceCatalogsError,
+        post_install_prune,
+        write_workspace_catalogs,
+        write_workspace_catalogs_selected,
+        written_lockfile_catalogs,
     },
-    defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
-    package_manifest_prefix, selected_project_indices,
+    defer_ignored_builds,
+    emit_initial_package_manifest,
+    included_direct_groups,
+    package_manifest_prefix,
+    selected_project_indices,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
-use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PackageManifestLog,
+    PackageManifestMessage,
+    Reporter,
+};
 use pnpm_tarball::MemCache;
-use std::{collections::HashSet, fmt::Write as _, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashSet,
+    fmt::Write as _,
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[must_use]
 pub struct Remove<'a> {
@@ -29,8 +58,8 @@ pub struct Remove<'a> {
 /// The up-front validation failures of `pacquet remove`, raised before
 /// the manifest is mutated or any install runs.
 ///
-/// Kept separate from [`RemoveError`] so the `validate_removable` guard
-/// returns a small `Result` — folding these into [`RemoveError`] (which
+/// Kept separate from [`RemoveError`] so the removability guard
+/// returns a small `Result`, folding these into [`RemoveError`] (which
 /// carries the large [`InstallError`]) trips `clippy::result_large_err`
 /// on the non-async validator.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -387,7 +416,7 @@ fn persist_manifest<Reporter: self::Reporter>(
 }
 
 /// The up-front guards `pacquet remove` applies before mutating the
-/// manifest or running any install — both fail fast.
+/// manifest or running any install; both fail fast.
 fn validate_removable(
     manifest: &PackageManifest,
     package_names: &[String],

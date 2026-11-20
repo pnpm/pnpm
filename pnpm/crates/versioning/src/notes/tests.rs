@@ -1,16 +1,35 @@
-use std::{collections::HashSet, fs, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+};
 
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 
 use crate::{
-    apply::{ReleaseNotesOptions, apply_release_plan},
+    apply::{
+        ReleaseNotesOptions,
+        apply_release_plan,
+    },
     error::VersioningError,
-    intents::{IntentBumpType, read_change_intents, write_change_intent},
+    intents::{
+        IntentBumpType,
+        read_change_intents,
+        write_change_intent,
+    },
     ledger::read_ledger,
-    parked_publication::{ParkedPublication, read_parked_publications},
+    parked_publication::{
+        ParkedPublication,
+        read_parked_publications,
+    },
     pending::read_pending_changelog,
-    plan::{AssembleReleasePlanOptions, WorkspaceProject, assemble_release_plan, to_project_dir},
+    plan::{
+        AssembleReleasePlanOptions,
+        WorkspaceProject,
+        assemble_release_plan,
+        to_project_dir,
+    },
     settings::VersioningSettings,
 };
 

@@ -1,8 +1,14 @@
 //! Infers a package's supported platforms from the tokens of its name.
 
 use crate::{
-    check_platform::{WantedPlatform, WantedPlatformRef},
-    node_platform_names::{cpu_for_token, os_for_token},
+    check_platform::{
+        WantedPlatform,
+        WantedPlatformRef,
+    },
+    node_platform_names::{
+        cpu_for_token,
+        os_for_token,
+    },
 };
 
 fn libc_for_token(token: &str) -> Option<&'static str> {

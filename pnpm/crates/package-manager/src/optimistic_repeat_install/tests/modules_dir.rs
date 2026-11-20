@@ -1,14 +1,27 @@
 use super::{
-    super::{Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install},
-    backdate_validated_files, isolated_included, setup_fresh_install_with_config, write_state,
+    super::{
+        Decision,
+        OptimisticRepeatInstallCheck,
+        check_optimistic_repeat_install,
+    },
+    backdate_validated_files,
+    isolated_included,
+    setup_fresh_install_with_config,
+    write_state,
 };
 use crate::install_state::settings::current_settings;
 use indexmap::IndexMap;
-use pnpm_config::{Config, ProjectConfig};
+use pnpm_config::{
+    Config,
+    ProjectConfig,
+};
 use pnpm_lockfile::MaybeLazyLockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ProjectEntry;
-use std::{collections::BTreeMap, fs};
+use std::{
+    collections::BTreeMap,
+    fs,
+};
 
 fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Config)) -> Decision {
     let (dir, config, root_manifest) = setup_fresh_install_with_config(
@@ -715,7 +728,7 @@ fn workspace_link_dangling_with_lockfile(
     prepare: impl FnOnce(&std::path::Path),
 ) -> bool {
     let lockfile: Option<pnpm_lockfile::Lockfile> =
-        lockfile.map(|lockfile| serde_saphyr::from_str(lockfile).unwrap());
+        lockfile.map(serde_saphyr::from_str).map(Result::unwrap);
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let sibling_dir = root.join("pkg-a");

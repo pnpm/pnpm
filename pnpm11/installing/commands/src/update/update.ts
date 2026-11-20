@@ -6,6 +6,7 @@ import {
   isGitHubActionSelector,
   shouldCheckGitHubActions,
   updateGitHubActions,
+  withoutGitHubActionSelectors,
 } from '@pnpm/deps.github-actions'
 import { PnpmError } from '@pnpm/error'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
@@ -36,7 +37,7 @@ export async function update (
     assertNoVersionSpecsWithLatest(dependencies, updateActions)
   }
   const packageDependencies = updateActions
-    ? dependencies.filter((dependency) => !isGitHubActionSelector(dependency))
+    ? withoutGitHubActionSelectors(dependencies)
     : dependencies
   const depth = opts.depth ?? Infinity
   const updateMatching = selectUpdateMatching(packageDependencies, opts, depth)

@@ -1,14 +1,42 @@
 use crate::{
-    features::{locked_dependencies, supports_features},
-    model::{FeatureSelection, PackageKey, RegistryDependency},
+    features::{
+        locked_dependencies,
+        supports_features,
+    },
+    model::{
+        FeatureSelection,
+        PackageKey,
+        RegistryDependency,
+    },
     packages::package_key_with_preferences,
-    preferences::{PreferredVersions, is_selectable},
-    registry::{Registry, compatibility_line, matching_lines_with_preferences, matching_versions},
+    preferences::{
+        PreferredVersions,
+        is_selectable,
+    },
+    registry::{
+        Registry,
+        compatibility_line,
+        matching_lines_with_preferences,
+        matching_versions,
+    },
 };
-use miette::{IntoDiagnostic, Result, WrapErr};
-use pubgrub::{OfflineDependencyProvider, Ranges};
-use semver::{Version, VersionReq};
-use std::collections::{BTreeMap, VecDeque};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
+use pubgrub::{
+    OfflineDependencyProvider,
+    Ranges,
+};
+use semver::{
+    Version,
+    VersionReq,
+};
+use std::collections::{
+    BTreeMap,
+    VecDeque,
+};
 
 type InnerProvider = OfflineDependencyProvider<PackageKey, Ranges<Version>>;
 

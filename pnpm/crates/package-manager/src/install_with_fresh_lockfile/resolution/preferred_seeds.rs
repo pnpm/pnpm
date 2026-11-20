@@ -1,17 +1,31 @@
-use super::{ResolutionContext, resolve};
+use super::{
+    ResolutionContext,
+    resolve,
+};
 use crate::install_with_fresh_lockfile::resolution_inputs::OwnManifestSpecifiers;
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile_preferred_versions::{
-    DirectSpecs, get_preferred_versions_from_lockfile_and_manifests,
+    DirectSpecs,
+    get_preferred_versions_from_lockfile_and_manifests,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_deps_resolver::UpdateTargets;
-use pnpm_resolving_resolver_base::{PreferredVersions, PreferredVersionsOverlay, VersionSelectors};
+use pnpm_resolving_resolver_base::{
+    PreferredVersions,
+    PreferredVersionsOverlay,
+    VersionSelectors,
+};
 use rayon::prelude::*;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     sync::Arc,
 };
 

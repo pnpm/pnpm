@@ -1,23 +1,48 @@
 use super::{
-    AddError, AddOptions, AddOwned, AddResolution, AddResolveInputs,
-    prepared_manifest::{PickedVersion, PreparedManifest},
-    resolve_added_dependency, workspace_projects_for_add,
+    AddError,
+    AddOptions,
+    AddOwned,
+    AddResolution,
+    AddResolveInputs,
+    prepared_manifest::{
+        PickedVersion,
+        PreparedManifest,
+    },
+    resolve_added_dependency,
+    workspace_projects_for_add,
 };
 use crate::{
-    CatalogDecision, DIRECT_GROUPS, DiscoveredWorkspace,
-    catalog_cleanup::{write_workspace_catalogs, write_workspace_catalogs_selected},
+    CatalogDecision,
+    DIRECT_GROUPS,
+    DiscoveredWorkspace,
+    catalog_cleanup::{
+        write_workspace_catalogs,
+        write_workspace_catalogs_selected,
+    },
     emit_initial_package_manifest,
 };
-use futures_util::{StreamExt, stream::FuturesOrdered};
+use futures_util::{
+    StreamExt,
+    stream::FuturesOrdered,
+};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, SaveWorkspaceProtocol};
+use pnpm_config::{
+    Config,
+    SaveWorkspaceProtocol,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{
+        BTreeSet,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
 };

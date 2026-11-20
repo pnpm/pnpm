@@ -1,61 +1,155 @@
 use crate::{
     State,
     cli_args::{
-        install::{InstallArgs, NodeLinkerArg, resolve_bool_override},
-        recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+        install::{
+            InstallArgs,
+            NodeLinkerArg,
+            resolve_bool_override,
+        },
+        recursive::{
+            AutoExcludeRoot,
+            discover_workspace_projects,
+            select_recursive_projects,
+        },
     },
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use install::source_pnpmfile_hooks;
 use legacy_source::LegacyDeploySource;
 use lockfile::{
-    ConvertCtx, DeployFiles, create_deploy_files, deployed_workspace_projects, load_deploy_lockfile,
+    ConvertCtx,
+    DeployFiles,
+    create_deploy_files,
+    deployed_workspace_projects,
+    load_deploy_lockfile,
 };
-use miette::{Context, Diagnostic, IntoDiagnostic};
-use path_compare::{ProjectPathKey, is_ancestor_path, is_child_path, same_path};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
+use path_compare::{
+    ProjectPathKey,
+    is_ancestor_path,
+    is_child_path,
+    same_path,
+};
 use peers::{
-    LinkedWorkspaceProject, bind_singleton_peers, deploy_peer_edges,
-    omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph,
+    LinkedWorkspaceProject,
+    bind_singleton_peers,
+    deploy_peer_edges,
+    omit_peers_of_excluded_dependencies,
+    prune_deploy_lockfile_graph,
 };
-use pnpm_config::{Config, NodeLinker, PackageImportMethod};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    PackageImportMethod,
+};
 use pnpm_directory_fetcher::CopyFiles;
-use pnpm_fs::{lexical_normalize, remove_dirent};
+use pnpm_fs::{
+    lexical_normalize,
+    remove_dirent,
+};
 use pnpm_lockfile::{
-    DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
-    PackageKey, PackageMetadata, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
-    TarballResolution, VersionPart, WantedLockfileSelection,
+    DirectoryResolution,
+    ImporterDepVersion,
+    LazyLockfile,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PeerSatisfactionEdges,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballResolution,
+    VersionPart,
+    WantedLockfileSelection,
 };
 use pnpm_lockfile_preferred_versions::{
-    DirectSpecs, get_preferred_versions_from_lockfile_and_manifests,
+    DirectSpecs,
+    get_preferred_versions_from_lockfile_and_manifests,
 };
 use pnpm_package_manager::{
-    ImportIndexedDirOpts, apply_deploy_manifest_hook, import_indexed_dir, manifest_has_bin,
+    ImportIndexedDirOpts,
+    apply_deploy_manifest_hook,
+    import_indexed_dir,
+    manifest_has_bin,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use pnpm_resolving_resolver_base::PreferredVersions;
-use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root_dir};
-use resolution::{
-    ResolveBases, convert_importer_version_to_snapshot_ref, convert_package_key,
-    convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
-    create_file_url_key, project_snapshot_to_snapshot_entry,
+use pnpm_workspace::{
+    Project,
+    WORKSPACE_MANIFEST_FILENAME,
+    importer_id_from_root_dir,
 };
-use serde_json::{Map, Value};
+use resolution::{
+    ResolveBases,
+    convert_importer_version_to_snapshot_ref,
+    convert_package_key,
+    convert_package_metadata,
+    convert_resolved_dependency_spec,
+    convert_snapshot,
+    create_file_url_key,
+    project_snapshot_to_snapshot_entry,
+};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    fs, io,
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    collections::{
+        HashMap,
+        HashSet,
+        VecDeque,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 use target::{
-    apply_deploy_hook, copy_project, prepare_deploy_dir, real_deploy_dir, relative_path,
-    resolve_target_dir, validate_deploy_target, write_deploy_files,
+    apply_deploy_hook,
+    copy_project,
+    prepare_deploy_dir,
+    real_deploy_dir,
+    relative_path,
+    resolve_target_dir,
+    validate_deploy_target,
+    write_deploy_files,
 };
-use workspace_manifest::{DeployWorkspaceSettings, deploy_workspace_settings};
+use workspace_manifest::{
+    DeployWorkspaceSettings,
+    deploy_workspace_settings,
+};
 use workspace_project_builds::{
-    NamedProjectRoot, approve_legacy_workspace_project_builds, approve_workspace_project_builds,
+    NamedProjectRoot,
+    approve_legacy_workspace_project_builds,
+    approve_workspace_project_builds,
 };
 
 #[derive(Debug, Args)]
@@ -270,7 +364,7 @@ impl DeployArgs {
     ) -> miette::Result<SharedDeployOutcome> {
         let deploy_dir = &real_deploy_dir(deploy_dir)?;
         // The shared lockfile, and the importer ids naming the projects in
-        // it, belong to the lockfile dir — which `lockfileDir` can move
+        // it, belong to the lockfile dir, which `lockfileDir` can move
         // away from the workspace this deploy selected its project from.
         let lockfile_dir = config.lockfile_dir_for(workspace_dir);
         let lockfile = match load_deploy_lockfile(workspace_dir, lockfile_dir)? {

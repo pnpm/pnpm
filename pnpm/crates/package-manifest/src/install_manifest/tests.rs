@@ -1,7 +1,17 @@
-use super::{ArchiveFacts, INSTALL_MANIFEST_PROFILE, InstallManifest};
+use super::{
+    ArchiveFacts,
+    INSTALL_MANIFEST_PROFILE,
+    InstallManifest,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
-use std::{collections::BTreeSet, path::PathBuf};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeSet,
+    path::PathBuf,
+};
 
 /// The shared fixtures that define [`INSTALL_MANIFEST_PROFILE`]: each one holds
 /// an archive's `package.json` and file list, the version metadata a publisher

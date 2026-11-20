@@ -1,5 +1,9 @@
 use super::{
-    archive_object_path, blob_segment, decode_segment, encode_segment, namespace_segments,
+    archive_object_path,
+    blob_segment,
+    decode_segment,
+    encode_segment,
+    namespace_segments,
 };
 use pnpr_package_name::Ecosystem;
 

@@ -10,21 +10,38 @@ pub(crate) use remote::RemoteUploadStore;
 mod remote;
 
 use crate::{
-    BlobId, BlobSlot, Storage,
-    database::{BlobRef, Uncommitted},
+    BlobId,
+    BlobSlot,
+    Storage,
+    database::{
+        BlobRef,
+        Uncommitted,
+    },
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::CanonicalPackageName;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
     fmt::Write as _,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
     time::Duration,
 };
 use tokio::{
     fs,
-    io::{AsyncWriteExt, ErrorKind},
+    io::{
+        AsyncWriteExt,
+        ErrorKind,
+    },
 };
 
 /// Where in-progress uploads live under the backend's local scratch root.
@@ -436,7 +453,8 @@ async fn sweep_upload_entry(root: &Path, entry: &fs::DirEntry, max_age: Duration
     let idle = metadata
         .modified()
         .ok()
-        .and_then(|at| at.elapsed().ok());
+        .map(|at| at.elapsed())
+        .and_then(Result::ok);
     if idle.is_none_or(|idle| idle <= max_age)
         || fs::remove_file(entry.path()).await.is_err()
     {

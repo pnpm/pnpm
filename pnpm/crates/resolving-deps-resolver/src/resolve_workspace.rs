@@ -10,15 +10,22 @@
 //! parent-peer-context)` pair that an earlier importer already resolved
 //! short-circuits straight to the cached `depPath`. Sharing the
 //! `TreeCtx` resolved-pkgs map across importers is a separate axis
-//! pacquet hasn't landed yet — `base_opts.project_dir` varies per
+//! pacquet hasn't landed yet, `base_opts.project_dir` varies per
 //! importer, which the existing `TreeCtx` shape ties to one importer
 //! at a time. The peer-walker share captures the hot path; the
 //! resolved-pkgs share is a follow-up perf win.
 
-pub use dependencies::{ResolvedWorkspaceDependencies, resolve_workspace_dependencies};
+pub use dependencies::{
+    ResolvedWorkspaceDependencies,
+    resolve_workspace_dependencies,
+};
 pub use options::{
-    WorkspaceImporter, WorkspaceLockfileReuse, WorkspacePeerResolutionOptions,
-    WorkspaceResolveHooks, WorkspaceResolveOptions, WorkspaceVersionResolution,
+    WorkspaceImporter,
+    WorkspaceLockfileReuse,
+    WorkspacePeerResolutionOptions,
+    WorkspaceResolveHooks,
+    WorkspaceResolveOptions,
+    WorkspaceVersionResolution,
 };
 
 mod broken_optional;
@@ -30,7 +37,10 @@ mod options;
 mod time_based;
 
 use crate::{
-    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+    resolve_importer::{
+        ResolveImporterError,
+        ResolveImporterOptions,
+    },
     resolve_peers::WorkspaceResolvePeersResult,
     resolved_tree::ResolvedTree,
 };
@@ -55,7 +65,7 @@ pub struct ResolveWorkspaceResult {
 /// peer-resolution + dedupe pass.
 ///
 /// `per_importer_options` is invoked per importer to build that
-/// importer's own [`ResolveImporterOptions`] — the install layer owns
+/// importer's own [`ResolveImporterOptions`], the install layer owns
 /// the per-importer wiring (project dir, modules dir, lockfile dir,
 /// exclude-links-from-lockfile, etc.).
 pub async fn resolve_workspace<'a, Chain, BuildImporterOptions>(

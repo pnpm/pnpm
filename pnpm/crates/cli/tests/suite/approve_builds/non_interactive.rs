@@ -1,6 +1,10 @@
 #[cfg(unix)]
 use super::pacquet_in_terminal;
-use super::{INSTALL_MARKER, install_with_ignored_build, pacquet};
+use super::{
+    INSTALL_MARKER,
+    install_with_ignored_build,
+    pacquet,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
@@ -104,13 +108,12 @@ fn dlx_skips_automatic_build_approval_prompt_in_ci_even_with_a_terminal() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
 
-    let mut cmd = pacquet_in_terminal(&workspace);
-    cmd.env_remove("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
-    cmd.env("CI", "true")
-        .env("PNPM_CONFIG_STRICT_DEP_BUILDS", "false")
-        .env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
-        .env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
-        .args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"])
+    let cmd = pacquet_in_terminal(&workspace).without_env("PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS");
+    cmd.with_env("CI", "true")
+        .with_env("PNPM_CONFIG_STRICT_DEP_BUILDS", "false")
+        .with_env("PNPM_CONFIG_STORE_DIR", &npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &npmrc_info.cache_dir)
+        .with_args(["dlx", "@pnpm.e2e/has-bin-and-needs-build"])
         .assert()
         .success();
 

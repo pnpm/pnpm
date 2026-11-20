@@ -1,8 +1,20 @@
 use super::{
-    ABBREVIATED_META_DIR, FAKE_INTEGRITY, Package, PkgName, ResolutionVerification, TempDir,
-    abbreviated_packument_json, assert_eq, create_npm_resolution_verifier,
-    create_package_version_policy, ctx, default_opts, min_age_packument_json, now_at,
-    persist_meta_to_mirror, registry_resolution,
+    ABBREVIATED_META_DIR,
+    FAKE_INTEGRITY,
+    Package,
+    PkgName,
+    ResolutionVerification,
+    TempDir,
+    abbreviated_packument_json,
+    assert_eq,
+    create_npm_resolution_verifier,
+    create_package_version_policy,
+    ctx,
+    default_opts,
+    min_age_packument_json,
+    now_at,
+    persist_meta_to_mirror,
+    registry_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
@@ -300,7 +312,7 @@ async fn min_age_unlisted_version_fails_when_missing_time_is_ignored() {
 }
 
 /// A previously-cached run with a stricter (larger) cutoff stays
-/// trustworthy under today's looser policy — the set of accepted
+/// trustworthy under today's looser policy, the set of accepted
 /// versions is a subset of today's.
 #[test]
 fn can_trust_past_check_accepts_looser_min_age() {
@@ -317,7 +329,7 @@ fn can_trust_past_check_accepts_looser_min_age() {
     assert!(verifier.can_trust_past_check(&cached));
 }
 
-/// Tightening the cutoff invalidates the cached run — versions
+/// Tightening the cutoff invalidates the cached run, versions
 /// that passed under a looser cutoff may now be in the new
 /// (narrower) window.
 #[test]
@@ -426,7 +438,7 @@ async fn min_age_shortcut_falls_through_when_modified_within_cutoff() {
 /// The shortcut treats `modified` as an upper bound only for
 /// versions the registry currently lists. An unpublished or
 /// never-published pin must NOT slip through on a stale
-/// package-level timestamp — the verifier falls through to the
+/// package-level timestamp, the verifier falls through to the
 /// per-version layers, which surface the unchecked entry.
 #[tokio::test]
 async fn min_age_shortcut_falls_through_when_version_not_listed() {
@@ -440,7 +452,7 @@ async fn min_age_shortcut_falls_through_when_version_not_listed() {
         )
         .with_status(200)
         // `modified` is old enough, but the abbreviated packument
-        // only lists `1.0.0` — the verifier is checking `2.0.0`.
+        // only lists `1.0.0`, the verifier is checking `2.0.0`.
         .with_body(
             abbreviated_packument_json("acme", "1.0.0", "2024-01-01T00:00:00.000Z").to_string(),
         )

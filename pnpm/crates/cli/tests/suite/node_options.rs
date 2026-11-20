@@ -1,8 +1,13 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const COMMANDS: [&[&str]; 2] = [&["exec", "node", "probe.cjs"], &["run", "probe"]];
 const EMPTY_OVERRIDES: [(Option<&str>, Option<&str>); 4] = [
@@ -14,10 +19,10 @@ const EMPTY_OVERRIDES: [(Option<&str>, Option<&str>); 4] = [
 
 fn node_options_project(yaml: &str) -> CommandTempCwd<()> {
     let mut project = CommandTempCwd::init();
-    project.pacquet
-        .env_remove("NODE_OPTIONS")
-        .env_remove("PNPM_CONFIG_NODE_OPTIONS")
-        .env_remove("pnpm_config_node_options");
+    project.pacquet = project.pacquet
+        .without_env("NODE_OPTIONS")
+        .without_env("PNPM_CONFIG_NODE_OPTIONS")
+        .without_env("pnpm_config_node_options");
     fs::write(project.workspace.join("pnpm-workspace.yaml"), yaml)
         .expect("write pnpm-workspace.yaml");
     fs::write(
@@ -65,12 +70,12 @@ fn node_options_apply_workspace_and_nonempty_overrides() {
         ] {
             let CommandTempCwd { mut pacquet, root, workspace, .. } =
                 node_options_project("nodeOptions: --require=./configured.cjs\n");
-            pacquet.env("NODE_OPTIONS", "--require=./inherited.cjs");
+            pacquet = pacquet.with_env("NODE_OPTIONS", "--require=./inherited.cjs");
             if let Some(flag) = flag {
-                pacquet.arg(flag);
+                pacquet = pacquet.with_arg(flag);
             }
             if let Some(env_name) = env_name {
-                pacquet.env(env_name, "--require=./replacement.cjs");
+                pacquet = pacquet.with_env(env_name, "--require=./replacement.cjs");
             }
 
             assert_probe(
@@ -91,12 +96,12 @@ fn empty_node_options_overrides_clear_workspace_options_and_preserve_inherited_o
         for (flag, env_name) in EMPTY_OVERRIDES {
             let CommandTempCwd { mut pacquet, root, workspace, .. } =
                 node_options_project("nodeOptions: --require=./configured.cjs\n");
-            pacquet.env("NODE_OPTIONS", "--require=./inherited.cjs");
+            pacquet = pacquet.with_env("NODE_OPTIONS", "--require=./inherited.cjs");
             if let Some(flag) = flag {
-                pacquet.arg(flag);
+                pacquet = pacquet.with_arg(flag);
             }
             if let Some(env_name) = env_name {
-                pacquet.env(env_name, "");
+                pacquet = pacquet.with_env(env_name, "");
             }
 
             assert_probe(
@@ -122,7 +127,7 @@ fn absent_and_empty_yaml_node_options_preserve_the_parent_environment() {
         ] {
             let CommandTempCwd { mut pacquet, root, workspace, .. } = node_options_project(yaml);
             if let Some(inherited) = inherited {
-                pacquet.env("NODE_OPTIONS", inherited);
+                pacquet = pacquet.with_env("NODE_OPTIONS", inherited);
             }
 
             assert_probe(&mut pacquet, &workspace, args, inherited.map(|_| "inherited"), inherited);
@@ -141,7 +146,7 @@ fn empty_node_options_preserve_pnpmfile_extra_env() {
             "module.exports = { hooks: { updateConfig(config) { config.extraEnv = { ...config.extraEnv, NODE_OPTIONS: '--require=./hook.cjs' }; return config } } }",
         )
         .expect("write pnpmfile");
-        pacquet.env("NODE_OPTIONS", "--require=./inherited.cjs");
+        pacquet = pacquet.with_env("NODE_OPTIONS", "--require=./inherited.cjs");
 
         assert_probe(&mut pacquet, &workspace, args, Some("hook"), Some("--require=./hook.cjs"));
         drop(root);
@@ -154,14 +159,14 @@ fn config_get_reports_empty_node_options_overrides() {
         let CommandTempCwd { mut pacquet, root, .. } =
             node_options_project("nodeOptions: --require=./configured.cjs\n");
         if let Some(flag) = flag {
-            pacquet.arg(flag);
+            pacquet = pacquet.with_arg(flag);
         }
         if let Some(env_name) = env_name {
-            pacquet.env(env_name, "");
+            pacquet = pacquet.with_env(env_name, "");
         }
 
         pacquet
-            .args(["config", "get", "node-options"])
+            .with_args(["config", "get", "node-options"])
             .assert()
             .success()
             .stdout("\n");

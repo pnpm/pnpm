@@ -1,6 +1,15 @@
 use super::locked_child_admits;
-use node_semver::{Range, Version};
-use pnpm_lockfile::{PkgName, PkgNameVerPeer, Prefix, RegistryContext, ResolvedDependencySpec};
+use node_semver::{
+    Range,
+    Version,
+};
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    Prefix,
+    RegistryContext,
+    ResolvedDependencySpec,
+};
 use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use pnpm_tool_protocol::strip_tool_protocol;
 

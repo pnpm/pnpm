@@ -1,16 +1,29 @@
-use crate::{filter::FilterError, process::Command};
+use crate::{
+    filter::FilterError,
+    process::Command,
+};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 
 use indexmap::IndexMap;
-use wax::{Glob, Program};
+use wax::{
+    Glob,
+    Program,
+};
 
 mod catalogs;
 #[cfg(test)]
 mod tests;
+
+/// Each project's `(name, specifier)` dependency pairs, keyed by root
+/// directory.
+pub type ProjectDependencies = HashMap<PathBuf, Vec<(String, String)>>;
 
 /// Options for [`get_changed_projects`].
 pub struct GetChangedProjectsOptions<'a> {
@@ -21,7 +34,7 @@ pub struct GetChangedProjectsOptions<'a> {
     pub working_dir: Option<&'a Path>,
     pub test_pattern: &'a [String],
     pub changed_files_ignore_pattern: &'a [String],
-    pub project_dependencies: Option<&'a HashMap<PathBuf, Vec<(String, String)>>>,
+    pub project_dependencies: Option<&'a ProjectDependencies>,
     pub use_glob_dir_filtering: bool,
 }
 
@@ -261,7 +274,8 @@ fn symlinked_ancestors(repo_root: &Path, path: &Path) -> Vec<PathBuf> {
         .filter(|ancestor| {
             ancestor
                 .symlink_metadata()
-                .is_ok_and(|metadata| metadata.file_type().is_symlink())
+                .map(|metadata| metadata.file_type())
+                .is_ok_and(|file_type| file_type.is_symlink())
                 && is_inside_repo(ancestor, repo_root)
         })
         .map(Path::to_path_buf)
@@ -271,7 +285,8 @@ fn symlinked_ancestors(repo_root: &Path, path: &Path) -> Vec<PathBuf> {
 fn is_inside_repo(path: &Path, repo_root: &Path) -> bool {
     let canonical_dir = path
         .parent()
-        .and_then(|dir| std::fs::canonicalize(dir).ok());
+        .map(std::fs::canonicalize)
+        .and_then(Result::ok);
     let canonical_root = std::fs::canonicalize(repo_root).ok();
     matches!((canonical_dir, canonical_root), (Some(dir), Some(root)) if dir.starts_with(&root))
 }

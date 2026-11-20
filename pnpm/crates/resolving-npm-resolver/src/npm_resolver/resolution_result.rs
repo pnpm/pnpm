@@ -1,18 +1,47 @@
 use super::{
-    Algorithm, Arc, Integrity, InvalidTarballIntegrityError, LockfileResolution,
-    MissingTarballUrlError, Package, PackageDistribution, PackageVersion, PackageVersionPolicy,
-    PickedFromRegistry, PkgName, PkgNameVer, PkgResolutionId, RangeSpecStyle, RegistryPackageSpec,
-    RegistryResponseError, RegistryRevisionSelector, RegistryServerType, ResolveError,
-    ResolveOptions, ResolveResult, TarballResolution, TarballRevision, TarballUrlOptions,
-    Timestamp, TrustCheckOptions, TrustPolicy, Version, WantedDependency, npm_tarball_url,
+    Algorithm,
+    Arc,
+    Integrity,
+    InvalidTarballIntegrityError,
+    LockfileResolution,
+    MissingTarballUrlError,
+    Package,
+    PackageDistribution,
+    PackageVersion,
+    PackageVersionPolicy,
+    PickedFromRegistry,
+    PkgName,
+    PkgNameVer,
+    PkgResolutionId,
+    RangeSpecStyle,
+    RegistryPackageSpec,
+    RegistryResponseError,
+    RegistryRevisionSelector,
+    RegistryServerType,
+    ResolveError,
+    ResolveOptions,
+    ResolveResult,
+    TarballResolution,
+    TarballRevision,
+    TarballUrlOptions,
+    Timestamp,
+    TrustCheckOptions,
+    TrustPolicy,
+    Version,
+    WantedDependency,
+    npm_tarball_url,
     redact_and_sanitize,
     release_policy::{
-        detect_min_release_age_violation, installable_under_policy, latest_allowed_by_policy,
+        detect_min_release_age_violation,
+        installable_under_policy,
+        latest_allowed_by_policy,
     },
-    select_package_revision, tarball_revision,
+    select_package_revision,
+    tarball_revision,
 };
 use crate::pick_package_from_meta::{
-    RegistryPackageSpecType, semver_range::semver_satisfies_loose,
+    RegistryPackageSpecType,
+    semver_range::semver_satisfies_loose,
 };
 use pnpm_resolving_resolver_base::NonDeprecatedAlternative;
 
@@ -31,7 +60,7 @@ pub(crate) struct RegistryResolutionSource<'a> {
     pub resolved_via: &'a str,
     pub registry: &'a str,
     /// `Some(alias)` when the caller resolves from a named registry and
-    /// registry-qualified ids are enabled — the minted id then becomes
+    /// registry-qualified ids are enabled, the minted id then becomes
     /// `<name>@<alias>:<version>` (lockfile format 12.0).
     pub registry_name: Option<&'a str>,
     /// The layout `registry` declares, which rebuilds a tarball URL its
@@ -147,12 +176,12 @@ pub(super) fn resolution_id(registry_name: Option<&str>, name_ver: &PkgNameVer) 
 }
 
 /// Dedupe `serde_json::to_value(picked)` across picks of the same
-/// `(registry, pkg_name, version)` triple — see [`PickedManifestCache`](crate::pick_package::PickedManifestCache)
+/// `(registry, pkg_name, version)` triple; see [`PickedManifestCache`](crate::pick_package::PickedManifestCache)
 /// for the rationale. The cache is shared across the npm / JSR /
 /// named-registry resolvers, so the key has to scope by `registry` too;
 /// two registries may serve different artifacts under the same
 /// `name@version`, and collapsing them would hand the second registry's
-/// resolver the first registry's manifest — wrong dependency graph,
+/// resolver the first registry's manifest, wrong dependency graph,
 /// wrong peers, wrong lockfile metadata. Matches `meta_cache`'s
 /// `{registry}\x00{name}` scoping shape.
 pub(super) fn cached_manifest(
@@ -196,7 +225,7 @@ pub(crate) fn dist_integrity(
 /// The `(specifier, pin)` pair a manifest-ready specifier is computed
 /// from, or `None` when there is nothing to compute: the caller did not
 /// ask for one (`ResolveOptions::calc_specifier`), or `spec` already
-/// carries the text the entry has to keep — a registry-host tarball URL,
+/// carries the text the entry has to keep, a registry-host tarball URL,
 /// which [`build_resolve_result`] prefers over anything computed here.
 /// Caret is the fallback pin, matching pnpm's default save prefix.
 pub(crate) fn calc_specifier_from<'a>(
@@ -277,7 +306,8 @@ fn find_non_deprecated_alternative(
         .filter(|version| {
             installable_under_policy(meta, version, published_by, published_by_exclude)
         })
-        .filter_map(|version| Version::parse(version).ok())
+        .map(Version::parse)
+        .filter_map(Result::ok)
         .max()?;
     let version = newest.to_string();
     // A tag says nothing about which versions are acceptable, so there is no
@@ -344,7 +374,7 @@ pub(crate) fn prefixed_calculated_specifier(
 /// falling back to the original URL if parsing fails.
 #[must_use]
 pub fn normalize_tarball_url(url: &str) -> String {
-    reqwest::Url::parse(url).map_or_else(|_| url.to_string(), |parsed| parsed.to_string())
+    reqwest::Url::parse(url).map(|parsed| parsed.to_string()).unwrap_or_else(|_| url.to_string())
 }
 
 /// Emit the tarball URL already supplied by the picker, which the install path
@@ -387,7 +417,8 @@ fn rebuilt_tarball_url(
     let revision = picked.dist.revision
         .as_ref()
         .and_then(serde_json::Value::as_u64)
-        .and_then(|revision| TarballRevision::try_from(revision).ok());
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok);
     if source.server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr)
         && let Some(revision) = revision
         && let Some(url) = pnpm_lockfile::revision_registry_tarball_url(

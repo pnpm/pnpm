@@ -1,7 +1,16 @@
-use super::{CreateVirtualStore, CreateVirtualStoreError, Snapshots};
+use super::{
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    Snapshots,
+};
 use crate::VirtualStoreLayout;
 use pnpm_lockfile::PackageKey;
-use std::{collections::HashSet, fs, io, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    io,
+    path::Path,
+};
 
 pub(super) fn retain(
     installer: &CreateVirtualStore<'_>,

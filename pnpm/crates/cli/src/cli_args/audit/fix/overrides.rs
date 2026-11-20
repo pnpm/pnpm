@@ -1,9 +1,15 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 use pnpm_registry::RangeSpecStyle;
 
 use crate::cli_args::audit::{
-    AuditAdvisory, is_range_subset, min_version_from_range, patched_range_for_style,
+    AuditAdvisory,
+    is_range_subset,
+    min_version_from_range,
+    patched_range_for_style,
 };
 
 /// Build the override map from fixable advisories, omitting entries

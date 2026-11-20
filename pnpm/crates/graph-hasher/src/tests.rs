@@ -1,5 +1,8 @@
 use crate::{
-    HashEncoding, hash_object, hash_object_nullable_with_prefix, hash_object_with_encoding,
+    HashEncoding,
+    hash_object,
+    hash_object_nullable_with_prefix,
+    hash_object_with_encoding,
     hash_object_without_sorting,
 };
 use pretty_assertions::assert_eq;
@@ -93,8 +96,8 @@ fn hash_object_string_length_counts_utf16_code_units() {
 /// `null`, booleans, and arrays each go through their own arm of
 /// the `serialize` dispatcher. The bytestream prefixes (`Null`,
 /// `bool:true|false`, `array:<N>:`) are part of the on-disk
-/// cache-key contract and must produce stable, distinct hashes
-/// — pin them to guard against silent divergence from
+/// cache-key contract and must produce stable, distinct hashes,
+/// pin them to guard against silent divergence from
 /// `@pnpm/crypto.object-hasher`.
 #[test]
 fn hash_object_handles_null_bool_and_array_variants() {

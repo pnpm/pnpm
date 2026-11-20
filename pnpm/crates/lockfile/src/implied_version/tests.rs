@@ -1,4 +1,7 @@
-use super::{catalog_implied_version, workspace_name};
+use super::{
+    catalog_implied_version,
+    workspace_name,
+};
 
 #[test]
 fn parses_multibyte_utf8_npm_and_workspace_targets() {

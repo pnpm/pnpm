@@ -1,21 +1,32 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest, write_modules_manifest};
+use pnpm_modules_yaml::{
+    Host as ModulesHost,
+    read_modules_manifest,
+    write_modules_manifest,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn empty_node_options_preserves_dependency_lifecycle_environment() {
     let CommandTempCwd {
-        mut pacquet,
+        pacquet,
         root,
         workspace,
         npmrc_info,
         ..
     } = CommandTempCwd::init().add_mocked_registry();
+    let mut first_install = Some(pacquet);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
@@ -29,17 +40,20 @@ fn empty_node_options_preserves_dependency_lifecycle_environment() {
 
     let mut lifecycle_options = Vec::new();
     for (frozen, inherited) in [(false, "--no-warnings"), (true, "--trace-warnings")] {
-        if frozen {
+        let pacquet = if frozen {
             fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
-            pacquet =
-                Command::cargo_bin("pnpm").expect("find pnpm binary").with_current_dir(&workspace);
-            pacquet.arg("--frozen-lockfile");
-        }
+            Command::cargo_bin("pnpm")
+                .expect("find pnpm binary")
+                .with_current_dir(&workspace)
+                .with_arg("--frozen-lockfile")
+        } else {
+            first_install.take().expect("the first install uses the fixture's command")
+        };
         pacquet
-            .env("NODE_OPTIONS", inherited)
-            .env_remove("PNPM_CONFIG_NODE_OPTIONS")
-            .env_remove("pnpm_config_node_options")
-            .arg("install")
+            .with_env("NODE_OPTIONS", inherited)
+            .without_env("PNPM_CONFIG_NODE_OPTIONS")
+            .without_env("pnpm_config_node_options")
+            .with_arg("install")
             .assert()
             .success();
         let dependency_env: serde_json::Value = serde_json::from_str(
@@ -541,7 +555,8 @@ fn expired_modules_cache_is_pruned_during_frozen_install() {
         .success();
     let entries = fs::read_dir(workspace.join("node_modules/.pnpm"))
         .expect("read virtual store")
-        .map(|entry| entry.expect("read entry").file_name())
+        .map(|entry| entry.expect("read entry"))
+        .map(|value| value.file_name())
         .collect::<Vec<_>>();
     assert!(!stale_slot.exists(), "the expired orphaned slot must be pruned: {entries:?}");
 

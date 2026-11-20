@@ -5,36 +5,62 @@ pub(crate) mod selectors;
 pub(crate) mod standalone;
 
 pub(crate) use outdated::{
-    collect_ecosystem_outdated, declared_ecosystem_dep_names, ecosystem_project_name,
+    collect_ecosystem_outdated,
+    declared_ecosystem_dep_names,
+    ecosystem_project_name,
     requires_ecosystem_lockfile,
 };
 pub(crate) use selectors::{
-    EcosystemFilterKind, excludes_only, patterns_for_ecosystem, validate_ecosystem_selectors,
+    EcosystemFilterKind,
+    excludes_only,
+    is_ecosystem_prefixed,
+    patterns_for_ecosystem,
+    validate_ecosystem_selectors,
 };
 pub(crate) use standalone::{
-    select_recursive_and_standalone_projects, select_standalone_ecosystem_dirs,
+    select_recursive_and_standalone_projects,
+    select_standalone_ecosystem_dirs,
 };
 
 mod outdated;
 
 use crate::ecosystem_install::InstallContext;
-use cargo::{CargoUpdateOptions, update_cargo_projects, validate_explicit_cargo_requests};
+use cargo::{
+    CargoUpdateOptions,
+    update_cargo_projects,
+    validate_explicit_cargo_requests,
+};
 use miette::Result;
 use pnpm_config::Config;
-use pnpm_matcher::{Matcher, create_matcher};
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use python::{
-    PythonUpdateOptions, PythonUpdateTargets, resolve_python_update_targets,
-    update_python_projects, validate_explicit_python_requests,
+    PythonUpdateOptions,
+    PythonUpdateTargets,
+    resolve_python_update_targets,
+    update_python_projects,
+    validate_explicit_python_requests,
 };
 use selectors::{
-    is_cargo_prefixed, is_python_prefixed, parse_update_selectors, updates_all_except_exclusions,
+    is_cargo_prefixed,
+    is_python_prefixed,
+    parse_update_selectors,
+    updates_all_except_exclusions,
 };
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{
+        BTreeSet,
+        HashSet,
+    },
     path::PathBuf,
     sync::Arc,
 };
@@ -232,20 +258,25 @@ fn filter_remaining_node_selectors(
     }
     if !node_selectors
         .iter()
-        .any(|sel| !sel.starts_with('@') && !is_cargo_prefixed(sel) && !is_python_prefixed(sel))
+        .any(|sel| {
+            let unnegated = sel.strip_prefix('!').unwrap_or(sel);
+            !unnegated.starts_with('@') && !is_cargo_prefixed(sel) && !is_python_prefixed(sel)
+        })
     {
-        return Ok(node_selectors
+        let remaining = node_selectors
             .iter()
-            .filter(|sel| !is_cargo_prefixed(sel) && !is_python_prefixed(sel))
+            .filter(|sel| !is_cargo_prefixed(sel))
+            .filter(|sel| !is_python_prefixed(sel))
             .cloned()
-            .collect());
+            .collect();
+        return Ok(pnpm_matcher::prune_orphan_ignores(remaining, node_selectors));
     }
     let eco_names = collect_declared_eco_names(target_dirs, python_dep_names, config)?;
     if eco_names.is_empty() {
         return Ok(node_selectors.to_vec());
     }
     let node_deps = collect_declared_node_names(manifests);
-    Ok(node_selectors
+    let remaining = node_selectors
         .iter()
         .filter(|selector| {
             if is_cargo_prefixed(selector) || is_python_prefixed(selector) {
@@ -257,7 +288,8 @@ fn filter_remaining_node_selectors(
                 .is_none_or(|name| node_deps.contains(name) || !eco_names.contains(name))
         })
         .cloned()
-        .collect())
+        .collect();
+    Ok(pnpm_matcher::prune_orphan_ignores(remaining, node_selectors))
 }
 
 fn collect_declared_eco_names(

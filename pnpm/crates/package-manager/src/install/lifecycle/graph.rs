@@ -1,12 +1,21 @@
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use crate::install::InstallError;
 use indexmap::IndexMap;
 use pnpm_lockfile::Lockfile;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 
 pub(in crate::install) struct ProjectLifecycleGraph<'a> {
     pub(in crate::install) projects_by_dir: HashMap<PathBuf, (PathBuf, &'a PackageManifest)>,
@@ -120,7 +129,7 @@ fn map_targets_to_projects(
         let importer_id = pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir);
         let snapshot_publish_dir = lockfile.importers
             .get(&importer_id)
-            .filter(|snapshot| snapshot.link_directory != Some(false))
+            .filter(|snapshot| snapshot.link_directory.unwrap_or(true))
             .and_then(|snapshot| snapshot.publish_directory.as_deref());
         for publish_dir in manifest_publish_dir(manifest).into_iter().chain(snapshot_publish_dir) {
             let normalized_publish = pnpm_fs::lexical_normalize(&project_dir.join(publish_dir));
@@ -225,7 +234,8 @@ fn missing_lifecycle_order(
         projects: project_dirs
             .iter()
             .filter(|dir| !ordered_dirs.contains(*dir))
-            .map(|dir| dir.display().to_string())
+            .map(|dir| dir.display())
+            .map(|shown| shown.to_string())
             .collect::<Vec<_>>()
             .join(", "),
     }

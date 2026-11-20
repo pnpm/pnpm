@@ -2,11 +2,25 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use pretty_assertions::assert_eq;
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use std::{
+    ffi::OsStr,
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const FOO: &str = "@pnpm.e2e/foo";
@@ -71,7 +85,8 @@ fn lockfile_override(workspace: &Path, selector: &str) -> Option<String> {
         serde_saphyr::from_str(&read(workspace, "pnpm-lock.yaml")).expect("parse pnpm-lock.yaml");
     lockfile.overrides
         .as_ref()
-        .and_then(|overrides| overrides.get(selector).cloned())
+        .and_then(|overrides| overrides.get(selector))
+        .cloned()
 }
 
 fn snapshot_dep_version(workspace: &Path, snapshot_key: &str, name: &str) -> String {
@@ -422,8 +437,8 @@ fn save_catalog_name_preserves_the_dependency_group() {
 
 /// A `saveCatalogName` carrying a newline would render as a YAML block
 /// scalar and splice a corrupt `catalogs:` header into
-/// `pnpm-workspace.yaml`. The whole chain — workspace yaml → `Config` →
-/// catalog decision → manifest writer — must refuse it and leave the
+/// `pnpm-workspace.yaml`. The whole chain (workspace yaml → `Config` →
+/// catalog decision → manifest writer) must refuse it and leave the
 /// file as it was.
 #[test]
 fn a_catalog_name_with_a_control_character_is_refused() {

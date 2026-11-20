@@ -1,8 +1,15 @@
 //! Links a previous install wrote that this one no longer wants, removed
 //! before the linker writes the tree.
 
-use super::{HoistedLinkerError, HoistedLinkerInputs, workspace_links::ALL_DEPENDENCY_GROUPS};
-use crate::{SkippedSnapshots, prune_stale_modules::ReportedRemovals};
+use super::{
+    HoistedLinkerError,
+    HoistedLinkerInputs,
+    workspace_links::ALL_DEPENDENCY_GROUPS,
+};
+use crate::{
+    SkippedSnapshots,
+    prune_stale_modules::ReportedRemovals,
+};
 use pnpm_reporter::Reporter;
 
 /// Runs before the linker writes the tree, so no package is imported at

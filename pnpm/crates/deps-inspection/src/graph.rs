@@ -1,10 +1,17 @@
 //! Lockfile-backed dependency graph shared by the forward (`list`) and
 //! reverse (`why`) tree builders.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 use pnpm_lockfile::{
-    Lockfile, PeerEdgeOptions, PeerSatisfactionEdges, PkgNameVerPeer, ProjectSnapshot,
+    Lockfile,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    PkgNameVerPeer,
+    ProjectSnapshot,
     SnapshotEntry,
 };
 use pnpm_modules_yaml::IncludedDependencies;
@@ -79,7 +86,7 @@ impl GraphEdge {
 #[derive(Debug, Default)]
 pub struct GraphNode {
     pub edges: Vec<GraphEdge>,
-    /// Names declared in this package's `peerDependencies` — a child
+    /// Names declared in this package's `peerDependencies`, a child
     /// edge whose alias is in this set is a peer dependency.
     pub peers: HashSet<String>,
 }
@@ -295,7 +302,7 @@ fn edge_target(
 fn publish_directory_importers(lockfile: &Lockfile) -> HashMap<String, String> {
     lockfile.importers
         .iter()
-        .filter(|(_, importer)| importer.link_directory != Some(false))
+        .filter(|(_, importer)| importer.link_directory.unwrap_or(true))
         .filter_map(|(importer_id, importer)| {
             let publish_directory = importer.publish_directory.as_deref()?;
             let linked_importer_id = normalize_importer_path(importer_id, publish_directory)?;
@@ -311,7 +318,8 @@ fn publish_directory_importers(lockfile: &Lockfile) -> HashMap<String, String> {
 pub fn normalize_importer_path(base: &str, relative: &str) -> Option<String> {
     let mut parts: Vec<&str> = base
         .split('/')
-        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .filter(|segment| !segment.is_empty())
+        .filter(|segment| *segment != ".")
         .collect();
     let normalized = relative.replace('\\', "/");
     for part in normalized.split('/') {

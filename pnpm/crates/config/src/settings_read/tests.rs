@@ -9,7 +9,8 @@ fn pin_decision_settings_match_shared_fixture() {
         .as_array()
         .expect("PIN_DECISION_SETTINGS is an array")
         .iter()
-        .map(|value| value.as_str().expect("setting name is a string"))
+        .map(serde_json::Value::as_str)
+        .map(|text| text.expect("setting name is a string"))
         .collect();
     assert_eq!(PIN_DECISION_SETTINGS, expected.as_slice());
 }

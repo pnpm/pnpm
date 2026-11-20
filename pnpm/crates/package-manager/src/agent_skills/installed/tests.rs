@@ -1,12 +1,22 @@
 use super::{
-    SkillApprovalOptions, resync_agent_skills_at, resync_installed_agent_skills,
+    SkillApprovalOptions,
+    resync_agent_skills_at,
+    resync_installed_agent_skills,
     skill_approval_options,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{Host, IncludedDependencies, Modules, write_modules_manifest};
+use pnpm_modules_yaml::{
+    Host,
+    IncludedDependencies,
+    Modules,
+    write_modules_manifest,
+};
 use pretty_assertions::assert_eq;
-use std::{fmt::Write, fs};
+use std::{
+    fmt::Write,
+    fs,
+};
 use tempfile::TempDir;
 
 const ALL_GROUPS: IncludedDependencies = IncludedDependencies {

@@ -1,5 +1,10 @@
 use super::{
-    CommandExtra, CommandTempCwd, Duration, assert_no_bail_lets_siblings_finish, fs, json,
+    CommandExtra,
+    CommandTempCwd,
+    Duration,
+    assert_no_bail_lets_siblings_finish,
+    fs,
+    json,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -56,7 +61,7 @@ fn run_with_if_present_is_a_noop_for_missing_script() {
 /// pnpm also accepts `--if-present` ahead of the script name
 /// (`pnpm --if-present <script>`), where the script dispatches through
 /// the shorthand fallback instead of an explicit `run`. The missing
-/// script must be the same clean no-op — not an exec fallback error.
+/// script must be the same clean no-op, not an exec fallback error.
 #[test]
 fn top_level_if_present_is_a_noop_for_missing_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

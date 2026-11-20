@@ -1,13 +1,31 @@
 //! Symlink-hardening, store-index error retention, and verdict-expiry dry-run parity tests.
 
-use super::{create_file_with_age, test_config};
+use super::{
+    create_file_with_age,
+    test_config,
+};
 #[cfg(unix)]
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
-use pnpr::cache_maintenance::{CacheGcEffect, CacheGcOptions, CacheGcScope, collect_cache};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+    StoreIndexFormat,
+};
+use pnpr::cache_maintenance::{
+    CacheGcEffect,
+    CacheGcOptions,
+    CacheGcScope,
+    collect_cache,
+};
 use rusqlite::Connection;
 #[cfg(unix)]
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
 use tempfile::TempDir;
 
 #[cfg(unix)]
@@ -30,11 +48,15 @@ async fn symlinked_resolver_sqlite_paths_do_not_mutate_external_dbs_and_retain_c
     let conn = Connection::open(&ext_verdict_db).unwrap();
     conn.execute_batch(
         "CREATE TABLE lockfile_verdicts (
-             hash TEXT PRIMARY KEY,
+             hash TEXT NOT NULL,
+             footprint_key TEXT NOT NULL,
+             footprint TEXT NOT NULL,
              policy TEXT NOT NULL,
-             verified_at_ms INTEGER NOT NULL
+             epoch TEXT NOT NULL,
+             verified_at_ms INTEGER NOT NULL,
+             PRIMARY KEY (hash, epoch, footprint_key)
          );
-         INSERT INTO lockfile_verdicts VALUES ('victim-hash', '{}', 1);",
+         INSERT INTO lockfile_verdicts VALUES ('victim-hash', '', '[]', '{}', '', 1);",
     )
     .unwrap();
     drop(conn);
@@ -232,9 +254,13 @@ async fn verdict_expiry_below_vacuum_threshold_matches_dry_run_and_apply_near_ma
     conn.execute_batch(
         "PRAGMA journal_mode = WAL;
          CREATE TABLE lockfile_verdicts (
-             hash TEXT PRIMARY KEY,
+             hash TEXT NOT NULL,
+             footprint_key TEXT NOT NULL,
+             footprint TEXT NOT NULL,
              policy TEXT NOT NULL,
-             verified_at_ms INTEGER NOT NULL
+             epoch TEXT NOT NULL,
+             verified_at_ms INTEGER NOT NULL,
+             PRIMARY KEY (hash, epoch, footprint_key)
          );",
     )
     .unwrap();
@@ -251,15 +277,19 @@ async fn verdict_expiry_below_vacuum_threshold_matches_dry_run_and_apply_near_ma
     // and 20 fresh rows so the DB is > EMPTY_VERDICT_DB_BYTES.
     for idx in 0..4_i64 {
         conn.execute(
-            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-            rusqlite::params![format!("exp-{idx:02}"), &payload, old_ms + idx],
+            "INSERT INTO lockfile_verdicts (
+                 hash, footprint_key, footprint, policy, epoch, verified_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![format!("exp-{idx:02}"), "", "[]", &payload, "", old_ms + idx],
         )
         .unwrap();
     }
     for idx in 0..20_i64 {
         conn.execute(
-            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-            rusqlite::params![format!("fresh-{idx:02}"), &payload, now_ms - idx],
+            "INSERT INTO lockfile_verdicts (
+                 hash, footprint_key, footprint, policy, epoch, verified_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![format!("fresh-{idx:02}"), "", "[]", &payload, "", now_ms - idx],
         )
         .unwrap();
     }
@@ -420,9 +450,13 @@ async fn uncheckpointed_live_wal_pages_still_trim_verdict_rows_to_max_size() {
             "PRAGMA journal_mode = WAL;
              PRAGMA wal_autocheckpoint = 0;
              CREATE TABLE lockfile_verdicts (
-                 hash TEXT PRIMARY KEY,
+                 hash TEXT NOT NULL,
+                 footprint_key TEXT NOT NULL,
+                 footprint TEXT NOT NULL,
                  policy TEXT NOT NULL,
-                 verified_at_ms INTEGER NOT NULL
+                 epoch TEXT NOT NULL,
+                 verified_at_ms INTEGER NOT NULL,
+                 PRIMARY KEY (hash, epoch, footprint_key)
              );
              PRAGMA wal_checkpoint(TRUNCATE);",
         )
@@ -439,8 +473,10 @@ async fn uncheckpointed_live_wal_pages_still_trim_verdict_rows_to_max_size() {
     let tx = holder.transaction().unwrap();
     for idx in 0..60_i64 {
         tx.execute(
-            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-            rusqlite::params![format!("wal-live-{idx:02}"), &payload, now_ms - idx],
+            "INSERT INTO lockfile_verdicts (
+                 hash, footprint_key, footprint, policy, epoch, verified_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![format!("wal-live-{idx:02}"), "", "[]", &payload, "", now_ms - idx],
         )
         .unwrap();
     }
@@ -512,9 +548,13 @@ async fn symlinked_verdict_sidecar_still_counts_db_bytes_and_retries_deferred_va
     let mut conn = Connection::open(&verdict_db).unwrap();
     conn.execute_batch(
         "CREATE TABLE lockfile_verdicts (
-             hash TEXT PRIMARY KEY,
+             hash TEXT NOT NULL,
+             footprint_key TEXT NOT NULL,
+             footprint TEXT NOT NULL,
              policy TEXT NOT NULL,
-             verified_at_ms INTEGER NOT NULL
+             epoch TEXT NOT NULL,
+             verified_at_ms INTEGER NOT NULL,
+             PRIMARY KEY (hash, epoch, footprint_key)
          );",
     )
     .unwrap();
@@ -522,8 +562,10 @@ async fn symlinked_verdict_sidecar_still_counts_db_bytes_and_retries_deferred_va
     let tx = conn.transaction().unwrap();
     for idx in 0..80_i64 {
         tx.execute(
-            "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
-            rusqlite::params![format!("sidecar-{idx:02}"), &payload, 1000 + idx],
+            "INSERT INTO lockfile_verdicts (
+                 hash, footprint_key, footprint, policy, epoch, verified_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![format!("sidecar-{idx:02}"), "", "[]", &payload, "", 1000 + idx],
         )
         .unwrap();
     }
@@ -695,7 +737,13 @@ fn backdate_files_in_dir(dir: &std::path::Path, times: std::fs::FileTimes) {
 
 #[tokio::test]
 async fn files_index_rows_stay_paired_with_cas() {
-    use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex, StoreIndexFormat};
+    use pnpm_store_dir::{
+        CafsFileInfo,
+        PackageFilesIndex,
+        StoreDir,
+        StoreIndex,
+        StoreIndexFormat,
+    };
     use std::collections::HashMap;
 
     let tmp = TempDir::new().unwrap();

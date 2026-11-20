@@ -1,8 +1,15 @@
 use super::{
-    MAX_CACHED_BINDINGS, ProviderCandidates, ProviderConstraint, ProviderFinder, SnapshotDepRef,
+    MAX_CACHED_BINDINGS,
+    ProviderCandidates,
+    ProviderConstraint,
+    ProviderFinder,
+    SnapshotDepRef,
 };
 use crate::Lockfile;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 #[test]
 fn distinct_provider_chain_keeps_candidate_storage_linear() {

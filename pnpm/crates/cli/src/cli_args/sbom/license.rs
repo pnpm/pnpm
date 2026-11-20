@@ -119,7 +119,8 @@ fn push_normalized_spdx_token(normalized: &mut String, token: &str) -> Option<()
 fn is_lowercased_spdx_operator(token: &str) -> bool {
     ["AND", "OR", "WITH"]
         .iter()
-        .any(|operator| token.eq_ignore_ascii_case(operator) && token != *operator)
+        .filter(|operator| token.eq_ignore_ascii_case(operator))
+        .any(|operator| token != *operator)
 }
 
 fn canonical_spdx_exception_id(exception: &str) -> Option<&'static str> {

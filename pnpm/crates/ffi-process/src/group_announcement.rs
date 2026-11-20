@@ -7,13 +7,26 @@
 //! so itself, in the window between `fork` and `exec`.
 
 use std::{
-    io::{self, Read as _},
+    io::{
+        self,
+        Read as _,
+    },
     mem::size_of,
-    os::fd::{AsRawFd as _, BorrowedFd, RawFd},
-    process::{Child, Command},
+    os::fd::{
+        AsRawFd as _,
+        BorrowedFd,
+        RawFd,
+    },
+    process::{
+        Child,
+        Command,
+    },
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

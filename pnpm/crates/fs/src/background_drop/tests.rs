@@ -1,7 +1,14 @@
 use super::background_drop;
 use std::{
-    sync::mpsc::{Receiver, RecvTimeoutError, Sender},
-    thread::{self, ThreadId},
+    sync::mpsc::{
+        Receiver,
+        RecvTimeoutError,
+        Sender,
+    },
+    thread::{
+        self,
+        ThreadId,
+    },
     time::Duration,
 };
 

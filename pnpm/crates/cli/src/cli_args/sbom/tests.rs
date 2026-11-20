@@ -1,18 +1,35 @@
 use super::{
-    LockfileResolution, RegistryContext, SanitizedRegistries, base64_to_hex, build_purl,
-    build_purl_with_encoded_registry, classify_license, confined_importer_dir, extract_author,
-    extract_repository, integrity_string, normalize_link_path, peer_names_from_manifest,
+    LockfileResolution,
+    RegistryContext,
+    SanitizedRegistries,
+    base64_to_hex,
+    build_purl,
+    build_purl_with_encoded_registry,
+    classify_license,
+    confined_importer_dir,
+    extract_author,
+    extract_repository,
+    integrity_string,
+    normalize_link_path,
+    peer_names_from_manifest,
     platform_incompatible_optional,
 };
 use crate::cli_args::sbom::{
     cyclonedx::split_scoped_name,
     metadata::{
-        encode_purl_name, encode_repository_url, extract_bugs_url, sanitize_registry_url,
+        encode_purl_name,
+        encode_repository_url,
+        extract_bugs_url,
+        sanitize_registry_url,
         url_without_credentials,
     },
     spdx::sanitize_spdx_id,
 };
-use pnpm_lockfile::{PackageMetadata, RegistryResolution, StringOrList};
+use pnpm_lockfile::{
+    PackageMetadata,
+    RegistryResolution,
+    StringOrList,
+};
 use pnpm_package_is_installable::InstallabilityOptions;
 
 fn registry_package(
@@ -109,7 +126,7 @@ fn confined_importer_dir_rejects_lexical_escapes() {
 }
 
 /// A lexically clean importer key whose directory is a symlink pointing
-/// outside the workspace must not be read — the canonicalize + containment
+/// outside the workspace must not be read, the canonicalize + containment
 /// check catches what the lexical `validate_importer_id` filter cannot.
 #[cfg(unix)]
 #[test]

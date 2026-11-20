@@ -1,17 +1,31 @@
 use std::{
     fmt::Write,
-    sync::atomic::{AtomicI64, AtomicU64, Ordering},
+    sync::atomic::{
+        AtomicI64,
+        AtomicU64,
+        Ordering,
+    },
     time::Duration,
 };
 
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        HeaderMap,
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use dashmap::DashMap;
 
-use super::{AppState, authentication::carries_bearer_secret};
+use super::{
+    AppState,
+    authentication::carries_bearer_secret,
+};
 
 pub(crate) const DURATION_BUCKETS: [f64; 11] =
     [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];

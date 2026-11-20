@@ -1,27 +1,69 @@
 use super::{
-    LoginReturn, MetadataFreshness, OidcState, SessionUser,
+    LoginReturn,
+    MetadataFreshness,
+    OidcState,
+    SessionUser,
     groups::granted_teams,
-    rejected, token_payload, verify_workload,
-    workload::{binding_matches, validate_times},
+    rejected,
+    token_payload,
+    verify_workload,
+    workload::{
+        binding_matches,
+        validate_times,
+    },
 };
 use axum::{
-    Json, Router,
-    extract::{Form, State},
-    routing::{get, post},
+    Json,
+    Router,
+    extract::{
+        Form,
+        State,
+    },
+    routing::{
+        get,
+        post,
+    },
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
+use base64::{
+    Engine as _,
+    engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD,
+};
 use jiff::Timestamp;
 use openidconnect::core::CoreJsonWebKeySet;
-use p256::ecdsa::{Signature, SigningKey, signature::Signer as _};
-use pnpr_config::oidc::{
-    OidcBinding, OidcGroups, OidcLogin, OidcProvider, OidcTeamGrant, OidcWorkload,
+use p256::ecdsa::{
+    Signature,
+    SigningKey,
+    signature::Signer as _,
 };
-use serde_json::{Value, json};
-use sha2::{Digest as _, Sha256};
+use pnpr_config::oidc::{
+    OidcBinding,
+    OidcGroups,
+    OidcLogin,
+    OidcProvider,
+    OidcTeamGrant,
+    OidcWorkload,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use url::Url;
 
@@ -409,7 +451,10 @@ async fn refresh_is_bounded_and_recovers_after_expiration() {
 fn verifies_rs256_workload_tokens() {
     use openidconnect::{
         PrivateSigningKey as _,
-        core::{CoreJwsSigningAlgorithm, CoreRsaPrivateSigningKey},
+        core::{
+            CoreJwsSigningAlgorithm,
+            CoreRsaPrivateSigningKey,
+        },
     };
     let key = CoreRsaPrivateSigningKey::from_pem(
         include_str!("../../tests/fixtures/oidc-test-key.pem"),

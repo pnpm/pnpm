@@ -1,5 +1,10 @@
 use super::{
-    CollapseGuard, DepPath, DependenciesGraph, HashMap, HashSet, is_compatible_and_has_more_deps,
+    CollapseGuard,
+    DepPath,
+    DependenciesGraph,
+    HashMap,
+    HashSet,
+    is_compatible_and_has_more_deps,
     sort_variants,
 };
 use crate::strongly_connected_components::SccPass;

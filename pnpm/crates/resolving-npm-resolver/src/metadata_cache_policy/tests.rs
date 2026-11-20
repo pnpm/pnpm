@@ -1,12 +1,26 @@
-use super::{DocumentKind, MirrorWrite, Revalidation, mirror_may_answer};
+use super::{
+    DocumentKind,
+    MirrorWrite,
+    Revalidation,
+    mirror_may_answer,
+};
 use crate::{
-    fetch_full_metadata::{ACCEPT_ABBREVIATED_DOC, ACCEPT_FULL_DOC},
+    fetch_full_metadata::{
+        ACCEPT_ABBREVIATED_DOC,
+        ACCEPT_FULL_DOC,
+    },
     mirror::MetaHeaders,
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::NetworkPolicy;
 use pretty_assertions::assert_eq;
-use reqwest::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, HeaderMap, HeaderValue};
+use reqwest::header::{
+    CACHE_CONTROL,
+    CONTENT_TYPE,
+    ETAG,
+    HeaderMap,
+    HeaderValue,
+};
 
 const ABBREVIATED_ETAG: &str = r#""abbreviated""#;
 const FULL_ETAG: &str = r#""full""#;

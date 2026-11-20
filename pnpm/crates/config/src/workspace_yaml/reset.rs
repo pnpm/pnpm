@@ -1,6 +1,14 @@
 use super::{
-    Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, Path, WorkspaceSettings,
-    explicit_or_default, explicit_pattern, to_camel_case,
+    Config,
+    EnvVar,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    Path,
+    WorkspaceSettings,
+    explicit_or_default,
+    explicit_pattern,
+    to_camel_case,
 };
 
 type Reset = fn(&mut Config, &Config);

@@ -13,19 +13,30 @@
 
 use super::AppState;
 use pnpm_transparency_log::NoteSigner;
-use pnpr_config::{Config, RoutingConfig};
+use pnpr_config::{
+    Config,
+    RoutingConfig,
+};
 use pnpr_error::Result;
 use pnpr_package_name::Ecosystem;
 use pnpr_storage::{
     Storage,
     database::SqlDatabase,
-    transparency_log::{LogId, StoredCheckpoint},
+    transparency_log::{
+        LogId,
+        StoredCheckpoint,
+    },
 };
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        Mutex,
+        PoisonError,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
 };
 

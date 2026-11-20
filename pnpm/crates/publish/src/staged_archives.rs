@@ -7,11 +7,24 @@
 //! that uploaded it, and answers `HEAD` on the same URL when it is
 //! staged already, so a resumed publish uploads only what is missing.
 
-use futures_util::{StreamExt as _, TryStreamExt as _, stream};
-use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_network::{ThrottledClient, read_limited_body};
+use futures_util::{
+    StreamExt as _,
+    TryStreamExt as _,
+    stream,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
+use pnpm_network::{
+    ThrottledClient,
+    read_limited_body,
+};
 use serde_json::Value;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 
 use crate::registry_config_keys::NormalizedRegistryUrl;
 

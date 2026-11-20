@@ -17,8 +17,15 @@
 //! Every method blocks. The shared layer calls them on the blocking pool.
 
 use crate::dialect::Dialect;
-use pnpr_error::{RegistryError, Result};
-use std::{fmt, ops::Deref, time::Instant};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use std::{
+    fmt,
+    ops::Deref,
+    time::Instant,
+};
 
 /// The database a read runs on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

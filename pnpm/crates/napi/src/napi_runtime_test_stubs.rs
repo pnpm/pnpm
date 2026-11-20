@@ -12,7 +12,7 @@
 
 // `no_mangle` is sound as documented above: test-only (`#[cfg(test)]`) so
 // nothing else defines these names, and never called. A `// SAFETY:` prefix
-// can't be used — clippy's `unnecessary_safety_comment` rejects it on a fn with
+// can't be used, clippy's `unnecessary_safety_comment` rejects it on a fn with
 // no unsafe body.
 //
 // The crate opts out of the workspace's `unsafe_code` lint because the

@@ -19,13 +19,19 @@ pub(crate) use global::select_global_package_groups;
 
 use crate::{
     checkbox_prompt::{
-        CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
+        CheckboxAnswer,
+        CheckboxChoice,
+        CheckboxItem,
+        CheckboxPrompt,
+        CheckboxTheme,
     },
     cli_args::{
         global::has_pnpm_cli_dependency,
         outdated::{
-            OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion,
-            collect_outdated_for_importer, collect_outdated_for_importer_in_run,
+            OutdatedPackage,
+            OutdatedQuery,
+            TargetVersion,
+            collect_outdated_for_importer,
             ignored_dependencies_matcher,
         },
         pipelines::InstallFamilySelection,
@@ -33,15 +39,32 @@ use crate::{
     },
 };
 
-use miette::{IntoDiagnostic, miette};
-use owo_colors::{OwoColorize, Stream};
+use miette::{
+    IntoDiagnostic,
+    miette,
+};
+use owo_colors::{
+    OwoColorize,
+    Stream,
+};
 use pnpm_config::Config;
-use pnpm_github_actions as github_actions;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use std::{collections::HashSet, path::Path, sync::Arc};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use std::{
+    collections::HashSet,
+    path::Path,
+    sync::Arc,
+};
 
 struct InteractiveUpdateProject<'a> {
     manifest: &'a PackageManifest,
@@ -52,7 +75,11 @@ pub(crate) struct InteractiveUpdateOptions<'a> {
     /// The version each package dependency is compared against.
     pub target_version: TargetVersion<'a>,
     pub include_direct: &'a [DependencyGroup],
+    /// Package selectors filtering candidate choices, or `None` when the CLI
+    /// arguments select only GitHub Actions.
+    pub package_selectors: Option<&'a [String]>,
     pub include_github_actions: bool,
+    pub action_matcher: Option<pnpm_matcher::Matcher>,
     /// `--latest` for the GitHub Actions choices, which `--no-save` does not
     /// narrow: it only keeps `package.json` ranges.
     pub latest_github_actions: bool,
@@ -138,8 +165,8 @@ impl PromptStyle {
 /// How `update --interactive` asks which dependencies to update.
 ///
 /// `clap` never sets it. It exists so a test can answer the prompt the
-/// way the upstream suite answers its own — by mocking
-/// `@inquirer/prompts` — which a prompt reading the terminal cannot offer.
+/// way the upstream suite answers its own (by mocking
+/// `@inquirer/prompts`) which a prompt reading the terminal cannot offer.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) enum UpdatePrompt {
     #[default]
@@ -185,9 +212,9 @@ fn report_cancelled<Reporter: self::Reporter>() {
 }
 
 /// Gather outdated direct dependencies, prompt the user, and return the
-/// selected package names. `Ok(None)` means "nothing to do" — either no
+/// selected package names. `Ok(None)` means "nothing to do" (either no
 /// dependency has an update available or the prompt was answered with an
-/// empty selection — and the caller should not run an update.
+/// empty selection) and the caller should not run an update.
 pub(crate) async fn select_packages<Reporter: self::Reporter>(
     root: &Path,
     manifest: &PackageManifest,
@@ -198,25 +225,15 @@ pub(crate) async fn select_packages<Reporter: self::Reporter>(
     options: InteractiveUpdateOptions<'_>,
 ) -> miette::Result<Option<Vec<String>>> {
     let projects = [InteractiveUpdateProject { manifest, importer_id: importer_id.to_string() }];
-    let mut choices = collect_choices(
+    let choices = gather_choices_for_projects::<Reporter>(
         &projects,
+        root,
         lockfile,
         config,
         http_client,
-        options.target_version,
-        options.include_direct,
-        options.details,
+        &options,
     )
     .await?;
-    if options.include_github_actions {
-        append_github_actions::<Reporter>(
-            &mut choices,
-            root,
-            options.latest_github_actions,
-            config,
-        )
-        .await?;
-    }
     let notes = choice_notes(config, &choices).await;
     prompt_for_packages::<Reporter>(
         &choices,
@@ -246,25 +263,15 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
             ),
         })
         .collect::<Vec<_>>();
-    let mut choices = collect_choices(
+    let choices = gather_choices_for_projects::<Reporter>(
         &projects,
+        root,
         lockfile,
         config,
         http_client,
-        options.target_version,
-        options.include_direct,
-        options.details,
+        &options,
     )
     .await?;
-    if options.include_github_actions {
-        append_github_actions::<Reporter>(
-            &mut choices,
-            root,
-            options.latest_github_actions,
-            config,
-        )
-        .await?;
-    }
     let notes = choice_notes(config, &choices).await;
     prompt_for_packages::<Reporter>(
         &choices,
@@ -273,90 +280,6 @@ pub(crate) async fn select_packages_for_projects<Reporter: self::Reporter>(
         (options.prompt, &notes),
         options.details,
     )
-}
-
-async fn append_github_actions<Reporter: self::Reporter>(
-    choices: &mut Vec<OutdatedPackage>,
-    root: &Path,
-    latest: bool,
-    config: &Config,
-) -> miette::Result<()> {
-    choices.extend(
-        github_actions::find_outdated::<Reporter>(
-            root,
-            !latest,
-            None,
-            config.update_config.github_actions_server.as_deref(),
-            crate::github_actions::release_age(config)?.as_ref(),
-        )
-        .await?
-        .into_iter()
-        .map(OutdatedPackage::from),
-    );
-    Ok(())
-}
-
-async fn collect_choices(
-    projects: &[InteractiveUpdateProject<'_>],
-    lockfile: Option<&Lockfile>,
-    config: &Config,
-    http_client: &Arc<ThrottledClient>,
-    target_version: TargetVersion<'_>,
-    include_direct: &[DependencyGroup],
-    details: UpdateDetails,
-) -> miette::Result<Vec<OutdatedPackage>> {
-    let ignored = ignored_dependencies_matcher(config);
-    let query = OutdatedQuery {
-        target_version,
-        include_direct,
-        match_names: None,
-        ignore_names: ignored.as_ref(),
-        include_deprecated: false,
-        full_metadata: details.shows_urls(),
-        apply_trust_policy: config.trust_policy == pnpm_config::TrustPolicy::NoDowngrade,
-        follow_prerelease_channels: false,
-    };
-    let run = OutdatedRun::new(config, Arc::clone(http_client), &query)?;
-    let choices = futures_util::future::join_all(
-        projects
-            .iter()
-            .map(|project| {
-                collect_outdated_for_importer_in_run(
-                    project.manifest,
-                    lockfile,
-                    &project.importer_id,
-                    &query,
-                    &run,
-                )
-            }),
-    )
-    .await;
-    unique_choices(choices)
-}
-
-fn unique_choices(
-    choices: Vec<miette::Result<Vec<OutdatedPackage>>>,
-) -> miette::Result<Vec<OutdatedPackage>> {
-    // Keyed by workspace as well, so an entry each project contributed
-    // survives to [`choices::update_choices`] — that is what lets a
-    // collapsed row name every project it covers instead of the first.
-    let mut unique = HashSet::new();
-    let mut collected = Vec::new();
-    for choices in choices {
-        for choice in choices? {
-            let key = (
-                choice.alias.clone(),
-                choice.package_name.clone(),
-                choice.current.to_string(),
-                choice.target.to_string(),
-                choice.metadata.workspace.clone(),
-            );
-            if unique.insert(key) {
-                collected.push(choice);
-            }
-        }
-    }
-    Ok(collected)
 }
 
 fn print_up_to_date(past_declared_range: bool) {
@@ -432,7 +355,7 @@ fn flatten_groups(groups: &[choices::ChoiceGroup]) -> Vec<PromptRow> {
 }
 
 /// The values behind `indices`, in the order the user checked them and
-/// without repeats — the same package can be offered by two importers.
+/// without repeats, the same package can be offered by two importers.
 fn selected_packages(rows: &[PromptRow], indices: &[usize]) -> Vec<String> {
     let mut selected = Vec::new();
     let mut seen = HashSet::new();
@@ -454,9 +377,14 @@ fn cyan(text: &str) -> String {
 }
 
 mod choices;
+mod gather;
 mod notes;
 
-use notes::{ChoiceNotes, choice_notes};
+use gather::gather_choices_for_projects;
+use notes::{
+    ChoiceNotes,
+    choice_notes,
+};
 
 #[cfg(test)]
 mod tests;

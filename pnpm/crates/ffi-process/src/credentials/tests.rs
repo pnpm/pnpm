@@ -1,4 +1,7 @@
-use super::{effective_user_id, real_user_id};
+use super::{
+    effective_user_id,
+    real_user_id,
+};
 
 /// Pins that the two identity calls agree with the `id` the shell reports,
 /// which is the only independent source of the answer available in a test.

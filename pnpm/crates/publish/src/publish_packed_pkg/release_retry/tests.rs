@@ -1,11 +1,19 @@
-use super::{PublishedReleaseError, Release, confirm_published};
+use super::{
+    PublishedReleaseError,
+    Release,
+    confirm_published,
+};
 use crate::{
-    parse_supported_registry_url, provenance_gen::ProvenanceSubject,
+    parse_supported_registry_url,
+    provenance_gen::ProvenanceSubject,
     registry_config_keys::NormalizedRegistryUrl,
 };
 use base64::Engine as _;
 use pnpm_network::ThrottledClient;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 const ARCHIVE: &str = "sha512-YW55";
 

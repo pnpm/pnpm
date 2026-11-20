@@ -1,11 +1,20 @@
 //! Why a lockfile could not be loaded.
 
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use serde_saphyr::MessageFormatter;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Error when reading lockfile the filesystem.

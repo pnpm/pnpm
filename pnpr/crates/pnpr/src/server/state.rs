@@ -1,13 +1,30 @@
 use super::{
-    AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, ServerMetrics,
-    Singleflight, Storage, StripedLocks,
+    AuthState,
+    CanonicalPackageName,
+    Config,
+    LoginRateLimiter,
+    RegistryError,
+    ServerMetrics,
+    Singleflight,
+    Storage,
+    StripedLocks,
     package_responses::processing::PackumentProcessing,
     publishing::retry::ReplayStorage,
-    registry_graph::{RoutingSnapshot, UpstreamGuardContext, build_snapshot},
+    registry_graph::{
+        RoutingSnapshot,
+        UpstreamGuardContext,
+        build_snapshot,
+    },
 };
-use pnpr_config::{GraphSource, RoutingConfig};
+use pnpr_config::{
+    GraphSource,
+    RoutingConfig,
+};
 use pnpr_route::RouteContext;
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    Arc,
+    RwLock,
+};
 
 #[cfg_attr(
     dylint_lib = "perfectionist",
@@ -45,7 +62,7 @@ pub(crate) struct AppInner {
 }
 
 type PackumentSingleflight = Singleflight<
-    (String, CanonicalPackageName),
+    (String, CanonicalPackageName, super::upstream_packuments::PackumentFlightKind),
     Result<Option<Arc<super::upstream_packuments::AdmittedPackument>>, Arc<RegistryError>>,
 >;
 pub(super) struct BuildServices {
@@ -64,6 +81,7 @@ pub(super) struct ProxyState {
     pub(super) integrity_backfill: super::upstream_integrity::BackgroundIntegrity,
     pub(super) version_tgzs: super::VersionTgzCache,
     pub(super) packument_refetches: super::PackumentRefetches,
+    pub(super) packument_writes: super::PackumentWriteOrder,
 }
 
 pub(super) struct MutationLocks {
@@ -163,6 +181,7 @@ impl ProxyState {
             integrity_backfill: super::upstream_integrity::BackgroundIntegrity::default(),
             version_tgzs: super::VersionTgzCache::default(),
             packument_refetches: super::PackumentRefetches::default(),
+            packument_writes: super::PackumentWriteOrder::default(),
         }
     }
 }

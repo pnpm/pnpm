@@ -1,10 +1,23 @@
 use super::{
-    VirtualShimPublication, installed_shims, publish_virtual_shims, record_virtual_shim_state,
-    remove_virtual_shim_state, virtual_shim_bins_to_restore, virtual_shim_owner,
-    virtual_shim_state_path, virtual_shims,
+    VirtualShimPublication,
+    installed_shims,
+    publish_virtual_shims,
+    record_virtual_shim_state,
+    remove_virtual_shim_state,
+    virtual_shim_bins_to_restore,
+    virtual_shim_owner,
+    virtual_shim_state_path,
+    virtual_shims,
 };
-use crate::shim_dispatch::{ShimTarget, native_shim::install_native_shim_from};
-use std::{collections::HashMap, fs, path::Path};
+use crate::shim_dispatch::{
+    ShimTarget,
+    native_shim::install_native_shim_from,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 use tempfile::tempdir;
 
 /// Link the target-less shims of `package` from a stand-in executable.
@@ -33,7 +46,7 @@ fn a_generated_shim_names_the_package_it_stands_for() {
     );
 }
 
-/// A bin whose shim points at an installed target is somebody else's —
+/// A bin whose shim points at an installed target is somebody else's,
 /// removing it would break a global install.
 #[test]
 fn a_shim_with_a_real_target_is_not_reported() {
@@ -95,8 +108,15 @@ fn failed_publication_retains_intent_for_a_retry() {
 /// dispatch, but only when the user has not already decided for it.
 #[test]
 fn installing_a_package_manager_globally_records_the_opt_in() {
-    use super::policy::{record_package_manager_shims, recorded_entries};
-    use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
+    use super::policy::{
+        record_package_manager_shims,
+        recorded_entries,
+    };
+    use pnpm_config::{
+        Config,
+        NamedShimPolicy,
+        ShimPolicyValue,
+    };
 
     let dir = tempdir().unwrap();
     let config = Config { config_dir: Some(dir.path().to_path_buf()), ..Config::default() };
@@ -142,7 +162,7 @@ fn a_global_disable_is_not_undone_by_installing_a_package_manager() {
 }
 
 /// A package can publish a bin whose name carries an extension, and the
-/// shim written for it is found by its marker like any other — `pnpm shim
+/// shim written for it is found by its marker like any other, `pnpm shim
 /// ls` and `rm` would otherwise never see it.
 #[test]
 fn a_bin_name_with_an_extension_is_still_discovered() {

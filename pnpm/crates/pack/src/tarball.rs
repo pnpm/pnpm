@@ -14,16 +14,28 @@
 //! per entry.
 
 use crate::{
-    capabilities::{FsIsExecutable, FsReadFile},
+    capabilities::{
+        FsIsExecutable,
+        FsReadFile,
+    },
     collation::en_collator,
     manifest_entry::is_manifest_entry,
 };
-use flate2::{Compression, write::GzEncoder};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use indexmap::IndexMap;
 use std::{
     collections::HashSet,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Fixed modification time stamped on every tar entry: 1985-10-26
@@ -52,8 +64,9 @@ pub fn build_tarball<Sys: FsReadFile + FsIsExecutable>(
     gzip_level: Option<u32>,
     injected: &[(String, Vec<u8>)],
 ) -> io::Result<()> {
-    let compression =
-        gzip_level.map_or_else(Compression::default, |level| Compression::new(level.min(9)));
+    let compression = gzip_level
+        .map(|level| level.min(9))
+        .map_or_else(Compression::default, Compression::new);
     // Hash the executable sources once instead of scanning `bins` for each
     // file (`publishConfig.executableFiles` can make both lists large).
     let bin_set: HashSet<&Path> = bins

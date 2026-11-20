@@ -1,7 +1,17 @@
-use super::{PackageSpecObject, guess_dependency_type, update_project_manifest_object};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use super::{
+    PackageSpecObject,
+    guess_dependency_type,
+    update_project_manifest_object,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_registry::RangeSpecStyle;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 /// Build an on-disk `PackageManifest` from a JSON literal. The `TempDir` is
@@ -140,7 +150,7 @@ fn peer_dependency_respects_patch_and_none_pins() {
 
 /// pnpm guards its `package.json` writes against prototype pollution because
 /// JS object assignment can hit `__proto__`'s setter. Rust has no such hazard,
-/// but the behavioral contract — every alias is written as a plain entry — is
+/// but the behavioral contract (every alias is written as a plain entry) is
 /// the same, so the ported scenario still pins it.
 #[test]
 fn writes_prototype_conflicting_aliases_as_plain_entries() {

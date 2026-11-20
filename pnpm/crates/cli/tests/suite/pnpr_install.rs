@@ -10,26 +10,54 @@
 
 use crate::{
     _utils::{
-        CONFLICTED_DEPENDENCY, assert_merged_conflicted_lockfile, write_conflicted_lockfile_fixture,
+        CONFLICTED_DEPENDENCY,
+        assert_merged_conflicted_lockfile,
+        write_conflicted_lockfile_fixture,
     },
     cargo_install::crate_archive,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
-use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
-    fs::{get_all_files, is_symlink_or_junction},
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotEntry,
 };
-use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig, UserBackend};
+use pnpm_testing_utils::{
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
+    fs::{
+        get_all_files,
+        is_symlink_or_junction,
+    },
+};
+use pnpr::{
+    Ecosystem,
+    Registries,
+    Registry,
+    TokenBackend,
+    UpstreamConfig,
+    UserBackend,
+};
 use pnpr_fixtures::MockConfigPresets;
 use reqwest::header::HeaderMap;
-use sha2::{Digest, Sha256};
+use sha2::{
+    Digest,
+    Sha256,
+};
 use std::{
     fmt::Write as _,
     fs,
     io::Write as _,
-    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        TcpListener,
+        TcpStream,
+    },
     path::Path,
     process::Command,
     thread,
@@ -125,13 +153,14 @@ fn start_pnpr_registry_with(
 }
 
 /// A bound port and storage directory waiting for [`Self::serve`] to start
-/// pnpr on them. Binding first lets a caller seed storage — a token store,
-/// say — with the address the server will answer on already known.
+/// pnpr on them. Binding first lets a caller seed storage (a token store,
+/// say) with the address the server will answer on already known.
 /// The test registries pnpr resolves from listen on loopback.
 fn loopback_networks() -> Vec<pnpr::IpNetwork> {
     ["127.0.0.0/8", "::1"]
         .into_iter()
-        .map(|network| pnpr::IpNetwork::parse(network).expect("loopback network parses"))
+        .map(pnpr::IpNetwork::parse)
+        .map(|parsed| parsed.expect("loopback network parses"))
         .collect()
 }
 
@@ -446,7 +475,9 @@ fn assert_standard_workspace_pnpr_from(project: Option<&str>) {
     let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
-    let cwd = project.map_or_else(|| workspace.clone(), |project| workspace.join(project));
+    let cwd = project
+        .map(|project| workspace.join(project))
+        .unwrap_or_else(|| workspace.clone());
     pacquet_at(&cwd)
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_args(["install", "--pnpr-server", &pnpr_url])
@@ -745,9 +776,13 @@ mod resolution;
 mod pnpmfile;
 
 mod local_specs;
+mod lockfile_verification;
 
 fn pnpr_done_frame(request: &mockito::Request, mut frame: serde_json::Value) -> Vec<u8> {
-    use serde_json::{Value, json};
+    use serde_json::{
+        Value,
+        json,
+    };
 
     let request: Value = serde_json::from_slice(request.body().unwrap()).unwrap();
     let mut policies = json!({

@@ -1,35 +1,73 @@
 pub use report::render_release_plan;
 
 #[cfg(target_family = "wasm")]
-use crate::dialoguer_wasm::{Input, MultiSelect};
+use crate::dialoguer_wasm::{
+    Input,
+    MultiSelect,
+};
 use crate::{
-    cli_args::{changelog::published_names, recursive::discover_workspace_projects},
+    cli_args::{
+        changelog::published_names,
+        recursive::discover_workspace_projects,
+    },
     process::Command,
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 #[cfg(not(target_family = "wasm"))]
-use dialoguer::{Input, MultiSelect};
+use dialoguer::{
+    Input,
+    MultiSelect,
+};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_versioning::{
-    AssembleReleasePlanOptions, IntentBumpType, ManifestDependency, ReleasePlan, VersioningError,
-    VersioningSettings, WorkspaceProject, assemble_release_plan, check_versioning_invariants,
-    index_project_refs, read_change_intents, read_ledger, to_project_dir, write_change_intent,
+    AssembleReleasePlanOptions,
+    IntentBumpType,
+    ManifestDependency,
+    ReleasePlan,
+    VersioningError,
+    VersioningSettings,
+    WorkspaceProject,
+    assemble_release_plan,
+    check_versioning_invariants,
+    index_project_refs,
+    read_change_intents,
+    read_ledger,
+    to_project_dir,
+    write_change_intent,
 };
 use pnpm_workspace::Project;
-use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
-
-use report::{render_status, run_check};
-use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+use pnpm_workspace_projects_filter::{
+    GetChangedProjectsOptions,
+    get_changed_projects,
 };
 
-/// `pnpm change` — record a change intent: which packages a change affects,
+use report::{
+    render_status,
+    run_check,
+};
+use std::{
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+/// `pnpm change`: record a change intent: which packages a change affects,
 /// the bump type for each, and a summary that becomes the changelog entry.
 /// The intent file is written to `.changeset/` in the changesets format.
 #[derive(Debug, Args)]
@@ -41,7 +79,7 @@ pub struct ChangeArgs {
     pub params: Vec<String>,
 
     /// Bump type for the named packages: none, patch, minor, major. "none"
-    /// records an explicit decline — the change needs no release.
+    /// records an explicit decline, the change needs no release.
     #[clap(long)]
     pub bump: Option<String>,
 
@@ -428,7 +466,7 @@ fn recordable_projects(
     versioning: &VersioningSettings,
 ) -> Vec<ReleasableProject> {
     let mut releasable = releasable_projects(projects, workspace_dir, versioning);
-    if versioning.include_private_packages == Some(false) {
+    if !versioning.include_private_packages.unwrap_or(true) {
         let private_dirs: HashSet<String> = projects
             .iter()
             .filter(|project| project.private)
@@ -462,7 +500,10 @@ pub fn to_engine_projects(projects: &[Project]) -> Vec<WorkspaceProject> {
             }
             WorkspaceProject {
                 root_dir: project.root_dir.clone(),
-                private: manifest.get("private").and_then(serde_json::Value::as_bool) == Some(true),
+                private: manifest
+                    .get("private")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false),
                 name: manifest
                     .get("name")
                     .and_then(|name| name.as_str())

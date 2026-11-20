@@ -1,18 +1,35 @@
 use std::collections::HashMap;
 
-/// The registry facts with only the scope map populated — what these tests
+/// The registry facts with only the scope map populated, what these tests
 /// vary; the aliases and per-registry settings stay empty.
 fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::RegistryContext {
     pnpm_lockfile::RegistryContext { registries, ..Default::default() }
 }
 
 use pnpm_lockfile::{
-    BundledDependencies, ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution,
-    LockfileVersion, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
-    RegistryResolution, ResolvedDependencySpec, StringOrList, TarballResolution, TarballRevision,
+    BundledDependencies,
+    ComVer,
+    GitResolution,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileResolution,
+    LockfileVersion,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    ProjectSnapshot,
+    RegistryResolution,
+    ResolvedDependencySpec,
+    StringOrList,
+    TarballResolution,
+    TarballRevision,
 };
 
-use super::{reusable_importer_dep, synthesize_reused_result};
+use super::{
+    reusable_importer_dep,
+    synthesize_reused_result,
+};
 
 fn single_dep_lockfile(alias: &str, specifier: &str, resolved: &str) -> Lockfile {
     let mut deps = HashMap::new();

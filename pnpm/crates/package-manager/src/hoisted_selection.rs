@@ -1,5 +1,11 @@
-use pnpm_lockfile::{Lockfile, ProjectSnapshot};
-use std::{collections::HashSet, path::Path};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// The importers a selected (`--filter`) install materializes.
 ///

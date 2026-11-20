@@ -5,14 +5,28 @@
 //! raw-fragment and file-backed [`PackageVersions`] shapes are measured
 //! separately because a file-backed probe also pays a mirror read.
 
-use criterion::{Criterion, Throughput};
-use pnpm_registry::{MirrorFile, Package, PackageVersions};
+use criterion::{
+    Criterion,
+    Throughput,
+};
+use pnpm_registry::{
+    MirrorFile,
+    Package,
+    PackageVersions,
+};
 use pnpm_resolving_npm_resolver::{
-    PickPackageFromMetaOptions, PickVersionByVersionRangeOptions, RegistryPackageSpec,
-    RegistryPackageSpecType, pick_lowest_version_by_version_range, pick_package_from_meta,
+    PickPackageFromMetaOptions,
+    PickVersionByVersionRangeOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    pick_lowest_version_by_version_range,
+    pick_package_from_meta,
     pick_version_by_version_range,
 };
-use std::{hint::black_box, io::Write};
+use std::{
+    hint::black_box,
+    io::Write,
+};
 
 const RELEASE_COUNT: usize = 1_000;
 const FIRST_DEPRECATED: usize = 901;

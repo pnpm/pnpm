@@ -1,6 +1,13 @@
-use super::{Provider, Providers, UndeclaredPeerInspector};
+use super::{
+    Provider,
+    Providers,
+    UndeclaredPeerInspector,
+};
 use pnpm_lockfile::PkgNameVerPeer;
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 pub(super) struct ProviderRequirement<'a> {
     pub(super) peer: &'a str,

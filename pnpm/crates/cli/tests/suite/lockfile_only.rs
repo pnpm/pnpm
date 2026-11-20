@@ -15,11 +15,18 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fixtures::minimal_tarball,
     fs::get_all_files,
 };
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// A fresh `pacquet` command rooted at `workspace`. `std::process::Command`
 /// isn't `Clone` and each invocation consumes the builder, so tests that
@@ -97,7 +104,7 @@ fn writes_lockfile_without_downloading_or_linking() {
     );
     assert!(
         cas_blobs(&store_dir).is_empty(),
-        "the store must hold no tarball CAS blob — nothing is fetched by --lockfile-only; got:\n{:#?}",
+        "the store must hold no tarball CAS blob; nothing is fetched by --lockfile-only; got:\n{:#?}",
         cas_blobs(&store_dir),
     );
 
@@ -291,7 +298,7 @@ fn frozen_lockfile_only_succeeds_without_materializing_when_fresh() {
 }
 
 /// `--lockfile-only` together with `lockfile: false` (pnpm's
-/// `useLockfile: false`) is a config conflict — the only output the
+/// `useLockfile: false`) is a config conflict, the only output the
 /// flag produces is the lockfile, which `lockfile: false` disables.
 #[test]
 fn lockfile_false_with_lockfile_only_is_a_config_conflict() {
@@ -343,7 +350,7 @@ fn lockfile_false_with_lockfile_only_is_a_config_conflict() {
 
 /// In a workspace, a fresh `--lockfile-only` run records every
 /// importer, and a later run after a new project is added updates the
-/// lockfile to include it — all without materializing `node_modules`.
+/// lockfile to include it; all without materializing `node_modules`.
 #[test]
 fn lockfile_only_updates_importers_when_a_project_is_added() {
     let CommandTempCwd {
@@ -424,8 +431,8 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
     drop((root, mock_instance));
 }
 
-/// A registry version that pins nothing — neither `dist.integrity` nor
-/// `dist.shasum` — must be hashed even under `--lockfile-only`, or the
+/// A registry version that pins nothing (neither `dist.integrity` nor
+/// `dist.shasum`) must be hashed even under `--lockfile-only`, or the
 /// lockfile it writes cannot be installed
 /// (<https://github.com/pnpm/pnpm/issues/13547>).
 #[test]

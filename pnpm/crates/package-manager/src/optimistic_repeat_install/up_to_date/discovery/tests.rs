@@ -1,4 +1,8 @@
-use super::{GateInputs, GateWorkspace, gate_workspace_projects};
+use super::{
+    GateInputs,
+    GateWorkspace,
+    gate_workspace_projects,
+};
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use std::fs;

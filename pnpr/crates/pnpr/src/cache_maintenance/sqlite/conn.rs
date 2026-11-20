@@ -1,6 +1,13 @@
-use super::{Duration, Path, PathBuf};
+use super::{
+    Duration,
+    Path,
+    PathBuf,
+};
 use pnpm_fs::OpenDir;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{
+    Connection,
+    OpenFlags,
+};
 use std::ffi::OsStr;
 
 const SQLITE_BUSY_WAIT: Duration = Duration::from_secs(5);
@@ -129,7 +136,8 @@ pub(super) fn freelist_bytes(conn: &Connection) -> u64 {
 pub(super) fn pragma_u64(conn: &Connection, name: &str) -> u64 {
     conn.pragma_query_value(None, name, |row| row.get::<_, i64>(0))
         .ok()
-        .and_then(|val| u64::try_from(val).ok())
+        .map(u64::try_from)
+        .and_then(Result::ok)
         .unwrap_or(0)
 }
 

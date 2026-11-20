@@ -1,6 +1,13 @@
 use super::{
-    AddMockedRegistry, CommandExtra, CommandTempCwd, Path, append_workspace_yaml_key,
-    deployed_package_version, pacquet_cmd, set_app_foo_dependency, write_workspace,
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    append_workspace_yaml_key,
+    deployed_package_version,
+    pacquet_cmd,
+    set_app_foo_dependency,
+    write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 

@@ -1,11 +1,20 @@
 use mockito::Matcher;
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_registry::Package;
 use tempfile::TempDir;
 
 use super::{
-    super::fetch_release_age_upgrade, ABBREVIATED_META_DIR, FetchFullMetadataCachedOptions,
-    PACKAGE_BODY, get_pkg_mirror_path, load_meta, load_meta_headers, no_retry_opts,
+    super::fetch_release_age_upgrade,
+    ABBREVIATED_META_DIR,
+    FetchFullMetadataCachedOptions,
+    PACKAGE_BODY,
+    get_pkg_mirror_path,
+    load_meta,
+    load_meta_headers,
+    no_retry_opts,
     save_meta_indexed,
 };
 use crate::mirror::save_fail::fail_next_mirror_save;

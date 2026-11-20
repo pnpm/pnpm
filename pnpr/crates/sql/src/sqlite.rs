@@ -8,17 +8,39 @@
 //! in-memory database has only the write connection, so its reads share it.
 
 use crate::{
-    adapter::{Adapter, Connection, Param, ReadSource, Row, Value, reject_nul},
+    adapter::{
+        Adapter,
+        Connection,
+        Param,
+        ReadSource,
+        Row,
+        Value,
+        reject_nul,
+    },
     schema,
 };
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use rusqlite::{
-    ErrorCode, ToSql,
-    types::{ToSqlOutput, ValueRef},
+    ErrorCode,
+    ToSql,
+    types::{
+        ToSqlOutput,
+        ValueRef,
+    },
 };
 use std::{
-    path::{Path, PathBuf},
-    sync::{Mutex, MutexGuard, PoisonError},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Mutex,
+        MutexGuard,
+        PoisonError,
+    },
     time::Duration,
 };
 

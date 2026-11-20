@@ -1,12 +1,20 @@
 //! The entry points reading a command line before dispatch agree on every
 //! bootstrap flag.
 
-use super::{apply_cli_layers, pre_command_input, unparsed_switch_input, version_switch_input};
+use super::{
+    apply_cli_layers,
+    pre_command_input,
+    unparsed_switch_input,
+    version_switch_input,
+};
 use crate::{
     cli_args::{
         grammar,
         pre_command::{
-            EntryPoint, Invocation, input::bootstrap_argv::BootstrapArgv, should_skip_command_name,
+            EntryPoint,
+            Invocation,
+            input::bootstrap_argv::BootstrapArgv,
+            should_skip_command_name,
         },
     },
     config_overrides::ConfigOverrides,
@@ -16,7 +24,10 @@ use pnpm_config::Config;
 use std::{
     collections::HashSet,
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The global flags of [`CliArgs`](super::CliArgs) the pre-command pass does not read. They
@@ -55,17 +66,20 @@ const READ_AFTER_THE_SWITCH: &[&str] = &[
 fn every_global_flag_is_read_before_the_switch_or_after_it() {
     let bootstrap = BootstrapArgv::command()
         .get_arguments()
-        .map(|arg| arg.get_id().as_str())
+        .map(Arg::get_id)
+        .map(clap::Id::as_str)
         .collect::<HashSet<_>>();
     let global = grammar()
         .get_arguments()
         .filter(|arg| arg.is_global_set())
-        .map(|arg| arg.get_id().as_str())
+        .map(Arg::get_id)
+        .map(clap::Id::as_str)
         .collect::<Vec<_>>();
 
     let unclassified = global
         .iter()
-        .filter(|id| !bootstrap.contains(*id) && !READ_AFTER_THE_SWITCH.contains(id))
+        .filter(|id| !bootstrap.contains(*id))
+        .filter(|id| !READ_AFTER_THE_SWITCH.contains(id))
         .collect::<Vec<_>>();
     assert!(
         unclassified.is_empty(),
@@ -156,7 +170,8 @@ fn sample_value(arg: &Arg) -> String {
     arg.get_possible_values()
         .into_iter()
         .rfind(|value| !value.is_hide_set())
-        .map_or_else(|| format!("/tmp/{}", arg.get_id()), |value| value.get_name().to_string())
+        .map(|value| value.get_name().to_string())
+        .unwrap_or_else(|| format!("/tmp/{}", arg.get_id()))
 }
 
 fn with_dir(arg: &Arg, spelling: &[String]) -> Vec<String> {

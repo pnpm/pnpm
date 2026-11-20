@@ -2,7 +2,10 @@
 //! shared `ERR_PNPM_` prefix.
 
 use crate::engine_pm::channel::PackageManager;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 #[derive(Debug, Display, Error, Diagnostic)]

@@ -1,5 +1,10 @@
 use super::{
-    HashSet, copy_fixture, dedicated_workspace_with_reachable_project, fs, pacquet, run_sbom_json,
+    HashSet,
+    copy_fixture,
+    dedicated_workspace_with_reachable_project,
+    fs,
+    pacquet,
+    run_sbom_json,
     split_root_names,
 };
 
@@ -248,7 +253,8 @@ fn sbom_merges_snapshot_optionality_from_dedicated_lockfiles() {
     let sboms: Vec<serde_json::Value> = String::from_utf8(output.stdout)
         .expect("SBOM output is UTF-8")
         .lines()
-        .map(|line| serde_json::from_str(line).expect("parse split CycloneDX output"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("parse split CycloneDX output"))
         .collect();
     assert_eq!(sboms.len(), 2);
     for sbom in sboms {
@@ -507,7 +513,8 @@ fn sbom_workspace_split_each_line_has_correct_root() {
     let boms: Vec<serde_json::Value> = stdout
         .lines()
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_str(line).expect("valid JSON"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("valid JSON"))
         .collect();
     let root_names: Vec<&str> = boms
         .iter()
@@ -534,7 +541,8 @@ fn sbom_workspace_split_from_member_anchors_importers_at_workspace_root() {
     let boms = output.stdout
         .split(|byte| *byte == b'\n')
         .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_slice::<serde_json::Value>(line).expect("valid JSON"))
+        .map(serde_json::from_slice::<serde_json::Value>)
+        .map(|value| value.expect("valid JSON"))
         .collect::<Vec<_>>();
     let root_names = boms
         .iter()
@@ -574,7 +582,7 @@ fn sbom_filter_selects_dev_dependency_projects() {
 }
 
 /// `--filter-prod <pkg>...` walks production dependencies only, so
-/// `dev-lib` — a `devDependencies`-only workspace dependency of `app` —
+/// `dev-lib` (a `devDependencies`-only workspace dependency of `app`)
 /// is left out.
 #[test]
 fn sbom_filter_prod_follows_production_deps_only() {
@@ -619,7 +627,7 @@ fn sbom_filter_matching_nothing_writes_no_sbom() {
 }
 
 /// `--workspace-root` narrows the SBOM to the root project, even though
-/// the workspace package patterns don't name it — the root project is
+/// the workspace package patterns don't name it, the root project is
 /// always part of the workspace, so the `{<workspace-root>}` selector the
 /// flag adds finds it.
 #[test]
@@ -650,7 +658,7 @@ fn sbom_workspace_root_selects_only_the_root() {
 }
 
 /// A lockfile with no importer for a selected project is out of date, and
-/// walking what is left would under-report the selection's dependencies —
+/// walking what is left would under-report the selection's dependencies,
 /// so the run fails instead of writing that SBOM.
 #[test]
 fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {

@@ -1,6 +1,14 @@
 use super::{
-    Envelope, LogEvent, LogLevel, PeerDependencyIssuesLog, Pipe, SkippedOptionalDependencyLog,
-    SkippedOptionalPackage, SkippedOptionalReason, Value, assert_eq,
+    Envelope,
+    LogEvent,
+    LogLevel,
+    PeerDependencyIssuesLog,
+    Pipe,
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+    Value,
+    assert_eq,
 };
 
 #[test]

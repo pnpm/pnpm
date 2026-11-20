@@ -1,11 +1,24 @@
 use super::{
-    LAST_USED_GRANULARITY_MILLIS, LastUsedWriter, MAX_WRITES_IN_FLIGHT, MIN_CLAIMS_BEFORE_PRUNE,
+    LAST_USED_GRANULARITY_MILLIS,
+    LastUsedWriter,
+    MAX_WRITES_IN_FLIGHT,
+    MIN_CLAIMS_BEFORE_PRUNE,
 };
-use crate::{NewToken, Result, TokenBackend, TokenRecord, sha256_hex, unix_millis};
+use crate::{
+    NewToken,
+    Result,
+    TokenBackend,
+    TokenRecord,
+    sha256_hex,
+    unix_millis,
+};
 use async_trait::async_trait;
 use pnpr_error::RegistryError;
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
     time::Duration,
 };
 use tokio::sync::Semaphore;

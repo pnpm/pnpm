@@ -1,11 +1,30 @@
 use super::{
-    HashMap, HashSet, HostedGit, HostedOpts, InstallabilityOptions, LockfileResolution,
-    PackageMetadata, PkgNameVerPeer, RegistryContext, RegistryServerType, TarballUrlOptions,
-    WalkContext, WantedPlatformRef, extract_author, extract_homepage, npm_tarball_url,
-    platform_is_supported_with_inference, registry_server_type, revision_registry_tarball_url,
+    HashMap,
+    HashSet,
+    HostedGit,
+    HostedOpts,
+    InstallabilityOptions,
+    LockfileResolution,
+    PackageMetadata,
+    PkgNameVerPeer,
+    RegistryContext,
+    RegistryServerType,
+    TarballUrlOptions,
+    WalkContext,
+    WantedPlatformRef,
+    extract_author,
+    extract_homepage,
+    npm_tarball_url,
+    platform_is_supported_with_inference,
+    registry_server_type,
+    revision_registry_tarball_url,
     safe_read_package_json_from_dir,
 };
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
+use percent_encoding::{
+    AsciiSet,
+    NON_ALPHANUMERIC,
+    utf8_percent_encode,
+};
 
 /// The manifest's `repository` field as a URL an SBOM may publish.
 /// `CycloneDX` requires an `iri-reference` here, so a raw value like the npm
@@ -261,7 +280,7 @@ pub(super) fn build_purl_with_encoded_registry(
 }
 
 /// The resolution's integrity, but only where pnpm checks the downloaded
-/// bytes against it — so an SBOM never publishes a checksum as an assurance
+/// bytes against it, so an SBOM never publishes a checksum as an assurance
 /// pnpm did not make. A git resolution's recorded hash is not one: nothing
 /// verifies a checkout against it (see
 /// [`pnpm_lockfile::GitResolution::integrity`]).
@@ -282,7 +301,8 @@ pub(super) fn peer_names_from_manifest(manifest: &serde_json::Value) -> HashSet<
                 .get(field)
                 .and_then(|v| v.as_object())
                 .into_iter()
-                .flat_map(|obj| obj.keys().map(String::as_str))
+                .map(serde_json::Map::keys)
+                .flat_map(|keys| keys.map(String::as_str))
         })
         .collect();
 
@@ -369,8 +389,13 @@ pub(super) fn platform_incompatible_optional(
 }
 
 pub(super) fn generate_uuid_v4() -> String {
-    use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hasher};
+    use std::{
+        collections::hash_map::RandomState,
+        hash::{
+            BuildHasher,
+            Hasher,
+        },
+    };
     let state = RandomState::new();
     let mut hasher = state.build_hasher();
     hasher.write_u64(

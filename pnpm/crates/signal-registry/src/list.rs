@@ -1,6 +1,9 @@
 //! The list spine both registries are built on.
 
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{
+    AtomicPtr,
+    Ordering,
+};
 
 /// An append-only list of entries a signal handler can walk.
 ///

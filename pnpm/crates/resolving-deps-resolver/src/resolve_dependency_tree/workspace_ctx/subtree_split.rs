@@ -1,8 +1,25 @@
 use super::{
-    super::walk::{closes_cycle, node_id_for},
-    AncestorPkgIds, Arc, BTreeMap, ChildrenOwner, HashMap, NodeId, ParentPkgAliases,
-    PkgNameVerPeer, RecordedChildren, RecordedChildrenContext, TreeChildren, TreeCtx,
-    children_ownership::{insert_tree_node, make_non_owner_nodes_lazy, record_first_importer},
+    super::walk::{
+        closes_cycle,
+        node_id_for,
+    },
+    AncestorPkgIds,
+    Arc,
+    BTreeMap,
+    ChildrenOwner,
+    HashMap,
+    NodeId,
+    ParentPkgAliases,
+    PkgNameVerPeer,
+    RecordedChildren,
+    RecordedChildrenContext,
+    TreeChildren,
+    TreeCtx,
+    children_ownership::{
+        insert_tree_node,
+        make_non_owner_nodes_lazy,
+        record_first_importer,
+    },
     lock_recoverable,
 };
 use crate::peer_provider::peer_shadowed_dependencies;

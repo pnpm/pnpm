@@ -1,15 +1,30 @@
 #[cfg(test)]
 pub(in crate::cli_args) mod tests;
 
-use super::{Config, ConfigOverrides, Context, Host, Invocation, Path};
+use super::{
+    Config,
+    ConfigOverrides,
+    Context,
+    Host,
+    Invocation,
+    Path,
+};
 use crate::{
     cli_args::{
-        cli_command::options::push_cli_token, install::resolve_bool_override,
+        cli_command::options::push_cli_token,
+        install::resolve_bool_override,
         reporter::configure_color,
     },
-    config_overrides::{apply_state_dir_override, apply_store_dir_override},
+    config_overrides::{
+        apply_state_dir_override,
+        apply_store_dir_override,
+    },
 };
-use pnpm_config::{ColorMode, ConfigLoadFailure, SettingsRead};
+use pnpm_config::{
+    ColorMode,
+    ConfigLoadFailure,
+    SettingsRead,
+};
 
 /// The config every load starts from. `npmrc_auth_file` is seeded from the
 /// CLI flag before `current()` reads `.npmrc`, so the override redirects the
@@ -68,13 +83,13 @@ pub(in crate::cli_args) fn apply_cli_layers(
         }
     }
     config.offline = resolve_bool_override(
-        invocation.offline == Some(true),
-        invocation.offline == Some(false),
+        invocation.offline.unwrap_or(false),
+        !invocation.offline.unwrap_or(true),
         config.offline,
     );
     config.prefer_offline = resolve_bool_override(
-        invocation.prefer_offline == Some(true),
-        invocation.prefer_offline == Some(false),
+        invocation.prefer_offline.unwrap_or(false),
+        !invocation.prefer_offline.unwrap_or(true),
         config.prefer_offline,
     );
     Ok(())
@@ -179,13 +194,20 @@ fn load_raw_pre_command_config(
     dir: &Path,
     load: ConfigLoad,
 ) -> Result<Config, ConfigLoadFailure> {
+    let global_home = invocation.global.then(pnpm_config::default_pnpm_home_dir::<Host>).flatten();
+    let ignore_workspace =
+        invocation.paths.ignore_workspace || (invocation.global && global_home.is_none());
     let mut config = seed_config(
         invocation.paths.npmrc_auth_file.as_deref(),
-        invocation.paths.ignore_workspace,
+        ignore_workspace,
         config_overrides,
         invocation.network.registry.as_deref(),
     );
+    if invocation.global {
+        config.cli.command_target = pnpm_config::CommandTarget::GlobalPackages;
+    }
     config.skip_store_dir_resolution = !load.resolve_store;
     config.settings_read = load.settings_read;
-    config.current_keeping_warnings::<Host>(dir)
+    let anchor = global_home.as_deref().unwrap_or(dir);
+    config.current_keeping_warnings::<Host>(anchor)
 }

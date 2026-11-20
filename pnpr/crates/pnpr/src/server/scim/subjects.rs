@@ -1,10 +1,19 @@
 use super::super::AppState;
 use pnpr_config::Config;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_storage::database::ScimStatus;
 use std::{
-    collections::{BTreeSet, HashMap},
-    sync::{PoisonError, RwLockReadGuard},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
+    sync::{
+        PoisonError,
+        RwLockReadGuard,
+    },
 };
 
 #[derive(Debug, Default)]

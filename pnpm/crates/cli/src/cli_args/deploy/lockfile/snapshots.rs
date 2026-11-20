@@ -1,7 +1,20 @@
-use super::{ConvertCtx, importer_package_dirs};
+use super::{
+    ConvertCtx,
+    importer_package_dirs,
+};
 use crate::cli_args::deploy::{
-    HashMap, LinkedWorkspaceProject, Lockfile, Path, PkgNameVerPeer, ProjectSnapshot, ResolveBases,
-    SelectedProject, SnapshotEntry, convert_snapshot, create_file_url_key, lexical_normalize,
+    HashMap,
+    LinkedWorkspaceProject,
+    Lockfile,
+    Path,
+    PkgNameVerPeer,
+    ProjectSnapshot,
+    ResolveBases,
+    SelectedProject,
+    SnapshotEntry,
+    convert_snapshot,
+    create_file_url_key,
+    lexical_normalize,
     project_snapshot_to_snapshot_entry,
 };
 

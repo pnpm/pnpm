@@ -2,7 +2,11 @@ use std::{
     collections::HashSet,
     fs::File,
     io::Read,
-    path::{Component, Path, PathBuf},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 use indexmap::IndexMap;
@@ -13,9 +17,13 @@ use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use super::{
-    PackError, PackOptions,
+    PackError,
+    PackOptions,
     contents::executable_sources,
-    output::{normalize_tarball_name, strip_build_metadata},
+    output::{
+        normalize_tarball_name,
+        strip_build_metadata,
+    },
     prevent_bundled_dependencies_with_pnp,
 };
 
@@ -245,7 +253,8 @@ pub(super) fn check_packed_bins_for_crlf(
         }
         let mut head = Vec::with_capacity(SHEBANG_SCAN_LEN as usize);
         File::open(source)
-            .and_then(|file| file.take(SHEBANG_SCAN_LEN).read_to_end(&mut head))
+            .map(|file| file.take(SHEBANG_SCAN_LEN))
+            .and_then(|mut take| take.read_to_end(&mut head))
             .map_err(|error| PackError::ReadFile {
                 path: source.display().to_string(),
                 source: error,

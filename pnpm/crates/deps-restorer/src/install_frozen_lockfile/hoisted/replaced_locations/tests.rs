@@ -1,11 +1,25 @@
 use super::reused_hoisted_locations;
-use crate::{DependenciesGraph, DependenciesGraphNode, HoistedLocations, HoistedPackageMetadata};
-use pnpm_lockfile::{DirectoryResolution, PkgIdWithPatchHash};
+use crate::{
+    DependenciesGraph,
+    DependenciesGraphNode,
+    HoistedLocations,
+    HoistedPackageMetadata,
+};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    PkgIdWithPatchHash,
+};
 use pnpm_modules_yaml::DepPath;
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn node(dep_path: &str, dir: PathBuf, present: bool) -> DependenciesGraphNode {

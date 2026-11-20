@@ -1,12 +1,16 @@
-use crate::read_config::{ReadConfigOptions, read_config};
+use crate::read_config::{
+    ReadConfigOptions,
+    read_config,
+};
+use command_extra::CommandExtra;
 
 #[test]
 fn addon_entry_point_configures_rayon_pool() {
     const CHILD: &str = "PNPM_NAPI_RAYON_POOL_TEST_CHILD";
     if std::env::var_os(CHILD).is_none() {
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", "tests::addon_entry_point_configures_rayon_pool"])
-            .env(CHILD, "1")
+            .with_args(["--exact", "tests::addon_entry_point_configures_rayon_pool"])
+            .with_env(CHILD, "1")
             .output()
             .unwrap();
         assert!(output.status.success(), "{output:?}");
@@ -27,7 +31,8 @@ fn addon_entry_point_configures_rayon_pool() {
         std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(1);
     let override_threads = std::env::var("RAYON_NUM_THREADS")
         .ok()
-        .and_then(|value| value.parse::<usize>().ok());
+        .map(|value| value.parse::<usize>())
+        .and_then(Result::ok);
     let expected = match override_threads {
         Some(0) => parallelism,
         Some(threads) => threads,

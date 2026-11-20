@@ -1,4 +1,7 @@
-use super::{sanitize_component, sanitize_filenames};
+use super::{
+    sanitize_component,
+    sanitize_filenames,
+};
 use std::path::PathBuf;
 
 fn entries(names: &[&str]) -> pnpm_fs::CasPaths {
@@ -13,7 +16,7 @@ fn sanitizes_invalid_components_and_preserves_valid_names() {
     let input = entries(&[
         "package.json",
         "assets?/icon.svg?as=metadata.d.ts",
-        "letter-\u{e9}.txt",
+        "letter-é.txt",
         "literal~name.txt",
         "test~1.txt",
     ]);
@@ -24,7 +27,7 @@ fn sanitizes_invalid_components_and_preserves_valid_names() {
         PathBuf::from("assets?/icon.svg?as=metadata.d.ts"),
     );
     assert_eq!(sanitized.renamed, ["assets?/icon.svg?as=metadata.d.ts"]);
-    assert!(sanitized.paths.contains_key("letter-\u{e9}.txt"));
+    assert!(sanitized.paths.contains_key("letter-é.txt"));
     assert!(sanitized.paths.contains_key("literal~name.txt"));
     assert!(sanitized.paths.contains_key("test~1.txt"));
     assert!(sanitize_filenames(&entries(&["package.json", "assets/icon.svg"])).is_none());
@@ -59,7 +62,7 @@ fn sanitizes_collisions_and_empty_components() {
 fn component_sanitization_matches_pnpm_11() {
     assert_eq!(sanitize_component("COM0.txt"), "");
     assert_eq!(sanitize_component("name\u{80}?.txt"), "name.txt");
-    assert_eq!(sanitize_component(&"\u{e9}".repeat(128)), "\u{e9}".repeat(127));
+    assert_eq!(sanitize_component(&"é".repeat(128)), "é".repeat(127));
 }
 
 #[test]

@@ -1,15 +1,37 @@
 use super::{
-    AgentSkillsError, SyncAgentSkills, agent_skills_dir_from_env, decide_sources,
-    detected_agent_dirs, discover_skill_sources, discovery::SkillSource, sync_agent_skills,
+    AgentSkillsError,
+    SyncAgentSkills,
+    agent_skills_dir_from_env,
+    decide_sources,
+    detected_agent_dirs,
+    discover_skill_sources,
+    discovery::SkillSource,
+    sync_agent_skills,
 };
-use crate::{SkillsPolicy, VersionPolicyError};
-use derive_more::{Display, Error};
+use crate::{
+    SkillsPolicy,
+    VersionPolicyError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_lockfile::{LoadLockfileError, Lockfile};
-use pnpm_modules_yaml::{Host, ReadModulesError, WriteModulesError};
+use pnpm_lockfile::{
+    LoadLockfileError,
+    Lockfile,
+};
+use pnpm_modules_yaml::{
+    Host,
+    ReadModulesError,
+    WriteModulesError,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     path::Path,
 };
 

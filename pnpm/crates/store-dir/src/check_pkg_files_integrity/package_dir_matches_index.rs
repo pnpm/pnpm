@@ -2,10 +2,17 @@ use std::{
     collections::HashMap,
     fs,
     io::ErrorKind,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff};
+use crate::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+};
 
 use super::file_content_matches_digest;
 

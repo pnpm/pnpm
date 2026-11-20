@@ -1,6 +1,9 @@
 use crate::{
     graph::CrateGraph,
-    problem::{BoundaryViolation, Problem},
+    problem::{
+        BoundaryViolation,
+        Problem,
+    },
 };
 use std::collections::BTreeSet;
 
@@ -10,7 +13,8 @@ pub fn product_of<'graph>(graph: &'graph CrateGraph, name: &str) -> Option<&'gra
     graph.dirs
         .get(name)?
         .split('/')
-        .find(|component| !component.is_empty() && *component != ".")
+        .filter(|component| !component.is_empty())
+        .find(|component| *component != ".")
 }
 
 /// Fails on a dependency of any kind on a crate of another product that is

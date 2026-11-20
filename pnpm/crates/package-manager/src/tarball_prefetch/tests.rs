@@ -1,19 +1,37 @@
 use super::{
     TarballDownload,
     lockfile_entries::{
-        PendingPrefetch, registry_entry, without_store_hits, without_verified_rows,
+        PendingPrefetch,
+        registry_entry,
+        without_store_hits,
+        without_verified_rows,
         without_verified_store_hits,
     },
     run_tarball_download,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    CafsFileInfo,
+    PackageFilesIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
     store_index_key,
 };
-use pnpm_tarball::{MemCache, RetryOpts, TarballError};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use pnpm_tarball::{
+    MemCache,
+    RetryOpts,
+    TarballError,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::Duration,
+};
 use tempfile::tempdir;
 
 fn sample_index() -> PackageFilesIndex {
@@ -60,7 +78,8 @@ async fn without_store_hits_drops_entries_with_an_index_row() {
             .unwrap();
     }
     let index = StoreIndex::open_readonly(store.path())
-        .map(|idx| std::sync::Arc::new(std::sync::Mutex::new(idx)))
+        .map(std::sync::Mutex::new)
+        .map(std::sync::Arc::new)
         .ok();
     assert!(index.is_some(), "readonly index should open after a write");
 
@@ -223,7 +242,8 @@ async fn a_row_whose_files_are_gone_is_fetched_again() {
     let context = pnpm_tarball::ArchiveStoreContext {
         dir: std::borrow::Cow::Borrowed(store_dir),
         index: StoreIndex::open_readonly(store.path())
-            .map(|idx| Arc::new(std::sync::Mutex::new(idx)))
+            .map(std::sync::Mutex::new)
+            .map(Arc::new)
             .ok(),
         index_writer: None,
         verified_files_cache: SharedVerifiedFilesCache::default(),

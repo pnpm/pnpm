@@ -1,5 +1,8 @@
 use derive_more::Display;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
 
 /// The settings `lockfile.includeResolutionSettings` records in the

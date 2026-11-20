@@ -1,7 +1,20 @@
-use std::{hint::black_box, io::Write};
+use std::{
+    hint::black_box,
+    io::Write,
+};
 
-use criterion::{BatchSize, BenchmarkGroup, Criterion, Throughput, measurement::WallTime};
-use pnpm_registry::{MirrorFile, PackageVersions, VersionTrustMetadata};
+use criterion::{
+    BatchSize,
+    BenchmarkGroup,
+    Criterion,
+    Throughput,
+    measurement::WallTime,
+};
+use pnpm_registry::{
+    MirrorFile,
+    PackageVersions,
+    VersionTrustMetadata,
+};
 use serde_json::value::RawValue;
 
 const RELEASE_COUNT: usize = 1_000;

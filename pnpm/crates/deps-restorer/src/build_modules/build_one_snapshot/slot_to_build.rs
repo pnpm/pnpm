@@ -1,7 +1,11 @@
 //! The package directory a project-local build runs in.
 
 use super::{
-    super::{BuildModulesError, PackageKey, PathBuf},
+    super::{
+        BuildModulesError,
+        PackageKey,
+        PathBuf,
+    },
     BuildOneSnapshot,
 };
 

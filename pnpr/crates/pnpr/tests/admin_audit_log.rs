@@ -3,22 +3,48 @@
 //! records under `pnpr::audit`.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{Config, router_with_auth};
-use serde_json::{Value, json};
+use pnpr::{
+    Config,
+    router_with_auth,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        Arc,
+        Mutex,
+        OnceLock,
+    },
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+};
 
-use crate::{ecosystem::sha256_hex, npm::publish_doc};
+use crate::{
+    ecosystem::sha256_hex,
+    npm::publish_doc,
+};
 
 const SCIM_TOKEN: &str = "scim-secret-0123456789abcdef0123456789";
 
@@ -118,7 +144,8 @@ where
             let current = ctx.lookup_current();
             let span_name = current
                 .as_ref()
-                .map(|span| span.name().to_string());
+                .map(tracing_subscriber::registry::SpanRef::name)
+                .map(str::to_string);
             let span_fields = current
                 .as_ref()
                 .and_then(|span| {
@@ -201,7 +228,10 @@ async fn send(
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
     }
-    let body = body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
+    let body = body
+        .map(|body| body.to_string())
+        .map(Body::from)
+        .unwrap_or_else(Body::empty);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())
@@ -739,7 +769,10 @@ fn oci_app(tmp: &TempDir) -> axum::Router {
 
 #[tokio::test]
 async fn audit_log_oci_deletion_operations() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
 
     let logs = init_audit_subscriber();
     let dir = TempDir::new().unwrap();

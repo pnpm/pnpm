@@ -1,8 +1,16 @@
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
-use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pnpm_lockfile::{
+    DirectoryResolution,
+    LockfileResolution,
+};
+use pnpm_resolving_resolver_base::{
+    PkgResolutionId,
+    ResolveResult,
+};
 
 use super::{
-    super::test_support::manifest_result, DependencySpec, extract_children,
+    super::test_support::manifest_result,
+    DependencySpec,
+    extract_children,
     extract_peer_dependencies,
 };
 use crate::resolved_tree::PeerDep;

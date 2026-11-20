@@ -1,4 +1,11 @@
-use super::super::{DependencyGroup, HashSet, PackageManifest, Path, PathBuf, ProjectMutation};
+use super::super::{
+    DependencyGroup,
+    HashSet,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectMutation,
+};
 
 pub(crate) fn build_project_manifests_list<'a>(
     root_manifest: &'a PackageManifest,
@@ -99,9 +106,9 @@ pub(crate) fn replace_project_manifest(
 }
 /// Matches workspace project roots against one fixed directory.
 ///
-/// Two paths can name the same project without being equal as strings —
-/// a symlinked workspace root, or `/tmp` against its `/private/tmp` target
-/// on macOS — so a lexical mismatch falls back to comparing canonical
+/// Two paths can name the same project without being equal as strings
+/// (a symlinked workspace root, or `/tmp` against its `/private/tmp` target
+/// on macOS) so a lexical mismatch falls back to comparing canonical
 /// paths. Canonicalizing touches the filesystem once per candidate, so the
 /// fixed side is resolved up front rather than once per project.
 pub(in super::super) struct ProjectDirMatcher {
@@ -170,8 +177,8 @@ pub(in super::super) fn projects_running_own_scripts<'manifest>(
     }
     // pnpm's recursive dispatch pushes the workspace root into the
     // mutated importers as a plain `mutation: 'install'` whenever the
-    // selection leaves it out, so the root installs in full — and runs
-    // its own scripts — even when the command was pointed elsewhere.
+    // selection leaves it out, so the root installs in full (and runs
+    // its own scripts) even when the command was pointed elsewhere.
     let workspace_root = pnpm_fs::lexical_normalize(inputs.workspace_root);
     let root_was_pushed_in = !mutated_dirs.contains(&workspace_root);
     let is_pushed_root = |project_dir: &Path| root_was_pushed_in && project_dir == workspace_root;

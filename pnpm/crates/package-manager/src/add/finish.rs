@@ -1,7 +1,20 @@
-use super::{AddError, AddOptions};
-use crate::{InstallError, catalog_cleanup::post_install_prune, package_manifest_prefix};
+use super::{
+    AddError,
+    AddOptions,
+};
+use crate::{
+    InstallError,
+    catalog_cleanup::post_install_prune,
+    package_manifest_prefix,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PackageManifestLog,
+    PackageManifestMessage,
+    Reporter,
+};
 
 pub(super) fn finish_single_add<Reporter: self::Reporter>(
     add: AddOptions<'_>,

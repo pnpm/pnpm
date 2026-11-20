@@ -8,17 +8,37 @@
 //! install would reject
 //! ([pnpm/pnpm#11165](https://github.com/pnpm/pnpm/issues/11165)).
 
-use crate::resolution_policy::{PickPolicy, pick_package_context};
-use derive_more::{Display, Error};
+use crate::resolution_policy::{
+    PickPolicy,
+    pick_package_context,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
-use pnpm_registry::{PackageTag, PackageVersion};
-use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
-    RegistryPackageSpec, pick_package, pick_registry_for_package,
+use pnpm_network::{
+    ThrottledClient,
+    redact_and_sanitize,
 };
-use std::{collections::HashMap, sync::Arc};
+use pnpm_registry::{
+    PackageTag,
+    PackageVersion,
+};
+use pnpm_resolving_npm_resolver::{
+    InMemoryPackageMetaCache,
+    PackumentFetchLocker,
+    PickPackageError,
+    PickPackageOptions,
+    RegistryPackageSpec,
+    pick_package,
+    pick_registry_for_package,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 /// Error type of the crate-internal `LatestPicker::resolve`.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -30,7 +50,7 @@ pub enum ResolveLatestError {
     Registry(#[error(source)] pnpm_registry::RegistryError),
 
     /// The packument carries no version behind the `latest` tag (nor a
-    /// fallback pick) — e.g. every version was unpublished.
+    /// fallback pick), e.g. every version was unpublished.
     #[display("no version found for the latest tag")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_LATEST_VERSION))]
     NoLatestVersion,
@@ -167,7 +187,8 @@ impl<'a> LatestPicker<'a> {
         );
 
         let pick = pick_package(&ctx, &spec, &opts).await
-            .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
+            .map_err(Box::new)
+            .map_err(ResolveLatestError::Pick)?;
         if let Some(picked) = pick.picked_package {
             return Ok(picked);
         }

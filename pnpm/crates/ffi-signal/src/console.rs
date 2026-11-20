@@ -3,9 +3,16 @@
 use crate::Interrupt;
 use std::{
     marker::PhantomData,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    },
 };
-use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, SetConsoleCtrlHandler};
+use windows_sys::Win32::System::Console::{
+    CTRL_BREAK_EVENT,
+    CTRL_C_EVENT,
+    SetConsoleCtrlHandler,
+};
 
 /// A handler for one console control event.
 ///

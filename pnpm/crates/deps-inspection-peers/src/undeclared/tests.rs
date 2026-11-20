@@ -1,7 +1,13 @@
 use super::UndeclaredPeerInspector;
 use pnpm_lockfile::Lockfile;
-use serde_json::{Value, json};
-use std::{fs, path::Path};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn fixture() -> Value {
     json!({

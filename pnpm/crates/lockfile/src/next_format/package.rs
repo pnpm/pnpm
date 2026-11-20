@@ -2,22 +2,49 @@
 //! resolved dependencies, and its peer bindings, with a `snapshots` list for a
 //! package installed with several sets of peers.
 
-pub use dependencies::{NextPackageDep, NextPackageDepMap, PackageDeps};
-pub(super) use peers::{BindingOut, Bindings};
-pub use peers::{PeerDetails, PeerEntry};
+pub use dependencies::{
+    NextPackageDep,
+    NextPackageDepMap,
+    PackageDeps,
+};
+pub(super) use peers::{
+    BindingOut,
+    Bindings,
+};
+pub use peers::{
+    PeerDetails,
+    PeerEntry,
+};
 
-use super::{NextFormatError, NextSnapshotEntry};
+use super::{
+    NextFormatError,
+    NextSnapshotEntry,
+};
 use crate::{
-    BundledDependencies, DirectoryResolution, LockfileResolution, PackageMetadata,
-    RegistryResolution, StringOrList, TarballResolution,
+    BundledDependencies,
+    DirectoryResolution,
+    LockfileResolution,
+    PackageMetadata,
+    RegistryResolution,
+    StringOrList,
+    TarballResolution,
 };
 use dependencies::Declarations;
 use hoist::hoist;
-use peers::{merge_peer_dependencies, split_peer_dependencies};
+use peers::{
+    merge_peer_dependencies,
+    split_peer_dependencies,
+};
 use pnpm_package_manifest::DependencyGroup;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use ssri::Integrity;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 mod dependencies;
 mod hoist;

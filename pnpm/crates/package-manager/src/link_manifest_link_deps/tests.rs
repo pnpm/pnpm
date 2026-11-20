@@ -1,11 +1,20 @@
-use super::{WorkspaceLinks, link_manifest_link_deps};
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use super::{
+    WorkspaceLinks,
+    link_manifest_link_deps,
+};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_deps_restorer::ImporterModulesDirs;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::SilentReporter;
-use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
+use pnpm_resolving_resolver_base::{
+    WorkspacePackage,
+    WorkspacePackages,
+};
 use pnpm_testing_utils::fs::is_symlink_or_junction;
 use std::fs;
 use tempfile::tempdir;
@@ -23,7 +32,7 @@ fn all_dependencies() -> IncludedDependencies {
 }
 
 /// `link:` specs from the in-memory manifests are materialized as
-/// symlinks under the project's `node_modules/` — absolute payloads
+/// symlinks under the project's `node_modules/`, absolute payloads
 /// as-is, relative payloads anchored at the project dir, and the
 /// `link:.` self-reference pointing back at the project itself.
 /// Non-`link:` specs are left for the lockfile passes.
@@ -188,12 +197,16 @@ fn relink_replaces_stale_symlink() {
 }
 
 /// An alias the lockfile importer already resolves is left to the
-/// lockfile passes — even when the manifest spells it as a `link:` —
+/// lockfile passes, even when the manifest spells it as a `link:`,
 /// so a `dedupeDirectDeps` decision (no symlink under the importer)
 /// is not undone by the manifest pass.
 #[test]
 fn lockfile_tracked_alias_is_skipped() {
-    use pnpm_lockfile::{ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
+    use pnpm_lockfile::{
+        ProjectSnapshot,
+        ResolvedDependencyMap,
+        ResolvedDependencySpec,
+    };
 
     let dir = tempdir().unwrap();
     let project_dir = dir.path().join("packages/sibling");
@@ -241,7 +254,7 @@ fn lockfile_tracked_alias_is_skipped() {
 }
 
 /// A dependency key that is not a valid npm package name (path
-/// traversal, absolute path) is rejected before any filesystem write —
+/// traversal, absolute path) is rejected before any filesystem write,
 /// manifest keys are raw JSON strings and must not escape
 /// `node_modules/`.
 #[test]
@@ -286,7 +299,7 @@ fn traversal_alias_is_rejected_without_writes() {
     drop(dir);
 }
 
-/// A `modulesDir` override changes where the links land — the pass
+/// A `modulesDir` override changes where the links land, the pass
 /// must follow the configured basename instead of growing a stray
 /// `node_modules/` next to the intended tree.
 #[test]
@@ -412,7 +425,13 @@ fn bins_of_manifest_linked_deps_are_linked() {
 /// leave it out.
 #[test]
 fn reports_link_target_as_linked_from() {
-    use pnpm_reporter::{AddedRoot, LogEvent, Reporter, RootLog, RootMessage};
+    use pnpm_reporter::{
+        AddedRoot,
+        LogEvent,
+        Reporter,
+        RootLog,
+        RootMessage,
+    };
     use std::sync::Mutex;
 
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());

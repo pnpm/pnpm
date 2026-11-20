@@ -1,7 +1,14 @@
-use std::{marker::PhantomData, time::Duration};
+use std::{
+    marker::PhantomData,
+    time::Duration,
+};
 
 use pnpm_reporter::{
-    LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel, Reporter,
+    LockfileVerificationLog,
+    LockfileVerificationMessage,
+    LogEvent,
+    LogLevel,
+    Reporter,
 };
 use tokio::time::Instant;
 

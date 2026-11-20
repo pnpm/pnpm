@@ -3,18 +3,34 @@
 //! configured database without a running server.
 
 use crate::{
-    Config, RegistriesSubcommand, RegistryError,
+    Config,
+    RegistriesSubcommand,
+    RegistryError,
     audit::Actor,
     server::{
-        Credentials, DefaultGrants, HostedChange, check_revision, graph_version,
-        occupied_namespace_error, stored_document,
+        Credentials,
+        DefaultGrants,
+        HostedChange,
+        check_revision,
+        graph_version,
+        occupied_namespace_error,
+        stored_document,
     },
 };
-use pnpm_diagnostics::{print, println};
-use pnpr_config::{RegistryGraphChanges, RegistryGraphDocument};
+use pnpm_diagnostics::{
+    print,
+    println,
+};
+use pnpr_config::{
+    RegistryGraphChanges,
+    RegistryGraphDocument,
+};
 use pnpr_storage::{
     Storage,
-    database::{NewRegistryGraph, RegistryGraphWrite},
+    database::{
+        NewRegistryGraph,
+        RegistryGraphWrite,
+    },
 };
 use std::path::Path;
 

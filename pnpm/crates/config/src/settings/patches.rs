@@ -1,6 +1,15 @@
 use crate::{
-    BTreeMap, CalcPatchHashError, Config, IndexMap, PatchGroupRecord, PatchInput, Path, PathBuf,
-    ResolvePatchedDependenciesError, create_hex_hash_from_file, group_patched_dependencies,
+    BTreeMap,
+    CalcPatchHashError,
+    Config,
+    IndexMap,
+    PatchGroupRecord,
+    PatchInput,
+    Path,
+    PathBuf,
+    ResolvePatchedDependenciesError,
+    create_hex_hash_from_file,
+    group_patched_dependencies,
     resolve_and_group,
 };
 
@@ -32,7 +41,7 @@ impl Config {
     /// key mapped to its patch file's SHA-256 hex digest.
     ///
     /// Distinct from [`Self::resolved_patched_dependencies`], which
-    /// groups the same entries by package name for the resolver — this
+    /// groups the same entries by package name for the resolver; this
     /// keeps the user's verbatim keys so the lockfile is byte-faithful
     /// (e.g. a bare `foo` and `foo@*` stay separate keys rather than
     /// collapsing into one group bucket).
@@ -43,7 +52,8 @@ impl Config {
     ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
         Ok(self
             .patched_dependency_hashes_in_config_order()?
-            .map(|hashes| hashes.into_iter().collect()))
+            .map(std::iter::IntoIterator::into_iter)
+            .map(std::iter::Iterator::collect))
     }
 
     /// Return patch hashes in configured selector order.

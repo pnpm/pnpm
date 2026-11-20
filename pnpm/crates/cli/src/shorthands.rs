@@ -3,7 +3,7 @@
 //! pnpm expands a table of universal shorthands over argv before parsing
 //! (`pnpm11/pnpm/src/shorthands.ts`): `--silent` and `-s` both mean
 //! `--reporter=silent` for every command. A command's own shorthand table
-//! overrides the universal one — `run` redefines `s` as `--sequential` —
+//! overrides the universal one (`run` redefines `s` as `--sequential`)
 //! so `-s` is left untouched when the effective command is `run`,
 //! including the `pnpm <script>` fallback, which resolves to `run` and
 //! therefore inherits its shorthands. The long `--silent` form has no
@@ -14,10 +14,14 @@
 //! `--verbose`, ...) is not expanded: pacquet accepts `--loglevel`
 //! itself, but some of the family's expansions (`--loglevel=verbose`,
 //! `--loglevel=silly`) are npm level names that pnpm's own `loglevel`
-//! setting rejects, and nopt only soft-drops them upstream — mapping that
+//! setting rejects, and nopt only soft-drops them upstream, mapping that
 //! quirk is left for when the family lands.
 
-use crate::flag_relocation::{ArgTable, find_positional, token_width};
+use crate::flag_relocation::{
+    ArgTable,
+    find_positional,
+    token_width,
+};
 use clap::Command;
 use std::ffi::OsString;
 
@@ -33,7 +37,7 @@ pub fn expand_universal_shorthands(cmd: &Command, mut argv: Vec<OsString>) -> Ve
     let top_level = ArgTable::top_level(cmd);
     let subcommand_union = ArgTable::subcommand_union(cmd);
     let run_owns_short_s = effective_command_is_run(cmd, &argv, &top_level, &subcommand_union);
-    // Expanding past this would hand the script a token it never typed —
+    // Expanding past this would hand the script a token it never typed,
     // `pnpm run build --silent` must forward `--silent`, not
     // `--reporter=silent`.
     let passthrough_from = crate::parse_boundary::passthrough_from(&argv).unwrap_or(argv.len());
@@ -70,7 +74,8 @@ fn token_span(token: &str, top_level: &ArgTable, subcommand_union: &ArgTable) ->
     if let Some(long) = rest.strip_prefix('-') {
         let (name, has_inline_value) = long
             .split_once('=')
-            .map_or((long, false), |(name, _)| (name, true));
+            .map(|(name, _)| (name, true))
+            .unwrap_or((long, false));
         let consumes_value = top_level
             .long_consumes_value(name)
             .or_else(|| subcommand_union.long_consumes_value(name))
@@ -89,7 +94,7 @@ fn token_span(token: &str, top_level: &ArgTable, subcommand_union: &ArgTable) ->
     token_width(consumes_value && is_bare_short, false)
 }
 
-/// Whether argv invokes `run` — directly, through an alias, through
+/// Whether argv invokes `run`, directly, through an alias, through
 /// `recursive run`, or through the `pnpm <script>` fallback (a positional
 /// that names no known subcommand dispatches to `run`). Only `run` gives
 /// `-s` a different meaning, so this is what gates the `-s` expansion.

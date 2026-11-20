@@ -13,19 +13,34 @@
 //! (and `optionalDependencies`, unless they were excluded), and treats
 //! `skipped` keys as already visited so nothing behind them is retained.
 //! `link:` references resolve to no snapshot key and end that
-//! branch — they are workspace edges, not entries in the package graph.
+//! branch; they are workspace edges, not entries in the package graph.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 
-use derive_more::{Display, Error};
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 
 use crate::{
-    Lockfile, PackageKey, PeerEdgeOptions, PeerSatisfactionEdges, PkgNameVerPeer, ProjectSnapshot,
+    Lockfile,
+    PackageKey,
+    PeerEdgeOptions,
+    PeerSatisfactionEdges,
+    PkgNameVerPeer,
+    ProjectSnapshot,
     ResolvedDependencyMap,
 };
 
-/// Dependency groups a filter keeps — the same three flags the modules
+/// Dependency groups a filter keeps, the same three flags the modules
 /// manifest records, redeclared here so the lockfile crate does not depend
 /// on the modules-manifest crate for three booleans.
 #[derive(Debug, Clone, Copy)]
@@ -66,7 +81,7 @@ pub struct FilterByImportersOptions {
     /// Dependency groups the listed importers keep. A group left out is
     /// emptied on those importers and its edges are not walked.
     pub include: IncludedDependencies,
-    /// Snapshot keys to treat as already visited — pnpm's `skipped` set,
+    /// Snapshot keys to treat as already visited, pnpm's `skipped` set,
     /// the optional dependencies this platform did not install. Neither
     /// they nor anything reachable only through them is retained.
     pub skipped: HashSet<PackageKey>,

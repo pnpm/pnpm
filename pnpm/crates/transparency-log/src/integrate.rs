@@ -10,10 +10,24 @@
 use crate::{
     bundle::MAX_ENTRY_SIZE,
     proof::LogError,
-    tiles::{TILE_HEIGHT, TILE_WIDTH, TilePath},
+    tiles::{
+        TILE_HEIGHT,
+        TILE_WIDTH,
+        TilePath,
+    },
 };
-use std::{collections::BTreeMap, ops::Range};
-use tlog_tiles::{Hash, HashReader, Tile, stored_hash_index, stored_hashes, tree_hash};
+use std::{
+    collections::BTreeMap,
+    ops::Range,
+};
+use tlog_tiles::{
+    Hash,
+    HashReader,
+    Tile,
+    stored_hash_index,
+    stored_hashes,
+    tree_hash,
+};
 
 /// A hash to persist at its storage index, as Go's `tlog.StoredHashIndex`
 /// numbers them.

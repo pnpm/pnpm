@@ -1,9 +1,19 @@
 use super::{
-    ScriptShellError, SelectedShell, missing_script_shell, script_body, select_shell,
+    ScriptShellError,
+    SelectedShell,
+    missing_script_shell,
+    script_body,
+    select_shell,
     use_shell_emulator,
 };
+#[cfg(not(windows))]
+use command_extra::CommandExtra;
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, io, path::Path};
+use std::{
+    ffi::OsString,
+    io,
+    path::Path,
+};
 
 fn os(text: &str) -> OsString {
     OsString::from(text)
@@ -23,7 +33,7 @@ fn posix_default_is_sh_minus_c() {
 }
 
 /// We do not assert the program path here because the runner env may
-/// or may not have `ComSpec` set — the args + verbatim flag are the
+/// or may not have `ComSpec` set, the args + verbatim flag are the
 /// load-bearing part.
 #[test]
 fn windows_default_uses_cmd_with_d_s_c_and_verbatim_args() {
@@ -149,8 +159,8 @@ fn cmd_exe_script_shell_uses_d_s_c_and_verbatim_args_on_windows() {
 fn run_in_sh(command: &str) -> std::process::Output {
     let shell = select_shell(None, false).expect("select_shell");
     std::process::Command::new(&shell.program)
-        .args(&shell.args)
-        .arg(script_body(&shell, command).as_ref())
+        .with_args(&shell.args)
+        .with_arg(script_body(&shell, command).as_ref())
         .output()
         .expect("run sh")
 }

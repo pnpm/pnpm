@@ -11,13 +11,29 @@ mod workspace;
 mod peer_edges;
 mod runtime_dependencies;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 use indexmap::IndexMap;
 use pnpm_lockfile::{
-    CatalogSnapshots, ComVer, ImporterDepVersion, Lockfile, LockfileResolution, LockfileSettings,
-    LockfileVersion, PackageKey, PackageMetadata, PkgName, PkgVerPeer, ResolvedCatalogEntry,
-    ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    CatalogSnapshots,
+    ComVer,
+    ImporterDepVersion,
+    Lockfile,
+    LockfileResolution,
+    LockfileSettings,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgVerPeer,
+    ResolvedCatalogEntry,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
     TarballResolution,
 };
 use pnpm_modules_yaml::IncludedDependencies;

@@ -1,6 +1,12 @@
 use super::{
-    ChildEdge, ResolveDependencyTreeError, ResolveOptions, SkippedOptionalDependency, TreeCtx,
-    WantedDependency, pkgs_info_from_ids, wanted_lockfile_contains_satisfying_entry,
+    ChildEdge,
+    ResolveDependencyTreeError,
+    ResolveOptions,
+    SkippedOptionalDependency,
+    TreeCtx,
+    WantedDependency,
+    pkgs_info_from_ids,
+    wanted_lockfile_contains_satisfying_entry,
 };
 
 /// A resolution failure inside an optional subtree drops the edge instead of

@@ -1,4 +1,7 @@
-use pnpm_lockfile::{LockfileResolution, PackageKey};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+};
 use pnpm_resolving_deps_resolver::DependenciesGraphNode;
 
 pub(super) fn specifiers(

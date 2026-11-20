@@ -2,25 +2,51 @@ use std::{
     collections::BTreeMap,
     fs,
     path::Path,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
-use pnpm_config::{Config, NodeLinker};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::{AllowBuildValue, IncludedDependencies, LayoutVersion, ModulesLayout};
+use pnpm_modules_yaml::{
+    AllowBuildValue,
+    IncludedDependencies,
+    LayoutVersion,
+    ModulesLayout,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{ProjectEntry, WorkspaceState, load_workspace_state};
+use pnpm_workspace_state::{
+    ProjectEntry,
+    WorkspaceState,
+    load_workspace_state,
+};
 use tempfile::tempdir;
 
 use crate::install::{
     apply_materialization::commit::pruned_at,
     moved_tree_is_reusable,
     prepare_modules_state::{
-        purge::{is_safe_modules_purge_target, purge_modules_dir_entries},
+        purge::{
+            is_safe_modules_purge_target,
+            purge_modules_dir_entries,
+        },
         recorded_workspace,
-        up_to_date::{FrozenTreeUpToDate, frozen_tree_up_to_date, modules_cache_prune_due},
+        up_to_date::{
+            FrozenTreeUpToDate,
+            frozen_tree_up_to_date,
+            modules_cache_prune_due,
+        },
     },
-    state_options::{ModulesTreeContext, RecordedWorkspace, RepeatInstallPolicy},
+    state_options::{
+        ModulesTreeContext,
+        RecordedWorkspace,
+        RepeatInstallPolicy,
+    },
 };
 
 #[test]
@@ -51,7 +77,8 @@ fn purge_removes_directory_links_without_following_them() {
 
     let remaining = fs::read_dir(&modules_dir)
         .unwrap()
-        .map(|entry| entry.unwrap().file_name())
+        .map(Result::unwrap)
+        .map(|value| value.file_name())
         .collect::<Vec<_>>();
     dbg!(&remaining);
     assert!(remaining.is_empty());

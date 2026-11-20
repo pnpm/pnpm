@@ -1,15 +1,36 @@
-use super::{RewriteContext, RewritePlan};
+use super::{
+    RewriteContext,
+    RewritePlan,
+};
 use indexmap::IndexMap;
 use node_semver::Version;
-use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
-use pnpm_lockfile::{
-    BundledDependencies, Lockfile, LockfileResolution, PackageKey, PackageMetadata, PkgName,
-    PkgNameVerPeer, PkgVerPeer, Prefix, StringOrList,
+use pnpm_config_parse_overrides::{
+    PackageSelector,
+    VersionOverride,
 };
-use pnpm_resolving_resolver_base::{ResolveResult, WantedDependency, parse_strict_semver_range};
+use pnpm_lockfile::{
+    BundledDependencies,
+    Lockfile,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    Prefix,
+    StringOrList,
+};
+use pnpm_resolving_resolver_base::{
+    ResolveResult,
+    WantedDependency,
+    parse_strict_semver_range,
+};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 
@@ -227,10 +248,10 @@ pub(super) fn override_replacement(
         || matches!(
             old_metadata.resolution,
             LockfileResolution::Tarball(ref tarball)
-                if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+                if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false),
         );
     if old_snapshot.optional
-        || old_snapshot.patched == Some(true)
+        || old_snapshot.patched.unwrap_or(false)
         || old_snapshot.id.is_some()
         || old_metadata.peer_dependencies.is_some()
         || old_metadata.peer_dependencies_meta.is_some()
@@ -332,10 +353,12 @@ pub(super) fn is_safe_registry_result(
         && manifest.get("version").and_then(Value::as_str) == Some(version)
         && manifest
             .get("peerDependencies")
-            .is_none_or(|value| value.as_object().is_some_and(serde_json::Map::is_empty))
+            .map(Value::as_object)
+            .is_none_or(|object| object.is_some_and(serde_json::Map::is_empty))
         && manifest
             .get("peerDependenciesMeta")
-            .is_none_or(|value| value.as_object().is_some_and(serde_json::Map::is_empty))
+            .map(Value::as_object)
+            .is_none_or(|object| object.is_some_and(serde_json::Map::is_empty))
         && manifest.get("deprecated").is_none()
         && manifest.get("bundledDependencies").is_none()
         && manifest.get("bundleDependencies").is_none()
@@ -349,7 +372,7 @@ pub(super) fn is_safe_registry_result(
         && matches!(
             result.resolution,
             LockfileResolution::Tarball(ref tarball)
-                if tarball.integrity.is_some() && tarball.git_hosted != Some(true),
+                if tarball.integrity.is_some() && !tarball.git_hosted.unwrap_or(false),
         )
 }
 pub(super) fn package_metadata(

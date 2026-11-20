@@ -1,15 +1,37 @@
 use super::{
-    TrustedRepository, TrustedVersions, TufError, canonical,
-    metadata::{Root, Snapshot, Targets, Timestamp, parse},
+    TrustedRepository,
+    TrustedVersions,
+    TufError,
+    canonical,
+    metadata::{
+        Root,
+        Snapshot,
+        Targets,
+        Timestamp,
+        parse,
+    },
     role::verify_role,
 };
 use crate::test_support::{
-    FUTURE, PAST, RoleKeys, hex, key, key_id, root, sign, snapshot, targets, timestamp,
+    FUTURE,
+    PAST,
+    RoleKeys,
+    hex,
+    key,
+    key_id,
+    root,
+    sign,
+    snapshot,
+    targets,
+    timestamp,
 };
 use ed25519_dalek::SigningKey;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use sha2::{Digest as _, Sha256};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
 fn now() -> jiff::Timestamp {
     "2026-11-01T00:00:00Z".parse().unwrap()

@@ -2,23 +2,48 @@
 //! `/-/pnpr/v0/admin/registry-revisions`):
 //! writes, versions, revisions, who may make a change, the changes pnpr
 //! refuses, and how replicas follow the stored graph.
+use command_extra::CommandExtra;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{AuthState, Config, router_with_auth};
+use pnpr::{
+    AuthState,
+    Config,
+    router_with_auth,
+};
 use pnpr_storage::{
-    HostedDocumentVersion, Storage,
-    database::{NewRegistryGraph, RegistryGraphWrite},
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        NewRegistryGraph,
+        RegistryGraphWrite,
+    },
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
     time::Duration,
 };
@@ -144,7 +169,10 @@ async fn send(
     if let Some(version) = if_match {
         request = request.header("if-match", format!(r#""{version}""#));
     }
-    let body = body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
+    let body = body
+        .map(|body| body.to_string())
+        .map(Body::from)
+        .unwrap_or_else(Body::empty);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())
@@ -1001,11 +1029,11 @@ async fn import_check_exits_with_code_1_while_the_file_differs() {
         .unwrap();
     let check = |file: &Path| {
         std::process::Command::new(env!("CARGO_BIN_EXE_pnpr"))
-            .arg("--config")
-            .arg(config_path(dir.path()))
-            .args(["registries", "import", "--check"])
-            .arg(file)
-            .env_remove("PNPR_CONFIG")
+            .with_arg("--config")
+            .with_arg(config_path(dir.path()))
+            .with_args(["registries", "import", "--check"])
+            .with_arg(file)
+            .without_env("PNPR_CONFIG")
             .output()
             .unwrap()
     };

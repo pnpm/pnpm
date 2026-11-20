@@ -1,5 +1,9 @@
 use super::{
-    TempDir, WORKSPACE_MANIFEST_FILENAME, fs, run_config_dep, run_ignore_ghsas,
+    TempDir,
+    WORKSPACE_MANIFEST_FILENAME,
+    fs,
+    run_config_dep,
+    run_ignore_ghsas,
     run_patched_deps_path,
 };
 
@@ -54,7 +58,10 @@ fn config_dependency_preserves_other_keys_and_comments() {
 
 #[test]
 fn config_dependency_noop_when_unchanged_returns_false() {
-    use crate::{edit, model::Manifest};
+    use crate::{
+        edit,
+        model::Manifest,
+    };
 
     let original = "configDependencies:\n  '@pnpm.e2e/foo': 1.0.0\n";
 

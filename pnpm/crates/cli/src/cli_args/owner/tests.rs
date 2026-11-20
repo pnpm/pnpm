@@ -1,6 +1,12 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
-use super::{OwnerArgs, OwnerError};
+use super::{
+    OwnerArgs,
+    OwnerError,
+};
 use crate::cli_args::registry_client::PACKAGE_DOCUMENT_BODY_LIMIT;
 use pnpm_config::Config;
 use pnpm_network::normalize_registry_url;
@@ -431,7 +437,7 @@ async fn owner_add_403_returns_forbidden() {
 }
 
 // The write path (add/rm) mirrors the TypeScript `throwRegistryError`, whose
-// 404 message is `Package not found in registry. {body}` — distinct from the
+// 404 message is `Package not found in registry. {body}`, distinct from the
 // `ls` fetch path, which quotes the package name instead.
 #[tokio::test]
 async fn owner_add_404_returns_package_not_found() {

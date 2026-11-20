@@ -4,16 +4,28 @@
 
 use crate::_utils;
 
-use _utils::{read_lockfile, snapshot_entries};
+use _utils::{
+    read_lockfile,
+    snapshot_entries,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::bump_mtime,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";

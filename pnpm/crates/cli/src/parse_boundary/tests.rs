@@ -159,7 +159,7 @@ fn with_forwards_only_for_a_version_that_execs_a_child() {
         assert_eq!(actual, forwarded, "{argv:?}");
     }
 
-    // The whole child command line, command included — forwarding only the
+    // The whole child command line, command included, forwarding only the
     // options would leave the child pnpm with nothing to run.
     for (argv, forwarded) in [
         (

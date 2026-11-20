@@ -1,8 +1,19 @@
 use super::{
-    Arc, BTreeMap, DEFAULT_CONCURRENCY, FuturesUnordered, Lockfile, LockfileResolution, PkgName,
-    RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE, RenderedViolation, ResolutionPolicyViolation,
-    ResolutionVerification, ResolutionVerifier, Semaphore, StreamExt, VerifyCtx, VerifyError,
-    is_registry_shaped_resolution,
+    Arc,
+    BTreeMap,
+    DEFAULT_CONCURRENCY,
+    FuturesUnordered,
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    RenderedViolation,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    Semaphore,
+    StreamExt,
+    VerifyCtx,
+    VerifyError,
 };
 
 /// One `(name, version, resolution)` tuple deduplicated from
@@ -23,14 +34,11 @@ pub(super) struct Candidate {
 /// `BTreeMap` over a serialized key gives deterministic iteration
 /// order for tests; the fan-out runs across the value iter so order
 /// doesn't affect correctness, only the reproducibility of failures.
-pub(super) fn collect_candidates(
-    lockfile: &Lockfile,
-) -> (Vec<Candidate>, Vec<ResolutionPolicyViolation>) {
+pub(super) fn collect_candidates(lockfile: &Lockfile) -> Vec<Candidate> {
     let Some(packages) = lockfile.packages.as_ref() else {
-        return (Vec::new(), Vec::new());
+        return Vec::new();
     };
     let mut deduped: BTreeMap<String, Candidate> = BTreeMap::new();
-    let mut shape_violations = Vec::new();
     for (key, metadata) in packages {
         let name = key.name.clone();
         // A registry-qualified key (`<name>@<registryName>:<version>`)
@@ -43,25 +51,9 @@ pub(super) fn collect_candidates(
             Some((_, version)) => version.to_string(),
             None => key.suffix.version().to_string(),
         };
-        // A registry-style dep path (`name@semver`, no `runtime:`-style
-        // prefix) must be backed by a registry-shaped resolution: the
-        // allowBuilds policy derives a trusted package identity from
-        // that key shape, which is only sound while this invariant
-        // holds. The check is offline, so it applies even when no
-        // policy verifiers are active.
-        if has_registry_shape_mismatch(key, &metadata.resolution) {
-            shape_violations.push(ResolutionPolicyViolation {
-                name: name.clone(),
-                version: version.clone(),
-                resolution: metadata.resolution.clone(),
-                code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
-                reason: "a registry-style dependency path is backed by a non-registry resolution"
-                    .to_string(),
-            });
-        }
         // Every `LockfileResolution` variant derives `Serialize`, and
         // the wire shape never contains non-string keys or non-finite
-        // numbers — the only way this `expect` could fire is a future
+        // numbers, the only way this `expect` could fire is a future
         // variant that breaks the contract. Fail loudly rather than
         // skipping the candidate, which would silently bypass
         // verification for that lockfile entry.
@@ -80,22 +72,7 @@ pub(super) fn collect_candidates(
                 resolution: metadata.resolution.clone(),
             });
     }
-    (deduped.into_values().collect(), shape_violations)
-}
-
-/// A registry-style key must have a registry-shaped resolution because
-/// build approval derives the trusted package identity from that key.
-fn has_registry_shape_mismatch(
-    key: &pnpm_lockfile::PkgNameVerPeer,
-    resolution: &pnpm_lockfile::LockfileResolution,
-) -> bool {
-    key.suffix.prefix() == pnpm_lockfile::Prefix::None
-        && matches!(
-            key.suffix.version(),
-            pnpm_lockfile::VersionPart::Semver(_)
-                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
-        )
-        && !is_registry_shaped_resolution(resolution)
+    deduped.into_values().collect()
 }
 
 /// Run every active verifier against every candidate with a
@@ -185,7 +162,7 @@ fn candidate_verifiers(
 
 /// Outcome of evaluating one candidate against the active verifiers.
 /// `Err(message)` is a transport failure (the registry couldn't be
-/// reached to verify the entry) — the runner aborts the whole pass with
+/// reached to verify the entry), the runner aborts the whole pass with
 /// it rather than collecting it as a policy violation.
 async fn evaluate_candidate(
     candidate: Candidate,

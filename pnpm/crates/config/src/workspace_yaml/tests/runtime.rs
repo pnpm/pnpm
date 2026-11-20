@@ -1,5 +1,11 @@
 use super::{
-    Config, GlobalShims, GlobalShimsSetting, Path, ShimPolicy, WorkspaceSettings, assert_eq,
+    Config,
+    GlobalShims,
+    GlobalShimsSetting,
+    Path,
+    ShimPolicy,
+    WorkspaceSettings,
+    assert_eq,
 };
 
 #[test]

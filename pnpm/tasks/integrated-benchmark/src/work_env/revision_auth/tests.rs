@@ -1,4 +1,9 @@
-use super::{PNPR_BENCHMARK_HTPASSWD, PNPR_BENCHMARK_USERNAME, mock_config, seed_auth};
+use super::{
+    PNPR_BENCHMARK_HTPASSWD,
+    PNPR_BENCHMARK_USERNAME,
+    mock_config,
+    seed_auth,
+};
 use serde_json::Value;
 use std::fs;
 

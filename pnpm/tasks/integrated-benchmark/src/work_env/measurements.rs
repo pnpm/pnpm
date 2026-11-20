@@ -1,8 +1,16 @@
 use super::PACQUET_PNPM_SPEEDUP_MIN;
 use crate::cli_args::BenchmarkScenario;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use serde_json::Value;
-use std::{collections::HashMap, fmt::Write as _, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fmt::Write as _,
+    fs,
+    path::Path,
+};
 
 /// How much faster pacquet resolved the peer-heavy DAG than the TypeScript CLI,
 /// or the gate's failure message when that is under
@@ -104,7 +112,8 @@ pub(super) fn read_benchmark_diagnostics(path: &Path) -> BenchmarkDiagnostics {
 pub(super) fn read_phase_events(path: &Path) -> Vec<PhaseEvent> {
     let Ok(text) = fs::read_to_string(path) else { return Vec::new() };
     text.lines()
-        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .map(serde_json::from_str::<Value>)
+        .filter_map(Result::ok)
         .filter(|value| {
             value.get("target").and_then(Value::as_str) == Some("pacquet::install::phase")
         })
@@ -142,7 +151,8 @@ pub(super) fn event_u64(value: &Value, key: &str) -> Option<u64> {
         .or_else(|| {
             value
                 .as_str()
-                .and_then(|text| text.parse().ok())
+                .map(str::parse)
+                .and_then(Result::ok)
         })
 }
 pub(super) fn summarize_phase_events(events: &[PhaseEvent]) -> PhaseSummary {
@@ -299,11 +309,15 @@ pub(super) fn link_slots_mean(summary: &PhaseSummary, batch: &str) -> Option<f64
         .map(|metric| metric.mean_ms)
 }
 pub(super) fn format_seconds(value: Option<f64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| format!("{value:.3}s"))
+    value
+        .map(|value| format!("{value:.3}s"))
+        .unwrap_or_else(|| "-".to_string())
 }
 pub(super) fn format_ms(value: Option<f64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| format!("{value:.1}ms"))
+    value
+        .map(|value| format!("{value:.1}ms"))
+        .unwrap_or_else(|| "-".to_string())
 }
 pub(super) fn format_u64(value: Option<u64>) -> String {
-    value.map_or_else(|| "-".to_string(), |value| value.to_string())
+    value.map(|value| value.to_string()).unwrap_or_else(|| "-".to_string())
 }

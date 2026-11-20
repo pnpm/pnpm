@@ -1,7 +1,13 @@
-use super::{EnvVar, read_source_date_epoch};
+use super::{
+    EnvVar,
+    read_source_date_epoch,
+};
 use std::{
     cell::RefCell,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 thread_local! {

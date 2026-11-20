@@ -1,5 +1,9 @@
 use super::mature_pnpm_version_for_range;
-use pnpm_config::{Config, PNPM_VERSION, TrustPolicy};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+    TrustPolicy,
+};
 
 const OLDER: &str = "2023-01-10T08:30:00.000Z";
 const OLD: &str = "2024-01-10T08:30:00.000Z";

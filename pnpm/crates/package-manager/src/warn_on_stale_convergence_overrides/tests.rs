@@ -1,11 +1,19 @@
 use super::{
-    StaleConvergenceOverride, find_stale_convergence_overrides, stale_convergence_override_warning,
+    StaleConvergenceOverride,
+    find_stale_convergence_overrides,
+    stale_convergence_override_warning,
 };
 use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config_parse_overrides::{VersionOverride, parse_overrides};
+use pnpm_config_parse_overrides::{
+    VersionOverride,
+    parse_overrides,
+};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
     time::Duration,
 };
@@ -93,7 +101,7 @@ async fn silent_when_no_candidate_is_newer_than_the_override_value() {
 #[tokio::test]
 async fn unresolved_range_stays_in_the_satisfies_check() {
     let overrides = converge_override("foo", "4.0.6");
-    // `4.0.6` (an exact declared range) fails to resolve — it yields no
+    // `4.0.6` (an exact declared range) fails to resolve; it yields no
     // candidate, but the `^4.0.5` candidate must still satisfy it.
     let declared = ranges("foo", &["^4.0.5", "4.0.6"]);
     let stale =

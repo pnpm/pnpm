@@ -1,10 +1,35 @@
 use super::{
-    Arc, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
-    FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    Path, PathBuf, Value, create_dir_all, empty, json, link_bins, link_bins_of_packages, read_file,
-    read_to_string, tempdir, write_file,
+    Arc,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadDir,
+    FsReadFile,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    Path,
+    PathBuf,
+    Value,
+    create_dir_all,
+    empty,
+    json,
+    link_bins,
+    link_bins_of_packages,
+    read_file,
+    read_to_string,
+    tempdir,
+    write_file,
 };
-use crate::{ShimTargetCache, link_bins_of_packages_cached};
+use crate::{
+    ShimTargetCache,
+    link_bins_of_packages_cached,
+};
 #[cfg(windows)]
 use std::fs::remove_file;
 
@@ -88,7 +113,7 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
 /// absent.
 ///
 /// Windows-only: on Unix `.cmd` and `.ps1` are not written in the
-/// first place (matches pnpm — see
+/// first place (matches pnpm; see
 /// [`writes_shim_flavors_matching_host_platform`]), so there's
 /// nothing to recover.
 #[cfg(windows)]
@@ -329,7 +354,7 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
 /// pnpm's warm-install short-circuit accepts an existing symlink or
 /// shim that already points at the target regardless of
 /// `preferSymlinkedExecutables`, so flipping the setting rewrites no
-/// valid bins — only missing or wrong entries take the new form. The
+/// valid bins, only missing or wrong entries take the new form. The
 /// flag-off relink here is the injected-deps syncer's workspace-wide
 /// pass, which carries no options and must not rewrite symlinked bins
 /// into shims.
@@ -370,8 +395,8 @@ fn existing_bins_pointing_at_the_target_survive_flag_changes() {
             .is_file(),
     );
 
-    // A fresh bin under the flag is a symlink, and the same dirent —
-    // pinned by its inode — survives both a warm flag-on relink and a
+    // A fresh bin under the flag is a symlink, and the same dirent
+    // (pinned by its inode) survives both a warm flag-on relink and a
     // flag-off relink: the short-circuit skips the rewrite, it does
     // not recreate the link.
     std::fs::remove_file(&bin).unwrap();
@@ -563,7 +588,10 @@ fn choose_bins_matches_exclusions_case_insensitively_only_on_windows() {
 #[cfg(unix)]
 #[test]
 fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
-    use crate::shim::{generate_sh_shim, is_shim_pointing_at};
+    use crate::shim::{
+        generate_sh_shim,
+        is_shim_pointing_at,
+    };
 
     const PRELUDE: &str = r#"basedir_abs=$(CDPATH= cd -P -- "$basedir" && pwd -P) || exit $?"#;
     let manifest = json!({"name": "foo", "bin": "cli.js"});
@@ -578,7 +606,8 @@ fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
     let mut outdated = String::new();
     for line in generate_sh_shim(&target, &shim, None, &[], None)
         .lines()
-        .filter(|line| !line.starts_with("basedir_abs=") && *line != r#"basedir="$basedir_abs""#)
+        .filter(|line| !line.starts_with("basedir_abs="))
+        .filter(|line| *line != r#"basedir="$basedir_abs""#)
     {
         outdated.push_str(&line.replace(r#"$basedir_abs"/"#, r#"$basedir"/"#));
         outdated.push('\n');
@@ -610,7 +639,10 @@ fn a_reinstall_anchors_a_shim_written_without_the_physical_basedir() {
 #[test]
 fn a_shim_in_a_symlinked_bin_dir_names_its_target_from_the_physical_dir() {
     use crate::path_util::lexical_normalize;
-    use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::os::unix::fs::{
+        PermissionsExt,
+        symlink,
+    };
 
     let tmp = tempdir().unwrap();
     let root = std::fs::canonicalize(tmp.path()).unwrap();
@@ -648,7 +680,10 @@ fn a_shim_in_a_symlinked_bin_dir_names_its_target_from_the_physical_dir() {
 #[cfg(unix)]
 #[test]
 fn a_reinstall_replaces_a_shim_whose_relative_target_climbs_from_another_dir() {
-    use crate::shim::{generate_sh_shim, is_shim_pointing_at};
+    use crate::shim::{
+        generate_sh_shim,
+        is_shim_pointing_at,
+    };
     use std::os::unix::fs::symlink;
 
     let tmp = tempdir().unwrap();
@@ -716,8 +751,14 @@ fn a_shim_in_a_junctioned_bin_dir_names_its_target_from_the_physical_dir() {
 
 #[test]
 fn precalculated_bins_write_shims_without_walking_directories_or_reading_shebangs() {
-    use crate::{PackageBin, capabilities::DirCreation};
-    use std::{collections::BTreeMap, io};
+    use crate::{
+        PackageBin,
+        capabilities::DirCreation,
+    };
+    use std::{
+        collections::BTreeMap,
+        io,
+    };
 
     struct NoProbeSys;
     impl FsReadToString for NoProbeSys {

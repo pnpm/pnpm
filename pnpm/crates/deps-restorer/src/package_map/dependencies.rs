@@ -1,12 +1,26 @@
 use super::{
-    PackageMapOptions, PackageMapPackage, add_external_link_package, has_package_entry,
-    link_target_id, normalize_path,
+    PackageMapOptions,
+    PackageMapPackage,
+    add_external_link_package,
+    has_package_entry,
+    link_target_id,
+    normalize_path,
 };
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot, SnapshotDepRef};
+use pnpm_lockfile::{
+    Lockfile,
+    ProjectSnapshot,
+    SnapshotDepRef,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) fn add_importer_dependencies(

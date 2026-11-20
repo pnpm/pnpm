@@ -8,25 +8,53 @@
 
 pub(super) use parked::check_packed_members;
 
-use super::{PackedDirectory, PublishArgs, PublishScope};
+use super::{
+    PackedDirectory,
+    PublishArgs,
+    PublishScope,
+};
 use crate::cli_args::{
     changelog::published_name,
-    release_notes::{notes_registries, notes_registry_of_manifest, read_release_notes_arg},
+    release_notes::{
+        notes_registries,
+        notes_registry_of_manifest,
+        read_release_notes_arg,
+    },
 };
 use derive_more::Display;
 use miette::Context;
-use parked::{parked_publication, publication_registry};
-use pnpm_config::Config;
-use pnpm_publish::{PublicationNotes, ReleaseNotesTarget};
-use pnpm_release_notes::{
-    find_changelog_section, is_publication_name, normalize_line_endings, validate_note,
+use parked::{
+    parked_publication,
+    publication_registry,
 };
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
-use pnpm_versioning::{ChangelogStorage, changelog_storage};
+use pnpm_config::Config;
+use pnpm_publish::{
+    PublicationNotes,
+    ReleaseNotesTarget,
+};
+use pnpm_release_notes::{
+    find_changelog_section,
+    is_publication_name,
+    normalize_line_endings,
+    validate_note,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
+use pnpm_versioning::{
+    ChangelogStorage,
+    changelog_storage,
+};
 use serde_json::Value;
 use std::{
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Where a note came from, as `pnpm publish` reports it.

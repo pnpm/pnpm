@@ -1,4 +1,8 @@
-use super::{ComVer, LockfileVersion, LockfileVersionError};
+use super::{
+    ComVer,
+    LockfileVersion,
+    LockfileVersionError,
+};
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 

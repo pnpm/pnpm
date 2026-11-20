@@ -1,13 +1,23 @@
 use std::fs;
 
-use pnpm_lockfile::{ImporterDepVersion, Lockfile};
+use pnpm_lockfile::{
+    ImporterDepVersion,
+    Lockfile,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::Project;
 use serde_json::json;
 
 use super::{
-    super::{SelectedProject, index_projects},
-    ConvertCtx, HashMap, LegacyDeploySource, create_file_url_key, relative_file_key,
+    super::{
+        SelectedProject,
+        index_projects,
+    },
+    ConvertCtx,
+    HashMap,
+    LegacyDeploySource,
+    create_file_url_key,
+    relative_file_key,
 };
 
 #[test]
@@ -87,7 +97,8 @@ fn rebase_ignores_escaping_publish_directory_absent_from_project_manifest() {
     assert!(
         !packages
             .keys()
-            .any(|key| key.to_string().contains("outside")),
+            .map(std::string::ToString::to_string)
+            .any(|text| text.contains("outside")),
         "a publishDirectory only the lockfile records must not synthesize a directory package: {packages:?}",
     );
     let lib_version = &source.lockfile.importers["."].dependencies
@@ -180,7 +191,8 @@ fn rebase_ignores_publish_directory_absent_from_project_manifest_and_keeps_decla
     assert!(
         !keys
             .iter()
-            .any(|key| key.contains("stale-lib") && key.contains("dist")),
+            .filter(|key| key.contains("stale-lib"))
+            .any(|key| key.contains("dist")),
         "stale lockfile publishDirectory absent from manifest must be ignored: {keys:?}",
     );
     assert!(

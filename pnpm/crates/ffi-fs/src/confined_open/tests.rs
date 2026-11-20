@@ -1,5 +1,11 @@
-use super::{open_components, open_directory_beneath};
-use std::{fs, path::Path};
+use super::{
+    open_components,
+    open_directory_beneath,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// Pins that a descendant reached through no symlink opens, whichever
 /// resolution the running platform takes.

@@ -3,13 +3,21 @@
 //! projects an install ends up reading.
 
 use super::{
-    super::manifest::{Manifest, RequirementScope, Source, SourceDeclaration},
+    super::manifest::{
+        Manifest,
+        RequirementScope,
+        Source,
+        SourceDeclaration,
+    },
     Workspace,
 };
 use pep508_rs::PackageName;
 use std::{
     collections::BTreeSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 impl Workspace {

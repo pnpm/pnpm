@@ -1,16 +1,34 @@
 use super::{
-    ProcessTracker, RunningExecution, group_is_running, group_watchdog::GroupWatch,
-    process_table::is_unsettled, spawn_child,
+    ProcessTracker,
+    RunningExecution,
+    group_is_running,
+    group_watchdog::GroupWatch,
+    process_table::is_unsettled,
+    spawn_child,
 };
 use crate::process::Command;
 use std::{
     fs,
-    io::{BufRead, BufReader, Read},
+    io::{
+        BufRead,
+        BufReader,
+        Read,
+    },
     os::unix::fs::symlink,
-    process::{self, Child, Stdio},
+    process::{
+        self,
+        Child,
+        Stdio,
+    },
     sync::mpsc,
-    thread::{self, sleep},
-    time::{Duration, Instant},
+    thread::{
+        self,
+        sleep,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::TempDir;
 
@@ -104,7 +122,12 @@ fn starting_replaces_a_watchdog_that_died() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_pidfd_reports_a_child_exited_once_reaped_anywhere() {
-    use pnpm_ffi_signal::{Pin, PinnedTarget, Reaping, Waiting};
+    use pnpm_ffi_signal::{
+        Pin,
+        PinnedTarget,
+        Reaping,
+        Waiting,
+    };
 
     let mut running = spawn_group_leader();
     let Pin::Target(pinned) = PinnedTarget::pin(running.id()) else { panic!("pin the child") };

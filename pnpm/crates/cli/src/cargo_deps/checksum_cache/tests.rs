@@ -1,6 +1,18 @@
-use super::{CARGO_CHECKSUM_FILE, ChecksumCache, checksum_cache_key};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter};
-use std::{collections::HashMap, fs};
+use super::{
+    CARGO_CHECKSUM_FILE,
+    ChecksumCache,
+    checksum_cache_key,
+};
+use pnpm_store_dir::{
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
+};
+use std::{
+    collections::HashMap,
+    fs,
+};
 
 async fn add_cached_checksum(store: &StoreDir, files: &mut pnpm_fs::CasPaths, checksum: &str) {
     let (writer, task) = StoreIndexWriter::spawn(store);

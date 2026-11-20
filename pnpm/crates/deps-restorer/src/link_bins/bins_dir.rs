@@ -1,18 +1,37 @@
 use super::{
-    PrefetchedBinLookup, PrefetchedDepBin,
-    direct::{PrefetchedBin, prefetched_bin_source, read_dep_manifest},
-    existing_commands, read_location_bin_sources,
+    PrefetchedBinLookup,
+    PrefetchedDepBin,
+    direct::{
+        PrefetchedBin,
+        prefetched_bin_source,
+        read_dep_manifest,
+    },
+    existing_commands,
+    read_location_bin_sources,
 };
 use pnpm_cmd_shim::{
-    BinOrigin, Host, LinkBinsError, LinkBinsOptions, PackageBinSource, PreparedPackageBins,
-    ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages_outcome,
+    BinOrigin,
+    Host,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    PreparedPackageBins,
+    ShimTargetCache,
+    collect_packages_in_modules_dir,
+    link_bins_of_packages_outcome,
     link_bins_of_packages_precomputed,
 };
 use rayon::prelude::*;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

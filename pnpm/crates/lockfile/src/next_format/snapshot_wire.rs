@@ -4,12 +4,25 @@
 //! snapshot in memory keeps them in two maps.
 
 use super::{
-    NextRef, NextSnapshotEntry,
-    package::{BindingOut, Bindings, PeerEntry, SortedMap},
+    NextRef,
+    NextSnapshotEntry,
+    package::{
+        BindingOut,
+        Bindings,
+        PeerEntry,
+        SortedMap,
+    },
 };
 use crate::PkgName;
-use serde::{Deserialize, Serialize, Serializer};
-use std::collections::{BTreeMap, HashMap};
+use serde::{
+    Deserialize,
+    Serialize,
+    Serializer,
+};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 /// A snapshot as read.
 #[derive(Deserialize)]

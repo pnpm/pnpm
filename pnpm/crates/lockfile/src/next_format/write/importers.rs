@@ -1,10 +1,22 @@
 //! The next format's importers, with references without groups.
 
-use super::{Explicit, snapshots::Snapshots};
+use super::{
+    Explicit,
+    snapshots::Snapshots,
+};
 use crate::{
-    ImporterDepVersion, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
+    ImporterDepVersion,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
     ResolvedDependencySpec,
-    next_format::{NextImporter, NextImporterDep, NextImporterDeps, NextResolvedDep},
+    next_format::{
+        NextImporter,
+        NextImporterDep,
+        NextImporterDeps,
+        NextResolvedDep,
+    },
 };
 use std::collections::HashMap;
 
@@ -42,7 +54,9 @@ pub(super) fn next_importer(
 }
 
 fn is_injected(injected: Option<&serde_json::Value>, alias: &PkgName) -> bool {
-    injected.is_some_and(|injected| injected.get(alias.to_string()).is_some())
+    injected
+        .map(|injected| injected.get(alias.to_string()))
+        .is_some_and(|text| text.is_some())
 }
 
 fn next_dep(
@@ -84,7 +98,8 @@ pub(super) fn importer_version_without_groups(version: &ImporterDepVersion) -> I
                     .without_peer()
                     .to_string()
                     .strip_prefix("file:")
-                    .map_or_else(|| payload.clone(), str::to_string),
+                    .map(str::to_string)
+                    .unwrap_or_else(|| payload.clone()),
                 Err(_) => payload.clone(),
             })
         }

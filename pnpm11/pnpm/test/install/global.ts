@@ -1068,3 +1068,190 @@ test.each(['../dist/cli.js', '..\\dist\\cli.js', ...isWindows() ? [] : ['../dist
   await execPnpm(['remove', '-g', 'example-tool'], { env })
   expect(fs.existsSync(shim)).toBe(false)
 })
+
+test('global commands isolate from untrusted CWD .pnpmfile.cjs, pnpm-workspace.yaml, and .npmrc while honoring globalPnpmfile', () => {
+  prepare()
+  const pnpmHome = path.resolve('..', 'global-isolation-home')
+  const binDir = path.join(pnpmHome, 'bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  const env = {
+    [PATH_NAME]: `${binDir}${path.delimiter}${process.env[PATH_NAME] ?? ''}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: path.resolve('..', 'global-isolation-data'),
+  }
+
+  const untrustedCwd = path.resolve('untrusted-cwd')
+  fs.mkdirSync(untrustedCwd, { recursive: true })
+  const cwdMarker = path.join(untrustedCwd, 'cwd-pnpmfile-ran.txt')
+  const evilMarker = path.join(untrustedCwd, 'evil-pnpmfile-ran.txt')
+  fs.writeFileSync(path.join(untrustedCwd, '.pnpmfile.cjs'), [
+    "const fs = require('fs')",
+    `fs.writeFileSync(${JSON.stringify(cwdMarker)}, 'loaded')`,
+    "console.error('CWD_PNPMFILE_EXECUTED')",
+    'module.exports = {',
+    '  hooks: {',
+    "    updateConfig (cfg) { console.error('CWD_PNPMFILE_EXECUTED'); return cfg },",
+    "    readPackage (pkg) { console.error('CWD_PNPMFILE_EXECUTED'); return pkg },",
+    '  },',
+    '}',
+    '',
+  ].join('\n'))
+  fs.writeFileSync(path.join(untrustedCwd, 'evil.cjs'), [
+    "const fs = require('fs')",
+    `fs.writeFileSync(${JSON.stringify(evilMarker)}, 'loaded')`,
+    "console.error('EVIL_PNPMFILE_EXECUTED')",
+    'module.exports = { hooks: {} }',
+    '',
+  ].join('\n'))
+  writeYamlFileSync(path.join(untrustedCwd, 'pnpm-workspace.yaml'), {
+    packages: ['.'],
+    pnpmfile: './evil.cjs',
+    configDependencies: {
+      'pnpm-plugin-nonexistent': '1.0.0+sha512-deadbeef',
+    },
+  })
+  fs.writeFileSync(path.join(untrustedCwd, '.npmrc'), 'registry=http://127.0.0.1:1/\n')
+
+  for (const args of [
+    ['add', '-g', '@pnpm.e2e/pkg-with-1-dep@100.0.0'],
+    ['list', '-g'],
+    ['list', '-g', '--depth', '1'],
+    ['why', '-g', '@pnpm.e2e/dep-of-pkg-with-1-dep'],
+    ['bin', '-g'],
+    ['root', '-g'],
+    ['prefix', '-g'],
+  ]) {
+    const res = execPnpmSync(args, {
+      cwd: untrustedCwd,
+      env,
+      expectSuccess: true,
+    })
+    expect(res.stdout.toString()).not.toContain('CWD_PNPMFILE_EXECUTED')
+    expect(res.stderr.toString()).not.toContain('CWD_PNPMFILE_EXECUTED')
+    expect(res.stdout.toString()).not.toContain('EVIL_PNPMFILE_EXECUTED')
+    expect(res.stderr.toString()).not.toContain('EVIL_PNPMFILE_EXECUTED')
+  }
+  expect(fs.existsSync(cwdMarker)).toBe(false)
+  expect(fs.existsSync(evilMarker)).toBe(false)
+
+  // A malformed pnpm-workspace.yaml in CWD must also not break bin/root/prefix/list -g.
+  const brokenWorkspaceCwd = path.resolve('broken-workspace-cwd')
+  fs.mkdirSync(brokenWorkspaceCwd, { recursive: true })
+  fs.writeFileSync(path.join(brokenWorkspaceCwd, 'pnpm-workspace.yaml'), 'packages: [\n')
+  fs.writeFileSync(path.join(brokenWorkspaceCwd, 'package.json'), JSON.stringify({
+    name: 'broken-local',
+    packageManager: 'pnpm@0.0.0',
+  }))
+  for (const args of [
+    ['bin', '-g'],
+    ['root', '-g'],
+    ['prefix', '-g'],
+    ['list', '-g'],
+  ]) {
+    execPnpmSync(args, {
+      cwd: brokenWorkspaceCwd,
+      env: { ...env, COREPACK_ROOT: '/fake/corepack' },
+      expectSuccess: true,
+    })
+  }
+
+  // Meanwhile, an explicit globalPnpmfile still runs on global commands.
+  const globalHookMarker = path.resolve('global-pnpmfile-ran.txt')
+  const globalPnpmfile = path.resolve('trusted-global-pnpmfile.cjs')
+  fs.writeFileSync(globalPnpmfile, [
+    "const fs = require('fs')",
+    'module.exports = {',
+    '  hooks: {',
+    `    updateConfig (cfg) { fs.writeFileSync(${JSON.stringify(globalHookMarker)}, 'updateConfig'); return cfg },`,
+    '  },',
+    '}',
+    '',
+  ].join('\n'))
+  execPnpmSync(['list', '-g'], {
+    cwd: untrustedCwd,
+    env: { ...env, pnpm_config_global_pnpmfile: globalPnpmfile },
+    expectSuccess: true,
+  })
+  expect(fs.existsSync(globalHookMarker)).toBe(true)
+  expect(fs.existsSync(cwdMarker)).toBe(false)
+
+  const nestedParent = path.resolve('..', 'broken-parent')
+  const nestedPnpmHome = path.join(nestedParent, 'pnpm-home')
+  const nestedBinDir = path.join(nestedPnpmHome, 'bin')
+  fs.mkdirSync(nestedBinDir, { recursive: true })
+  fs.writeFileSync(path.join(nestedParent, 'pnpm-workspace.yaml'), 'packages: [\n')
+  fs.unlinkSync(globalHookMarker)
+  execPnpmSync(['list', '-g'], {
+    cwd: untrustedCwd,
+    env: {
+      ...env,
+      [PATH_NAME]: `${nestedBinDir}${path.delimiter}${process.env[PATH_NAME] ?? ''}`,
+      PNPM_HOME: nestedPnpmHome,
+      pnpm_config_global_pnpmfile: globalPnpmfile,
+    },
+    expectSuccess: true,
+  })
+  expect(fs.existsSync(globalHookMarker)).toBe(true)
+})
+
+test('pnpm list -g --depth 1 and pnpm why -g in a local project directory inspect global packages, not local dependencies', () => {
+  prepare()
+  const pnpmHome = path.resolve('..', 'global-list-depth-home')
+  const binDir = path.join(pnpmHome, 'bin')
+  fs.mkdirSync(binDir, { recursive: true })
+  const env = {
+    [PATH_NAME]: `${binDir}${path.delimiter}${process.env[PATH_NAME] ?? ''}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: path.resolve('..', 'global-list-depth-data'),
+  }
+
+  const globalCliSrc = path.resolve('..', 'my-global-cli')
+  fs.mkdirSync(globalCliSrc, { recursive: true })
+  fs.writeFileSync(path.join(globalCliSrc, 'package.json'), JSON.stringify({
+    name: 'my-global-cli',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }))
+
+  const localDepSrc = path.resolve('..', 'my-local-dep')
+  fs.mkdirSync(localDepSrc, { recursive: true })
+  fs.writeFileSync(path.join(localDepSrc, 'package.json'), JSON.stringify({
+    name: 'my-local-dep',
+    version: '2.0.0',
+  }))
+
+  const localAppDir = path.resolve('local-app')
+  fs.mkdirSync(localAppDir, { recursive: true })
+  fs.writeFileSync(path.join(localAppDir, 'package.json'), JSON.stringify({
+    name: 'local-app',
+    version: '1.0.0',
+  }))
+
+  execPnpmSync(['add', '-g', `file:${globalCliSrc}`], { cwd: localAppDir, env, expectSuccess: true })
+  execPnpmSync(['add', `file:${localDepSrc}`], { cwd: localAppDir, env, expectSuccess: true })
+
+  const depth0 = execPnpmSync(['list', '-g', '--depth', '0'], { cwd: localAppDir, env, expectSuccess: true })
+  expect(depth0.stdout.toString()).toContain('my-global-cli@1.0.0')
+  expect(depth0.stdout.toString()).not.toContain('my-local-dep')
+
+  const depth1 = execPnpmSync(['list', '-g', '--depth', '1'], { cwd: localAppDir, env, expectSuccess: true })
+  expect(depth1.stdout.toString()).toContain('my-global-cli')
+  expect(depth1.stdout.toString()).toMatch(/is-positive[@ ]1\.0\.0/)
+  expect(depth1.stdout.toString()).not.toContain('my-local-dep')
+
+  const depth1Json = execPnpmSync(['list', '-g', '--depth', '1', '--json'], { cwd: localAppDir, env, expectSuccess: true })
+  const parsed = JSON.parse(depth1Json.stdout.toString())
+  expect(parsed[0].dependencies['my-global-cli']).toBeDefined()
+  expect(parsed[0].dependencies['my-global-cli'].dependencies['is-positive'].version).toBe('1.0.0')
+  expect(depth1Json.stdout.toString()).not.toContain('my-local-dep')
+
+  const whyGlobal = execPnpmSync(['why', '-g', 'is-positive'], { cwd: localAppDir, env, expectSuccess: true })
+  expect(whyGlobal.stdout.toString()).toContain('is-positive@1.0.0')
+  expect(whyGlobal.stdout.toString()).toContain('my-global-cli')
+  expect(whyGlobal.stdout.toString()).not.toContain('my-local-dep')
+
+  const whyLocal = execPnpmSync(['why', '-g', 'my-local-dep'], { cwd: localAppDir, env, expectSuccess: true })
+  expect(whyLocal.stdout.toString().trim()).toBe('')
+})

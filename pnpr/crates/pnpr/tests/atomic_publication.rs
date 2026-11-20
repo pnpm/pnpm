@@ -6,18 +6,44 @@ use crate::npm::publish_doc;
 
 use axum::{
     Router,
-    body::{Body, to_bytes},
-    http::{Request, StatusCode, header},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use pnpr::{Config, MaxUsers, router};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
 use pnpr_config::DatabaseBackend;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_policy::{AccessList, PackageRules, RuleOverride};
-use pnpr_registry::{PackagePattern, Registries, Registry};
+use pnpr_policy::{
+    AccessList,
+    PackageRules,
+    RuleOverride,
+};
+use pnpr_registry::{
+    PackagePattern,
+    Registries,
+    Registry,
+};
 use pnpr_storage::Ecosystem;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
 };
 use tempfile::TempDir;
@@ -59,7 +85,10 @@ async fn send_with_key(
     if let Some(key) = key {
         request = request.header("idempotency-key", key);
     }
-    let body = body.map_or_else(Body::empty, |body| Body::from(serde_json::to_vec(body).unwrap()));
+    let body = body
+        .map(serde_json::to_vec)
+        .map(Result::unwrap)
+        .map_or_else(Body::empty, Body::from);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())

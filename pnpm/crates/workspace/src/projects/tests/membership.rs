@@ -1,9 +1,17 @@
 use super::{
-    super::{FindWorkspaceProjectsOpts, belongs_to_workspace, is_workspace_project_dir},
-    make_project, make_yaml_project,
+    super::{
+        FindWorkspaceProjectsOpts,
+        belongs_to_workspace,
+        is_workspace_project_dir,
+    },
+    make_project,
+    make_yaml_project,
 };
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 use tempfile::TempDir;
 
 /// The directories a walk of the fixture below could ever return, so the

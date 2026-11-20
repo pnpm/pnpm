@@ -1,14 +1,25 @@
 //! Deciding which packages are allowed to run build scripts.
 
 pub use pnpm_package_name::{
-    git_repo_allow_build_key_from_dep_path, is_git_hosted_dep_path, parse_dep_path_name_version,
+    git_repo_allow_build_key_from_dep_path,
+    is_git_hosted_dep_path,
+    parse_dep_path_name_version,
     short_package_label,
 };
 
 use super::{
-    Config, HashMap, HashSet, PackageKey, PackageVersionPolicy, PolicyMatch, VersionPolicyError,
-    create_package_version_policy, expand_package_version_specs, get_pkg_id_with_patch_hash,
-    parse_name_version_from_key, remove_suffix,
+    Config,
+    HashMap,
+    HashSet,
+    PackageKey,
+    PackageVersionPolicy,
+    PolicyMatch,
+    VersionPolicyError,
+    create_package_version_policy,
+    expand_package_version_specs,
+    get_pkg_id_with_patch_hash,
+    parse_name_version_from_key,
+    remove_suffix,
 };
 use pnpm_package_name::is_git_repo_dep_path;
 
@@ -36,7 +47,7 @@ pub struct AllowBuildPolicy {
 impl AllowBuildPolicy {
     /// Build a policy from already-expanded `allowed` and
     /// `disallowed` sets and `dangerouslyAllowAllBuilds`. Pure
-    /// constructor — no IO — so the policy logic is tested
+    /// constructor (no IO) so the policy logic is tested
     /// directly with in-memory inputs.
     #[must_use]
     pub fn new(
@@ -80,7 +91,7 @@ impl AllowBuildPolicy {
     /// `allow_builds` and `dangerously_allow_all_builds`, which are
     /// populated by [`pnpm_config::WorkspaceSettings::apply_to`]
     /// from `pnpm-workspace.yaml`. pnpm v11 stopped reading these
-    /// from `package.json#pnpm` — see pnpm/pacquet#397 item 5.
+    /// from `package.json#pnpm`; see pnpm/pacquet#397 item 5.
     pub fn from_config(config: &Config) -> Result<Self, VersionPolicyError> {
         Self::from_approvals(&config.allow_builds, config.dangerously_allow_all_builds)?
             .with_side_effects_cache_exclude(

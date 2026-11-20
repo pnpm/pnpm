@@ -1,4 +1,9 @@
-use super::{NetworkError, Reporter, TarballError, allocate_tarball_buffer};
+use super::{
+    NetworkError,
+    Reporter,
+    TarballError,
+    allocate_tarball_buffer,
+};
 
 pub(super) async fn download_zip_body<Reporter: self::Reporter>(
     response_head: reqwest::Response,

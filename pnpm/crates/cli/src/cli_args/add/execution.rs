@@ -1,9 +1,32 @@
 use super::{
-    Add, AddArgs, AddError, AddRequest, BTreeMap, Config, Context, DependencyGroup, EngineError,
-    InstallFamilySelection, LogEvent, LogLevel, Path, PathBuf, PnpmLog, RangeSpecStyle, Reporter,
-    State, WorkspacePackages, build_workspace_packages_map, config_deps, declared_package_manager,
-    describe_pin, record_package_manager_pin, resolve_project_pin, tool_install_selector,
-    workspace_link_root, workspace_selectors,
+    Add,
+    AddArgs,
+    AddError,
+    AddRequest,
+    BTreeMap,
+    Config,
+    Context,
+    DependencyGroup,
+    EngineError,
+    InstallFamilySelection,
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    PnpmLog,
+    RangeSpecStyle,
+    Reporter,
+    State,
+    WorkspacePackages,
+    build_workspace_packages_map,
+    config_deps,
+    declared_package_manager,
+    describe_pin,
+    record_package_manager_pin,
+    resolve_project_pin,
+    tool_install_selector,
+    workspace_link_root,
+    workspace_selectors,
 };
 use crate::state::command_lockfile;
 
@@ -188,7 +211,8 @@ async fn add_workspace_config_dependencies<Reporter: self::Reporter>(
             state.manifest
                 .path()
                 .parent()
-                .map_or_else(|| PathBuf::from("."), Path::to_path_buf)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from("."))
         });
     config_deps::add_config_dependencies::<Reporter>(
         state.config,
@@ -340,7 +364,8 @@ impl AddArgs {
         }
         let selectors: Vec<String> = self.package_names
             .iter()
-            .map(|request| request.selector().to_string())
+            .map(AddRequest::selector)
+            .map(std::string::ToString::to_string)
             .collect();
         let package_names =
             match workspace_link_root(self.target.workspace, config.workspace_dir.as_deref())? {

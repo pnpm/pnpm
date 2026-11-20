@@ -1,15 +1,25 @@
 //! Unit tests for the peer-resolution context helpers.
 
 use super::{
-    ChainSuffixMemo, SharedChain, importer_relative_link_dep_path, peer_segment_names,
-    remap_link_node_id, satisfies_with_prereleases,
+    ChainSuffixMemo,
+    SharedChain,
+    importer_relative_link_dep_path,
+    peer_segment_names,
+    remap_link_node_id,
+    satisfies_with_prereleases,
 };
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, test_support::linked_package},
+    resolve_peers::{
+        ResolvePeersOptions,
+        test_support::linked_package,
+    },
 };
 use pnpm_deps_path::DepPath;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const PATCHED_WORKFLOWS_SDK: &str = concat!(
     "@medusajs/workflows-sdk@2.13.3",
@@ -35,7 +45,7 @@ fn importer_relative_self_link_keeps_an_empty_target() {
 
 /// The link target is relative to the importer, so a project dir that
 /// still carries `.` / `..` segments must be normalized before it is used
-/// as the base — otherwise those segments are counted as real directories
+/// as the base; otherwise those segments are counted as real directories
 /// and the target gains extra `..` hops.
 #[test]
 fn importer_relative_link_normalizes_the_project_dir() {
@@ -61,7 +71,7 @@ fn importer_relative_link_normalizes_the_project_dir() {
 
 /// A workspace link records its `directory` relative to the importer,
 /// so the containment check has to resolve it against `project_dir`
-/// first — comparing the relative form with `lockfile_dir` never
+/// first, comparing the relative form with `lockfile_dir` never
 /// matches and remaps links that are already stable across machines.
 #[test]
 fn workspace_internal_link_is_not_remapped() {
@@ -241,7 +251,7 @@ fn a_memo_keeps_the_links_it_keyed_on_alive() {
     };
 
     // The chain that produced the entry is gone, but the memo's own
-    // reference keeps its link — and therefore its address — reserved,
+    // reference keeps its link (and therefore its address) reserved,
     // so nothing else can be allocated there and inherit the answer.
     assert_eq!(held_by, 2, "the memo holds a reference alongside the caller's");
     assert!(!chain_of(&["root", "other"]).any_memoized(&mut memo, |value| value == "temporary"));

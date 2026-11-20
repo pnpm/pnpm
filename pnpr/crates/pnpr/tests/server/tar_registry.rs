@@ -4,10 +4,30 @@ mod hosted_tars;
 mod mutations;
 
 use super::{
-    AuthState, Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, ServiceExt,
-    StatusCode, TempDir, body_bytes, body_json, config_for, enable_osv, gzip, header,
-    hosted_publish_request, hosted_with_access, osv_database, router, router_with_auth,
-    sha512_integrity, tar_of,
+    AuthState,
+    Body,
+    Config,
+    Ecosystem,
+    PackagePattern,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    body_bytes,
+    body_json,
+    config_for,
+    enable_osv,
+    gzip,
+    header,
+    hosted_publish_request,
+    hosted_with_access,
+    osv_database,
+    router,
+    router_with_auth,
+    sha512_integrity,
+    tar_of,
 };
 use crate::tokens::issue_token;
 use pnpr_storage::layout::package_segments;
@@ -680,7 +700,10 @@ async fn the_version_route_refuses_a_vulnerable_version() {
 
 #[tokio::test]
 async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_build() {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD as BASE64,
+    };
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();

@@ -1,24 +1,49 @@
 use super::{
-    NPM_REGISTRY_RESOLVED_VIA, NpmResolver, ResolvedRegistry,
+    NPM_REGISTRY_RESOLVED_VIA,
+    NpmResolver,
+    ResolvedRegistry,
     guarded_pick::RegistryPick,
     release_policy::detect_min_release_age_violation,
     resolution_result::resolution_id,
-    workspace_pick::{prefer_workspace_pick, workspace_fallback_for},
+    workspace_pick::{
+        prefer_workspace_pick,
+        workspace_fallback_for,
+    },
 };
 use crate::{
     OfflineStoreView,
-    pick_package::{PackageMetaCache, PickPackageError},
+    pick_package::{
+        PackageMetaCache,
+        PickPackageError,
+    },
     pick_package_from_meta::{
-        RegistryPackageSpec, RegistryPackageSpecType, semver_range::semver_satisfies_loose,
+        RegistryPackageSpec,
+        RegistryPackageSpecType,
+        semver_range::semver_satisfies_loose,
     },
 };
 use node_semver::Version;
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgNameVer};
-use pnpm_resolving_resolver_base::{
-    CurrentPkg, LockedPackagePolicy, ResolveError, ResolveOptions, ResolveResult, TrustPolicy,
-    UpdateBehavior, WantedDependency, WorkspacePackages,
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+    PkgNameVer,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg,
+    LockedPackagePolicy,
+    ResolveError,
+    ResolveOptions,
+    ResolveResult,
+    TrustPolicy,
+    UpdateBehavior,
+    WantedDependency,
+    WorkspacePackages,
+};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    StoreIndex,
+    store_index_key,
+};
 use std::sync::Arc;
 
 /// Answers from the store only for a locked version the walk keeps. A

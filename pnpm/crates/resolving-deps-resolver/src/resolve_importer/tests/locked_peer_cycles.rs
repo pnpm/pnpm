@@ -1,6 +1,13 @@
 use super::{
-    HashMap, HashSet, SnapshotEntry, assert_eq, importer_locked_peer_versions,
-    peer_context_lockfile, peer_declaring_metadata, plain_dependency, snapshot_with_dependencies,
+    HashMap,
+    HashSet,
+    SnapshotEntry,
+    assert_eq,
+    importer_locked_peer_versions,
+    peer_context_lockfile,
+    peer_declaring_metadata,
+    plain_dependency,
+    snapshot_with_dependencies,
     snapshot_with_dependency,
 };
 

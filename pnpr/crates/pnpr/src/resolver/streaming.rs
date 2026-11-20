@@ -1,17 +1,47 @@
 use tokio::time::Instant;
 
 use super::{
-    ActiveConfig, Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap,
-    KEEPALIVE_INTERVAL, Lockfile, Mutex, OsvIndex, PackageVersionGuard, ResolveRequest, Resolver,
-    Response, StoreCandidate, StreamObserver, TarballRouter, ThrottledClient,
+    ActiveConfig,
+    Arc,
+    AuthHeaders,
+    CachedResolution,
+    Duration,
+    Footprint,
+    HashMap,
+    KEEPALIVE_INTERVAL,
+    Lockfile,
+    Mutex,
+    OsvIndex,
+    PackageVersionGuard,
+    ResolveRequest,
+    Resolver,
+    Response,
+    StoreCandidate,
+    StreamObserver,
+    TarballRouter,
+    ThrottledClient,
     error_frame_with_code,
     limits::{
-        CancelOnDrop, CancelToken, GRAPH_TOO_LARGE_CODE, GraphLimitTracker, RESOLVE_TIMEOUT_CODE,
-        ResolvePermit, STREAM_CHANNEL_CAPACITY, lockfile_exceeds_graph_limit,
+        CancelOnDrop,
+        CancelToken,
+        GRAPH_TOO_LARGE_CODE,
+        GraphLimitTracker,
+        RESOLVE_TIMEOUT_CODE,
+        ResolvePermit,
+        STREAM_CHANNEL_CAPACITY,
+        lockfile_exceeds_graph_limit,
     },
-    ndjson_stream_response, osv_violations_for_lockfile_until, progress_frame, resolve,
-    store_resolution_candidate, try_done_frame_until, violations_frame,
-    wire::AbortOnDrop,
+    ndjson_stream_response,
+    osv_violations_for_lockfile_until,
+    progress_frame,
+    resolve,
+    store_resolution_candidate,
+    try_done_frame_until,
+    violations_frame,
+    wire::{
+        AbortOnDrop,
+        LockfileOrigin,
+    },
 };
 
 pub(super) struct TerminalSender {
@@ -61,13 +91,27 @@ impl TerminalSender {
     }
 }
 
+pub(super) enum CacheScope {
+    Pending(u64),
+    Key(Option<String>),
+}
+
+impl CacheScope {
+    pub(super) fn key(&self) -> Option<&String> {
+        match self {
+            CacheScope::Pending(_) => None,
+            CacheScope::Key(key) => key.as_ref(),
+        }
+    }
+}
+
 pub(super) struct StreamedResolveInputs {
     pub(super) config: ActiveConfig,
     pub(super) request: ResolveRequest,
     pub(super) request_auth: Arc<AuthHeaders>,
     pub(super) tarball_router: TarballRouter,
     pub(super) footprint: Arc<Mutex<Footprint>>,
-    pub(super) cache_key: Option<String>,
+    pub(super) cache_scope: CacheScope,
     pub(super) permit: Arc<ResolvePermit>,
     pub(super) deadline: Instant,
 }
@@ -327,6 +371,7 @@ impl ResolutionFinalizer {
         let lockfile = self.inputs.tarball_router.route_lockfile_until(
             &self.inputs.config,
             &lockfile,
+            LockfileOrigin::Resolved { input: self.inputs.request.lockfile.as_ref() },
             &check_cancel,
         )?;
         if let Some(violations) = self.osv_violations(&lockfile, &check_cancel)? {
@@ -338,7 +383,7 @@ impl ResolutionFinalizer {
             Err(error_frame) => return Some(error_frame),
         };
         if !cancel.is_cancelled()
-            && let Some(key) = self.inputs.cache_key.clone()
+            && let Some(key) = self.inputs.cache_scope.key().cloned()
         {
             self.store_candidate(key, &lockfile);
         }

@@ -1,4 +1,8 @@
-use super::registry::{TeamInfo, UserInfo, registry_operation_error};
+use super::registry::{
+    TeamInfo,
+    UserInfo,
+    registry_operation_error,
+};
 use miette::IntoDiagnostic;
 
 pub(super) fn render_teams(

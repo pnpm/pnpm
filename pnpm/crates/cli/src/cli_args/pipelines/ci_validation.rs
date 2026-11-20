@@ -1,13 +1,32 @@
 use super::{
-    Arc, Config, DedicatedProjects, InstallArgs, InstallFamilyPlan, InstallFamilySelection,
-    PathBuf, Reporter, ThrottledClient,
-    dedicated_runs::{discover_dedicated_workspace_projects, init_dedicated_project_state},
-    install::{NodeInstallJob, init_shared_state},
+    Arc,
+    Config,
+    DedicatedProjects,
+    InstallArgs,
+    InstallFamilyPlan,
+    InstallFamilySelection,
+    PathBuf,
+    Reporter,
+    ThrottledClient,
+    dedicated_runs::{
+        discover_dedicated_workspace_projects,
+        init_dedicated_project_state,
+    },
+    install::{
+        NodeInstallJob,
+        init_shared_state,
+    },
 };
 use crate::cli_args::clean::CiCleanPlan;
-use futures_util::stream::{StreamExt as _, TryStreamExt as _};
+use futures_util::stream::{
+    StreamExt as _,
+    TryStreamExt as _,
+};
 use pnpm_package_manager::PreparedFrozenInstall;
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+};
 
 pub(super) struct PreparedDedicatedProject {
     pub(super) lockfile: pnpm_lockfile::LazyLockfile,

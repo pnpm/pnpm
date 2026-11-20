@@ -1,6 +1,19 @@
-use super::{EngineMode, install_options_for, rebuild_options, run_install_inner};
-use pnpm_modules_yaml::{Host, NodeLinker, read_modules_manifest, write_modules_manifest};
-use std::path::{Path, PathBuf};
+use super::{
+    EngineMode,
+    install_options_for,
+    rebuild_options,
+    run_install_inner,
+};
+use pnpm_modules_yaml::{
+    Host,
+    NodeLinker,
+    read_modules_manifest,
+    write_modules_manifest,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 const PACKAGE: &str = "@pnpm.e2e/pre-and-postinstall-scripts-example";
 

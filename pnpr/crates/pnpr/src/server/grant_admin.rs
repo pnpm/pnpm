@@ -5,10 +5,25 @@
 //! as long as the change leaves who has `manage` as it was.
 
 use super::{
-    AppState, AuthedCaller, Identity, RegistryError, Response, StatusCode,
-    grant_directory::{Grants, reload_written_grants, validate, written},
-    json_response, parse_json_body, private_no_cache,
-    registry_graph::{if_match, versioned},
+    AppState,
+    AuthedCaller,
+    Identity,
+    RegistryError,
+    Response,
+    StatusCode,
+    grant_directory::{
+        Grants,
+        reload_written_grants,
+        validate,
+        written,
+    },
+    json_response,
+    parse_json_body,
+    private_no_cache,
+    registry_graph::{
+        if_match,
+        versioned,
+    },
     request_access::require_access_admin,
     require_caller,
     team_mutations::respond,
@@ -17,16 +32,29 @@ use crate::audit::Actor;
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, State},
+    extract::{
+        DefaultBodyLimit,
+        Path,
+        State,
+    },
     http::HeaderMap,
     response::IntoResponse,
     routing::get,
 };
 use indexmap::IndexMap;
-use pnpr_policy::{AccessToken, Action};
-use pnpr_storage::database::{GrantContent, StoredGrant};
+use pnpr_policy::{
+    AccessToken,
+    Action,
+};
+use pnpr_storage::database::{
+    GrantContent,
+    StoredGrant,
+};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 /// The largest grant the API accepts.
 const MAX_GRANT_BODY_BYTES: usize = 1024 * 1024;

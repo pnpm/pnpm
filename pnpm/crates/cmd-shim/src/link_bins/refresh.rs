@@ -1,14 +1,38 @@
-pub use removal::{prune_stale_bins, prune_stale_bins_with};
+pub use removal::{
+    prune_stale_bins,
+    prune_stale_bins_with,
+};
 
 use super::{
-    Command, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
-    FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions,
-    PackageBinSource, ShimTargetCache, collect_packages_in_modules_dir, discovery::read_package,
-    get_bins_from_package_manifest, link_chosen_bins, pick_winner,
+    Command,
+    FsCreateDirAll,
+    FsEnsureExecutableBits,
+    FsReadDir,
+    FsReadFile,
+    FsReadHead,
+    FsReadToString,
+    FsSetExecutable,
+    FsWalkFiles,
+    FsWrite,
+    LinkBinsError,
+    LinkBinsOptions,
+    PackageBinSource,
+    ShimTargetCache,
+    collect_packages_in_modules_dir,
+    discovery::read_package,
+    get_bins_from_package_manifest,
+    link_chosen_bins,
+    pick_winner,
 };
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

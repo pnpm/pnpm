@@ -1,10 +1,24 @@
 mod cache_equivalence;
 
 use super::{
-    super::{WorkspaceResolvePeersResult, test_support::resolve_with_cache_oracle},
-    Arc, BTreeMap, DepPath, HashMap, ImporterPeerInput, NodeId, ResolvePeersOptions, ResolvedTree,
-    WorkspacePeerSettings, add_lazy_direct_dep, child_edge, package,
-    package_with_peer_dependencies, tree_node,
+    super::{
+        WorkspaceResolvePeersResult,
+        test_support::resolve_with_cache_oracle,
+    },
+    Arc,
+    BTreeMap,
+    DepPath,
+    HashMap,
+    ImporterPeerInput,
+    NodeId,
+    ResolvePeersOptions,
+    ResolvedTree,
+    WorkspacePeerSettings,
+    add_lazy_direct_dep,
+    child_edge,
+    package,
+    package_with_peer_dependencies,
+    tree_node,
 };
 
 use crate::PeerDependentsDedupe;

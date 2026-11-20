@@ -1,8 +1,19 @@
 use super::{
-    BTreeMap, Config, ConfigOverlay, HashMap, Host, Path, StoreDir, default_registry, nerf_dart,
+    BTreeMap,
+    Config,
+    ConfigOverlay,
+    HashMap,
+    Host,
+    Path,
+    StoreDir,
+    default_registry,
+    nerf_dart,
     normalize_auth_key,
 };
-use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
+use pnpm_network::{
+    canonicalize_npm_registry_url,
+    normalize_registry_url,
+};
 
 /// Store, home and cache directories.
 pub(super) fn apply_store_dirs(config: &mut Config, overlay: &ConfigOverlay, dir: &Path) {
@@ -248,8 +259,8 @@ pub(super) fn apply_release_policy(config: &mut Config, overlay: &ConfigOverlay)
     }
 }
 
-/// Key the overlay's unkeyed (`""`) `Authorization` header — the host's
-/// default-registry credential — at the registry that same overlay declared,
+/// Key the overlay's unkeyed (`""`) `Authorization` header (the host's
+/// default-registry credential) at the registry that same overlay declared,
 /// or at the npmjs default when it declared none. This mirrors the pinning
 /// `.npmrc` credentials get in `NpmrcAuth::rescope_unscoped`: the credential
 /// and the registry it is sent to both come from the host, so a `registry=`

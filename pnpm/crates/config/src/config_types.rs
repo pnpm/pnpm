@@ -7,9 +7,15 @@
 //!   type list includes `Number` (used by `castField` to coerce a value).
 //! - [`is_ini_config_key`] / [`is_config_file_key`].
 
-pub use routing::{is_config_file_key, is_ini_config_key};
+pub use routing::{
+    is_config_file_key,
+    is_ini_config_key,
+};
 
-use std::{collections::HashSet, sync::OnceLock};
+use std::{
+    collections::HashSet,
+    sync::OnceLock,
+};
 
 /// `(kebab-key, type-includes-Number)` for pnpm's own settings (`pnpmTypes`).
 const PNPM_TYPES: &[(&str, bool)] = &[
@@ -175,7 +181,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
 
 /// `(kebab-key, type-includes-Number)` for the npm-compatible settings
 /// (`npmConfigTypes`). Applied after [`PNPM_TYPES`], so on the few
-/// overlapping keys these definitions win — but none of the overlaps change
+/// overlapping keys these definitions win, but none of the overlaps change
 /// number-ness, so the merged "includes Number" answer is the union.
 const NPM_CONFIG_TYPES: &[(&str, bool)] = &[
     ("access", false),

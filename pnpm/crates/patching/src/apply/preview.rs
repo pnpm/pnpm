@@ -1,10 +1,23 @@
-use super::{PatchApplyError, package_relative_operation, read_patch_text, tolerant};
+use super::{
+    PatchApplyError,
+    package_relative_operation,
+    read_patch_text,
+    tolerant,
+};
 
-use diffy::patch_set::{FileOperation, FilePatch, ParseOptions, PatchSet};
+use diffy::patch_set::{
+    FileOperation,
+    FilePatch,
+    ParseOptions,
+    PatchSet,
+};
 use indexmap::IndexSet;
 use std::{
     fs,
-    path::{Component, Path},
+    path::{
+        Component,
+        Path,
+    },
 };
 
 /// How a package's manifest is spelled in [`PatchPreview::written_paths`] and
@@ -236,8 +249,8 @@ fn names_manifest(patched_dir: &Path, written: &str) -> bool {
 /// The path a patch header names, spelled the way [`apply_patch_to_dir`]
 /// resolves it: `.` segments dropped, separators normalized to `/`.
 ///
-/// `None` for a path that call would refuse — one that is absolute or
-/// climbs out of the package — so the preview never reports as written a
+/// `None` for a path that call would refuse (one that is absolute or
+/// climbs out of the package) so the preview never reports as written a
 /// path the apply will reject.
 ///
 /// [`apply_patch_to_dir`]: super::apply_patch_to_dir

@@ -26,7 +26,10 @@ mod uploads;
 #[path = "oci_registry/behavior.rs"]
 mod behavior;
 
-use crate::{ecosystem as common, pausing_store};
+use crate::{
+    ecosystem as common,
+    pausing_store,
+};
 
 #[path = "../src/server/striped_locks.rs"]
 #[allow(dead_code, reason = "the collision fixture uses the production stripe mapping")]
@@ -35,14 +38,32 @@ mod striped_locks;
 use axum::{
     Router,
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use common::{HostedSource, body_bytes, mixed_router_config, sha256_hex};
+use common::{
+    HostedSource,
+    body_bytes,
+    mixed_router_config,
+    sha256_hex,
+};
 use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, PackagePattern, PackageRule, PackageRules,
+    AccessList,
+    AuthState,
+    Config,
+    Ecosystem,
+    PackagePattern,
+    PackageRule,
+    PackageRules,
     router_with_auth,
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -113,7 +134,10 @@ async fn token(app: &Router) -> String {
 
 /// `docker login` sends the token as the `Basic` password.
 fn basic(token: &str) -> String {
-    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use base64::{
+        Engine as _,
+        engine::general_purpose::STANDARD,
+    };
     format!("Basic {}", STANDARD.encode(format!("alice:{token}")))
 }
 
@@ -489,7 +513,10 @@ fn repository_with_colliding_lock_keys() -> String {
 #[cfg(feature = "backend-libsql")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_unsynced_libsql_replica_serves_oci_manifests_and_blobs_from_the_primary() {
-    use object_store::{ObjectStore, memory::InMemory};
+    use object_store::{
+        ObjectStore,
+        memory::InMemory,
+    };
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 

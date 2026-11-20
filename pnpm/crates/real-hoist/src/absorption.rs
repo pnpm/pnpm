@@ -1,6 +1,15 @@
 use super::{
-    HashMap, HashSet, HoistCtx, HoisterResult, Rc, RcByPtr, VecDeque, is_preferred_ident,
-    node_locator, path_shadowed, same_locator,
+    HashMap,
+    HashSet,
+    HoistCtx,
+    HoisterResult,
+    Rc,
+    RcByPtr,
+    VecDeque,
+    is_preferred_ident,
+    node_locator,
+    path_shadowed,
+    same_locator,
 };
 
 use std::collections::hash_map::Entry;
@@ -14,17 +23,17 @@ pub(super) enum AbsorbDecision {
     /// Root's name slot is free, but this candidate's ident is not
     /// the one currently preferred for its name (see
     /// [`build_hoist_ident_map`](crate::preferences::build_hoist_ident_map)). The candidate stays under its
-    /// parent this pass; a later pass — after the preferred ident
+    /// parent this pass; a later pass, after the preferred ident
     /// either claims the slot or is shifted out in
-    /// [`hoist_into_root`](crate::hoist_into_root) — may reconsider it. Mirrors upstream's
+    /// [`hoist_into_root`](crate::hoist_into_root), may reconsider it. Mirrors upstream's
     /// `hoistedIdent === node.ident` gate in `getNodeHoistInfo` at
     /// [hoist.ts:387][prefer-gate].
     ///
     /// [prefer-gate]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L387
     Defer,
     /// Root already holds a node with this locator (the same
-    /// package was reachable through another parent path — possibly
-    /// as a decoupled copy — and got hoisted earlier). The duplicate
+    /// package was reachable through another parent path (possibly
+    /// as a decoupled copy) and got hoisted earlier). The duplicate
     /// edge in the current parent just needs to be removed; the
     /// root's copy represents the subtree from here on. Mirrors
     /// upstream's same-locator merge in `hoistGraph` at
@@ -32,7 +41,7 @@ pub(super) enum AbsorbDecision {
     ///
     /// [merge]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L521
     SameNode,
-    /// Root's name slot is taken by a different locator — a version
+    /// Root's name slot is taken by a different locator, a version
     /// conflict. The child stays under its current parent.
     Conflict,
     /// Hoisting or dedup-removing would change a resolved peer provider.
@@ -59,7 +68,7 @@ pub(super) enum AbsorbDecision {
     PathShadow,
     /// The subtree of the current hoist root resolves this name
     /// through an ancestor directory (a provider hoisted above the
-    /// root earlier — see [`get_used_dependencies`](crate::get_used_dependencies)), and the
+    /// root earlier; see [`get_used_dependencies`](crate::get_used_dependencies)), and the
     /// candidate is a different locator, a peer variant included.
     /// Taking the root's name slot
     /// would shadow those resolutions, so the candidate stays
@@ -68,7 +77,7 @@ pub(super) enum AbsorbDecision {
     ///
     /// [used-gate]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L492-L497
     UsedShadow,
-    /// The candidate sits beneath a hoisting border — its parent (or
+    /// The candidate sits beneath a hoisting border; its parent (or
     /// a higher ancestor) has a name listed in
     /// `opts.hoisting_limits` for the root locator. A bordered node's
     /// descendants stay nested beneath it rather than hoisting to the
@@ -139,7 +148,7 @@ fn refuse_shadowed(
 
     // "Filled by parent" refusal: when a nearer ancestor's
     // node_modules already carries a different version of this
-    // name, both hoisting and dedup-removal are wrong — either
+    // name, both hoisting and dedup-removal are wrong; either
     // way the requires at this position would start resolving to
     // the nearer, conflicting copy. Applies to `SameNode` too:
     // even if the root already holds this exact package, the
@@ -236,7 +245,7 @@ fn would_shadow_peer(
     let &HoistCtx { root, .. } = ctx;
     // Root-shadow guard. Pacquet's wrapper builds the `.` root with
     // empty `peer_names` (it's a `Workspace`-kind node), so in
-    // practice this check never fires today — kept for parity with
+    // practice this check never fires today, kept for parity with
     // upstream and to stay correct if a future caller hands in a
     // root with declared peers.
     if root.peer_names.contains(&candidate.name) {
@@ -279,7 +288,11 @@ fn same_inherited_peer_provider(
     left: &InheritedPeerProvider,
     right: &InheritedPeerProvider,
 ) -> bool {
-    use InheritedPeerProvider::{Missing, NotRequired, Resolved};
+    use InheritedPeerProvider::{
+        Missing,
+        NotRequired,
+        Resolved,
+    };
     match (left, right) {
         (NotRequired, NotRequired) | (Missing, Missing) => true,
         (Resolved(left), Resolved(right)) => same_locator(left, right),
@@ -425,8 +438,8 @@ fn nested_peer_provider(node: &HoisterResult, peer_name: &str) -> Option<Rc<Hois
 /// direct dependency, if any.
 ///
 /// The walk goes deepest-first so the closest provider wins. An ancestor
-/// that merely passes the peer through — its own `peer_names` includes the
-/// name and it has no direct dep for it — is walked past, since the actual
+/// that merely passes the peer through (its own `peer_names` includes the
+/// name and it has no direct dep for it) is walked past, since the actual
 /// provider is then a parent of that ancestor.
 fn nearest_peer_provider(
     peer_name: &str,

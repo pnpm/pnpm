@@ -1,4 +1,7 @@
-use super::{ReportIdentity, report_keys};
+use super::{
+    ReportIdentity,
+    report_keys,
+};
 use pretty_assertions::assert_eq;
 
 fn identity(name: Option<&str>, dir_key: &str) -> ReportIdentity {

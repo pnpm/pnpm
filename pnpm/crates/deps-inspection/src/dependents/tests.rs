@@ -1,21 +1,38 @@
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
     fs,
     path::PathBuf,
 };
 
-use pnpm_lockfile::{Lockfile, PeerEdgeOptions};
+use pnpm_lockfile::{
+    Lockfile,
+    PeerEdgeOptions,
+};
 use pnpm_modules_yaml::IncludedDependencies;
 use pretty_assertions::assert_eq;
 
 use super::{
-    BuildDependentsOptions, DependencyKind, DependencySpecifiers, ManifestProjector,
+    BuildDependentsOptions,
+    DependencyKind,
+    DependencySpecifiers,
+    ManifestProjector,
     build_dependents_tree,
 };
 use crate::{
     TreeNodeId,
-    graph::{BuildGraphOptions, build_dependency_graph},
-    pkg_info::{InspectionLayout, ManifestSource, PkgInfoEnv},
+    graph::{
+        BuildGraphOptions,
+        build_dependency_graph,
+    },
+    pkg_info::{
+        InspectionLayout,
+        ManifestSource,
+        PkgInfoEnv,
+    },
     search::Searcher,
 };
 

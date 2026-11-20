@@ -1,5 +1,10 @@
 use super::{
-    HoistedLinkerError, HoistedLinkerInputs, Lockfile, PathBuf, Reporter, SkippedSnapshots,
+    HoistedLinkerError,
+    HoistedLinkerInputs,
+    Lockfile,
+    PathBuf,
+    Reporter,
+    SkippedSnapshots,
 };
 use crate::SymlinkDirectDependencies;
 use std::collections::HashSet;

@@ -1,6 +1,12 @@
 use std::path::Path;
 
-use super::{AddMockedRegistry, CommandExtra, CommandTempCwd, fs, new_pacquet_command};
+use super::{
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    fs,
+    new_pacquet_command,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 fn read_installed_name_and_version(workspace: &Path, alias: &str) -> (String, String) {

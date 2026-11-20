@@ -2,9 +2,22 @@
 //! forgets grants with the registries it adds and removes, and a grant names
 //! only registries the stored graph has.
 
-use super::{GrantContent, StoredGrant, advance_directory, delete_grant, insert_grant, name_owner};
-use crate::database::sql::{adapter::Connection, registry_graph};
-use pnpr_error::{RegistryError, Result};
+use super::{
+    GrantContent,
+    StoredGrant,
+    advance_directory,
+    delete_grant,
+    insert_grant,
+    name_owner,
+};
+use crate::database::sql::{
+    adapter::Connection,
+    registry_graph,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 
 /// What a graph write changes in the grants: the registries it removes leave
 /// every grant, and the registries it adds get their default grants.
@@ -108,7 +121,8 @@ pub(super) fn stored_registries(connection: &dyn Connection) -> Result<Option<Ve
     Ok(Some(
         registries
             .into_iter()
-            .flat_map(|registries| registries.keys().cloned())
+            .map(serde_json::Map::keys)
+            .flat_map(std::iter::Iterator::cloned)
             .collect(),
     ))
 }
@@ -118,6 +132,7 @@ pub(super) fn unknown_registry(stored: Option<&Vec<String>>, named: &[String]) -
     let stored = stored?;
     named
         .iter()
-        .find(|registry| *registry != "*" && !stored.contains(registry))
+        .filter(|registry| *registry != "*")
+        .find(|registry| !stored.contains(registry))
         .cloned()
 }

@@ -1,11 +1,28 @@
 use super::{
-    super::{TINY_BACKEND, assert_failure_contains, python, running_platform, serve, wheel},
-    approve, declare_platforms, project, repository,
+    super::{
+        TINY_BACKEND,
+        assert_failure_contains,
+        python,
+        running_platform,
+        serve,
+        wheel,
+    },
+    approve,
+    declare_platforms,
+    project,
+    repository,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path};
+use command_extra::CommandExtra;
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[tokio::test]
 async fn git_wheels_must_be_compatible_with_every_declared_target() {
@@ -24,7 +41,7 @@ async fn git_wheels_must_be_compatible_with_every_declared_target() {
     approve(root.path(), "fork");
     declare_platforms(root.path());
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "Python wheel is incompatible with this interpreter",
     );
     assert!(!root.path().join("pylock.toml").exists());
@@ -62,7 +79,7 @@ async fn equivalent_direct_wheel_hashes_merge_across_declared_targets() {
 
 fn assert_single_wheel_replays(root: &Path) {
     pacquet_in(root)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let contents = fs::read_to_string(root.join("pylock.toml")).unwrap();
@@ -75,11 +92,11 @@ fn assert_single_wheel_replays(root: &Path) {
         1,
     );
     pacquet_in(root)
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     python(root)
-        .args(["-c", "import alpha"])
+        .with_args(["-c", "import alpha"])
         .assert()
         .success();
 }

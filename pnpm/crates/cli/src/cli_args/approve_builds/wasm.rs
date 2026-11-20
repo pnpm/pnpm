@@ -1,4 +1,9 @@
-use crate::checkbox_prompt::{CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt};
+use crate::checkbox_prompt::{
+    CheckboxAnswer,
+    CheckboxChoice,
+    CheckboxItem,
+    CheckboxPrompt,
+};
 use miette::IntoDiagnostic;
 
 pub(crate) fn prompt_for_choices(

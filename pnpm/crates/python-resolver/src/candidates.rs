@@ -1,13 +1,33 @@
 use crate::{
-    lockfile::{LockedSdist, LockedWheel, Target},
-    packages::{Candidate, Excluded, IndexCandidate, Offered, Releases},
+    lockfile::{
+        LockedSdist,
+        LockedWheel,
+        Target,
+    },
+    packages::{
+        Candidate,
+        Excluded,
+        IndexCandidate,
+        Offered,
+        Releases,
+    },
     requires_python::declared_range,
 };
-use miette::{IntoDiagnostic, Result, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
+use pep508_rs::{
+    PackageName,
+    Requirement,
+};
 use serde::Deserialize;
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::BTreeMap,
+    fmt,
+};
 use url::Url;
 
 /// The containers a source distribution is published in that pnpm
@@ -220,7 +240,7 @@ fn index_candidate(file: IndexFile, url: &Url, source: bool) -> Result<Candidate
 }
 
 /// What a published file's name says it is, or `None` for a file that is
-/// neither a wheel nor a source distribution of `name` — an index page
+/// neither a wheel nor a source distribution of `name`, an index page
 /// lists signatures, eggs and installers beside them.
 struct PublishedFile {
     version: Version,
@@ -308,7 +328,7 @@ pub struct WheelFilename {
 
 impl WheelFilename {
     /// Read a wheel filename, or `None` when the file is not a wheel at
-    /// all — an index page lists sdists and signatures beside wheels.
+    /// all, an index page lists sdists and signatures beside wheels.
     pub fn parse(filename: &str) -> Result<Option<Self>> {
         let Some(stem) = filename.strip_suffix(".whl") else { return Ok(None) };
         let parts = stem.split('-').collect::<Vec<_>>();

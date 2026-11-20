@@ -1,6 +1,10 @@
 use super::compute_upstream_cache_namespace;
 use pnpr_config::Config;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{
+    Ipv4Addr,
+    SocketAddr,
+    SocketAddrV4,
+};
 use tempfile::TempDir;
 
 fn config_from(yaml: &str) -> Config {
@@ -94,12 +98,19 @@ registries:
 
 #[tokio::test]
 async fn protocol_gates_use_the_resolved_identity() {
-    use super::{require_artifact_caller, require_pipeline_caller, require_resolver_caller};
+    use super::{
+        require_artifact_caller,
+        require_pipeline_caller,
+        require_resolver_caller,
+    };
     use crate::server::AuthedCaller;
     use axum::{
         Router,
         body::Body,
-        http::{Request, StatusCode},
+        http::{
+            Request,
+            StatusCode,
+        },
         middleware,
         routing::get,
     };

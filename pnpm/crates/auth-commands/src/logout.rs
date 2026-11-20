@@ -10,23 +10,48 @@
 //! `global*` log channels are emitted through the `Reporter` seam. See
 //! the dependency-injection convention in `pnpm/CODE_STYLE_GUIDE.md`.
 
-use std::{collections::HashMap, future::Future, io, path::PathBuf};
+use std::{
+    collections::HashMap,
+    future::Future,
+    io,
+    path::PathBuf,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::validate_json_auth_registry;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_uri_component, nerf_dart, redact_and_sanitize,
+    RetryOpts,
+    ThrottledClient,
+    encode_uri_component,
+    nerf_dart,
+    redact_and_sanitize,
     send_with_retry,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 
 use crate::{
-    config_yaml::{self, GLOBAL_CONFIG_YAML_FILENAME, ParseConfigYamlError},
+    config_yaml::{
+        self,
+        GLOBAL_CONFIG_YAML_FILENAME,
+        ParseConfigYamlError,
+    },
     ini::IniSettings,
     registry_url::normalize_registry_url,
 };
-use pnpm_workspace_manifest_writer::{EditManifestFieldError, ManifestEdit, edit_manifest_field};
+use pnpm_workspace_manifest_writer::{
+    EditManifestFieldError,
+    ManifestEdit,
+    edit_manifest_field,
+};
 
 /// The registry `pnpm logout` targets when neither `--registry` nor a
 /// configured registry is given.
@@ -45,8 +70,8 @@ pub trait FsWrite {
 }
 
 /// Send the `DELETE -/user/token/<token>` request that revokes a token
-/// on the registry. The outcome the caller acts on — accepted, rejected
-/// with a status, or unreachable — is the whole contract; how the
+/// on the registry. The outcome the caller acts on (accepted, rejected
+/// with a status, or unreachable) is the whole contract; how the
 /// request is retried and parsed is the provider's concern.
 pub trait RevokeToken {
     fn revoke(
@@ -286,7 +311,7 @@ fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: Stri
     Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
 }
 
-/// The token-free prefix of a `…/-/user/token/<token>` revoke URL — the
+/// The token-free prefix of a `…/-/user/token/<token>` revoke URL, the
 /// URL with its final, token-bearing path segment dropped. Handed to
 /// `send_with_retry` for routing and logging so the token never reaches the
 /// retry logs; the request itself still targets the full revoke URL. The

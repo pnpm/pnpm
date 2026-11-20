@@ -1,8 +1,15 @@
 use super::{
-    Arc, HashMap, LinkBinsOptions, PackageBinSource, PreparedPackageBins,
+    Arc,
+    HashMap,
+    LinkBinsOptions,
+    PackageBinSource,
+    PreparedPackageBins,
     link_bins_of_packages_precomputed,
 };
-use crate::{Host, link_bins_of_packages};
+use crate::{
+    Host,
+    link_bins_of_packages,
+};
 use std::fs;
 
 #[test]

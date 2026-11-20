@@ -1,7 +1,14 @@
 //! Reading a file as a git revision holds it.
 
-use crate::{filter::FilterError, get_changed_projects::strip_final_newline, process::Command};
-use std::{collections::HashSet, path::Path};
+use crate::{
+    filter::FilterError,
+    get_changed_projects::strip_final_newline,
+    process::Command,
+};
+use std::{
+    collections::HashSet,
+    path::Path,
+};
 
 /// How many symlinks resolving one path may follow, as on Linux.
 const MAX_SYMLINK_HOPS: usize = 40;
@@ -90,7 +97,8 @@ fn first_git_symlink(
     let symlinks: HashSet<&str> = listing
         .split('\0')
         .filter(|entry| entry.starts_with(SYMLINK_MODE))
-        .filter_map(|entry| entry.split_once('\t').map(|(_, entry_path)| entry_path))
+        .filter_map(|entry| entry.split_once('\t'))
+        .map(|(_, entry_path)| entry_path)
         .collect();
     Ok(prefixes
         .into_iter()

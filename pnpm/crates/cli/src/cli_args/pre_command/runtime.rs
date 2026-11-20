@@ -1,6 +1,15 @@
 use super::{
-    Config, HashSet, LogEvent, PreCommandError, Value, apply_runtime_on_fail_override, global_warn,
-    is_runtime_alias, sanitize_inline, system_runtime_version, version_satisfies,
+    Config,
+    HashSet,
+    LogEvent,
+    PreCommandError,
+    Value,
+    apply_runtime_on_fail_override,
+    global_warn,
+    is_runtime_alias,
+    sanitize_inline,
+    system_runtime_version,
+    version_satisfies,
 };
 
 /// pnpm's `getWantedRuntimes` + `checkRuntime`: validate every runtime the
@@ -35,7 +44,8 @@ pub(super) fn declares_runtime(manifest: &Value) -> bool {
     ["devEngines", "engines"]
         .into_iter()
         .flat_map(|engines_field| declared_runtimes(manifest, engines_field))
-        .filter_map(|runtime| runtime.get("name").and_then(Value::as_str))
+        .map(|runtime| runtime.get("name"))
+        .filter_map(|value| value.and_then(Value::as_str))
         .any(is_runtime_alias)
 }
 
@@ -86,8 +96,8 @@ fn check_runtime(runtime: &Value, name: &str, emit: fn(&LogEvent)) -> miette::Re
     check_installed_runtime(name, display_name, wanted_range, on_fail, emit)
 }
 
-/// Every `onFail` other than `error` — including a value pnpm does not
-/// define — degrades to a warning.
+/// Every `onFail` other than `error` (including a value pnpm does not
+/// define) degrades to a warning.
 fn fail_runtime_check(
     on_fail: Option<&str>,
     message: &str,

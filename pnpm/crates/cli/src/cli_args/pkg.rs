@@ -1,21 +1,45 @@
 use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+    AutoExcludeRoot,
+    discover_workspace_projects,
+    select_recursive_projects,
 };
-use clap::{Args, Subcommand};
-use derive_more::{Display, Error};
+use clap::{
+    Args,
+    Subcommand,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use editing::{
-    check_unsafe_key_in_path, delete_object_value_by_property_path,
+    check_unsafe_key_in_path,
+    delete_object_value_by_property_path,
     set_object_value_by_property_path,
 };
-use miette::{Context, Diagnostic};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_config::{
-    Config, property_path,
-    property_path::{Segment, get_object_value_by_property_path, parse_property_path},
+    Config,
+    property_path,
+    property_path::{
+        Segment,
+        get_object_value_by_property_path,
+        parse_property_path,
+    },
 };
 use pnpm_package_manifest::RawPackageManifest;
 use pnpm_resolving_git_resolver::HostedGit;
-use report_keys::{ReportIdentity, report_keys};
-use serde_json::{Map, Value, json};
+use report_keys::{
+    ReportIdentity,
+    report_keys,
+};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 use std::path::Path;
 
 #[derive(Debug, Display, Error, Diagnostic)]

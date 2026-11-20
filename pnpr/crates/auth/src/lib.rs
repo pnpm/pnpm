@@ -14,22 +14,49 @@ pub mod oidc;
 pub(crate) mod validation;
 
 pub use account::{
-    AccountCredential, AccountLifecycle, AccountLogin, AccountStatus, AccountStatusOutcome,
-    AccountStatusRevision, CredentialKind, PasswordChange, UpsertOutcome, UserCreation,
-    UserRemoval, UserRename, verify_returning_user,
+    AccountCredential,
+    AccountLifecycle,
+    AccountLogin,
+    AccountStatus,
+    AccountStatusOutcome,
+    AccountStatusRevision,
+    CredentialKind,
+    PasswordChange,
+    UpsertOutcome,
+    UserCreation,
+    UserRemoval,
+    UserRename,
+    verify_returning_user,
 };
 pub use htpasswd::{
-    dummy_verify, is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt,
+    dummy_verify,
+    is_bcrypt_hash,
+    is_sha_hash,
+    parse_htpasswd,
+    parse_htpasswd_line,
+    verify_bcrypt,
 };
 pub use identify::identify;
-pub use last_used::{LAST_USED_GRANULARITY_MILLIS, LastUsedWriter};
+pub use last_used::{
+    LAST_USED_GRANULARITY_MILLIS,
+    LastUsedWriter,
+};
 pub use pnpr_sql::schema::SCHEMA_VERSION as CURRENT_SCHEMA_VERSION;
 pub use sqlite_backend::{
-    ImportMode, ImportedPasswords, PasswordCollisions, PasswordImport, SqliteAuth,
+    ImportMode,
+    ImportedPasswords,
+    PasswordCollisions,
+    PasswordImport,
+    SqliteAuth,
 };
 pub use token_store::{
-    NewToken, PERSONAL_TOKEN_LEN, PERSONAL_TOKEN_PREFIX, TokenKind, TokenRecord,
-    has_valid_personal_token_checksum, unix_millis,
+    NewToken,
+    PERSONAL_TOKEN_LEN,
+    PERSONAL_TOKEN_PREFIX,
+    TokenKind,
+    TokenRecord,
+    has_valid_personal_token_checksum,
+    unix_millis,
 };
 pub use validation::MAX_PASSWORD_BYTES;
 
@@ -39,7 +66,10 @@ mod password_login;
 use htpasswd::hash_bcrypt;
 
 mod token_store;
-use token_store::{fresh_secret, sha256_hex};
+use token_store::{
+    fresh_secret,
+    sha256_hex,
+};
 
 mod identify;
 mod last_used;
@@ -48,8 +78,15 @@ mod sqlite_backend;
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
-use pnpr_config::{AuthConfig, BackendConfig, MaxUsers};
-use pnpr_error::{RegistryError, Result};
+use pnpr_config::{
+    AuthConfig,
+    BackendConfig,
+    MaxUsers,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 #[cfg(feature = "backend-mysql")]
 use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
@@ -57,7 +94,10 @@ use sqlx_backend::postgres::PostgresAuth;
 use std::{
     collections::HashMap,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 #[cfg(feature = "backend-libsql")]
@@ -443,11 +483,11 @@ pub trait TokenBackend: Send + Sync {
 
     /// Resolve a raw token back to its account ID. `Ok(None)` means the
     /// token was never issued, was revoked, or expired; `Err` means the backing
-    /// store failed — never conflate the two, or a store outage reads as
+    /// store failed, never conflate the two, or a store outage reads as
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
-    /// Resolve a raw token to its full record — the account ID plus the
+    /// Resolve a raw token to its full record, the account ID plus the
     /// `readonly`, `cidr_whitelist`, and `expires_at` restrictions that
     /// [`Self::lookup`] drops. Returns `Ok(None)` for a token that was never
     /// issued, was revoked, or expired.
@@ -485,7 +525,7 @@ pub trait TokenBackend: Send + Sync {
     /// deleted record so a higher layer can confirm the revocation.
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>>;
 
-    /// Remove a token by its raw value — the `DELETE /-/user/token/:tok`
+    /// Remove a token by its raw value, the `DELETE /-/user/token/:tok`
     /// (npm logout) path puts the bearer token verbatim in the URL, so
     /// this hashes first and defers to [`Self::revoke_by_key`].
     async fn revoke_by_raw(&self, raw: &str) -> Result<Option<TokenRecord>> {
@@ -512,7 +552,7 @@ pub trait TokenBackend: Send + Sync {
 /// Bcrypt cost factor used for new password hashes. Cost 10 is what
 /// verdaccio uses by default and matches Apache `htpasswd -B`'s
 /// default, so files written here verify cleanly against either
-/// tool. ~50–100 ms per hash on modern hardware — slow enough to
+/// tool. ~50-100 ms per hash on modern hardware) slow enough to
 /// frustrate offline cracking, cheap enough that adduser doesn't
 /// feel sluggish.
 pub const DEFAULT_BCRYPT_COST: u32 = 10;

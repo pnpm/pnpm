@@ -1,9 +1,19 @@
-use crate::_utils::{append_workspace_yaml_key, pacquet_in};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::Lockfile;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{collections::HashMap, fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+};
 
 #[test]
 fn frozen_install_accepts_default_catalog_peers_with_a_shared_lockfile() {

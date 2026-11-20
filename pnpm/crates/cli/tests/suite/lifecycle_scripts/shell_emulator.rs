@@ -1,11 +1,20 @@
 use super::{
     _utils,
-    workspace_yaml::{allow_builds, append_workspace_yaml_key},
+    workspace_yaml::{
+        allow_builds,
+        append_workspace_yaml_key,
+    },
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn enable_shell_emulator(workspace: &Path) {
     append_workspace_yaml_key(workspace, "shellEmulator", true);
@@ -115,8 +124,7 @@ fn expands_braced_parameter_expansions_in_scripts() {
 
     // The fallback is only reached when the variable is unset, so the host's
     // own environment must not decide it.
-    let mut without_the_var = _utils::pacquet_in(&workspace);
-    without_the_var.env_remove("MY_VAR");
+    let without_the_var = _utils::pacquet_in(&workspace).without_env("MY_VAR");
     without_the_var
         .with_arg("run")
         .with_arg("write-var")
@@ -157,9 +165,7 @@ fn preserves_quoting_after_escaped_backslashes_and_single_quotes() {
         .expect("write package.json");
     enable_shell_emulator(&workspace);
 
-    let mut command = pacquet;
-    command.env_remove("UNSET_VAR");
-    command.env_remove("OUT_DIR");
+    let command = pacquet.without_env("UNSET_VAR").without_env("OUT_DIR");
     command
         .with_args(["run", "repro"])
         .assert()

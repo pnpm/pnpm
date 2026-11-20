@@ -1,9 +1,19 @@
 use super::{
-    super::{AppState, RegistryError},
-    RoutingSnapshot, is_registry_admin_path,
+    super::{
+        AppState,
+        RegistryError,
+    },
+    RoutingSnapshot,
+    is_registry_admin_path,
 };
-use axum::response::{IntoResponse, Response};
-use std::{future::Future, sync::Arc};
+use axum::response::{
+    IntoResponse,
+    Response,
+};
+use std::{
+    future::Future,
+    sync::Arc,
+};
 
 tokio::task_local! {
     static PINNED: Arc<RoutingSnapshot>;

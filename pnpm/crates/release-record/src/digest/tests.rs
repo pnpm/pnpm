@@ -1,5 +1,8 @@
 use super::RecordDigest;
-use pretty_assertions::{assert_eq, assert_ne};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 
 #[test]
 fn is_the_sha512_of_the_bytes() {

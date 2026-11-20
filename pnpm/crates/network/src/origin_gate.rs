@@ -7,16 +7,28 @@
 //! within the client's lifetime.
 
 use crate::{
-    HostSocketLimit, ThrottledClient, priority_semaphore::Permit, registry_limit::RegistryLimits,
+    HostSocketLimit,
+    ThrottledClient,
+    priority_semaphore::Permit,
+    registry_limit::RegistryLimits,
 };
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex, MutexGuard, PoisonError,
-        atomic::{AtomicUsize, Ordering},
+        Arc,
+        Mutex,
+        MutexGuard,
+        PoisonError,
+        atomic::{
+            AtomicUsize,
+            Ordering,
+        },
     },
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{
+    OwnedSemaphorePermit,
+    Semaphore,
+};
 
 /// The caps a request takes for its origin before the global concurrency
 /// permit.

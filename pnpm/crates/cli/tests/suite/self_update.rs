@@ -1,4 +1,4 @@
-//! `pacquet self-update` — dispatch-level coverage.
+//! `pacquet self-update`: dispatch-level coverage.
 //!
 //! `self-update` routes through the `config_self_update` closure, which
 //! drops the release-age and trust policies a repo-controlled
@@ -6,20 +6,32 @@
 //!
 //! No test here reaches an activated binary in the global bin directory:
 //! the mocked registry's pnpm clears neither half of the engine-identity
-//! gate — it ships no platform binaries, and its tarball carries no npm
+//! gate; it ships no platform binaries, and its tarball carries no npm
 //! registry signature.
 //!
 //! Every test points `PNPM_HOME` at a temp dir, so the install and link
 //! steps write there instead of clobbering the caller's real pnpm.
 
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use std::{
     fs,
-    path::{Path, PathBuf},
-    process::{Command, Output},
+    path::{
+        Path,
+        PathBuf,
+    },
+    process::{
+        Command,
+        Output,
+    },
 };
-use tempfile::{TempDir, tempdir};
+use tempfile::{
+    TempDir,
+    tempdir,
+};
 
 /// A pnpm the mocked registry can serve as `latest`, far enough ahead that
 /// it stays newer than the running version through every release.
@@ -38,7 +50,7 @@ fn self_update_loads_config_and_reaches_the_resolver() {
     // `global_bin` / the store, so any link step writes into this temp dir
     // rather than the caller's real pnpm home.
     let global_home = tempdir().expect("global home tempdir");
-    pacquet.env("PNPM_HOME", global_home.path());
+    pacquet = pacquet.with_env("PNPM_HOME", global_home.path());
 
     // A workspace `minimumReleaseAge` is present to mirror a realistic
     // invocation; it isn't load-bearing for this test's assertions because
@@ -73,8 +85,8 @@ fn self_update_refuses_a_pnpm_installed_by_homebrew() {
     let brewed_pnpm = install_into_homebrew_keg(&pacquet, root.path());
 
     let output = command_with_env_of(&pacquet, &brewed_pnpm)
-        .current_dir(&workspace)
-        .arg("self-update")
+        .with_current_dir(&workspace)
+        .with_arg("self-update")
         .output()
         .expect("run the Homebrew pnpm");
 
@@ -90,8 +102,8 @@ fn self_update_rewrites_the_project_pin_of_a_pnpm_installed_by_homebrew() {
     let brewed_pnpm = install_into_homebrew_keg(&project.pacquet, project.root.path());
 
     let output = command_with_env_of(&project.pacquet, &brewed_pnpm)
-        .current_dir(&project.workspace)
-        .arg("self-update")
+        .with_current_dir(&project.workspace)
+        .with_arg("self-update")
         .output()
         .expect("run the Homebrew pnpm");
 
@@ -105,7 +117,7 @@ fn self_update_rewrites_the_project_pin_of_a_pnpm_installed_by_homebrew() {
 #[test]
 fn self_update_rewrites_the_project_pin_under_corepack() {
     let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
-    project.pacquet.env("COREPACK_ROOT", "/fake/corepack");
+    project.pacquet = project.pacquet.with_env("COREPACK_ROOT", "/fake/corepack");
 
     let output = project.self_update();
 
@@ -166,13 +178,12 @@ fn install_into_homebrew_keg(pacquet: &Command, root: &Path) -> PathBuf {
 }
 
 fn command_with_env_of(template: &Command, program: &Path) -> Command {
-    let mut command = Command::new(program);
-    command.envs(
-        template
-            .get_envs()
-            .filter_map(|(key, value)| Some((key, value?))),
-    );
-    command
+    Command::new(program)
+        .with_envs(
+            template
+                .get_envs()
+                .filter_map(|(key, value)| Some((key, value?))),
+        )
 }
 
 #[test]
@@ -338,7 +349,7 @@ fn self_update_rewrites_the_workspace_root_pin_from_a_workspace_package() {
 fn self_update_rewrites_the_workspace_root_pin_under_corepack_from_a_workspace_package() {
     let mut project = PinnedProject::pinned_to("0.1.0", OLDER_PNPM);
     project.run_from_workspace_package();
-    project.pacquet.env("COREPACK_ROOT", "/fake/corepack");
+    project.pacquet = project.pacquet.with_env("COREPACK_ROOT", "/fake/corepack");
 
     let output = project.self_update();
 
@@ -399,10 +410,10 @@ impl PinnedProject {
             ..
         } = CommandTempCwd::init().add_mocked_registry_with_pnpm_version(registry_latest);
         let global_home = tempdir().expect("global home tempdir");
-        pacquet.env("PNPM_HOME", global_home.path());
+        pacquet = pacquet.with_env("PNPM_HOME", global_home.path());
         // Point the trusted package-manager bootstrap registry at the mock
         // too: the project registry never drives an engine download.
-        pacquet.env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
+        pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", npmrc_info.mock_instance.url());
         fs::write(workspace.join("package.json"), manifest).expect("write package.json");
         PinnedProject {
             pacquet,

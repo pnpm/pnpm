@@ -1,16 +1,32 @@
 use super::S3Store;
 use crate::{
     RangedBlob,
-    archive_verification::{self, Fingerprint},
+    archive_verification::{
+        self,
+        Fingerprint,
+    },
     streaming,
 };
 use axum::body::Body;
 use futures_util::StreamExt as _;
-use object_store::{GetOptions, GetRange, GetResult, ObjectMeta, ObjectStoreExt as _};
-use pnpr_error::{RegistryError, Result};
+use object_store::{
+    GetOptions,
+    GetRange,
+    GetResult,
+    ObjectMeta,
+    ObjectStoreExt as _,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use tokio::{
     fs,
-    io::{AsyncReadExt as _, AsyncSeekExt as _, AsyncWriteExt as _},
+    io::{
+        AsyncReadExt as _,
+        AsyncSeekExt as _,
+        AsyncWriteExt as _,
+    },
 };
 
 impl S3Store {

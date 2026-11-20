@@ -16,11 +16,21 @@
 //! it is copied rather than linked, once, and never replaced under a mock that
 //! has it open.
 
-use crate::{registry_mock_storage, runtime_storage};
+use crate::{
+    registry_mock_storage,
+    runtime_storage,
+};
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::atomic::{
+        AtomicU64,
+        Ordering,
+    },
 };
 
 /// The proxy cache's directory in a storage directory, as pnpr defaults it.
@@ -110,7 +120,7 @@ fn seed_file(src: &Path, rel: &Path, dest: &Path, database: &Path) -> io::Result
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
-    // We don't pre-check `dest.exists()` — a TOCTOU window is wide enough
+    // We don't pre-check `dest.exists()`, a TOCTOU window is wide enough
     // on a shared CI worker (two pacquet processes racing past `GuardFile`)
     // that the existence check could pass and then `hard_link` still trip
     // `AlreadyExists`. Treat that as success directly inside `link_or_copy`.

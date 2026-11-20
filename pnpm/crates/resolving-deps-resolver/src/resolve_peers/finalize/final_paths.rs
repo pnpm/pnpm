@@ -1,5 +1,12 @@
 use super::{
-    DepPath, FinalPeerContext, HashMap, HashSet, NodeId, PeerId, Walker, link_path_to_peer_version,
+    DepPath,
+    FinalPeerContext,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeerId,
+    Walker,
+    link_path_to_peer_version,
     peer_id_pair,
 };
 

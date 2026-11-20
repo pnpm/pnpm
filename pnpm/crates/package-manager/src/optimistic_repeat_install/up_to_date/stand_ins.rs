@@ -3,11 +3,22 @@
 //! records, before discovery reads any project manifest.
 
 use super::{
-    Config, CoveredProjects, FastPathContext, FastPathProjects, PackageManifest, Path, PathBuf,
-    UpToDateFastPathCheck, WorkspaceState, build_project_manifests_list,
+    Config,
+    CoveredProjects,
+    FastPathContext,
+    FastPathProjects,
+    PackageManifest,
+    Path,
+    PathBuf,
+    UpToDateFastPathCheck,
+    WorkspaceState,
+    build_project_manifests_list,
     check_fast_path_repeat_install,
 };
-use crate::install_state::validation::{ManifestStandIns, manifest_stand_ins};
+use crate::install_state::validation::{
+    ManifestStandIns,
+    manifest_stand_ins,
+};
 use pnpm_workspace::ProjectManifestPaths;
 use std::collections::HashMap;
 

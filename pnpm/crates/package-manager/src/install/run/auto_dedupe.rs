@@ -1,12 +1,25 @@
 use super::{
     super::{
-        LogEvent, LogLevel, PackageManifest, PathBuf, PnpmLog, Reporter, UpdateSeedPolicy,
-        auto_dedupe_baseline::{AutoDedupeBaseline, BaselineInputs},
+        LogEvent,
+        LogLevel,
+        PackageManifest,
+        PathBuf,
+        PnpmLog,
+        Reporter,
+        UpdateSeedPolicy,
+        auto_dedupe_baseline::{
+            AutoDedupeBaseline,
+            BaselineInputs,
+        },
     },
-    InstallScope, RunExecution,
+    InstallScope,
+    RunExecution,
     settled::Settled,
 };
-use crate::{ProjectMutation, install_state::current_settings_with_catalogs};
+use crate::{
+    ProjectMutation,
+    install_state::current_settings_with_catalogs,
+};
 
 impl RunExecution<'_> {
     pub(super) fn wanted_lockfile_path(&self) -> PathBuf {
@@ -94,7 +107,7 @@ impl Settled<'_, '_> {
                 lockfile.settings
                     .as_ref()
                     .and_then(|settings| settings.resolution.auto_dedupe)
-                    == Some(true)
+                    .unwrap_or(false)
             })
     }
 

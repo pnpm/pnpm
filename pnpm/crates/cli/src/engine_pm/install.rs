@@ -21,33 +21,69 @@ use crate::{
         reporter::SkippedDownloads,
         self_update::{
             install_pnpm::{
-                link_exe_platform_binary, package_dir, pnpm_executable_path, run_install,
+                link_exe_platform_binary,
+                package_dir,
+                pnpm_executable_path,
+                run_install,
             },
-            verify_engine::{EngineToVerify, PlatformBinaries, verify_engine_identity},
+            verify_engine::{
+                EngineToVerify,
+                PlatformBinaries,
+                verify_engine_identity,
+            },
         },
     },
     config_deps,
     engine_pm::{
-        channel::{EnginePackages, PackageManager},
+        channel::{
+            EnginePackages,
+            PackageManager,
+        },
         error::EngineError,
         provision::engine_bin,
     },
 };
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages,
+    Host as CmdShimHost,
+    LinkBinsOptions,
+    PackageBinSource,
+    link_bins_of_packages,
 };
 use pnpm_config::Config;
-use pnpm_graph_hasher::{detect_node_major, engine_name};
-use pnpm_lockfile::{EnvLockfile, PackageKey};
-use pnpm_package_manager::{AllowBuildPolicy, VirtualStoreLayout};
+use pnpm_graph_hasher::{
+    detect_node_major,
+    engine_name,
+};
+use pnpm_lockfile::{
+    EnvLockfile,
+    PackageKey,
+};
+use pnpm_package_manager::{
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+};
 use pnpm_package_manifest::parse_manifest;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_store_dir::{PrivateInstall, StoreDir};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_store_dir::{
+    PrivateInstall,
+    StoreDir,
+};
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -135,7 +171,7 @@ pub(crate) async fn install_engine_from_env<Reporter: self::Reporter + 'static>(
 }
 
 /// The packages that make up `pm` at `version`. Errors for an engine that
-/// ships as a platform archive instead of npm packages — the binary
+/// ships as a platform archive instead of npm packages, the binary
 /// channels never reach this installer.
 fn registry_engine_packages(pm: PackageManager, version: &str) -> miette::Result<EnginePackages> {
     let name = pm.name();
@@ -222,8 +258,8 @@ async fn install_engine_into_slot<Reporter: self::Reporter + 'static>(
         .and_then(|()| resolve_slot(&tmp_install_dir, package_name));
         // The temp directory held only symlinks into the GVS, so removing it
         // does not touch the installed engine. Refuse to recurse through a
-        // symlink at the temp path as defense-in-depth — even though the store
-        // is within pnpm's trust domain — mirroring the guard `patch-commit`
+        // symlink at the temp path as defense-in-depth (even though the store
+        // is within pnpm's trust domain) mirroring the guard `patch-commit`
         // applies before its own `remove_dir_all`.
         let _ = remove_dir_if_not_symlink(&tmp_install_dir);
         slot
@@ -308,7 +344,7 @@ fn package_manager_engine_store_root(global_pkg_dir: &Path) -> PathBuf {
     package_manager_home(global_pkg_dir).join("package-manager-store")
 }
 
-/// Where an engine's env lockfile lives — the file that pins the bytes of
+/// Where an engine's env lockfile lives, the file that pins the bytes of
 /// every package the engine is installed from.
 ///
 /// pnpm's own stays in the global packages directory, where earlier
@@ -331,8 +367,8 @@ fn package_manager_home(global_pkg_dir: &Path) -> &Path {
         .unwrap_or(global_pkg_dir)
 }
 
-/// Link the engine installed under `install_root` — its global-virtual-store
-/// slot or a private install directory — for running: the host's native
+/// Link the engine installed under `install_root` (its global-virtual-store
+/// slot or a private install directory) for running: the host's native
 /// binary into the wrapper when the engine ships one (replicating the
 /// wrapper's preinstall, which the install skips), and the wrapper's bins
 /// into `<install_root>/bin`.
@@ -475,8 +511,14 @@ fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
 mod linked_bins;
 
 mod locks;
-use linked_bins::{linked_engine_bins, populated_engine_slot};
-use locks::{engine_install_lock, package_manager_env_lock};
+use linked_bins::{
+    linked_engine_bins,
+    populated_engine_slot,
+};
+use locks::{
+    engine_install_lock,
+    package_manager_env_lock,
+};
 
 #[cfg(test)]
 mod tests;

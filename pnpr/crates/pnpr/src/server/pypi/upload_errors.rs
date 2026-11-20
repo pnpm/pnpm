@@ -1,4 +1,7 @@
-use axum::response::{IntoResponse, Response};
+use axum::response::{
+    IntoResponse,
+    Response,
+};
 use hyper::ext::ReasonPhrase;
 use pnpr_error::RegistryError;
 

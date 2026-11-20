@@ -1,18 +1,41 @@
 pub(super) mod resolution;
 
 use super::{
-    HoistError, HoistOpts, HoisterDependencyKind, HoisterResult, HoisterTree, RcByPtr,
-    build_hoist_ident_map, hoist, is_preferred_ident, nm_hoist, percent_encode_path,
+    HoistError,
+    HoistOpts,
+    HoisterDependencyKind,
+    HoisterResult,
+    HoisterTree,
+    RcByPtr,
+    build_hoist_ident_map,
+    hoist,
+    is_preferred_ident,
+    nm_hoist,
+    percent_encode_path,
 };
 use indexmap::IndexSet;
 use pnpm_lockfile::{
-    ComVer, Lockfile, LockfileSettings, LockfileVersion, PkgName, PkgNameVerPeer, PkgVerPeer,
-    ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    ComVer,
+    Lockfile,
+    LockfileSettings,
+    LockfileVersion,
+    PkgName,
+    PkgNameVerPeer,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pretty_assertions::assert_eq;
 use std::{
     cell::RefCell,
-    collections::{BTreeSet, HashMap, VecDeque},
+    collections::{
+        BTreeSet,
+        HashMap,
+        VecDeque,
+    },
     rc::Rc,
 };
 
@@ -57,7 +80,11 @@ fn empty_lockfile() -> Lockfile {
 /// Helper for the peer-aware tests: build a `PackageMetadata`
 /// whose `packages:`-level `peer_dependencies` claims one peer.
 fn pkg_metadata_with_peer(peer_name: &str) -> pnpm_lockfile::PackageMetadata {
-    use pnpm_lockfile::{LockfileResolution, PackageMetadata, TarballResolution};
+    use pnpm_lockfile::{
+        LockfileResolution,
+        PackageMetadata,
+        TarballResolution,
+    };
     let mut peer_deps = HashMap::new();
     peer_deps.insert(peer_name.to_string(), "*".to_string());
     PackageMetadata {

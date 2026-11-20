@@ -1,9 +1,21 @@
 use super::{
-    AssembleReleasePlanOptions, Config, HashMap, HashSet, Path, ReleasePlan, VersioningError,
-    WorkspaceProject, assemble_release_plan, check_versioning_invariants, read_change_intents,
+    AssembleReleasePlanOptions,
+    Config,
+    HashMap,
+    HashSet,
+    Path,
+    ReleasePlan,
+    VersioningError,
+    WorkspaceProject,
+    assemble_release_plan,
+    check_versioning_invariants,
+    read_change_intents,
     read_ledger,
 };
-use crate::cli_args::changelog::{ReleaseRegistryOptions, unpublished_release_dirs};
+use crate::cli_args::changelog::{
+    ReleaseRegistryOptions,
+    unpublished_release_dirs,
+};
 
 pub(super) struct RenderStatusOptions<'a> {
     pub workspace_dir: &'a Path,

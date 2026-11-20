@@ -8,11 +8,21 @@
 
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{
-    Clock, DepPath, FsCreateDirAll, FsReadToString, FsWrite, Modules, read_modules_layout,
-    read_modules_manifest, write_modules_manifest,
+    Clock,
+    DepPath,
+    FsCreateDirAll,
+    FsReadToString,
+    FsWrite,
+    Modules,
+    read_modules_layout,
+    read_modules_manifest,
+    write_modules_manifest,
 };
 use pretty_assertions::assert_eq;
-use std::{path::Path, time::SystemTime};
+use std::{
+    path::Path,
+    time::SystemTime,
+};
 use text_block_macros::text_block;
 
 /// `read_modules_manifest` should map a non-`NotFound` I/O error from
@@ -144,7 +154,7 @@ fn write_propagates_write_error() {
 }
 
 /// `LayoutVersion` is a unit type pinned to `5`, and a manifest naming
-/// any other layout reads as `None` — the same signal a missing
+/// any other layout reads as `None`, the same signal a missing
 /// `layoutVersion` carries, which the install reacts to by rebuilding
 /// `node_modules`. Rejecting the whole manifest instead would fail the
 /// install, since an unreadable state file is an error.

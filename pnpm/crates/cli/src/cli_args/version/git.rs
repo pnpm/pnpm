@@ -1,4 +1,12 @@
-use super::{Host, Path, RunCommand, Version, VersionArgs, VersionChange, VersionError};
+use super::{
+    Host,
+    Path,
+    RunCommand,
+    Version,
+    VersionArgs,
+    VersionChange,
+    VersionError,
+};
 
 /// Build the canonical cross-stack error for an invalid version from Git.
 fn invalid_version_from_git(

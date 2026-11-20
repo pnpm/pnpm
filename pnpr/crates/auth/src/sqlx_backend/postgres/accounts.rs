@@ -1,11 +1,24 @@
 use super::{
-    AccountStatus, AuthSqlBackend, MaxUsers, PostgresDatabase, RegistryError, Result, Row,
-    StoredUser, claim_user_slot, decode_sql_account_state, is_unique_violation,
+    AccountStatus,
+    AuthSqlBackend,
+    MaxUsers,
+    PostgresDatabase,
+    RegistryError,
+    Result,
+    Row,
+    StoredUser,
+    claim_user_slot,
+    decode_sql_account_state,
+    is_unique_violation,
 };
 use crate::{
-    AccountLifecycle, AccountStatusOutcome,
+    AccountLifecycle,
+    AccountStatusOutcome,
     account::should_apply_lifecycle,
-    validation::{name_revision_bounds, status_revision_to_sql},
+    validation::{
+        name_revision_bounds,
+        status_revision_to_sql,
+    },
 };
 
 impl PostgresDatabase {

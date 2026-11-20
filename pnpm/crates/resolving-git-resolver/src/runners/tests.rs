@@ -1,14 +1,26 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    ffi::OsStr,
+    sync::Arc,
+};
 
 use pnpm_network::ThrottledClient;
 
-use super::{RealGitProbe, RealGitRunner, ls_remote_command};
-use crate::{git_resolver::GitProbe, resolve_ref::GitCommandRunner};
+use super::{
+    RealGitProbe,
+    RealGitRunner,
+    ls_remote_command,
+};
+use crate::{
+    git_resolver::GitProbe,
+    resolve_ref::GitCommandRunner,
+};
 
 fn args(ref_: Option<&str>) -> Vec<String> {
     ls_remote_command(None, &[], "--upload-pack=malicious", ref_)
         .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
+        .map(OsStr::to_string_lossy)
+        .map(std::borrow::Cow::into_owned)
         .collect()
 }
 
@@ -30,7 +42,8 @@ fn ls_remote_applies_pinned_settings_before_the_subcommand() {
         None,
     )
     .get_args()
-    .map(|arg| arg.to_string_lossy().into_owned())
+    .map(OsStr::to_string_lossy)
+    .map(std::borrow::Cow::into_owned)
     .collect();
     assert_eq!(
         args,
@@ -134,7 +147,8 @@ fn ls_remote_never_waits_on_a_terminal_or_ssh_prompt() {
             (
                 name.to_string_lossy().into_owned(),
                 value
-                    .map(|value| value.to_string_lossy().into_owned())
+                    .map(OsStr::to_string_lossy)
+                    .map(std::borrow::Cow::into_owned)
                     .unwrap_or_default(),
             )
         })

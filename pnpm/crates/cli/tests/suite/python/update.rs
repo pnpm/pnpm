@@ -1,5 +1,13 @@
-use super::{add_python_settings, pacquet_in, project, python, serve, wheel};
+use super::{
+    add_python_settings,
+    pacquet_in,
+    project,
+    python,
+    serve,
+    wheel,
+};
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use std::fs;
 
 #[tokio::test]
@@ -27,7 +35,7 @@ docs = ['gamma>=1.0.0,<2.0.0']
     fs::write(root.path().join("pyproject.toml"), initial_manifest).unwrap();
 
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
 
@@ -54,7 +62,7 @@ docs = ['gamma>=1.0.0,<2.0.0']
 
     // Updating only a main dependency temporarily stages unselected extras and restores them.
     pacquet_in(root.path())
-        .args(["update", "pypi:beta"])
+        .with_args(["update", "pypi:beta"])
         .assert()
         .success();
     let after_main_update = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
@@ -73,7 +81,7 @@ docs = ['gamma>=1.0.0,<2.0.0']
     eprintln!("AFTER MAIN UPDATE:\n{after_main_update}\n");
     assert_eq!(after_main_update, expected_after_main);
     python(root.path())
-        .args([
+        .with_args([
             "-c",
             "import alpha, beta; assert alpha.VERSION == '1.0.0' and beta.VERSION == '1.5.0'",
         ])
@@ -81,7 +89,7 @@ docs = ['gamma>=1.0.0,<2.0.0']
         .success();
 
     pacquet_in(root.path())
-        .arg("update")
+        .with_arg("update")
         .assert()
         .success();
     let after_full_update = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
@@ -100,7 +108,7 @@ docs = ['gamma>=1.0.0,<2.0.0']
     eprintln!("AFTER FULL UPDATE:\n{after_full_update}\n");
     assert_eq!(after_full_update, expected_after_full);
     python(root.path())
-        .args([
+        .with_args([
             "-c",
             "import alpha, beta; assert alpha.VERSION == '1.5.0' and beta.VERSION == '1.5.0'",
         ])
@@ -128,7 +136,7 @@ optional-dependencies = { cli = [\"alpha==1.0.0\"] }
     fs::write(root.path().join("pyproject.toml"), inline_manifest).unwrap();
 
     pacquet_in(root.path())
-        .args(["install", "--lockfile-only"])
+        .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
 
@@ -140,7 +148,7 @@ optional-dependencies = { cli = [\"alpha==1.0.0\"] }
     .await;
 
     pacquet_in(root.path())
-        .args(["update", "--latest", "pypi:alpha", "--lockfile-only"])
+        .with_args(["update", "--latest", "pypi:alpha", "--lockfile-only"])
         .assert()
         .success();
     let updated = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();

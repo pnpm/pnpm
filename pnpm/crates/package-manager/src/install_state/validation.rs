@@ -9,24 +9,54 @@
 //! others survive it unchanged.
 
 pub(crate) use bins::{
-    dedicated_bin_projects, links_workspace_commands, project_bins_digest, project_bins_match,
+    dedicated_bin_projects,
+    links_workspace_commands,
+    project_bins_digest,
+    project_bins_match,
     workspace_bins_digest,
 };
-pub(crate) use file_stat::{FileStat, trusts_every_file};
-pub(crate) use local_dependencies::{changed as local_dependency_changed, records_local_directory};
-pub(crate) use manifest_files::{ManifestStandIns, manifest_stand_ins, records_need_refresh};
+pub(crate) use file_stat::{
+    FileStat,
+    trusts_every_file,
+};
+pub(crate) use local_dependencies::{
+    changed as local_dependency_changed,
+    records_local_directory,
+};
+pub(crate) use manifest_files::{
+    ManifestStandIns,
+    manifest_stand_ins,
+    records_need_refresh,
+};
 
-use file_stat::{signature_trusted, stat_trusted};
+use file_stat::{
+    signature_trusted,
+    stat_trusted,
+};
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::importer_id_from_root_dir;
-use pnpm_workspace_state::{FileSignature, Validation, WorkspaceState};
-use sha2::{Digest as _, Sha256};
+use pnpm_workspace_state::{
+    FileSignature,
+    Validation,
+    WorkspaceState,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 use std::{
-    collections::{BTreeMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 mod bins;
@@ -402,7 +432,7 @@ fn shared_inputs_match(
         if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
             settings.allow_builds = None;
         }
-        if settings.enable_global_virtual_store == Some(false) {
+        if !settings.enable_global_virtual_store.unwrap_or(true) {
             settings.enable_global_virtual_store = None;
         }
         if settings.package_extensions

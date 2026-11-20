@@ -1,4 +1,7 @@
-use super::{RangeSpecGranularity, RangeSpecStyle};
+use super::{
+    RangeSpecGranularity,
+    RangeSpecStyle,
+};
 
 #[test]
 fn from_save_options_matches_pnpm_get_range_spec_style() {

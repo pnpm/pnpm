@@ -1,6 +1,9 @@
 use pnpr_error::RegistryError;
 use serde::Deserialize;
-use std::{fmt, net::SocketAddr};
+use std::{
+    fmt,
+    net::SocketAddr,
+};
 
 /// The YAML `metrics:` block. pnpr serves Prometheus metrics only when it is
 /// present, and only to a scraper that holds `token` or reaches `listen`.

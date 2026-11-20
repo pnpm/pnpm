@@ -1,5 +1,10 @@
 use super::{
-    Profile, ToolchainRequest, Unmanaged, find_toolchain_file, parse_toolchain_file, with_channel,
+    Profile,
+    ToolchainRequest,
+    Unmanaged,
+    find_toolchain_file,
+    parse_toolchain_file,
+    with_channel,
 };
 use crate::Channel;
 use pretty_assertions::assert_eq;

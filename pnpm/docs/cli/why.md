@@ -40,6 +40,10 @@ Show verbose output.
 
 Show parseable output instead of tree view.
 
+### --global, -g
+
+Inspect packages in the global install directory instead of in the current project.
+
 ### --ranges
 
 Show the version range that each direct dependent declares for the package, in place of the tree. Dependents that declare the same range are listed under it, and each installed version gets its own section:

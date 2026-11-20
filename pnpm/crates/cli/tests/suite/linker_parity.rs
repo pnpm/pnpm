@@ -7,9 +7,19 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use serde_json::{Value, json};
-use std::{collections::BTreeSet, fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::Path,
+};
 
 const LINKERS: [&str; 2] = ["isolated", "hoisted"];
 

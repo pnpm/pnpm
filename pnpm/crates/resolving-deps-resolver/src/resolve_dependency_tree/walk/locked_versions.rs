@@ -2,15 +2,24 @@ use pnpm_lockfile::RegistryContext;
 use pnpm_resolving_resolver_base::is_valid_semver_range;
 
 use super::{
-    Arc, CurrentPkg, LockfileResolution, PkgNameVerPeer, PreferredVersionsOverlay,
-    ResolveDependencyTreeError, ResolvedPackage, TarballRevision, TreeCtx, WantedDependency,
-    overlay_lookup_names, update_unpins_edge,
+    Arc,
+    CurrentPkg,
+    LockfileResolution,
+    PkgNameVerPeer,
+    PreferredVersionsOverlay,
+    ResolveDependencyTreeError,
+    ResolvedPackage,
+    TarballRevision,
+    TreeCtx,
+    WantedDependency,
+    overlay_lookup_names,
+    update_unpins_edge,
 };
 
 /// The overlay's view for one edge, as it joins the resolve cache key: the
 /// same range can legitimately pick different versions under levels that
 /// resolved different siblings. Each candidate name (alias, `npm:` inner
-/// target, folded `jsr:` name) keeps its own versions — the picker consults
+/// target, folded `jsr:` name) keeps its own versions, the picker consults
 /// the overlay per name, so a flat union of versions could collide two
 /// overlays that distribute the same versions across different names. Empty
 /// for almost every edge, so the dedup keeps working where it matters.
@@ -82,7 +91,7 @@ pub(super) fn pin_patched_revision(
 ///
 /// `parent_dir` is the directory of the manifest that declares this
 /// edge, when that manifest is a package resolved from a local
-/// directory — see [`declaring_manifest_dir`](crate::resolve_dependency_tree::tree_ctx::declaring_manifest_dir).
+/// directory; see [`declaring_manifest_dir`](crate::resolve_dependency_tree::tree_ctx::declaring_manifest_dir).
 ///
 /// `parent_pkg_aliases` is the scope this edge's level resolves in; it
 /// decides which of the resolved package's `dependencies` its own
@@ -111,7 +120,8 @@ pub(super) fn pin_locked_version(
         && let Some(version) = key.suffix.registry_version()
         && wanted.bare_specifier
             .as_deref()
-            .is_some_and(|spec| !spec.trim().is_empty() && is_valid_semver_range(spec))
+            .filter(|spec| !spec.trim().is_empty())
+            .is_some_and(is_valid_semver_range)
     {
         wanted.bare_specifier = Some(version.to_string());
     }

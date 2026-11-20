@@ -1,8 +1,15 @@
 use node_semver::Version;
-use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+    PackageManifestError,
+};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_resolver_base::is_valid_peer_range;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 /// The dependency fields, in their canonical order. A direct dependency
 /// is written to exactly one of these and removed from the other two.
@@ -39,7 +46,7 @@ pub struct PackageSpecObject {
 /// Errors when a dependency field that must be written is present but is not a
 /// JSON object (e.g. `"dependencies": "oops"`), as does
 /// [`PackageManifest::add_dependency`]. The mutation is applied
-/// atomically — a copy is mutated and committed only on success — so an error
+/// atomically (a copy is mutated and committed only on success) so an error
 /// mid-way leaves the manifest untouched rather than partially updated.
 pub fn update_project_manifest_object(
     manifest: &mut PackageManifest,
@@ -88,7 +95,7 @@ fn save_spec_into_field(
 }
 
 /// With no field named, the dependency keeps the field it is already declared
-/// in. A peer-only declaration is left alone — the install still resolves it.
+/// in. A peer-only declaration is left alone, the install still resolves it.
 fn update_unsaved_spec(
     root: &mut Value,
     spec: &PackageSpecObject,

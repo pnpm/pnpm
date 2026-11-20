@@ -1,8 +1,17 @@
 use super::{
-    EditDirState, PatchCommitError, Path, PathBuf, patched_identity, read_all_edit_dir_states,
-    read_edit_dir_state, resolve_path,
+    EditDirState,
+    PatchCommitError,
+    Path,
+    PathBuf,
+    patched_identity,
+    read_all_edit_dir_states,
+    read_edit_dir_state,
+    resolve_path,
 };
-use pnpm_resolving_parse_wanted_dependency::{ParsedWantedDependency, parse_wanted_dependency};
+use pnpm_resolving_parse_wanted_dependency::{
+    ParsedWantedDependency,
+    parse_wanted_dependency,
+};
 use std::collections::BTreeMap;
 
 pub(super) struct ResolvedPatchDir {

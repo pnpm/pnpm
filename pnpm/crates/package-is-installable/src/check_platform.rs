@@ -1,10 +1,17 @@
 //! Checks a package's wanted `os` / `cpu` / `libc` against the host.
 
 use crate::supported_architectures::{
-    ArchitectureAxes, SupportedArchitectures,
-    platform::{NamedPlatform, SupportedPlatform},
+    ArchitectureAxes,
+    SupportedArchitectures,
+    platform::{
+        NamedPlatform,
+        SupportedPlatform,
+    },
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use serde::Serialize;
 

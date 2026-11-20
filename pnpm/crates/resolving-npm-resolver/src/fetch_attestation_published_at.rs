@@ -1,11 +1,11 @@
-//! Per-version publish timestamp from npm's attestation endpoint —
+//! Per-version publish timestamp from npm's attestation endpoint,
 //! `/-/npm/v1/attestations/<name>@<version>`.
 //!
 //! The endpoint serves a small JSON document containing one or more
 //! Sigstore bundles. We read
 //! `bundle.verificationMaterial.tlogEntries[].integratedTime`
 //! (the Rekor inclusion time) and surface it as an ISO timestamp.
-//! This is a few seconds after the actual publish — close enough for
+//! This is a few seconds after the actual publish, close enough for
 //! a release-age policy that operates in minutes/hours/days, and
 //! tens of kilobytes versus the multi-megabyte full-metadata fetch.
 //!
@@ -18,7 +18,11 @@
 //! them into a violation reason instead of swallowing.
 
 use jiff::Timestamp;
-use pnpm_network::{AuthHeaders, ThrottledClient, redact_url_credentials};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+    redact_url_credentials,
+};
 
 use crate::FetchMetadataError;
 

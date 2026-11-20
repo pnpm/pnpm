@@ -2,7 +2,10 @@
 //! [`TaskJob`](crate::job_control::TaskJob) could not be made.
 
 use super::Stop;
-use crate::process::{Command, Stdio};
+use crate::process::{
+    Command,
+    Stdio,
+};
 
 /// End `pid` with `taskkill`, which reaches only the descendants whose
 /// parent links still lead to it.

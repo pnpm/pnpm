@@ -4,14 +4,20 @@ use crate::retry::retry_transient_file_locks;
 #[cfg(not(target_os = "wasi"))]
 use std::fs::OpenOptions;
 use std::{
-    fs::{self, File},
-    io::{self, Seek},
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        self,
+        Seek,
+    },
     path::Path,
 };
 
 /// Overwrite the regular file at `file_path` in place with bytes from
-/// `reader`, keeping the inode so hard-linked copies of the file — other
-/// projects' `node_modules` entries importing the same CAS blob — are
+/// `reader`, keeping the inode so hard-linked copies of the file (other
+/// projects' `node_modules` entries importing the same CAS blob) are
 /// healed by the same write (pnpm/pnpm#3445).
 ///
 /// The open does not follow a symlink at `file_path` (`O_NOFOLLOW` on
@@ -75,7 +81,7 @@ pub fn overwrite_file_in_place(file_path: &Path, reader: &mut dyn io::Read) -> b
 }
 
 /// Whether the opened handle is the same regular file `expected`
-/// describes — the guard against a dirent swapped into the path between
+/// describes, the guard against a dirent swapped into the path between
 /// the metadata check and the open.
 #[cfg(unix)]
 fn same_file(file: &File, expected: &fs::Metadata) -> bool {
@@ -97,7 +103,8 @@ fn same_file(file: &File, expected: &crate::wasi_fs::FileIdentity) -> bool {
 #[cfg(windows)]
 fn same_file(file: &File, expected: &same_file::Handle) -> bool {
     file.metadata()
-        .is_ok_and(|handle_meta| handle_meta.file_type().is_file())
+        .map(|handle_meta| handle_meta.file_type())
+        .is_ok_and(|file_type| file_type.is_file())
         && file
             .try_clone()
             .and_then(same_file::Handle::from_file)

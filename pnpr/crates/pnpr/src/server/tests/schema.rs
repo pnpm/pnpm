@@ -1,4 +1,11 @@
-use super::{Method, StatusCode, TempDir, app_with_token, record, signed};
+use super::{
+    Method,
+    StatusCode,
+    TempDir,
+    app_with_token,
+    record,
+    signed,
+};
 use std::time::Duration;
 use tower::ServiceExt as _;
 

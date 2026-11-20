@@ -1,4 +1,7 @@
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::PathBuf,
+};
 
 #[cfg(not(target_family = "wasm"))]
 pub use std::env::current_exe as current_executable;

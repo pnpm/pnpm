@@ -1,7 +1,18 @@
 use super::{
-    AllowBuildRef, GitFetcher, GitFetcherError, GitManifestQuery, SilentReporter, StoreDir, Value,
-    deny_all_builds, make_bare_repo, make_bare_repo_with_prepare_script,
-    make_bare_repo_with_sub_package, make_bare_repo_without_manifest, read_git_manifest, tempdir,
+    AllowBuildRef,
+    GitFetcher,
+    GitFetcherError,
+    GitManifestQuery,
+    SilentReporter,
+    StoreDir,
+    Value,
+    deny_all_builds,
+    make_bare_repo,
+    make_bare_repo_with_prepare_script,
+    make_bare_repo_with_sub_package,
+    make_bare_repo_without_manifest,
+    read_git_manifest,
+    tempdir,
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -163,7 +174,7 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
     assert!(received.cas_paths.contains_key("BUILD_RAN.marker"));
 }
 
-/// A `Git` resolution's package name lives only in the working tree —
+/// A `Git` resolution's package name lives only in the working tree,
 /// the specifier names a repo, not a package.
 #[tokio::test(flavor = "multi_thread")]
 async fn read_git_manifest_reads_the_name_from_the_checkout() {

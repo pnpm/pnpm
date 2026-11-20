@@ -1,7 +1,19 @@
 use super::{
-    EnvLockfile, FixtureResolver, LockfileResolution, PackageKey, PackageMetadata,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TempDir, harness,
-    is_package_manager_resolved, options, pnpm_engine_packages, prune_env_lockfile,
+    EnvLockfile,
+    FixtureResolver,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TempDir,
+    harness,
+    is_package_manager_resolved,
+    options,
+    pnpm_engine_packages,
+    prune_env_lockfile,
     resolve_package_manager_integrities,
 };
 
@@ -75,7 +87,7 @@ fn prune_drops_orphan_packages_and_snapshots() {
     }
 
     let mut env = EnvLockfile::create();
-    // A config dep with one optional subdep — both reachable.
+    // A config dep with one optional subdep; both reachable.
     let parent: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
     let subdep: PackageKey = "@pnpm.e2e/bar@1.0.0".parse().unwrap();
     env.root_importer_mut().config_dependencies

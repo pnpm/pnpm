@@ -1,6 +1,9 @@
 //! Swapping two directory entries in one step.
 
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 /// Swap the entries at `first` and `second` in one step, so that neither
 /// path is ever absent and each names one of the two trees throughout.
@@ -14,7 +17,12 @@ pub fn exchange_dirents(first: &Path, second: &Path) -> io::Result<()> {
 
 #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
 mod platform {
-    use std::{ffi::CString, io, os::unix::ffi::OsStrExt as _, path::Path};
+    use std::{
+        ffi::CString,
+        io,
+        os::unix::ffi::OsStrExt as _,
+        path::Path,
+    };
 
     pub(super) fn exchange(first: &Path, second: &Path) -> io::Result<()> {
         let first = path_name(first)?;
@@ -73,7 +81,10 @@ mod platform {
 
 #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
 mod platform {
-    use std::{io, path::Path};
+    use std::{
+        io,
+        path::Path,
+    };
 
     pub(super) fn exchange(_first: &Path, _second: &Path) -> io::Result<()> {
         Err(io::Error::from(io::ErrorKind::Unsupported))

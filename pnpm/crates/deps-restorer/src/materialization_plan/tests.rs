@@ -1,9 +1,19 @@
 use super::{
-    HostNode, TargetNodeUse, execution_host_node, spawn_node_probe, target_node_major,
+    HostNode,
+    TargetNodeUse,
+    execution_host_node,
+    spawn_node_probe,
+    target_node_major,
     target_node_version,
 };
-use crate::{InstallabilityHost, NodeVersionSource};
-use std::{sync::mpsc, time::Duration};
+use crate::{
+    InstallabilityHost,
+    NodeVersionSource,
+};
+use std::{
+    sync::mpsc,
+    time::Duration,
+};
 
 #[test]
 fn runtime_shutdown_does_not_wait_for_an_unread_node_probe() {

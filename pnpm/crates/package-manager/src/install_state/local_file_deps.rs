@@ -1,20 +1,34 @@
 pub(crate) mod specs;
 pub(crate) use specs::{
-    has_local_file_override, has_local_file_package_extension, is_dep_replaced_by_override,
-    is_local_file_spec, is_unambiguous_local_file_spec, is_workspace_path_spec,
+    has_local_file_override,
+    has_local_file_package_extension,
+    is_dep_replaced_by_override,
+    is_local_file_spec,
+    is_unambiguous_local_file_spec,
+    is_workspace_path_spec,
 };
 
 mod injected;
 
 use super::OptimisticRepeatInstallCheck;
-use injected::{has_unvouched_injected_dep, settings_add_workspace_path};
+use injected::{
+    has_unvouched_injected_dep,
+    settings_add_workspace_path,
+};
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::VersionOverride;
 use pnpm_local_spec::is_tarball_filename;
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_local_resolver::local_tarball_path;
 use pnpm_workspace::importer_id_from_root_dir;
@@ -22,7 +36,10 @@ use ssri::Integrity;
 use std::{
     borrow::Cow,
     collections::HashSet,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 struct LocalTarballDependency {

@@ -6,7 +6,11 @@
 //! the guest's.
 
 use pnpm_webcontainer_sys::pnpm_fs as sys;
-use std::{fs::File, io, path::Path};
+use std::{
+    fs::File,
+    io,
+    path::Path,
+};
 
 /// Whether a lock request excludes every other holder or only the writers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

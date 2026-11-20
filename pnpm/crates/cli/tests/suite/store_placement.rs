@@ -5,7 +5,11 @@
 
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn commands_without_store_access_do_not_modify_the_project_directory() {
@@ -71,7 +75,8 @@ fn commands_without_store_access_do_not_modify_the_project_directory() {
         }
         let entries: Vec<_> = fs::read_dir(&workspace)
             .unwrap()
-            .map(|entry| entry.unwrap().file_name())
+            .map(Result::unwrap)
+            .map(|value| value.file_name())
             .collect();
         assert_eq!(entries, ["package.json"], "{args:?}");
     }
@@ -81,7 +86,10 @@ fn commands_without_store_access_do_not_modify_the_project_directory() {
 /// it, on the platforms whose directory timestamps track entry changes.
 #[cfg(unix)]
 fn freeze_mtime(dir: &Path) -> Option<std::time::SystemTime> {
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::time::{
+        Duration,
+        UNIX_EPOCH,
+    };
     let modified = UNIX_EPOCH + Duration::from_hours(262_968);
     fs::File::open(dir)
         .expect("open project directory")
@@ -96,12 +104,13 @@ fn freeze_mtime(_dir: &Path) -> Option<std::time::SystemTime> {
 }
 
 fn isolated(mut command: Command, root: &Path) -> Command {
-    command.env("PNPM_HOME", root.join("pnpm-home"));
-    command.env("HOME", root);
-    command.env("XDG_CONFIG_HOME", root.join("xdg-config"));
-    command.env_remove("COREPACK_ROOT");
+    command = command
+        .with_env("PNPM_HOME", root.join("pnpm-home"))
+        .with_env("HOME", root)
+        .with_env("XDG_CONFIG_HOME", root.join("xdg-config"))
+        .without_env("COREPACK_ROOT");
     // The project is never installed, so `run` and `exec` would otherwise
     // spawn an install, which does open the store.
-    command.env("pnpm_config_verify_deps_before_run", "false");
+    command = command.with_env("pnpm_config_verify_deps_before_run", "false");
     command
 }

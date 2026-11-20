@@ -1,11 +1,18 @@
 pub(crate) use integrity::{
-    frozen_tree_intact, hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
+    frozen_tree_intact,
+    hoisted_linker_workspace_links_intact,
+    hoisted_workspace_packages_present,
 };
 
 pub(super) use merge_metadata::{
-    current_contains_ignored_build, merge_filtered_modules_metadata, merge_pending_builds,
+    current_contains_ignored_build,
+    merge_filtered_modules_metadata,
+    merge_pending_builds,
 };
-pub(super) use settings_diff::{refuse_drifted_modules_dir, same_path};
+pub(super) use settings_diff::{
+    refuse_drifted_modules_dir,
+    same_path,
+};
 
 mod merge_metadata;
 
@@ -14,12 +21,28 @@ mod settings_diff;
 mod integrity;
 
 use super::{
-    BTreeMap, Config, HoistedDependencies, Host, IncludedDependencies, InstallError, LayoutVersion,
-    Lockfile, Modules, ModulesNodeLinker, NodeLinker, PNPM_VERSION, PackageManifest, Path, PathBuf,
+    BTreeMap,
+    Config,
+    HoistedDependencies,
+    Host,
+    IncludedDependencies,
+    InstallError,
+    LayoutVersion,
+    Lockfile,
+    Modules,
+    ModulesNodeLinker,
+    NodeLinker,
+    PNPM_VERSION,
+    PackageManifest,
+    Path,
+    PathBuf,
     write_modules_manifest,
 };
 use pnpm_cmd_shim::bin_dir_is_relocatable;
-use pnpm_package_manifest::{BINDING_GYP, manifest_opts_out_of_gyp_build};
+use pnpm_package_manifest::{
+    BINDING_GYP,
+    manifest_opts_out_of_gyp_build,
+};
 use rayon::prelude::*;
 
 /// Translate pacquet's [`Config::node_linker`] into the
@@ -53,7 +76,7 @@ pub(super) fn modules_consistent_with(
     // A `virtualStoreOnly` install populates the store and stops, so the
     // modules directory it leaves behind cannot satisfy an ordinary install,
     // and an existing modules directory cannot short-circuit `pnpm fetch`.
-    if config.virtual_store_only || modules.virtual_store_only == Some(true) {
+    if config.virtual_store_only || modules.virtual_store_only.unwrap_or(false) {
         return false;
     }
     modules.included == included && modules_layout_consistent_with(modules, config, node_linker)
@@ -195,10 +218,10 @@ pub(crate) fn modules_layout_consistent_with(
     // difference as layout drift and purge `node_modules`.
     // Patterns compare normalized (upstream's `?? []`): `None` and an
     // empty list are the same disabled state, so the pair must not read
-    // as layout drift — a purge every install for `hoistPattern: []`
+    // as layout drift, a purge every install for `hoistPattern: []`
     // projects, and a spurious `*_DIFF` error for `add` / `remove`.
     let skips_hoisted_tree = config.virtual_store_only && node_linker == NodeLinker::Hoisted;
-    let hoist_patterns_match = modules.virtual_store_only == Some(true)
+    let hoist_patterns_match = modules.virtual_store_only.unwrap_or(false)
         || skips_hoisted_tree
         || (normalized_pattern(modules.hoist_pattern.as_deref())
             == normalized_pattern(config.hoist_pattern.as_deref())
@@ -240,7 +263,7 @@ pub(super) fn has_newly_allowed_ignored_builds(
     };
     ignored
         .iter()
-        .any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
+        .any(|dep_path| policy.check(dep_path.as_str()).unwrap_or(false))
 }
 
 /// Whether the `allowBuilds` entries the previous install recorded differ
@@ -283,7 +306,7 @@ pub(super) fn recorded_allow_builds_differ(
 /// on the up-to-date path and the ignored-builds check still throws, so a
 /// rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not exit 0.
 /// Packages a later policy explicitly denies (`Some(false)`) are excluded
-/// — those are silently skipped, never reported — matching a full
+/// (those are silently skipped, never reported) matching a full
 /// install's `BuildModules`. Newly-allowed packages are handled
 /// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
 ///
@@ -305,7 +328,8 @@ pub(super) fn unapproved_recorded_ignored_builds(
     let mut names: Vec<String> = ignored
         .iter()
         .filter(|dep_path| policy.check(dep_path.as_str()).is_none())
-        .map(|dep_path| dep_path.as_str().to_string())
+        .map(pnpm_modules_yaml::DepPath::as_str)
+        .map(str::to_string)
         .collect();
     names.sort();
     Ok((!names.is_empty()).then_some(names))
@@ -315,7 +339,7 @@ pub(super) fn unapproved_recorded_ignored_builds(
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
-/// here — empty for the no-lockfile path, for installs where both
+/// here, empty for the no-lockfile path, for installs where both
 /// hoist patterns are `None`, and under `nodeLinker: hoisted` (the
 /// hoisted linker uses `hoisted_locations` instead). Persisting it
 /// lets a subsequent install detect a hoist pattern change and
@@ -335,7 +359,7 @@ pub(super) fn unapproved_recorded_ignored_builds(
 /// [`PackageKey`] in the install-time
 /// [`crate::SkippedSnapshots`] becomes one string entry; ordering is
 /// handled by [`write_modules_manifest`]'s sort-on-write. An empty set
-/// produces an empty list — matching the fresh-install case.
+/// produces an empty list, matching the fresh-install case.
 ///
 /// [`PackageKey`]: pnpm_lockfile::PackageKey
 /// [`write_modules_manifest`]: pnpm_modules_yaml::write_modules_manifest
@@ -393,7 +417,7 @@ pub(super) fn build_modules_manifest(
         // preserved prior value.
         pruned_at,
         // `iter_installability` excludes fetch-failure entries so they
-        // don't get persisted across installs — optional fetch failures
+        // don't get persisted across installs, optional fetch failures
         // are silently swallowed.
         skipped: skipped
             .iter_installability()
@@ -456,8 +480,8 @@ pub(super) fn keep_recorded_layout(
 /// Drop `settled` from the `pendingBuilds` the install just wrote, now
 /// that the projects' scripts have run.
 ///
-/// A project's debt outlives the `.modules.yaml` write — its scripts run
-/// after it — so clearing the record there would forget the debt when a
+/// A project's debt outlives the `.modules.yaml` write (its scripts run
+/// after it) so clearing the record there would forget the debt when a
 /// script fails. Re-reading rather than reusing the in-memory value
 /// keeps every other field exactly as it was written.
 pub(super) fn drain_settled_projects<Sys>(
@@ -517,7 +541,7 @@ pub(super) fn project_requires_implicit_gyp_build(
 
 /// Read a string field off a project manifest, returning `None` when
 /// the field is missing or not a JSON string. Pnpm tolerates either
-/// shape — `name`/`version` are advisory metadata in this context, so
+/// shape, `name`/`version` are advisory metadata in this context, so
 /// pacquet matches by silently dropping non-string values.
 pub(super) fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
     manifest

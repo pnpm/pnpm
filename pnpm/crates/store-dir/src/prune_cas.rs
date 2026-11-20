@@ -1,15 +1,27 @@
 use crate::{
-    StoreDir, StoreIndex, StoreIndexError, decode_package_files_index,
+    StoreDir,
+    StoreIndex,
+    StoreIndexError,
+    decode_package_files_index,
     private_install::PRIVATE_INSTALLS_DIR,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::{
     collections::HashSet,
     ffi::OsStr,
     fs,
-    io::{self, ErrorKind},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        ErrorKind,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(Debug, Display, Error, Diagnostic)]

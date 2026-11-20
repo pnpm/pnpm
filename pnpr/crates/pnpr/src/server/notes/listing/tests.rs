@@ -1,5 +1,11 @@
-use super::{Candidates, MAX_CANDIDATES};
-use std::collections::{BTreeMap, BTreeSet};
+use super::{
+    Candidates,
+    MAX_CANDIDATES,
+};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 fn candidates(noted: &[&str], published: &[&str]) -> Candidates {
     Candidates {

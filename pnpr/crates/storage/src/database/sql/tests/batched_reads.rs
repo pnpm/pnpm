@@ -1,5 +1,11 @@
 use super::Db;
-use crate::database::sql::adapter::{Connection, Param, Query, ReadSource, Row};
+use crate::database::sql::adapter::{
+    Connection,
+    Param,
+    Query,
+    ReadSource,
+    Row,
+};
 
 async fn batched_reads_preserve_parameters_empty_results_and_order(db: Db) {
     let adapter = db.adapter();

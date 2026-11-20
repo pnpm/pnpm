@@ -33,7 +33,12 @@ mod patched_retained_pins;
 mod ranged_provider_pins;
 mod same_name_peer_contexts;
 
-use harness::{Harness, Move, Project, project};
+use harness::{
+    Harness,
+    Move,
+    Project,
+    project,
+};
 
 #[test]
 fn satisfied_peer() {

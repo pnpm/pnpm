@@ -1,6 +1,17 @@
 use super::{
-    Config, ConfigOverrides, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
-    Path, StoreDir, default_state_dir, lexical_normalize, resolve_child_concurrency, setting_value,
+    Config,
+    ConfigOverrides,
+    EnvVar,
+    GLOBAL_LAYOUT_VERSION,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    Path,
+    StoreDir,
+    default_state_dir,
+    lexical_normalize,
+    resolve_child_concurrency,
+    setting_value,
     verify_deps_env_is_set,
 };
 use pnpm_config::NodePackageMapMode;
@@ -344,7 +355,7 @@ impl ConfigOverrides {
             value.clone().apply_to(config);
             config.explicit_settings.insert("nodeLinker".to_string(), setting_value(value));
             // A CLI-selected hoisted linker turns the default on just
-            // like a yaml-selected one — pnpm merges CLI options before
+            // like a yaml-selected one, pnpm merges CLI options before
             // its `nodeLinker` switch, so the derivation must see this
             // override too.
             config.apply_prefer_symlinked_executables_derivation();
@@ -386,7 +397,7 @@ impl ConfigOverrides {
     /// command-line `--modules-dir` / `--virtual-store-dir`.
     ///
     /// Both reach [`Config::explicit_settings`] as the raw spelling, which
-    /// is what [`Config::anchor_lockfile_paths`] resolves — so a later
+    /// is what [`Config::anchor_lockfile_paths`] resolves, so a later
     /// `--lockfile-dir` pin moves the CLI-set paths along with it.
     fn apply_lockfile_anchored_paths(&self, config: &mut Config, dir: &Path) {
         let raw_settings = [

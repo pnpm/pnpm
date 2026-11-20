@@ -8,15 +8,37 @@
 //! would, and copies the archive into its package before it commits.
 
 use super::{
-    AppState, AuthedCaller, Body, Identity, MAX_PUBLISH_BODY_BYTES, Response, State, StatusCode,
-    header, private_no_cache,
+    AppState,
+    AuthedCaller,
+    Body,
+    Identity,
+    MAX_PUBLISH_BODY_BYTES,
+    Response,
+    State,
+    StatusCode,
+    header,
+    private_no_cache,
 };
-use axum::{extract::Path, http::HeaderMap, response::IntoResponse};
+use axum::{
+    extract::Path,
+    http::HeaderMap,
+    response::IntoResponse,
+};
 use futures_util::StreamExt as _;
-use pnpm_shared_artifact_protocol::{blob_id, verify_blob_digest};
+use pnpm_shared_artifact_protocol::{
+    blob_id,
+    verify_blob_digest,
+};
 use pnpr_error::RegistryError;
-use pnpr_storage::{BlobId, StagedArchiveKey, Storage};
-use sha2::{Digest as _, Sha512};
+use pnpr_storage::{
+    BlobId,
+    StagedArchiveKey,
+    Storage,
+};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use std::collections::HashMap;
 
 /// The most a principal may hold staged at once, across all its archives.
@@ -367,7 +389,7 @@ pub(super) fn principal(identity: &Identity) -> Result<&str, RegistryError> {
 
 /// The hosted-store identity a staged archive with `integrity` is stored under.
 pub(super) fn archive_blob_id(integrity: &str) -> Result<BlobId, RegistryError> {
-    let digest = blob_id(integrity).map_err(|err| bad_request(err.to_string()))?;
+    let digest = blob_id(integrity).map_err(|err| err.to_string()).map_err(bad_request)?;
     BlobId::parse(&format!("sha512-{digest}"))
         .ok_or_else(|| bad_request(format!("invalid staged archive integrity {integrity:?}")))
 }

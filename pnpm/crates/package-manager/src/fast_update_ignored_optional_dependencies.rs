@@ -1,15 +1,25 @@
 use crate::{
     fast_update_compose::Drift,
-    fast_update_lockfile::{DroppedEdgeTarget, GraphEdits},
+    fast_update_lockfile::{
+        DroppedEdgeTarget,
+        GraphEdits,
+    },
 };
-use pnpm_lockfile::{Lockfile, PkgName};
+use pnpm_lockfile::{
+    Lockfile,
+    PkgName,
+};
 use pnpm_matcher::create_matcher;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+    HashSet,
+};
 
 /// Whether `ignoredOptionalDependencies` drifted from what the lockfile
 /// records, and whether the drift is a pure widening this rewrite can
-/// absorb. Anything else — a dropped pattern, a new exclusion, a
-/// previous configuration that ignores by default — is
+/// absorb. Anything else (a dropped pattern, a new exclusion, a
+/// previous configuration that ignores by default) is
 /// [`Drift::Resolve`], because only a resolution can bring packages
 /// back.
 pub(crate) fn detect_ignored_optional_drift(

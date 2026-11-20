@@ -3,13 +3,16 @@
 //! verdaccio/npm registry emits (`_attachments`, `_uplinks`, `_distfiles`,
 //! `users`, per-version `_nodeVersion`, `_id`, `contributors`) so the tests can
 //! assert that pnpr rewrites tarball URLs and strips those fields in
-//! the abbreviated packument form. No real tarball is needed — the bytes are
+//! the abbreviated packument form. No real tarball is needed, the bytes are
 //! arbitrary; nothing re-hashes them.
 
 use std::path::Path;
 
 use pnpr_storage::layout::write_local_layout_marker;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 // Only asserted for pass-through / `sha512-` prefix, never recomputed.
@@ -76,7 +79,8 @@ pub fn stored_archives(
     let mut names: Vec<String> = walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|entry| entry.depth() == 2 && entry.file_type().is_file())
+        .filter(|entry| entry.depth() == 2)
+        .filter(|entry| entry.file_type().is_file())
         .map(|entry| {
             entry
                 .file_name()

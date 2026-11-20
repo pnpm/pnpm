@@ -1,8 +1,17 @@
-use super::{super::workspace_yaml::append_workspace_yaml_key, project_with_lifecycle_scripts};
+use super::{
+    super::workspace_yaml::append_workspace_yaml_key,
+    project_with_lifecycle_scripts,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// With `optimisticRepeatInstall: false`, a repeat install whose tree is
 /// already up to date still runs the project's own lifecycle scripts.

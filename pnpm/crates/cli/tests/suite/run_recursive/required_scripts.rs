@@ -1,4 +1,12 @@
-use super::{CommandExtra, CommandTempCwd, Path, build_writes_marker, fs, json, write_workspace};
+use super::{
+    CommandExtra,
+    CommandTempCwd,
+    Path,
+    build_writes_marker,
+    fs,
+    json,
+    write_workspace,
+};
 use assert_cmd::assert::OutputAssertExt as _;
 use pnpm_testing_utils::diagnostics::assert_diagnostic_contains;
 
@@ -82,7 +90,8 @@ fn recursive_run_lists_a_nameless_project_by_its_directory() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let unwrapped: String = stderr
         .chars()
-        .filter(|char| !char.is_whitespace() && *char != '│')
+        .filter(|char| !char.is_whitespace())
+        .filter(|char| *char != '│')
         .collect();
     // The message spells the temp dir as the OS prints it (on Windows a
     // long or verbatim form of the same path), so match its last components.

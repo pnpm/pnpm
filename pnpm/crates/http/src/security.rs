@@ -1,5 +1,13 @@
-use crate::{Error, Result, Url, error::Kind};
-use rustls::pki_types::{CertificateDer, pem::PemObject};
+use crate::{
+    Error,
+    Result,
+    Url,
+    error::Kind,
+};
+use rustls::pki_types::{
+    CertificateDer,
+    pem::PemObject,
+};
 
 #[derive(Clone, Debug)]
 pub struct Certificate(Vec<u8>);

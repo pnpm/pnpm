@@ -1,4 +1,8 @@
-use super::{MAX_NOTE_BYTES, note_digest, validate_note};
+use super::{
+    MAX_NOTE_BYTES,
+    note_digest,
+    validate_note,
+};
 
 #[test]
 fn content_rules() {

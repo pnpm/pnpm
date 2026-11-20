@@ -1,9 +1,23 @@
 //! Entry bundle bounds, decoding, and log-entry parsing for log recovery.
 
-use crate::transparency_log::{ImportedLogEntry, LogId, StoredCheckpoint};
-use pnpm_release_record::{LogEntry, RecordIdentity};
-use pnpm_transparency_log::{TILE_WIDTH, TilePath, decode_bundle};
-use pnpr_error::{RegistryError, Result};
+use crate::transparency_log::{
+    ImportedLogEntry,
+    LogId,
+    StoredCheckpoint,
+};
+use pnpm_release_record::{
+    LogEntry,
+    RecordIdentity,
+};
+use pnpm_transparency_log::{
+    TILE_WIDTH,
+    TilePath,
+    decode_bundle,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use std::collections::HashSet;
 

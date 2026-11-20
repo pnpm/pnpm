@@ -3,10 +3,22 @@
 //! the registry-unverified guard.
 
 use super::{
-    CachedPackument, Package, PackageMetaCache, PackageVersion, PackumentSource,
-    PickPackageContext, PickPackageError, PickPackageOptions, PickPackageResult, PickState,
-    PickerOpts, RegistryPackageSpec, pick_from_meta, pick_from_meta_offline,
-    pick_stable_cached_range_version, route::CacheHitCheck,
+    CachedPackument,
+    Package,
+    PackageMetaCache,
+    PackageVersion,
+    PackumentSource,
+    PickPackageContext,
+    PickPackageError,
+    PickPackageOptions,
+    PickPackageResult,
+    PickState,
+    PickerOpts,
+    RegistryPackageSpec,
+    pick_from_meta,
+    pick_from_meta_offline,
+    pick_stable_cached_range_version,
+    route::CacheHitCheck,
 };
 use crate::mirror::load_meta_headers_async;
 use std::sync::Arc;

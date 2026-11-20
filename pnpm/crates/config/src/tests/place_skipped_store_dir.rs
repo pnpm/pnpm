@@ -1,4 +1,14 @@
-use super::{Config, GetHomeDir, LinkProbe, Path, PathBuf, StoreDir, assert_eq, fs, tempdir};
+use super::{
+    Config,
+    GetHomeDir,
+    LinkProbe,
+    Path,
+    PathBuf,
+    StoreDir,
+    assert_eq,
+    fs,
+    tempdir,
+};
 
 /// A home store on another volume: only a directory named `mount` accepts
 /// a hard link from the project.

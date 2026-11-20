@@ -1,15 +1,37 @@
-use super::{LOG_POLICY_TARGET, LogPolicy, LogPolicyError};
+use super::{
+    LOG_POLICY_TARGET,
+    LogPolicy,
+    LogPolicyError,
+};
 use crate::{
     test_support::{
-        FUTURE, LOG_NAME, RoleKeys, key, policy_document, registry, root, sign, snapshot, targets,
+        FUTURE,
+        LOG_NAME,
+        RoleKeys,
+        key,
+        policy_document,
+        registry,
+        root,
+        sign,
+        snapshot,
+        targets,
         timestamp,
     },
     tuf::TrustedRepository,
 };
-use pnpm_transparency_log::{PolicyError, TreeHead, add_signatures, record_hash, sign_checkpoint};
+use pnpm_transparency_log::{
+    PolicyError,
+    TreeHead,
+    add_signatures,
+    record_hash,
+    sign_checkpoint,
+};
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use sha2::{Digest as _, Sha256};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
 #[test]
 fn reads_a_policy_and_verifies_checkpoints_with_it() {

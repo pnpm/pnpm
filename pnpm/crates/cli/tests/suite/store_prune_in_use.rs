@@ -5,22 +5,38 @@
 use crate::{
     _utils::enable_gvs_in_workspace_yaml,
     install_runtimes::{
-        prepare_workspace, runtime_fixture, write_runtime_lockfile, write_runtime_manifest,
+        prepare_workspace,
+        runtime_fixture,
+        write_runtime_lockfile,
+        write_runtime_manifest,
     },
     patch::MARKER_PATCH,
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_graph_hasher::{host_arch, host_platform};
-use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex};
+use pnpm_graph_hasher::{
+    host_arch,
+    host_platform,
+};
+use pnpm_store_dir::{
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     command_env::CommandTestExt,
 };
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -114,7 +130,7 @@ fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
-        .env_remove("PRUNE_TEST_MODULES_DIR")
+        .without_env("PRUNE_TEST_MODULES_DIR")
         .output()
         .expect("run store prune");
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -353,7 +369,7 @@ fn store_prune_keeps_global_virtual_store_slots_from_a_workspace_package_modules
     enable_gvs_in_workspace_yaml(&workspace, "");
     pacquet_at(&workspace)
         .with_args(["install", "--reporter=silent"])
-        .env_remove("PRUNE_TEST_MODULES_DIR")
+        .without_env("PRUNE_TEST_MODULES_DIR")
         .assert()
         .success();
     let store = StoreDir::new(store_dir);

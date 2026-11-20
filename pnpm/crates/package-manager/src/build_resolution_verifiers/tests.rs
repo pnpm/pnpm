@@ -1,13 +1,23 @@
 use std::sync::Arc;
 
 use pnpm_config::Config;
-use pnpm_lockfile::{LockfileResolution, PkgName, TarballResolution};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PkgName,
+    TarballResolution,
+};
 use pnpm_network::ThrottledClient;
-use pnpm_resolving_resolver_base::{ResolutionVerification, VerifyCtx};
+use pnpm_resolving_resolver_base::{
+    ResolutionVerification,
+    VerifyCtx,
+};
 use ssri::Integrity;
 use tempfile::TempDir;
 
-use super::{BuildVerifiersError, build_resolution_verifiers};
+use super::{
+    BuildVerifiersError,
+    build_resolution_verifiers,
+};
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
 

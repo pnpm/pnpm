@@ -1,4 +1,4 @@
-//! The *env lockfile* — the first YAML document of `pnpm-lock.yaml`.
+//! The *env lockfile*, the first YAML document of `pnpm-lock.yaml`.
 //!
 //! Pnpm v11 records configurational dependencies (and the
 //! `packageManager`/`devEngines` bootstrap deps) in a separate YAML
@@ -14,25 +14,50 @@
 //! shape and syntax too, through [`next`].
 
 use crate::{
-    LoadLockfileError, Lockfile, LockfileFormat, LockfileVersion, PackageKey, PackageMetadata,
-    SaveLockfileError, SnapshotEntry, SymlinkedLockfile, declares_next_format,
+    LoadLockfileError,
+    Lockfile,
+    LockfileFormat,
+    LockfileVersion,
+    PackageKey,
+    PackageMetadata,
+    SaveLockfileError,
+    SnapshotEntry,
+    SymlinkedLockfile,
+    declares_next_format,
     extract_main_document,
-    git_merge_file::{ParsedWantedFile, parse_wanted_file},
+    git_merge_file::{
+        ParsedWantedFile,
+        parse_wanted_file,
+    },
     load_lockfile::yaml_parse_options,
     merge_env_lockfile_changes,
     save_lockfile::lockfile_write_target,
     serialize_yaml,
     yaml_documents::{
-        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, normalize_lockfile_content,
+        YAML_DOCUMENT_SEPARATOR,
+        YAML_DOCUMENT_START,
+        normalize_lockfile_content,
         read_first_yaml_document,
     },
 };
 use pnpm_fs::write_atomic;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    fs::{self, File},
-    io::{self, ErrorKind},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    fs::{
+        self,
+        File,
+    },
+    io::{
+        self,
+        ErrorKind,
+    },
     path::Path,
 };
 
@@ -49,7 +74,7 @@ pub struct SpecifierAndResolution {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvImporterSnapshot {
-    /// Always serialized — the key is seeded even when empty, so the env
+    /// Always serialized, the key is seeded even when empty, so the env
     /// document always carries it.
     #[serde(default)]
     pub config_dependencies: BTreeMap<String, SpecifierAndResolution>,
@@ -127,7 +152,7 @@ impl EnvLockfile {
     }
 
     /// [`Self::read`]'s parse of one env document, with the number of
-    /// files its Git conflict markers had to be merged out of — 1 or 0,
+    /// files its Git conflict markers had to be merged out of, 1 or 0,
     /// since it is handed a single document.
     pub(crate) fn parse_conflicted_document(
         env_doc: &str,
@@ -208,7 +233,8 @@ impl EnvDocumentFormat {
         let major = version
             .split('.')
             .next()
-            .and_then(|major| major.parse::<u64>().ok());
+            .map(str::parse::<u64>)
+            .and_then(Result::ok);
         if major.is_some_and(|major| major >= Self::V13_FROM_MAJOR) { Self::V13 } else { Self::V9 }
     }
 
@@ -244,7 +270,8 @@ impl EnvLockfile {
         self.lockfile_version
             .split('.')
             .next()
-            .and_then(|major| major.parse::<u16>().ok())
+            .map(str::parse::<u16>)
+            .and_then(Result::ok)
             == Some(crate::NEXT_LOCKFILE_MAJOR)
     }
 }

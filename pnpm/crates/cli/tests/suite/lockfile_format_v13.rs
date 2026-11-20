@@ -2,12 +2,26 @@
 //! frozen install from it, and 3-way `git merge-file` merges across
 //! concurrent branch changes.
 
-use crate::_utils::pacquet_in;
+use crate::_utils::{
+    pacquet_in,
+    write_manifest_value,
+};
 use assert_cmd::assert::OutputAssertExt;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use pnpm_lockfile::Lockfile;
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    fixtures::tarball_with_manifest,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn install_writes_the_v13_lockfile_and_a_frozen_install_reads_it() {
@@ -50,6 +64,53 @@ fn install_writes_the_v13_lockfile_and_a_frozen_install_reads_it() {
     drop(root);
 }
 
+#[test]
+fn local_packages_with_an_ordinary_alias_of_a_peer_write_v13() {
+    let consumer = json!({
+        "name": "consumer",
+        "version": "1.0.0",
+        "peerDependencies": {"@pnpm.e2e/foo": "^100.0.0"},
+        "dependencies": {"provider-copy": "npm:@pnpm.e2e/foo@100.0.0"},
+    });
+    for specifier in ["file:./consumer", "file:./consumer.tgz"] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init().add_mocked_registry();
+        let directory = workspace.join("consumer");
+        fs::create_dir(&directory).expect("create consumer directory");
+        write_manifest_value(&directory, &consumer);
+        fs::write(workspace.join("consumer.tgz"), tarball_with_manifest(&consumer))
+            .expect("write consumer tarball");
+        write_manifest_value(
+            &workspace,
+            &json!({"dependencies": {"@pnpm.e2e/foo": "100.0.0", "consumer": specifier}}),
+        );
+        let config = workspace.join("pnpm-workspace.yaml");
+        let peer_settings = "autoInstallPeers: false\ndedupePeers: true\n";
+        fs::write(&config, peer_settings).expect("write peer settings");
+        let v9 = install_and_read_lockfile(&workspace);
+        let lockfile_path = workspace.join("pnpm-lock.yaml");
+        fs::remove_file(&lockfile_path).expect("remove the v9 lockfile");
+        fs::write(&config, format!("{peer_settings}lockfile:\n  format: v13\n"))
+            .expect("select v13 format");
+
+        let v13 = install_and_read_lockfile(&workspace);
+        let lockfile = fs::read_to_string(lockfile_path).expect("read lockfile text");
+        assert!(lockfile.contains(r#""lockfileVersion": "13.0""#), "{lockfile}");
+        assert_eq!(v13.importers, v9.importers, "{specifier}");
+        assert_eq!(v13.snapshots, v9.snapshots, "{specifier}");
+        drop(root);
+    }
+}
+
+fn install_and_read_lockfile(workspace: &Path) -> Lockfile {
+    pacquet_in(workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    Lockfile::load_wanted_from_dir(workspace)
+        .expect("parse the lockfile")
+        .expect("install wrote a lockfile")
+}
+
 struct BranchState<'a> {
     workspace_yaml: &'a str,
     projects: &'a [(&'a str, Value)],
@@ -87,10 +148,10 @@ fn git_merge_lockfiles(temp_dir: &Path, base: &str, branch_a: &str, branch_b: &s
     fs::write(&a_path, branch_a).expect("write branch A lockfile");
     fs::write(&b_path, branch_b).expect("write branch B lockfile");
     let output = Command::new("git")
-        .args(["merge-file", "-p"])
-        .arg(&a_path)
-        .arg(&base_path)
-        .arg(&b_path)
+        .with_args(["merge-file", "-p"])
+        .with_arg(&a_path)
+        .with_arg(&base_path)
+        .with_arg(&b_path)
         .output()
         .expect("run git merge-file");
     let merged = String::from_utf8(output.stdout).expect("utf8 merged lockfile");

@@ -6,7 +6,10 @@
 //! create a directory whose name is that unexpanded text.
 
 use crate::api::EnvVar;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// A directory environment variable still contains a `%VAR%` reference
@@ -57,7 +60,9 @@ pub(crate) fn ensure_windows_dir_envs_on<Sys: EnvVar>(
     }
     if dirs_with_fallback
         .iter()
-        .any(|name| Sys::var(name).is_none())
+        .copied()
+        .map(Sys::var)
+        .any(|variable| variable.is_none())
     {
         expand_if_set::<Sys>("LOCALAPPDATA")?;
     }

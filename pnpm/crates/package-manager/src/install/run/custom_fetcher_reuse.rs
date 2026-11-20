@@ -1,4 +1,7 @@
-use super::{InstallError, RunExecution};
+use super::{
+    InstallError,
+    RunExecution,
+};
 
 impl RunExecution<'_> {
     /// Turns off both repeat-install shortcuts for a hoisted install whose

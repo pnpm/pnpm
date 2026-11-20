@@ -4,27 +4,30 @@
 //! carrying lockfile-specific rendering rules that no general-purpose Rust YAML
 //! serializer reproduces:
 //!
-//! - **`blankLines`** — a blank line separates the entries of the top-level map
+//! - **`blankLines`**, a blank line separates the entries of the top-level map
 //!   and of the `packages:` / `importers:` / `snapshots:` maps.
-//! - **single-line keys** — `cpu`, `engines`, `os`, `libc`, and `resolution`
+//! - **single-line keys**, `cpu`, `engines`, `os`, `libc`, and `resolution`
 //!   (unless its `type` is `variations`/`binary`) render in flow style on one
 //!   line; everything else renders in block style.
-//! - **single-quote scalar style** — ambiguous scalars (`'9.0'`, `'>=10'`,
+//! - **single-quote scalar style**, ambiguous scalars (`'9.0'`, `'>=10'`,
 //!   `'@scope/name@1.0.0'`) are single-quoted, matching `js-yaml`'s default
 //!   `quotingType`, not double-quoted.
-//! - **`lineWidth: -1`, `noRefs: true`, `noCompatMode: true`** — no line
+//! - **`lineWidth: -1`, `noRefs: true`, `noCompatMode: true`**, no line
 //!   wrapping, no anchors/aliases, no legacy-bool/base-60 quoting.
 //!
 //! The input is first lowered to a [`serde_json::Value`] (the crate enables
 //! `serde_json/preserve_order`, so map order is retained), then its keys are
 //! reordered by [`sort_lockfile_keys`] to match pnpm's lockfile key sort,
-//! so the byte output is independent of pacquet's struct field order — and
+//! so the byte output is independent of pacquet's struct field order, and
 //! finally rendered by a faithful translation of the fork's `dumper.js`.
 //!
 //! [`@zkochan/js-yaml`]: https://github.com/pnpm/js-yaml
 
 use rayon::prelude::*;
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 use std::cmp::Ordering;
 
 /// Entry count from which a map's independent per-entry work (deep key
@@ -41,7 +44,11 @@ const INDENT: usize = 2;
 mod flow;
 mod nesting;
 mod next_order;
-use nesting::{Format, is_single_line_key, is_single_line_map};
+use nesting::{
+    Format,
+    is_single_line_key,
+    is_single_line_map,
+};
 use next_order::sort_next_sections;
 
 /// Per-package / per-snapshot key priority, matching pnpm's lockfile
@@ -330,7 +337,7 @@ fn write_block_mapping(
     }
     // Each entry's rendering depends only on its own key and value, so a
     // large map fans its entries out across the rayon pool, and the serial
-    // stitch below applies the only order-dependent rule — the first entry
+    // stitch below applies the only order-dependent rule, the first entry
     // of a compact block omits its leading newline.
     let entries: Vec<String> = map
         .iter()
@@ -352,7 +359,7 @@ fn write_block_mapping(
     if result.is_empty() { "{}".to_string() } else { result }
 }
 
-/// Small maps — the nested ones inside every package entry, above all —
+/// Small maps (the nested ones inside every package entry, above all)
 /// append straight into one buffer, chunk-free.
 fn write_block_mapping_serial(
     map: &serde_json::Map<String, Value>,
@@ -467,7 +474,12 @@ fn write_flow_sequence(seq: &[Value], level: usize) -> String {
 mod tests;
 
 mod style;
-use style::{CollectionStyle, EntrySpacing, FirstEntry, ScalarLines};
+use style::{
+    CollectionStyle,
+    EntrySpacing,
+    FirstEntry,
+    ScalarLines,
+};
 
 mod implicit;
 use implicit::resolves_implicitly;

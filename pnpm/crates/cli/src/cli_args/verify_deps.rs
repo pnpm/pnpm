@@ -1,26 +1,44 @@
 //! The verify-deps-before-run gate: before `pnpm run` / `pnpm exec`
 //! execute anything, verify that `node_modules` is in sync with the
-//! lockfile and apply the configured action — spawn an install, prompt
+//! lockfile and apply the configured action, spawn an install, prompt
 //! for one, error out, or warn. pnpm's counterpart is
 //! `runDepsStatusCheck` in `exec/commands`.
 
 use super::{
     legacy_pnpm_field::ignored_lockfile_pnpm_field_keys,
     package_manager::read_root_manifest,
-    reporter::{ReporterType, quiet_loglevel_arg},
+    reporter::{
+        ReporterType,
+        quiet_loglevel_arg,
+    },
 };
 use crate::process::Command;
-use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
-use pnpm_config::{Config, VerifyDepsBeforeRun};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    VerifyDepsBeforeRun,
+};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_fs::DirLock;
 use pnpm_package_manager::{
-    GateWorkspace, RunDepsStatus, check_deps_status_before_run_at, deps_install_root,
+    GateWorkspace,
+    RunDepsStatus,
+    check_deps_status_before_run_at,
+    deps_install_root,
 };
 use std::{
     collections::HashSet,
-    io::{self, IsTerminal},
+    io::{
+        self,
+        IsTerminal,
+    },
     path::Path,
     time::Duration,
 };
@@ -62,7 +80,7 @@ enum VerifyDepsError {
 }
 
 /// Run the configured verify-deps-before-run action for the project at
-/// `dir`. `Ok(())` means the script may proceed — including after a
+/// `dir`. `Ok(())` means the script may proceed, including after a
 /// spawned install, a declined prompt, or a warning.
 ///
 /// `selected_project_dirs` are the project directories the gated command

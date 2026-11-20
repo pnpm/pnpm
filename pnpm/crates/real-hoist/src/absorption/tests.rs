@@ -1,4 +1,8 @@
-use super::{InheritedPeerProvider, Rc, resolved_peer_providers};
+use super::{
+    InheritedPeerProvider,
+    Rc,
+    resolved_peer_providers,
+};
 use crate::tests::result_node;
 
 #[test]

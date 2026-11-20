@@ -1,7 +1,16 @@
 //! Unit tests for the [`super`] TLS types.
 
-use super::{PerRegistryTls, RegistryTls, TlsConfig, TlsError, strip_port};
-use std::{collections::HashMap, net::Ipv4Addr};
+use super::{
+    PerRegistryTls,
+    RegistryTls,
+    TlsConfig,
+    TlsError,
+    strip_port,
+};
+use std::{
+    collections::HashMap,
+    net::Ipv4Addr,
+};
 
 fn registry_with(ca: Option<&str>, cert: Option<&str>, key: Option<&str>) -> RegistryTls {
     RegistryTls {
@@ -25,7 +34,7 @@ fn tls_config_default_is_empty() {
     assert!(cfg.ca.is_empty(), "default CA list is empty");
     assert!(cfg.cert.is_none());
     assert!(cfg.key.is_none());
-    assert!(cfg.strict_ssl.is_none(), "default is None — true is applied at build site");
+    assert!(cfg.strict_ssl.is_none(), "default is None, true is applied at build site");
     assert!(cfg.local_address.is_none());
 }
 

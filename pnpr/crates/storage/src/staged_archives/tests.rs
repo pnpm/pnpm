@@ -1,10 +1,18 @@
 use super::{
-    INCOMPLETE_MAX_AGE, STAGED_ARCHIVE_MAX_AGE, SWEEP_GRACE, StagedArchiveKey, StagedArchiveUsage,
+    INCOMPLETE_MAX_AGE,
+    STAGED_ARCHIVE_MAX_AGE,
+    SWEEP_GRACE,
+    StagedArchiveKey,
+    StagedArchiveUsage,
     unix_now,
 };
 use crate::{
-    BlobId, Storage,
-    database::{StagedRecord, StagedState},
+    BlobId,
+    Storage,
+    database::{
+        StagedRecord,
+        StagedState,
+    },
 };
 use pnpr_config::HostedStoreConfig;
 use std::sync::LazyLock;

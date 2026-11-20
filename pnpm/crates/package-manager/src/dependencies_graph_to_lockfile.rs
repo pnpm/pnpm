@@ -7,7 +7,10 @@
 //! fanning it out on write.
 
 pub(crate) use importers::manifest_publish_config;
-pub use packages::{PackageMetadataSources, manifest_has_bin};
+pub use packages::{
+    PackageMetadataSources,
+    manifest_has_bin,
+};
 
 mod packages;
 
@@ -15,22 +18,47 @@ use packages::build_packages_and_snapshots;
 
 mod importers;
 
-use importers::{build_importers, catalog_snapshot_version, manifest_alias_to_group};
+use importers::{
+    build_importers,
+    catalog_snapshot_version,
+    manifest_alias_to_group,
+};
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+    HashSet,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
 use miette::Diagnostic;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{
-    CatalogSnapshots, ComVer, Lockfile, LockfileFormError, LockfileVersion,
-    ParseImporterDepVersionError, ParsePkgNameSuffixError, ParsePkgVerPeerError, ProjectSnapshot,
+    CatalogSnapshots,
+    ComVer,
+    Lockfile,
+    LockfileFormError,
+    LockfileVersion,
+    ParseImporterDepVersionError,
+    ParsePkgNameSuffixError,
+    ParsePkgVerPeerError,
+    ProjectSnapshot,
     ResolvedCatalogEntry,
 };
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_resolving_deps_resolver::{
+    DepPath,
+    DependenciesGraph,
+    DependenciesGraphNode,
+};
 use serde_json::Value;
 
 /// One importer's contribution to [`dependencies_graph_to_lockfile`].
@@ -58,16 +86,16 @@ struct ImporterLockfileFlags {
 pub struct GraphToLockfileOptions<'a> {
     /// One entry per workspace project being installed. Keyed by the
     /// lockfile importer id (`"."` for the workspace root,
-    /// `"packages/<name>"` for siblings — see
+    /// `"packages/<name>"` for siblings; see
     /// [`pnpm_workspace::importer_id_from_root_dir`]).
     pub importers: BTreeMap<String, ImporterLockfileInput<'a>>,
     /// Cross-importer dedup graph keyed by `DepPath`. The fresh-resolve
     /// dispatch merges every per-importer `peers_result.graph` into
-    /// this one map before calling — identical snapshot keys collapse
+    /// this one map before calling, identical snapshot keys collapse
     /// onto one entry.
     pub graph: &'a DependenciesGraph,
     /// The workspace catalogs (with any `add` / `update` edits already
-    /// merged in) used to render the lockfile's `catalogs:` snapshot —
+    /// merged in) used to render the lockfile's `catalogs:` snapshot,
     /// the resolved specifier + version for every `catalog:` direct
     /// dependency. Empty for projects with no catalogs.
     pub catalogs: &'a Catalogs,
@@ -102,7 +130,7 @@ pub struct LockfileManifestSettings {
     /// input).
     pub package_extensions_checksum: Option<String>,
     /// `pnpmfileChecksum` recorded the same way. `None` when the project
-    /// has no `.pnpmfile.{cjs,mjs}` — or one that exports no `hooks`.
+    /// has no `.pnpmfile.{cjs,mjs}`, or one that exports no `hooks`.
     pub pnpmfile_checksum: Option<String>,
     pub untracked_pnpmfile_read_package_hook: Option<bool>,
 }
@@ -126,9 +154,9 @@ pub enum DependenciesGraphToLockfileError {
 
     /// A resolved package whose depPath parses as no [`pnpm_lockfile::PackageKey`], so
     /// it can key neither `packages:` nor `snapshots:`. Every resolution
-    /// but a `link:` gets a name prefixed onto its depPath — from the
+    /// but a `link:` gets a name prefixed onto its depPath (from the
     /// resolver, or failing that from the manifest the deps-resolver
-    /// synthesizes — so reaching here means a resolver produced a
+    /// synthesizes) so reaching here means a resolver produced a
     /// nameless depPath. Writing the lockfile anyway would leave the
     /// importer pointing at a package neither map describes, and the
     /// install would link a dangling symlink into a virtual-store
@@ -165,7 +193,7 @@ pub enum DependenciesGraphToLockfileError {
 ///   package version, keyed by the *peer-stripped* depPath (the
 ///   `pkgIdWithPatchHash`).
 /// - `snapshots` carries one [`SnapshotEntry`](pnpm_lockfile::SnapshotEntry) per *peer-suffixed*
-///   depPath — peer variants of the same package each get their own
+///   depPath, peer variants of the same package each get their own
 ///   snapshot row.
 pub fn dependencies_graph_to_lockfile(
     opts: GraphToLockfileOptions<'_>,
@@ -246,7 +274,7 @@ fn build_catalog_snapshots(
 /// from every importer's direct deps, classifying each starting edge
 /// by the dep-group it lives in on that importer's manifest. A
 /// package ends up `optional: false` iff at least one walk reached it
-/// only through non-optional edges — i.e. there exists at least one
+/// only through non-optional edges, i.e. there exists at least one
 /// path from any importer to it whose edges are all non-optional.
 ///
 /// This BFS exists because the resolver's per-node AND-fold updates
@@ -256,7 +284,7 @@ fn build_catalog_snapshots(
 /// the scenario.
 ///
 /// A missing entry in the returned map means the node was never
-/// reachable from any importer dep — [`build_snapshot_entry`](crate::dependencies_graph_to_lockfile::packages::build_snapshot_entry) falls
+/// reachable from any importer dep, [`build_snapshot_entry`](crate::dependencies_graph_to_lockfile::packages::build_snapshot_entry) falls
 /// back to [`DependenciesGraphNode::optional`] for those, keeping an
 /// untouched snapshot's existing flag.
 fn compute_corrected_optional(
@@ -273,7 +301,7 @@ fn compute_corrected_optional(
     for input in importer_inputs.values() {
         let alias_to_group = manifest_alias_to_group(input.manifest, auto_install_peers);
         for (alias, dep_path) in &input.direct_dependencies_by_alias {
-            // Skip aliases the manifest doesn't declare — the peers of
+            // Skip aliases the manifest doesn't declare, the peers of
             // dependencies hoisted into `direct_dependencies_by_alias` when
             // `autoInstallPeers: true` is on never make it into the
             // importer's lockfile entry (see [`build_importer`](crate::dependencies_graph_to_lockfile::importers::build_importer)), so we
@@ -342,7 +370,7 @@ fn walk_subgraph<'g>(
     }
 }
 
-/// Aliases this node treats as optional — its manifest's
+/// Aliases this node treats as optional; its manifest's
 /// `optionalDependencies` entries plus the names of peers marked
 /// optional by `peerDependenciesMeta`.
 fn optional_children_of(node: &DependenciesGraphNode) -> rustc_hash::FxHashSet<String> {

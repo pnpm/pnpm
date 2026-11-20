@@ -1,9 +1,20 @@
 use super::{
-    Delegation, INCLUDE_KEY, Include, IncludeError, IncludeSource, SETTINGS_FORBIDDEN_TO_PACKAGES,
+    Delegation,
+    INCLUDE_KEY,
+    Include,
+    IncludeError,
+    IncludeSource,
+    SETTINGS_FORBIDDEN_TO_PACKAGES,
     UNRESTRICTED,
 };
-use std::{fmt, path::Path};
-use yaml_serde::{Mapping, Value};
+use std::{
+    fmt,
+    path::Path,
+};
+use yaml_serde::{
+    Mapping,
+    Value,
+};
 
 /// The unit of ownership: a setting, or one catalog.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -85,7 +96,8 @@ pub(super) fn defined_slots(key: &str, value: &Value) -> Vec<SettingSlot> {
             Value::Mapping(catalogs) => catalogs
                 .keys()
                 .filter_map(Value::as_str)
-                .map(|name| SettingSlot::Catalog(name.to_string()))
+                .map(std::string::ToString::to_string)
+                .map(SettingSlot::Catalog)
                 .collect(),
             _ => Vec::new(),
         },

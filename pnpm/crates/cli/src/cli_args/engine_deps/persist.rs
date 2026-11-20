@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 use miette::Context;
 use node_semver::Version;
@@ -13,11 +16,17 @@ use pnpm_resolving_resolver_base::VersionSelectorType;
 use pnpm_tool_protocol::RUNTIME_PROTOCOL;
 use serde_json::Value;
 
-use super::{DeclaredEngineDep, EngineDepKind, PmDeclarationLocation};
+use super::{
+    DeclaredEngineDep,
+    EngineDepKind,
+    PmDeclarationLocation,
+};
 use crate::{
     cli_args::{
         package_manager::{
-            PinRoots, should_persist_package_manager_lockfile, version_satisfies,
+            PinRoots,
+            should_persist_package_manager_lockfile,
+            version_satisfies,
             wanted_package_manager,
         },
         self_update::project_pin::write_engines_pnpm,
@@ -217,13 +226,15 @@ fn find_engine_entry_mut<'a>(
             .find(|item| {
                 item.get("name")
                     .and_then(Value::as_str)
-                    .is_some_and(|name| name.trim().eq_ignore_ascii_case(target_name))
+                    .map(str::trim)
+                    .is_some_and(|trimmed| trimmed.eq_ignore_ascii_case(target_name))
             });
     }
     field
         .get("name")
         .and_then(Value::as_str)
-        .is_some_and(|name| name.trim().eq_ignore_ascii_case(target_name))
+        .map(str::trim)
+        .is_some_and(|trimmed| trimmed.eq_ignore_ascii_case(target_name))
         .then_some(field)
 }
 

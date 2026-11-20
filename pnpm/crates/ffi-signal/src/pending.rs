@@ -1,6 +1,9 @@
 //! Counting the interrupts the kernel holds queued for pnpm.
 
-use crate::{Interrupt, disposition::signal_number};
+use crate::{
+    Interrupt,
+    disposition::signal_number,
+};
 
 /// How many of `interrupts` the kernel holds queued for pnpm with no
 /// handler run for them yet.

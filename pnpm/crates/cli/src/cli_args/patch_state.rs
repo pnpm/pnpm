@@ -1,12 +1,29 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_fs::{is_subdir, lexical_normalize};
+use pnpm_fs::{
+    is_subdir,
+    lexical_normalize,
+};
 use pnpm_lockfile::PackageKey;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use std::{
-    collections::{BTreeMap, HashSet},
-    env, fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
+    env,
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 const STATE_DIR: &str = ".pnpm_patches";

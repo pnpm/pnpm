@@ -1,4 +1,10 @@
-use super::{fs, json, packlist, tempdir, touch};
+use super::{
+    fs,
+    json,
+    packlist,
+    tempdir,
+    touch,
+};
 
 #[test]
 fn numeric_brace_ranges_select_package_files() {

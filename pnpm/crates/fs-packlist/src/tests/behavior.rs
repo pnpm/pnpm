@@ -1,4 +1,9 @@
-use super::{json, packlist, tempdir, touch};
+use super::{
+    json,
+    packlist,
+    tempdir,
+    touch,
+};
 
 #[test]
 fn main_field_pointing_at_always_excluded_basename_is_refused() {

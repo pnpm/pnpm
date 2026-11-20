@@ -1,9 +1,27 @@
-use super::{DIGEST_A, DIGEST_B, depends_on, registry_metadata};
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
-use pretty_assertions::{assert_eq, assert_ne};
+use super::{
+    DIGEST_A,
+    DIGEST_B,
+    depends_on,
+    registry_metadata,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
+use pretty_assertions::{
+    assert_eq,
+    assert_ne,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The cached suffix map decides where every package in the store
@@ -101,7 +119,7 @@ fn layout_cache_fingerprint_tracks_every_derivation_input() {
         "the allow-build policy decides which snapshots carry the engine",
     );
     // No policy turns the gating off, which puts the engine in every
-    // snapshot's hash — the opposite of what an empty policy does.
+    // snapshot's hash, the opposite of what an empty policy does.
     assert_ne!(
         baseline,
         fingerprint(&snapshots, &packages, Some("linux;x64;22"), None, Some(&dir)),
@@ -189,7 +207,8 @@ fn layout_cache_load_rejects_a_map_it_cannot_vouch_for() {
 
     let stored: Vec<_> = std::fs::read_dir(cache_dir.path().join("gvs-layout"))
         .expect("read the cache dir")
-        .map(|entry| entry.expect("cache entry").path())
+        .map(|entry| entry.expect("cache entry"))
+        .map(|value| value.path())
         .collect();
     assert_eq!(
         stored.len(),

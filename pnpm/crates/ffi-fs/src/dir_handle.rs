@@ -9,16 +9,33 @@
 
 use super::FileMode;
 use std::{
-    ffi::{CString, OsStr, OsString},
+    ffi::{
+        CString,
+        OsStr,
+        OsString,
+    },
     fs::File,
     io,
     mem::MaybeUninit,
     os::{
-        fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
-        unix::ffi::{OsStrExt as _, OsStringExt as _},
+        fd::{
+            AsRawFd as _,
+            FromRawFd as _,
+            OwnedFd,
+        },
+        unix::ffi::{
+            OsStrExt as _,
+            OsStringExt as _,
+        },
     },
-    path::{Path, PathBuf},
-    time::{Duration, SystemTime},
+    path::{
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// Whether a directory handle can be read or only traversed.

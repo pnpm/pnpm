@@ -9,13 +9,36 @@
 //!   cache and returns the SHA-512 integrity it computed over the bytes.
 //! * [`stream_file`] yields an already verified file to the response.
 
-use crate::{BlobWrite, SealedBlob};
-use axum::body::{Body, Bytes};
-use futures_util::{Stream, StreamExt, stream};
+use crate::{
+    BlobWrite,
+    SealedBlob,
+};
+use axum::body::{
+    Body,
+    Bytes,
+};
+use futures_util::{
+    Stream,
+    StreamExt,
+    stream,
+};
 use pnpm_network::ThrottledResponse;
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
-use std::{future::Future, io, path::PathBuf, pin::Pin};
-use tokio::{fs::File, io::AsyncReadExt};
+use ssri::{
+    Algorithm,
+    Integrity,
+    IntegrityChecker,
+    IntegrityOpts,
+};
+use std::{
+    future::Future,
+    io,
+    path::PathBuf,
+    pin::Pin,
+};
+use tokio::{
+    fs::File,
+    io::AsyncReadExt,
+};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a
@@ -51,8 +74,8 @@ pub enum BlobStreamError {
 }
 
 /// Stream an upstream response to the client while teeing it into `write`
-/// and hashing it. The client receives bytes as they arrive — it does not
-/// wait for the whole download to land and verify first — and the cache entry
+/// and hashing it. The client receives bytes as they arrive (it does not
+/// wait for the whole download to land and verify first) and the cache entry
 /// is promoted only once the declared SRI matches the full body.
 ///
 /// Integrity failures terminate the body with a stream error and abandon the
@@ -184,7 +207,7 @@ async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<Te
 }
 
 /// Promote a fully-streamed, SRI-matched blob to the cache, logging (not
-/// failing — the client already has the bytes) if the rename can't complete.
+/// failing, the client already has the bytes) if the rename can't complete.
 async fn finalize(write: Option<BlobWrite>, promote: Option<Promotion>) {
     let Some(write) = write else { return };
     let result = match promote {
@@ -213,6 +236,7 @@ fn redact_url(url: &reqwest::Url) -> String {
     let _ = url.set_username("");
     let _ = url.set_password(None);
     url.set_query(None);
+    url.set_fragment(None);
     url.to_string()
 }
 
@@ -322,7 +346,7 @@ async fn download(
     max_bytes: u64,
     mut hash: impl FnMut(&[u8]),
 ) -> Result<u64, BlobStreamError> {
-    let url = response.url().to_string();
+    let url = redact_url(response.url());
     if let Some(received) = response.content_length()
         && received > max_bytes
     {

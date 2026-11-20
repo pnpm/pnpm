@@ -1,11 +1,25 @@
 //! Bounded peer descriptions that distinguish snapshots of the same package.
 
 use super::{
-    super::super::{NamedBindings, NextFormatError, NextRef, tarjan, without_groups},
-    Snapshot, Snapshots,
+    super::super::{
+        NamedBindings,
+        NextFormatError,
+        NextRef,
+        tarjan,
+        without_groups,
+    },
+    Snapshot,
+    Snapshots,
 };
-use crate::{PackageKey, PkgName, SnapshotDepRef};
-use std::collections::{HashMap, HashSet};
+use crate::{
+    PackageKey,
+    PkgName,
+    SnapshotDepRef,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 impl Snapshots<'_> {
     pub(super) fn naming_bindings_in(

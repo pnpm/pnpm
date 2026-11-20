@@ -1,9 +1,20 @@
 use super::{
-    Command, CommandExtra, CommandTempCwd, TempDir, assert_eq, cache_foo_index_versions,
-    cargo_add_project, exec_pacquet_in_temp_cwd, get_filenames_in_folder, prod_spec,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    TempDir,
+    assert_eq,
+    cache_foo_index_versions,
+    cargo_add_project,
+    exec_pacquet_in_temp_cwd,
+    get_filenames_in_folder,
+    prod_spec,
 };
 use crate::_utils::flatten_report;
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 #[test]
 fn add_npm_purl_saves_the_scoped_package_it_names() {

@@ -1,7 +1,16 @@
 //! The scope a snapshot's peers are bound in, and the providers it binds.
 
-use super::{Graph, Provider, Referrer, Sid, child_named};
-use crate::{PkgName, next_format::NextRef};
+use super::{
+    Graph,
+    Provider,
+    Referrer,
+    Sid,
+    child_named,
+};
+use crate::{
+    PkgName,
+    next_format::NextRef,
+};
 
 impl<'a> Graph<'a> {
     /// The first referrer of every snapshot, in a walk from the importers in

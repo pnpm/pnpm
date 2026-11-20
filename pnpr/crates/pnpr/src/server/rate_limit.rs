@@ -2,7 +2,10 @@ use std::{
     collections::HashMap,
     net::IpAddr,
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 #[cfg(test)]

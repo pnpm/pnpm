@@ -6,6 +6,7 @@ import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { isError, PnpmError } from '@pnpm/error'
 import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
+import { createCatalogReferenceOverridesApplier, type ProjectsGraphOverrides } from '@pnpm/workspace.projects-graph'
 import * as find from 'empathic/find'
 import { safeExeca as execa } from 'execa'
 import * as micromatch from 'micromatch'
@@ -28,6 +29,11 @@ export interface GetChangedProjectsOptions {
   changedFilesIgnorePattern?: string[]
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
   useGlobDirFiltering?: boolean
+  /**
+   * A project also uses a catalog entry that these overrides point one of
+   * its dependencies at.
+   */
+  overrides?: ProjectsGraphOverrides
 }
 
 export async function getChangedProjects (
@@ -55,6 +61,7 @@ export async function getChangedProjects (
     await applyCatalogChangesToProjects({
       allProjects: opts.allProjects,
       commit: base,
+      overrides: opts.overrides,
       projectChangeTypes,
       projectDirs,
       repoRoot,
@@ -156,6 +163,7 @@ function projectMatchesWorkingDir (
 interface ApplyCatalogChangesParams {
   allProjects?: Array<{ rootDir: ProjectRootDir, manifest: BaseManifest }>
   commit: string
+  overrides?: ProjectsGraphOverrides
   projectChangeTypes: ProjectChangeTypes
   projectDirs: ProjectRootDir[]
   repoRoot: string
@@ -177,12 +185,16 @@ async function applyCatalogChangesToProjects (params: ApplyCatalogChangesParams)
   if (changedCatalogs.size === 0) return
 
   const projects = await loadProjects(params.projectDirs, params.allProjects)
+  const applyOverrides = createCatalogReferenceOverridesApplier(params.overrides)
   for (const project of projects) {
     if (params.workingDir !== params.workspaceDir && !projectMatchesWorkingDir(params.workingDir, project.rootDir, params.useGlobDirFiltering)) {
       continue
     }
     if (params.projectChangeTypes.get(project.rootDir) === 'source') continue
-    if (projectUsesChangedCatalogs(project.manifest, changedCatalogs)) {
+    if (
+      projectUsesChangedCatalogs(project.manifest, changedCatalogs) ||
+      projectUsesChangedCatalogs(applyOverrides(project.manifest, project.rootDir), changedCatalogs)
+    ) {
       params.projectChangeTypes.set(project.rootDir, 'source')
     }
   }

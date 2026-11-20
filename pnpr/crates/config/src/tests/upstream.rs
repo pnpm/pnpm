@@ -1,7 +1,21 @@
 use super::{
-    AUTHORIZATION, Ecosystem, FeatureOverrides, IndexMap, Interval, Path, RegistryError, TokenEnv,
-    UpstreamAuthFile, UpstreamAuthType, UpstreamConfig, auth_header, listen, load_with_graph,
-    load_with_graph_and_overrides, resolve_upstream, upstream_config_file,
+    AUTHORIZATION,
+    Ecosystem,
+    FeatureOverrides,
+    IndexMap,
+    Interval,
+    Path,
+    RegistryError,
+    TokenEnv,
+    UpstreamAuthFile,
+    UpstreamAuthType,
+    UpstreamConfig,
+    auth_header,
+    listen,
+    load_with_graph,
+    load_with_graph_and_overrides,
+    resolve_upstream,
+    upstream_config_file,
 };
 
 #[test]
@@ -226,8 +240,8 @@ registries:
     assert!(config.routing.upstreams["npmjs"].search);
 }
 
-/// A `public` upstream is fetched anonymously, so *any* custom header — not just
-/// `Authorization`, but a credential smuggled through `X-Api-Key` — must fail
+/// A `public` upstream is fetched anonymously, so *any* custom header (not just
+/// `Authorization`, but a credential smuggled through `X-Api-Key`) must fail
 /// closed rather than be sent to a supposedly-public origin.
 #[test]
 fn from_yaml_str_rejects_public_upstream_with_custom_headers() {
@@ -251,7 +265,7 @@ registries:
 }
 
 /// With the registry disabled, an upstream registry whose credential cannot
-/// resolve must not fail startup — the tier never talks to that upstream. The
+/// resolve must not fail startup, the tier never talks to that upstream. The
 /// registry still joins the (validated) graph; only its serving config is
 /// skipped.
 #[test]
@@ -298,7 +312,10 @@ registries:
       '@corp/*': {}
 ";
     let config = load_with_graph(yaml, Path::new("/x"), listen(), None).unwrap();
-    use pnpr_registry::{ConcreteKind, Resolved};
+    use pnpr_registry::{
+        ConcreteKind,
+        Resolved,
+    };
     assert_eq!(
         config.routing.registries.resolve("corp", Ecosystem::Npm, "@corp/tool"),
         Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },

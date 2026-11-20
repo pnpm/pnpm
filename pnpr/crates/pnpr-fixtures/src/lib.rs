@@ -1,16 +1,38 @@
 pub mod presets;
 pub use database::{
-    deprecate_version, read_hosted_document, read_hosted_file, read_packument, remove_version,
-    set_dist_tag, tarball_path, write_hosted_document, write_hosted_file, write_packuments,
+    deprecate_version,
+    read_hosted_document,
+    read_hosted_file,
+    read_packument,
+    remove_version,
+    set_dist_tag,
+    tarball_path,
+    write_hosted_document,
+    write_hosted_file,
+    write_packuments,
     write_packuments_into,
 };
 pub use presets::{
-    MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, REGISTRY_MOCK_UPSTREAM_TIMEOUT, TAR_REGISTRY,
-    proxy_config, registry_mock_graph, registry_mock_rules, static_serve_config, with_tar_registry,
+    MockConfigPresets,
+    REGISTRY_MOCK_LOCAL_PATTERNS,
+    REGISTRY_MOCK_UPSTREAM_TIMEOUT,
+    TAR_REGISTRY,
+    proxy_config,
+    registry_mock_graph,
+    registry_mock_rules,
+    static_serve_config,
+    with_tar_registry,
 };
 pub use registries::{
-    MOCK_GRANTS_YAML, MOCK_REGISTRIES_YAML, load_seeded_config, registries_routing,
-    registry_mock_routing, seed_registries, split_graph, store_document, write_document,
+    MOCK_GRANTS_YAML,
+    MOCK_REGISTRIES_YAML,
+    load_seeded_config,
+    registries_routing,
+    registry_mock_routing,
+    seed_registries,
+    split_graph,
+    store_document,
+    write_document,
     write_graph,
 };
 
@@ -18,27 +40,66 @@ mod database;
 mod registries;
 mod rules;
 mod tarball;
-use tarball::{build_tarball, fixture_files};
+use tarball::{
+    build_tarball,
+    fixture_files,
+};
 
-use base64::{Engine, engine::general_purpose};
-use flate2::{Compression, write::GzEncoder};
-use node_semver::{Range, Version};
+use base64::{
+    Engine,
+    engine::general_purpose,
+};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
+use node_semver::{
+    Range,
+    Version,
+};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     BlobId,
-    database::{ArtifactBlob, BlobRef},
-    layout::{local_archive_path, write_local_layout_marker},
+    database::{
+        ArtifactBlob,
+        BlobRef,
+    },
+    layout::{
+        local_archive_path,
+        write_local_layout_marker,
+    },
 };
-use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256, Sha512};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
+use sha2::{
+    Digest,
+    Sha256,
+    Sha512,
+};
 use std::{
-    collections::{BTreeMap, HashMap},
-    env, fs,
-    io::{self, Write},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    env,
+    fs,
+    io::{
+        self,
+        Write,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::{
         LazyLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
 };
 use walkdir::WalkDir;
@@ -137,7 +198,9 @@ fn workspace_root() -> PathBuf {
 }
 
 fn target_dir(workspace: &Path) -> PathBuf {
-    env::var_os("CARGO_TARGET_DIR").map_or_else(|| workspace.join("target"), PathBuf::from)
+    env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace.join("target"))
 }
 
 fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &Path) {
@@ -156,7 +219,7 @@ fn ensure_storage_for_fingerprint(packages: &Path, generated: &Path, storage: &P
 /// Move a freshly built `temp` tree into place at `storage`.
 ///
 /// Publishers race: the loser's rename fails because the winner's tree is
-/// already there, which is harmless — the completion marker proves the
+/// already there, which is harmless, the completion marker proves the
 /// content arrived. A tree *without* the marker is a different matter. It
 /// is a half-finished publish, or a build cache restored without the
 /// marker, and no reader may touch it; left alone it wedges every later
@@ -196,8 +259,8 @@ fn discard_unusable_storage(generated: &Path, storage: &Path) {
 /// Put a claimed tree back after it turned out to be complete.
 ///
 /// The claim leaves `storage` free, so a publisher can land its own tree
-/// there before the restore runs. Its content is the same — the path is
-/// addressed by a fingerprint of the fixtures — so a claim that can no
+/// there before the restore runs. Its content is the same (the path is
+/// addressed by a fingerprint of the fixtures) so a claim that can no
 /// longer go back is redundant rather than lost, and gets dropped.
 fn restore_claimed_storage(claimed: &Path, storage: &Path) {
     if fs::rename(claimed, storage).is_err() {
@@ -225,8 +288,8 @@ fn try_publish_storage(temp: &Path, storage: &Path) -> io::Result<()> {
     }
 }
 
-/// A scratch directory name no other publisher — in this process or any
-/// concurrent one — can collide with.
+/// A scratch directory name no other publisher (in this process or any
+/// concurrent one) can collide with.
 fn scratch_name(prefix: &str) -> String {
     format!("{prefix}.{}.{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
@@ -476,7 +539,8 @@ fn with_dist(mut packument_manifest: Value, tarball_url: &str, integrity: &str) 
 fn is_version_dir(dir: Option<&Path>) -> bool {
     dir.and_then(Path::file_name)
         .and_then(|name| name.to_str())
-        .is_some_and(|name| Version::parse(name).is_ok())
+        .map(Version::parse)
+        .is_some_and(|parsed| parsed.is_ok())
 }
 
 fn tarball_basename(name: &str) -> String {

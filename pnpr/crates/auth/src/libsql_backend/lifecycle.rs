@@ -1,9 +1,18 @@
 use super::{
-    AccountStatus, LibsqlAuth, RegistryError, Result, TransactionBehavior, first_row, params,
+    AccountStatus,
+    LibsqlAuth,
+    RegistryError,
+    Result,
+    TransactionBehavior,
+    first_row,
+    params,
     retry_database_conflicts,
 };
 use crate::{
-    AccountLifecycle, AccountStatusOutcome, AccountStatusRevision, account::should_apply_lifecycle,
+    AccountLifecycle,
+    AccountStatusOutcome,
+    AccountStatusRevision,
+    account::should_apply_lifecycle,
     validation::status_revision_to_sql,
 };
 use std::collections::HashMap;

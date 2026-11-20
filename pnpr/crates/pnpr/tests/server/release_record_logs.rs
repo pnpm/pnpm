@@ -3,19 +3,51 @@
 //! `<base>/<name>/<version>+r<revision>/evidence`.
 
 use super::{
-    AccessList, AuthState, Body, Config, Ecosystem, HostedConfig, PackagePattern, PackageRules,
-    Registries, Registry, Request, ServiceExt, StatusCode, access_rule, body_bytes, body_json,
-    config_for, header, hosted_publish_request, router_with_auth, tar_of,
+    AccessList,
+    AuthState,
+    Body,
+    Config,
+    Ecosystem,
+    HostedConfig,
+    PackagePattern,
+    PackageRules,
+    Registries,
+    Registry,
+    Request,
+    ServiceExt,
+    StatusCode,
+    access_rule,
+    body_bytes,
+    body_json,
+    config_for,
+    header,
+    hosted_publish_request,
+    router_with_auth,
+    tar_of,
 };
 use crate::tokens::issue_token;
 use axum::Router;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD,
+};
 use pnpm_release_record::{
-    ConflictMonitor, Envelope, LogEntry, PredicateType, RecordDigest, StoredRecord,
+    ConflictMonitor,
+    Envelope,
+    LogEntry,
+    PredicateType,
+    RecordDigest,
+    StoredRecord,
     verify_statement,
 };
 use pnpm_transparency_log::{
-    CheckpointPolicy, Hash, KeySet, NoteSigner, decode_bundle, verify_consistency, verify_inclusion,
+    CheckpointPolicy,
+    Hash,
+    KeySet,
+    NoteSigner,
+    decode_bundle,
+    verify_consistency,
+    verify_inclusion,
 };
 use std::sync::Arc;
 use tempfile::TempDir;

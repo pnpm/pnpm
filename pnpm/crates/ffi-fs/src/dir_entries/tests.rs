@@ -1,5 +1,8 @@
 use super::directory_entry_names;
-use std::{ffi::OsStr, fs};
+use std::{
+    ffi::OsStr,
+    fs,
+};
 
 fn sorted(directory: &fs::File) -> Vec<String> {
     let mut names: Vec<String> = directory_entry_names(directory)

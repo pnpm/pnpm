@@ -1,4 +1,8 @@
-use super::{IndexMap, RegistryEntry, WorkspaceSettings};
+use super::{
+    IndexMap,
+    RegistryEntry,
+    WorkspaceSettings,
+};
 
 macro_rules! define_workspace_only_groups {
     ($( $clear_fn:ident { $( $field:ident ),* $(,)? } )+) => {
@@ -155,7 +159,7 @@ impl WorkspaceSettings {
     /// through, so a repository must not get a say in whether it may be
     /// replaced. Both policies are dangerous in both directions here: a
     /// cooldown lowered waives the protection the user configured, raised it
-    /// pins the machine to the installed pnpm — including past a release that
+    /// pins the machine to the installed pnpm, including past a release that
     /// fixes a vulnerability in it; a trust policy turned off accepts a pnpm
     /// release whose trust evidence the user meant to reject, turned on blocks
     /// the update the same way. Unlike a blocked dependency upgrade, those
@@ -194,5 +198,43 @@ impl WorkspaceSettings {
         self.clear_workspace_layout_fields();
         self.clear_workspace_resolution_fields();
         self.clear_workspace_hooks_fields();
+    }
+
+    /// Retain only the workspace settings `dlx` and `create` inherit from the
+    /// caller's `pnpm-workspace.yaml`, plus `nodeDownloadMirrors.release`
+    /// (returned separately so merging it preserves global mirrors for other
+    /// channels). Matches `inheritDlxConfig` in `@pnpm/config.reader`.
+    pub(crate) fn into_dlx_local_settings(mut self) -> (Self, Option<String>) {
+        let release_mirror = self.node_download_mirrors
+            .as_mut()
+            .and_then(|mirrors| mirrors.remove("release"));
+        for entry in self.registries.iter_mut().flat_map(IndexMap::values_mut) {
+            if let RegistryEntry::Declaration(declaration) = entry {
+                declaration.server_type = None;
+            }
+        }
+        let retained = Self {
+            registry: self.registry,
+            registries: self.registries,
+            named_registries: self.named_registries,
+            minimum_release_age: self.minimum_release_age,
+            minimum_release_age_exclude: self.minimum_release_age_exclude,
+            minimum_release_age_ignore_missing_time: self.minimum_release_age_ignore_missing_time,
+            minimum_release_age_strict: self.minimum_release_age_strict,
+            trust_lockfile: self.trust_lockfile,
+            trust_policy: self.trust_policy,
+            trust_policy_exclude: self.trust_policy_exclude,
+            trust_policy_ignore_after: self.trust_policy_ignore_after,
+            catalog: self.catalog,
+            catalogs: self.catalogs,
+            fetch_retries: self.fetch_retries,
+            fetch_retry_factor: self.fetch_retry_factor,
+            fetch_retry_mintimeout: self.fetch_retry_mintimeout,
+            fetch_retry_maxtimeout: self.fetch_retry_maxtimeout,
+            fetch_timeout: self.fetch_timeout,
+            key_issues: self.key_issues,
+            ..Self::default()
+        };
+        (retained, release_mirror)
     }
 }

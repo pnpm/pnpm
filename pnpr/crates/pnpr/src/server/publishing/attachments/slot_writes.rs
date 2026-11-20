@@ -3,16 +3,32 @@
 
 use super::{
     super::{
-        stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
-        verification::read_archive, verify_and_write, write_sigstore_bundle,
+        stream_decode_verify_and_write,
+        tar_integrity_of,
+        tgz_integrity_key,
+        verification::read_archive,
+        verify_and_write,
+        write_sigstore_bundle,
     },
-    AttachmentKind, CanonicalPackageName, PendingAttachment, PreparedAttachment, PublishedTar,
-    RegistryError, Storage, TarDerivation, TarballStorage, Value, WrittenAttachments,
+    AttachmentKind,
+    CanonicalPackageName,
+    PendingAttachment,
+    PreparedAttachment,
+    PublishedTar,
+    RegistryError,
+    Storage,
+    TarDerivation,
+    TarballStorage,
+    Value,
+    WrittenAttachments,
     cleanup_tmp_slots,
 };
 use crate::server::staged_archives::claim_staged_archive;
 use std::sync::Arc;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{
+    OwnedSemaphorePermit,
+    Semaphore,
+};
 
 /// Write every attachment into its reserved blob slot. A failure removes
 /// the slots written so far, so a bad upload leaves no on-disk artifact.
@@ -178,7 +194,9 @@ pub(super) async fn write_under_permit(
         Ok((slot, derived))
     })
     .await
-    .map_err(|join_err| RegistryError::Io(std::io::Error::other(join_err.to_string())))?
+    .map_err(|join_err| join_err.to_string())
+    .map_err(std::io::Error::other)
+    .map_err(RegistryError::Io)?
 }
 
 async fn acquire_decode_permit(

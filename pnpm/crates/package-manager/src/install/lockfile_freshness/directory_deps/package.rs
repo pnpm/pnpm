@@ -3,10 +3,17 @@
 //! own dependencies shadow.
 
 use super::{
-    FreshnessCheckError, ImporterSatisfactionCheck, InjectedDirectory, LocalDepContext,
+    FreshnessCheckError,
+    ImporterSatisfactionCheck,
+    InjectedDirectory,
+    LocalDepContext,
     children::check_local_dep_children_freshness,
     peers::PeerShadowing,
-    scope::{AliasScope, Visited, snapshot_aliases},
+    scope::{
+        AliasScope,
+        Visited,
+        snapshot_aliases,
+    },
     unhooked_manifest,
 };
 use pnpm_package_manifest::PackageManifest;

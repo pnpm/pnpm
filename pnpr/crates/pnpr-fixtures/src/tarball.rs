@@ -1,4 +1,16 @@
-use super::{Compression, GzEncoder, Path, PathBuf, Range, Value, Version, WalkDir, Write, fs, io};
+use super::{
+    Compression,
+    GzEncoder,
+    Path,
+    PathBuf,
+    Range,
+    Value,
+    Version,
+    WalkDir,
+    Write,
+    fs,
+    io,
+};
 
 pub(super) fn build_tarball(
     root: &Path,
@@ -114,7 +126,8 @@ pub(super) fn bundled_dependency_names(manifest: &Value) -> Vec<String> {
             .unwrap_or_default(),
         Some(Value::Array(names)) => names
             .iter()
-            .filter_map(|name| name.as_str().map(String::from))
+            .map(Value::as_str)
+            .filter_map(|text| text.map(String::from))
             .collect(),
         _ => Vec::new(),
     }

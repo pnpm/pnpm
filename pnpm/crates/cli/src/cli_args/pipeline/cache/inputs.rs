@@ -2,13 +2,43 @@ mod globs;
 mod lockfile;
 
 use super::{
-    Arc, Command, FileIterator, Glob, InputsUnavailable, IntoDiagnostic, Lockfile, Path, PathBuf,
-    ProjectFiles, ProjectInputHashes, TaskCache, TaskKeyInputs, TaskNode, TaskSettings,
-    WantedLockfileSelection, check_ancestors, check_input_directories, create_hex_hash,
-    create_hex_hash_bytes, create_hex_hash_from_file, env, fs, io, validate_relative_path,
+    Arc,
+    Command,
+    FileIterator,
+    Glob,
+    InputsUnavailable,
+    IntoDiagnostic,
+    Lockfile,
+    Path,
+    PathBuf,
+    ProjectFiles,
+    ProjectInputHashes,
+    TaskCache,
+    TaskKeyInputs,
+    TaskNode,
+    TaskSettings,
+    WantedLockfileSelection,
+    check_ancestors,
+    check_input_directories,
+    create_hex_hash,
+    create_hex_hash_bytes,
+    create_hex_hash_from_file,
+    env,
+    fs,
+    io,
+    validate_relative_path,
 };
-use globs::{ConfiguredInputs, InputSelection, ParentGlob, parse_inputs, walk_additive_inputs};
-use wax::{Program, walk::EntryResidue};
+use globs::{
+    ConfiguredInputs,
+    InputSelection,
+    ParentGlob,
+    parse_inputs,
+    walk_additive_inputs,
+};
+use wax::{
+    Program,
+    walk::EntryResidue,
+};
 
 #[derive(Debug, Clone)]
 pub(super) struct HashedFile {
@@ -401,7 +431,7 @@ fn project_tracked_paths(project: &Path) -> miette::Result<ProjectFiles> {
 /// Whether git can enumerate the project's files at all.
 ///
 /// The default input set is `git ls-files`, so a project outside a work
-/// tree — or a machine without `git` — has no discoverable inputs. That is
+/// tree (or a machine without `git`) has no discoverable inputs. That is
 /// a reason to run the task without a cache key, not to abort the whole
 /// pipeline: the caller reports it and the task runs uncached.
 fn git_work_tree(project: &Path) -> miette::Result<bool> {

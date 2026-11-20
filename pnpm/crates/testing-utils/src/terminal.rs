@@ -4,14 +4,30 @@
 
 use std::{
     fs::File,
-    io::{self, Read, Write},
+    io::{
+        self,
+        Read,
+        Write,
+    },
     os::{
-        fd::{AsRawFd, FromRawFd, OwnedFd},
+        fd::{
+            AsRawFd,
+            FromRawFd,
+            OwnedFd,
+        },
         unix::process::CommandExt,
     },
-    process::{Child, Command, Stdio},
+    process::{
+        Child,
+        Command,
+        Stdio,
+    },
     ptr,
-    sync::{Arc, Mutex, mpsc},
+    sync::{
+        Arc,
+        Mutex,
+        mpsc,
+    },
     thread,
     time::Duration,
 };

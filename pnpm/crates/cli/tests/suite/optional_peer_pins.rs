@@ -1,8 +1,15 @@
 use crate::_utils::read_lockfile;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 /// Declares `@pnpm.e2e/peer-c` as an optional peer.
 const OPTIONAL_PEER_HOST: &str = "@pnpm.e2e/optional-peer-c-host";

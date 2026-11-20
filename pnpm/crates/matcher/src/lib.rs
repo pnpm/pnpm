@@ -17,7 +17,7 @@ use regex::Regex;
 /// first matching include, or `None` when nothing matches.
 ///
 /// The match position is an `Option<usize>` rather than an `i32` /
-/// `-1`-sentinel — the same information, idiomatic for Rust.
+/// `-1`-sentinel, the same information, idiomatic for Rust.
 #[must_use]
 pub fn create_matcher_with_index(patterns: &[String]) -> MatcherWithIndex {
     match patterns.len() {
@@ -34,7 +34,27 @@ pub fn create_matcher(patterns: &[String]) -> Matcher {
     Matcher(create_matcher_with_index(patterns))
 }
 
-/// Boolean matcher — opaque wrapper around [`MatcherWithIndex`].
+/// Returns `true` when at least one pattern in `patterns` is an include rule
+/// (does not start with `'!'`).
+#[must_use]
+pub fn has_include_pattern(patterns: &[String]) -> bool {
+    patterns
+        .iter()
+        .any(|pattern| !pattern.starts_with('!'))
+}
+
+/// Drops ignore-only rules from `filtered` when `original` included at least
+/// one positive pattern, preventing a domain projection from turning leftover
+/// `'!'` exclusions into a match-everything-except-exclusions list.
+#[must_use]
+pub fn prune_orphan_ignores(mut filtered: Vec<String>, original: &[String]) -> Vec<String> {
+    if has_include_pattern(original) && !has_include_pattern(&filtered) {
+        filtered.clear();
+    }
+    filtered
+}
+
+/// Boolean matcher, opaque wrapper around [`MatcherWithIndex`].
 #[derive(Clone)]
 pub struct Matcher(MatcherWithIndex);
 
@@ -54,7 +74,7 @@ impl Matcher {
     }
 
     /// `true` iff this matcher is statically guaranteed to never
-    /// match any input — i.e. compiled from an empty pattern list.
+    /// match any input, i.e. compiled from an empty pattern list.
     /// Lets callers short-circuit before they walk a graph and call
     /// [`Self::matches`] for every alias.
     #[must_use]
@@ -238,7 +258,7 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
 
 /// A compiled glob pattern. `*` matches any sequence including empty,
 /// `?` matches one character, and every other character is literal. The
-/// match is anchored — pattern must consume the whole input.
+/// match is anchored, pattern must consume the whole input.
 
 #[derive(Clone)]
 pub struct WildcardMatcher {

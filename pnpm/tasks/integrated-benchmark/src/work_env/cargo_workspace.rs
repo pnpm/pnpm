@@ -1,12 +1,23 @@
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir, StoreIndex};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    StoreDir,
+    StoreIndex,
+};
 use pnpm_tarball::ArchiveStoreProjection;
-use ssri::{Algorithm, Integrity};
+use ssri::{
+    Algorithm,
+    Integrity,
+};
 use std::{
     collections::HashMap,
     fmt::Write,
     fs,
     path::Path,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 
 pub(super) const CRATE_COUNT: usize = 800;

@@ -7,39 +7,83 @@
 //! dependencies through it.
 
 use std::{
-    collections::{BTreeMap, HashMap},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, ShasumsFileItem,
-    fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth_headers,
+    FetchShasumsFileError,
+    FetchVerifiedNodeShasumsError,
+    ShasumsFileItem,
+    fetch_shasums_file_cached,
+    fetch_shasums_file_cached_with_auth_headers,
     fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
 };
 use pnpm_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
-    PlatformAssetTarget, VariationsResolution,
+    BinaryArchive,
+    BinaryResolution,
+    BinarySpec,
+    LockfileResolution,
+    PlatformAssetResolution,
+    PlatformAssetTarget,
+    VariationsResolution,
 };
-use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_network::{
+    AuthHeaders,
+    ThrottledClient,
+};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture,
-    ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    LatestInfo,
+    LatestQuery,
+    PkgResolutionId,
+    ResolveError,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    WantedDependency,
 };
-use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    RUNTIME_PROTOCOL,
+    strip_tool_protocol,
+};
 use ssri::Integrity;
 
 use crate::{
-    get_node_artifact_address::{GetNodeArtifactAddressOptions, get_node_artifact_address},
-    get_node_mirror::{
-        DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
+    get_node_artifact_address::{
+        GetNodeArtifactAddressOptions,
+        get_node_artifact_address,
     },
-    parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier},
-    resolve_node_version::{ResolveNodeVersionError, resolve_node_version_with_auth},
+    get_node_mirror::{
+        DEFAULT_NODE_MIRROR_BASE_URL,
+        UNOFFICIAL_NODE_MIRROR_BASE_URL,
+        get_node_mirror,
+    },
+    parse_node_specifier::{
+        NodeSpecifier,
+        ParseNodeSpecifierError,
+        parse_node_specifier,
+    },
+    resolve_node_version::{
+        ResolveNodeVersionError,
+        resolve_node_version_with_auth,
+    },
 };
 
 const RESOLVED_VIA: &str = "nodejs.org";
@@ -90,7 +134,7 @@ pub enum NodeResolverError {
 /// One instance per install. Owns the throttled HTTP client (so the
 /// asset-list fetch contends with the rest of the install for the
 /// same socket budget) and the `nodeDownloadMirrors` map a user may
-/// have configured. `offline` is honored on every resolve — the
+/// have configured. `offline` is honored on every resolve, the
 /// resolver fails fast rather than spinning a request that's going
 /// to time out behind a proxy.
 pub struct NodeResolver {
@@ -234,7 +278,7 @@ impl NodeResolver {
     ///
     /// An exact stable-release specifier is its own resolution, so the
     /// release-index fetch is skipped for it and existence is proven by
-    /// the asset-list fetch that follows —
+    /// the asset-list fetch that follows,
     /// [`resolve_impl`](Self::resolve_impl) maps that fetch's failure
     /// back to the canonical not-found error.
     async fn pick_node_version(
@@ -394,7 +438,7 @@ impl NodeResolver {
 /// The concrete version an exact stable-release specifier names, when
 /// the specifier is already in canonical `X.Y.Z` form. Such a specifier
 /// needs no release-index lookup: the index would resolve it to itself.
-/// Prereleases are excluded — on the `release` channel they never
+/// Prereleases are excluded, on the `release` channel they never
 /// exist, so routing them through the index keeps the canonical
 /// not-found error path.
 fn exact_release_version(parsed: &NodeSpecifier) -> Option<String> {
@@ -403,7 +447,8 @@ fn exact_release_version(parsed: &NodeSpecifier) -> Option<String> {
     }
     Version::parse(&parsed.version_specifier)
         .ok()
-        .filter(|version| version.pre_release.is_empty() && version.build.is_empty())
+        .filter(|version| version.pre_release.is_empty())
+        .filter(|version| version.build.is_empty())
         .map(|version| version.to_string())
         .filter(|version| *version == parsed.version_specifier)
 }
@@ -415,7 +460,7 @@ struct PickedNodeVersion {
     mirror: String,
     release_channel: String,
     /// `true` when the pick came from
-    /// [`exact_release_version`] — the release index was never
+    /// [`exact_release_version`], the release index was never
     /// consulted, so the version's existence is still unproven.
     resolved_without_index: bool,
 }
@@ -505,5 +550,8 @@ mod tests;
 
 mod assets;
 use assets::{
-    current_platform, node_bins_for_current_os, read_musl_assets, read_node_assets_from_mirror,
+    current_platform,
+    node_bins_for_current_os,
+    read_musl_assets,
+    read_node_assets_from_mirror,
 };

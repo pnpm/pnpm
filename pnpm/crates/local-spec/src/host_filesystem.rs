@@ -1,4 +1,7 @@
-use crate::{bare_path_is_unambiguous, is_drive_letter_prefix};
+use crate::{
+    bare_path_is_unambiguous,
+    is_drive_letter_prefix,
+};
 
 /// Whether `spec`, declared by an importer at POSIX-relative `importer_dir`
 /// (`.` for the workspace root), resolves against the host filesystem outside
@@ -71,7 +74,8 @@ fn importer_depth(importer_dir: &str) -> usize {
     }
     importer_dir
         .split('/')
-        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .filter(|segment| !segment.is_empty())
+        .filter(|segment| *segment != ".")
         .count()
 }
 

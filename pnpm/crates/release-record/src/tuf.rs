@@ -21,7 +21,10 @@ mod metadata;
 mod repository;
 mod role;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 
 /// Why TUF metadata or a target was rejected.
 #[derive(Debug, Display, Error)]

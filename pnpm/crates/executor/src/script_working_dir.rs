@@ -1,7 +1,10 @@
 use std::{
     borrow::Cow,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(windows)]
@@ -82,7 +85,10 @@ fn windows_path_len(path: &Path) -> usize {
 /// generates one. Only a strictly shorter, non-verbatim answer is useful.
 #[cfg(windows)]
 fn short_path(path: &Path) -> Option<PathBuf> {
-    use std::path::{Component, Prefix};
+    use std::path::{
+        Component,
+        Prefix,
+    };
 
     let short = pnpm_ffi_fs::short_path(&verbatim(path)?)?;
     let short = dunce::simplified(&short);
@@ -103,7 +109,10 @@ fn short_path(path: &Path) -> Option<PathBuf> {
 /// no short form to ask for.
 #[cfg(windows)]
 fn verbatim(path: &Path) -> Option<PathBuf> {
-    use std::path::{Component, Prefix};
+    use std::path::{
+        Component,
+        Prefix,
+    };
 
     let Some(Component::Prefix(prefix)) = path.components().next() else { return None };
     match prefix.kind() {

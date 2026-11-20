@@ -1,8 +1,14 @@
 use super::build_graph;
 use crate::SkippedSnapshots;
 use pnpm_lockfile::{
-    PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
-    ResolvedDependencySpec, SnapshotDepRef, SnapshotEntry,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::ExtendedPatchInfo;
@@ -270,12 +276,15 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
 /// even if it carries a configured patch. Skipped nodes are excluded
 /// from the build graph entirely, so the patch lookup never finds
 /// them. Without this gate, `build_one_snapshot`'s `pkg_dir.exists()`
-/// defensive return would still suppress the actual build attempt —
+/// defensive return would still suppress the actual build attempt,
 /// but the snapshot would have been queued and the graph walked
 /// through it. The gate makes the exclusion correct-by-construction.
 #[test]
 fn skipped_patched_snapshot_does_not_enter_build_queue() {
-    use std::{collections::HashSet, path::PathBuf};
+    use std::{
+        collections::HashSet,
+        path::PathBuf,
+    };
 
     let a_key = key("a", "1.0.0");
     let snapshots = HashMap::from([(a_key.clone(), snap(&[]))]);
@@ -335,7 +344,7 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
 }
 
 /// A snapshot reachable via BOTH a skipped parent and a non-skipped
-/// parent must still enter the build queue if it requires building —
+/// parent must still enter the build queue if it requires building,
 /// pnpm doesn't propagate "skipped" status to descendants reached by
 /// any other (non-skipped) path. This pins that the
 /// skip-before-recurse gate doesn't accidentally poison `walked` for

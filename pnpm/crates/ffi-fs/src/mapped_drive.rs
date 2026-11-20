@@ -5,10 +5,22 @@
 #[path = "mapped_drive/tests.rs"]
 mod tests;
 
-use std::{ffi::OsString, os::windows::ffi::OsStringExt as _, path::PathBuf};
+use std::{
+    ffi::OsString,
+    os::windows::ffi::OsStringExt as _,
+    path::PathBuf,
+};
 use windows_sys::Win32::{
-    Foundation::{ERROR_CONNECTION_UNAVAIL, ERROR_MORE_DATA, ERROR_NOT_CONNECTED, NO_ERROR},
-    Globalization::{CSTR_EQUAL, CompareStringOrdinal},
+    Foundation::{
+        ERROR_CONNECTION_UNAVAIL,
+        ERROR_MORE_DATA,
+        ERROR_NOT_CONNECTED,
+        NO_ERROR,
+    },
+    Globalization::{
+        CSTR_EQUAL,
+        CompareStringOrdinal,
+    },
     NetworkManagement::WNet::WNetGetConnectionW,
 };
 

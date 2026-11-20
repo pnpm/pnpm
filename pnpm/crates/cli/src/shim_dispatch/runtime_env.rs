@@ -9,12 +9,22 @@ use crate::{
     State,
     cli_args::{
         add::add_package,
-        reporter::{CliReporter, EventFilter},
+        reporter::{
+            CliReporter,
+            EventFilter,
+        },
     },
     slot_lock,
 };
-use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host, NodeLinker};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
+use pnpm_config::{
+    Config,
+    Host,
+    NodeLinker,
+};
 use pnpm_crypto_hash::create_hex_hash;
 use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
@@ -23,7 +33,10 @@ use pnpm_store_dir::PrivateInstall;
 use serde_json::Value;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A runtime installed and ready to run.
@@ -55,7 +68,7 @@ pub(super) const PACKAGE_MANAGER_ENVS_DIR_NAME: &str = "global-shim-package-mana
 /// project-controllable: a repository that redirects `storeDir` could
 /// pre-seed a poisoned global-virtual-store slot for the executable a
 /// dispatch is about to run. The configuration is therefore anchored
-/// inside pnpm's own state dir — the seeded empty workspace manifest
+/// inside pnpm's own state dir, the seeded empty workspace manifest
 /// stops ancestor discovery, so only the global `config.yaml`, user
 /// files, and the environment contribute.
 pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<Config> {

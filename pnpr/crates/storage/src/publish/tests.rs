@@ -1,10 +1,23 @@
 use super::{
-    extract_attachments, merge_manifest, now_iso, sha1_hex_from_integrity_opts,
-    stream_decode_verify_and_write, verify_and_write,
+    extract_attachments,
+    merge_manifest,
+    now_iso,
+    sha1_hex_from_integrity_opts,
+    stream_decode_verify_and_write,
+    verify_and_write,
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use serde_json::{Value, json};
-use ssri::{Algorithm, IntegrityOpts};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use ssri::{
+    Algorithm,
+    IntegrityOpts,
+};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -129,7 +142,7 @@ fn stream_rejects_invalid_base64() {
     let tmp = TempDir::new().unwrap();
     let dest = tmp.path().join("out.tgz");
     // Pick an SRI for some real bytes so the integrity branch
-    // parses cleanly — we want the failure to surface from the
+    // parses cleanly; we want the failure to surface from the
     // base64 decoder, not the integrity parser.
     let dist = json!({ "integrity": sri_sha512(b"anything") });
     let result = stream_decode_verify_and_write(
@@ -147,7 +160,7 @@ fn stream_rejects_invalid_base64() {
 /// Push the streaming loop past its 64 KiB chunk buffer. A
 /// regression where the loop accidentally returned after the
 /// first `read` (or where the hasher only saw the first chunk)
-/// would still pass every smaller-payload test in this module —
+/// would still pass every smaller-payload test in this module;
 /// this is the one that catches it.
 #[test]
 fn stream_handles_payload_larger_than_chunk_buffer() {

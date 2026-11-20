@@ -1,7 +1,16 @@
-use super::{VersionlessSelector, workspace_declared_specifier};
+use super::{
+    VersionlessSelector,
+    workspace_declared_specifier,
+};
 use pnpm_package_manifest::DependencyGroup;
-use pnpm_resolving_resolver_base::{WorkspacePackage, WorkspacePackages};
-use serde_json::{Value, json};
+use pnpm_resolving_resolver_base::{
+    WorkspacePackage,
+    WorkspacePackages,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::path::PathBuf;
 
 fn workspace_with_dependencies(projects: &[(DependencyGroup, &str, &str)]) -> WorkspacePackages {

@@ -1,18 +1,42 @@
 use super::SqliteAuth;
 use crate::{
-    AccountCredential, AccountLifecycle, AccountStatus, AccountStatusOutcome, CredentialKind,
-    PasswordChange, UpsertOutcome, UserCreation, UserRemoval,
-    account::{decode_sql_account_state, deprovisioned_login_error, should_apply_lifecycle},
-    dummy_verify, hash_bcrypt, is_sha_hash, unix_millis,
+    AccountCredential,
+    AccountLifecycle,
+    AccountStatus,
+    AccountStatusOutcome,
+    CredentialKind,
+    PasswordChange,
+    UpsertOutcome,
+    UserCreation,
+    UserRemoval,
+    account::{
+        decode_sql_account_state,
+        deprovisioned_login_error,
+        should_apply_lifecycle,
+    },
+    dummy_verify,
+    hash_bcrypt,
+    is_sha_hash,
+    unix_millis,
     validation::{
-        confusable_username, token_timestamp_to_sql, username_conflict, username_skeleton_hash,
-        validate_password, validate_username,
+        confusable_username,
+        token_timestamp_to_sql,
+        username_conflict,
+        username_skeleton_hash,
+        validate_password,
+        validate_username,
     },
     verify_returning_user,
 };
 use pnpr_config::MaxUsers;
-use pnpr_error::{RegistryError, Result};
-use pnpr_sql::adapter::{Connection, Param};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_sql::adapter::{
+    Connection,
+    Param,
+};
 
 pub(super) struct StoredAccount {
     pub(super) id: String,

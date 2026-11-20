@@ -1,10 +1,23 @@
-use super::{BTreeSet, Digest, HeaderMap, Identity, RouteContext, Sha256};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+
+use super::{
+    BTreeSet,
+    Digest,
+    HeaderMap,
+    Identity,
+    RouteContext,
+    Sha256,
+};
 
 /// The cache-namespace identity of a private route: a key input plus
 /// (for the cache layer) an authorization gate. The key input is what
 /// gets HMAC'd into the cache key; identical inputs from different
 /// callers who share the same access collapse to one shared entry.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PrivateAccessDescriptor {
     /// Proxied route via a pnpr-managed upstream alias.
     /// `package` is set only when the upstream's rules **explicitly refine**
@@ -12,9 +25,16 @@ pub enum PrivateAccessDescriptor {
     /// gate on cache replay, so a caller the refinement denies cannot obtain
     /// through the cache what a fresh resolve refuses them. Unrefined names
     /// share the plain registry-scoped descriptor (`package: None`).
-    Alias { alias: String, credential_digest: String, package: Option<String> },
+    #[serde(rename_all = "camelCase")]
+    Alias {
+        alias: String,
+        credential_digest: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        package: Option<String>,
+    },
     /// pnpr-hosted route, gated by re-running the named package access
     /// policy for the caller.
+    #[serde(rename_all = "camelCase")]
     Hosted { policy_id: String },
 }
 
@@ -47,7 +67,7 @@ impl PrivateAccessDescriptor {
     /// its [`Self::key_input`] keyed with the server `secret`, so the
     /// on-disk private-metadata mirror path is not correlatable offline.
     /// Distinct from [`Footprint::digest`], which combines *all* of a
-    /// resolution's descriptors — metadata is fetched one route at a time,
+    /// resolution's descriptors, metadata is fetched one route at a time,
     /// so each fetch keys on its own descriptor.
     pub(super) fn digest_id(&self, secret: &[u8]) -> String {
         hex(&hmac_sha256(secret, self.key_input().as_bytes()))
@@ -58,7 +78,7 @@ impl PrivateAccessDescriptor {
 /// tarballs), identical to the metadata-mirror descriptor id for the same
 /// `(upstream, credential)`. Keyed by the server `secret` so the on-disk path
 /// reveals neither the upstream name nor its credential, and so a path-unsafe
-/// upstream name (`..`, `/`) can never escape the cache root — the digest is
+/// upstream name (`..`, `/`) can never escape the cache root, the digest is
 /// hex. The digest passed here is a [`headers_credential_digest`] over the
 /// upstream's attached headers, so rotating any credential moves to a fresh
 /// namespace.
@@ -71,7 +91,7 @@ pub fn upstream_cache_digest(upstream: &str, credential_digest: String, secret: 
 /// A hash of an upstream's `Authorization` header value, used as the credential
 /// epoch in [`PrivateAccessDescriptor::Alias`]. Rotating the upstream
 /// credential changes this automatically, re-keying every private cache the
-/// upstream owns — so a rotation invalidates old-credential content with no
+/// upstream owns, so a rotation invalidates old-credential content with no
 /// manual step to forget. The raw token never appears: it's a one-way SHA-256
 /// (then HMAC-keyed with the server secret by `PrivateAccessDescriptor::digest_id`
 /// before it reaches disk).
@@ -80,8 +100,8 @@ pub fn credential_digest(authorization: &str) -> String {
     hex(&Sha256::digest(authorization.as_bytes()))
 }
 
-/// A hash of an upstream's *effective credential material* — every request header
-/// it attaches upstream, not just `Authorization` — used as the credential epoch
+/// A hash of an upstream's *effective credential material* (every request header
+/// it attaches upstream, not just `Authorization`) used as the credential epoch
 /// in [`PrivateAccessDescriptor::Alias`]. pnpr supports credentials carried in
 /// custom headers, so rotating any of them must re-key the upstream's private
 /// cache; keying on `Authorization` alone would keep serving old-credential
@@ -90,7 +110,7 @@ pub fn credential_digest(authorization: &str) -> String {
 /// Stable across runs and independent of map iteration order: the (name, value)
 /// pairs are sorted and length-prefixed before hashing, so the encoding of a
 /// header set is unambiguous and distinct sets can only collide by a SHA-256
-/// collision. The raw values never reach disk — this is a one-way SHA-256,
+/// collision. The raw values never reach disk; this is a one-way SHA-256,
 /// then HMAC-keyed with the server secret by
 /// `PrivateAccessDescriptor::digest_id`.
 #[must_use]
@@ -117,7 +137,8 @@ pub fn headers_credential_digest(headers: &HeaderMap) -> String {
 ///
 /// An empty footprint means the resolution is fully public and shareable
 /// globally; a non-empty one is keyed by its private access descriptors.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Footprint {
     pub(super) descriptors: BTreeSet<PrivateAccessDescriptor>,
 }
@@ -125,6 +146,10 @@ pub struct Footprint {
 impl Footprint {
     pub fn add(&mut self, descriptor: PrivateAccessDescriptor) {
         self.descriptors.insert(descriptor);
+    }
+
+    pub fn extend(&mut self, other: &Self) {
+        self.descriptors.extend(other.descriptors.iter().cloned());
     }
 
     /// Whether the resolution touched no private data and may be cached
@@ -160,6 +185,21 @@ impl Footprint {
             .iter()
             .all(|descriptor| context.allows_descriptor(identity, descriptor))
     }
+}
+
+/// Isolated metadata-cache namespace for an own-origin package route the caller
+/// is not permitted to read, keeping unauthorized fetches off the shared public
+/// mirror and off every authorized caller's private mirror.
+pub(super) fn denied_digest_id(
+    identity: &Identity,
+    url: &str,
+    package: Option<&str>,
+    secret: &[u8],
+) -> String {
+    let subject = identity.user_id().unwrap_or("$anonymous");
+    let package = package.unwrap_or_default();
+    let message = format!("denied\0{subject}\0{url}\0{package}");
+    hex(&hmac_sha256(secret, message.as_bytes()))
 }
 
 /// HMAC-SHA256 (RFC 2104) over the workspace's audited `sha2`, so the

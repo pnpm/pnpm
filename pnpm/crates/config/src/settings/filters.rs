@@ -1,4 +1,7 @@
-use super::{Config, FilterSource};
+use super::{
+    Config,
+    FilterSource,
+};
 
 impl Config {
     /// [`Self::filter`] and [`Self::filter_prod`] paired with their source in

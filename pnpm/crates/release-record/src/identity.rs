@@ -5,10 +5,23 @@ pub use log_entry::*;
 
 mod log_entry;
 
-use crate::{digest::lowercase_hex, profile::Profile, purl::Purl};
-use derive_more::{Display, Error};
-use sha2::{Digest as _, Sha256};
-use std::{fmt, str::FromStr};
+use crate::{
+    digest::lowercase_hex,
+    profile::Profile,
+    purl::Purl,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
+use std::{
+    fmt,
+    str::FromStr,
+};
 
 /// What a record describes.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

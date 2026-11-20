@@ -1,5 +1,5 @@
-//! End-to-end coverage for installs over an **existing** `node_modules`
-//! — the repair, reuse, and divergence scenarios of upstream's
+//! End-to-end coverage for installs over an **existing** `node_modules`,
+//! the repair, reuse, and divergence scenarios of upstream's
 //! `deps-restorer` and `deps-installer` suites. Every test installs
 //! once, damages or drifts some part of the on-disk state, installs
 //! again, and asserts the second install converges without rebuilding
@@ -12,11 +12,20 @@ use crate::_utils;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fixtures::tarball_with_manifest,
-    fs::{SameFileWitness, is_symlink_or_junction},
+    fs::{
+        SameFileWitness,
+        is_symlink_or_junction,
+    },
 };
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 pub(crate) const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
@@ -599,7 +608,7 @@ fn available_packages_are_relinked_during_forced_fresh_install() {
 /// TS: `available packages are relinked during forced install`
 /// (`deps-restorer index.ts:469`): a forced frozen install relinks
 /// every package the lockfile names, not just the diff against the
-/// previous install — a file removed from an already-materialized
+/// previous install, a file removed from an already-materialized
 /// package's virtual-store copy comes back, and the unchanged package
 /// is re-reported as `resolved` alongside the newly added one.
 #[test]
@@ -624,7 +633,7 @@ fn available_packages_are_relinked_during_forced_install() {
         .success();
 
     // Extend the manifest and wanted lockfile without touching
-    // `node_modules` — the CLI equivalent of upstream's fixture swap
+    // `node_modules`, the CLI equivalent of upstream's fixture swap
     // from `has-glob` to `has-glob-and-rimraf`.
     fs::write(
         workspace.join("package.json"),
@@ -663,7 +672,8 @@ fn available_packages_are_relinked_during_forced_install() {
     );
     let resolved: Vec<String> = ndjson_records(&output)
         .iter()
-        .filter(|record| record["name"] == "pnpm:progress" && record["status"] == "resolved")
+        .filter(|record| record["name"] == "pnpm:progress")
+        .filter(|record| record["status"] == "resolved")
         .filter_map(|record| record["packageId"].as_str().map(str::to_string))
         .collect();
     for package_id in ["@pnpm.e2e/foobarqar@1.0.0", "@pnpm.e2e/pkg-with-1-dep@100.0.0"] {

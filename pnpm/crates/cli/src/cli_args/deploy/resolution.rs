@@ -1,9 +1,30 @@
 use super::{
-    Context, ConvertCtx, DirectoryResolution, HashMap, ImporterDepVersion, IntoDiagnostic,
-    LockfileResolution, PackageKey, PackageMetadata, Path, PathBuf, PkgName, PkgNameVerPeer,
-    ProjectInfo, ProjectPathKey, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec,
-    SnapshotDepRef, SnapshotEntry, TarballResolution, VersionPart, lexical_normalize,
-    lockfile::ReferenceLocation, relative_path, same_path,
+    Context,
+    ConvertCtx,
+    DirectoryResolution,
+    HashMap,
+    ImporterDepVersion,
+    IntoDiagnostic,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    Path,
+    PathBuf,
+    PkgName,
+    PkgNameVerPeer,
+    ProjectInfo,
+    ProjectPathKey,
+    ProjectSnapshot,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SnapshotDepRef,
+    SnapshotEntry,
+    TarballResolution,
+    VersionPart,
+    lexical_normalize,
+    lockfile::ReferenceLocation,
+    relative_path,
+    same_path,
 };
 
 pub(super) struct ResolveBases<'a> {
@@ -334,7 +355,8 @@ pub(super) fn create_file_url_key(
         .or_else(|| {
             normalized
                 .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
+                .map(std::ffi::OsStr::to_string_lossy)
+                .map(std::borrow::Cow::into_owned)
         })
         .unwrap_or_else(|| normalized.display().to_string());
     format!("{name}@{dep_file_url}{suffix}")

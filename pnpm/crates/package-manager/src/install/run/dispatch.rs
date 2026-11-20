@@ -1,20 +1,48 @@
 use super::{
     super::{
-        ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions, Lockfile,
-        LogEvent, LogLevel, PackageManifest, PrepareModulesStateInputs, PreparedModulesState,
-        Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
+        ContextLog,
+        FreshnessCheckError,
+        FreshnessScope,
+        InstallError,
+        InstallRunOptions,
+        Lockfile,
+        LogEvent,
+        LogLevel,
+        PackageManifest,
+        PrepareModulesStateInputs,
+        PreparedModulesState,
+        Reporter,
+        Stage,
+        StageLog,
+        SummaryLog,
+        check_lockfile_freshness,
         lockfile_freshness::{
-            LockfileFreshnessInputs, UnresolvedOptionalDependency, check_importer_manifests_exist,
+            LockfileFreshnessInputs,
+            UnresolvedOptionalDependency,
+            check_importer_manifests_exist,
         },
-        map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
+        map_frozen_lockfile_error,
+        prepare_modules_state,
+        verify_lockfile_eagerly,
     },
     Verification,
-    manifests::{RootHooksScope, run_root_hooks},
-    reject_frozen_with_update_checksums, run_pre_uninstall_hooks,
-    settled::{Settled, SettledProjects},
+    manifests::{
+        RootHooksScope,
+        run_root_hooks,
+    },
+    reject_frozen_with_update_checksums,
+    run_pre_uninstall_hooks,
+    settled::{
+        Settled,
+        SettledProjects,
+    },
     up_to_date_scripts::finish_prepared,
 };
-use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
+use pnpm_reporter::{
+    SkippedOptionalDependencyLog,
+    SkippedOptionalPackage,
+    SkippedOptionalReason,
+};
 
 /// Which path the install takes, and the modules state it starts from.
 pub(super) struct Dispatched<'install> {
@@ -209,8 +237,8 @@ pub(super) fn announce_import<Reporter: self::Reporter>(
             .into_owned(),
     }));
     // `pnpm:devPreinstall` runs ahead of everything the install does
-    // with the lockfile — including the frozen path's freshness
-    // check — because what it prepares is an input to resolution and
+    // with the lockfile (including the frozen path's freshness
+    // check) because what it prepares is an input to resolution and
     // linking. What skips it:
     //
     // - `resolve_only`, which materializes nothing for the hook to
@@ -279,7 +307,7 @@ impl<'a> FrozenDispatch<'a> {
 }
 /// `take_frozen_path` is true for both state 1 (`--frozen-lockfile`) and state
 /// 2 (auto-frozen via `preferFrozenLockfile`). The freshness check fires for
-/// both — fatal for state 1, fall-through for state 2.
+/// both, fatal for state 1, fall-through for state 2.
 ///
 /// `--dry-run` always takes the fresh-resolve path: it must compute the
 /// would-be lockfile to diff against the existing one, and the frozen
@@ -325,7 +353,7 @@ async fn frozen_path<Reporter: self::Reporter>(
     };
     // Run the freshness gates; on failure surface a fatal InstallError via
     // `FreshnessCheckError`'s `From` impl. The check is run for its side
-    // effect (the typed outcome) — the borrowed lockfile / manifests are
+    // effect (the typed outcome), the borrowed lockfile / manifests are
     // consumed again inside the frozen branch below.
     //
     // pnpm's importer-set gate sits in the auto-frozen branch of

@@ -1,7 +1,12 @@
 use assert_cmd::prelude::*;
+use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const NESTED_MANIFEST_WARNING: &str = r#"[WARN] The settings in services/inner/pnpm-workspace.yaml do not apply, because services/inner is a project of this workspace. pnpm reads settings only from the pnpm-workspace.yaml at the workspace root. Move the settings there, or add "!services/inner" to the root's "packages" to keep that project a separate workspace."#;
 
@@ -29,9 +34,9 @@ fn write_workspace_with_nested_manifest(workspace: &Path, extra_settings: &str) 
 fn install(workspace: &Path, args: &[&str]) -> String {
     let output = Command::cargo_bin("pnpm")
         .unwrap()
-        .current_dir(workspace)
-        .args(args)
-        .arg("install")
+        .with_current_dir(workspace)
+        .with_args(args)
+        .with_arg("install")
         .assert()
         .success();
     String::from_utf8_lossy(&output.get_output().stdout).into_owned()

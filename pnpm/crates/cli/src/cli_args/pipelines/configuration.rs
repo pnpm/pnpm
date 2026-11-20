@@ -1,10 +1,21 @@
 use super::{
-    Config, Context, Host, InstallArgs, Path, PathBuf, ReporterType, read_manifest_json,
-    reporter_emit, warn_deprecated_override_version_references, warn_ignored_pnpm_manifest_fields,
-    warn_unapplied_package_configs, warn_unmatched_registry_options,
+    Config,
+    Context,
+    Host,
+    InstallArgs,
+    Path,
+    PathBuf,
+    ReporterType,
+    read_manifest_json,
+    reporter_emit,
+    warn_deprecated_override_version_references,
+    warn_ignored_pnpm_manifest_fields,
+    warn_unapplied_package_configs,
+    warn_unmatched_registry_options,
 };
 use crate::cli_args::yarn_workspaces_field::{
-    create_workspace_yaml_from_yarn_workspaces, warn_about_workspaces_field,
+    create_workspace_yaml_from_yarn_workspaces,
+    warn_about_workspaces_field,
 };
 
 /// Shared workspace-root and package-manager policy derivation.
@@ -100,7 +111,7 @@ fn apply_install_git_branch_lockfiles_config(
 ) {
     // pnpm merges its CLI options into the config *before* deciding
     // `mergeGitBranchLockfiles`, so a pattern given on the command line
-    // still gets matched against the current branch — and an explicit
+    // still gets matched against the current branch, and an explicit
     // `--merge-git-branch-lockfiles` settles the question without it.
     if lockfile_updates.merge_git_branch_lockfiles {
         cfg.cli_settings.insert("mergeGitBranchLockfiles".to_string());

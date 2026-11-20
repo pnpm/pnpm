@@ -19,19 +19,44 @@ mod authentication;
 #[path = "auth_publish/manifest_verification.rs"]
 mod manifest_verification;
 
-use crate::{npm, storage as common};
+use crate::{
+    npm,
+    storage as common,
+};
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
 use base64::engine::general_purpose::STANDARD as BASE64;
-use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex, sri_sha512};
-use pnpr::{Config, MaxUsers};
+use npm::{
+    npm_tgz,
+    npm_tgz_with,
+    publish_doc,
+    sha1_hex,
+    sri_sha512,
+};
+use pnpr::{
+    Config,
+    MaxUsers,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
 };
 use tempfile::TempDir;

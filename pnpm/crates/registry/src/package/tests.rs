@@ -3,7 +3,13 @@ use std::collections::HashMap;
 use node_semver::Version;
 use pretty_assertions::assert_eq;
 
-use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
+use super::{
+    AuthHeaders,
+    DerivedPackuments,
+    Package,
+    PackageVersion,
+    ThrottledClient,
+};
 use crate::package_distribution::PackageDistribution;
 
 #[test]
@@ -355,7 +361,7 @@ fn package_deserializes_deprecated_boolean_true() {
     assert_eq!(
         version.deprecated.as_deref(),
         Some(""),
-        r#"deprecated:true maps to Some("") — recorded as deprecated without a reason"#,
+        r#"deprecated:true maps to Some(""), recorded as deprecated without a reason"#,
     );
 }
 
@@ -384,7 +390,7 @@ fn package_deserializes_deprecated_reason_string() {
 }
 
 /// A packument missing the `time` field entirely still
-/// deserializes — abbreviated metadata responses omit it, and the
+/// deserializes, abbreviated metadata responses omit it, and the
 /// verifier falls through to the attestation / full-metadata
 /// layers in that case rather than failing closed.
 #[test]

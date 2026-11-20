@@ -1,7 +1,17 @@
 use super::{
-    ArtifactProtocolError, BTreeSet, COMPATIBILITY_FLOOR_RANK_OFFSET,
-    COMPATIBILITY_FLOOR_RANK_STRIDE, COMPATIBILITY_TAG_SCHEMA, CompatibilityConstraints, HashSet,
-    LinuxGlibcPlatform, MacOsPlatform, Sha256, WindowsPlatform, hex, validate_scalar,
+    ArtifactProtocolError,
+    BTreeSet,
+    COMPATIBILITY_FLOOR_RANK_OFFSET,
+    COMPATIBILITY_FLOOR_RANK_STRIDE,
+    COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints,
+    HashSet,
+    LinuxGlibcPlatform,
+    MacOsPlatform,
+    Sha256,
+    WindowsPlatform,
+    hex,
+    validate_scalar,
 };
 use sha2::Digest as _;
 
@@ -236,7 +246,7 @@ pub enum CompatibilityScopes {
 /// The scopes an artifact's constraints reach.
 ///
 /// A tag that describes no machine contributes nothing. Published artifacts
-/// cannot carry one — [`ArtifactPayload::validate`](crate::ArtifactPayload::validate) parses every tag — so for
+/// cannot carry one. [`ArtifactPayload::validate`](crate::ArtifactPayload::validate) parses every tag, so for
 /// anything stored this yields between 1 and 64 keys.
 #[must_use]
 pub fn compatibility_scopes(constraints: &CompatibilityConstraints) -> CompatibilityScopes {

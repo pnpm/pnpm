@@ -5,17 +5,30 @@
 use super::super::oidc::validate_workloads;
 use pnpm_env_replace::EnvVar;
 use pnpr_config::{
-    Config, GraphSource, RegistryGraphDocument, RegistryKind, RoutingConfig, RoutingOptions,
+    Config,
+    GraphSource,
+    RegistryGraphDocument,
+    RegistryKind,
+    RoutingConfig,
+    RoutingOptions,
 };
 use pnpr_error::RegistryError;
 use pnpr_policy::Action;
 use pnpr_route::RouteContext;
 use pnpr_storage::{
     Storage,
-    database::{GrantContent, HostedNamespace, StoredGrant, StoredRegistryGraph},
+    database::{
+        GrantContent,
+        HostedNamespace,
+        StoredGrant,
+        StoredRegistryGraph,
+    },
 };
 use std::net::IpAddr;
-use url::{Host, Url};
+use url::{
+    Host,
+    Url,
+};
 
 /// Whether building the routing reads the upstream credentials the document
 /// references.
@@ -58,10 +71,9 @@ pub(crate) fn graph_version(generation: Option<u64>) -> String {
 pub(crate) fn stored_document(
     stored: Option<&StoredRegistryGraph>,
 ) -> Result<RegistryGraphDocument, RegistryError> {
-    stored.map_or_else(
-        || Ok(RegistryGraphDocument::default()),
-        |stored| parse_document(&stored.document),
-    )
+    stored
+        .map(|stored| parse_document(&stored.document))
+        .unwrap_or_else(|| Ok(RegistryGraphDocument::default()))
 }
 
 /// Parse the JSON text of a stored revision.
@@ -229,7 +241,8 @@ fn check_upstream_hosts(
         }
         let parsed = Url::parse(url)
             .ok()
-            .filter(|parsed| matches!(parsed.scheme(), "http" | "https") && parsed.has_host())
+            .filter(|parsed| matches!(parsed.scheme(), "http" | "https"))
+            .filter(Url::has_host)
             .ok_or_else(|| RegistryError::BadRequest {
                 reason: format!("upstream registry {name:?} has `url` {url:?}, not an http(s) URL"),
             })?;

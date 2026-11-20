@@ -1,10 +1,20 @@
 use crate::AllowBuildPolicy;
-use pnpm_config::{Config, NodeLinker};
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, OnceLock, atomic::AtomicU8},
+    sync::{
+        Arc,
+        OnceLock,
+        atomic::AtomicU8,
+    },
 };
 
 /// What every phase of one install reads and none of them changes.
@@ -22,7 +32,7 @@ pub struct InstallContext<'a> {
     pub linker: crate::ModuleLinkerContext<'a>,
     pub caches: InstallCaches<'a>,
     pub config: &'a Config,
-    /// Install root — the directory containing `pnpm-lock.yaml`. For a
+    /// Install root, the directory containing `pnpm-lock.yaml`. For a
     /// real workspace this is the workspace root; for a single project,
     /// that project's directory.
     pub workspace_root: &'a Path,

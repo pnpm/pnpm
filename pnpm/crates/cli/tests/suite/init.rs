@@ -2,12 +2,18 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::get_filenames_in_folder,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 /// The version the pinning fixture's registry serves as pnpm's `latest`.
 /// Far ahead of any real release, so the no-downgrade guard never picks the
@@ -25,8 +31,9 @@ fn pinning_fixture(served_pnpm_version: &str) -> CommandTempCwd<AddMockedRegistr
     let mut fixture =
         CommandTempCwd::init().add_mocked_registry_with_pnpm_version(served_pnpm_version);
     let registry = fixture.npmrc_info.mock_instance.url();
-    fixture.pacquet.env("PNPM_CONFIG_REGISTRY", registry);
-    fixture.pacquet.env("PNPM_CONFIG_CACHE_DIR", &fixture.npmrc_info.cache_dir);
+    fixture.pacquet = fixture.pacquet.with_env("PNPM_CONFIG_REGISTRY", registry);
+    fixture.pacquet =
+        fixture.pacquet.with_env("PNPM_CONFIG_CACHE_DIR", &fixture.npmrc_info.cache_dir);
     fixture
 }
 
@@ -119,7 +126,7 @@ fn an_unreachable_registry_pins_the_running_pnpm() {
     let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
     // The connect to `0.0.0.0:1` fails at once on every OS rather than
     // waiting out the lookup's timeout.
-    pacquet.env("PNPM_CONFIG_REGISTRY", "http://0.0.0.0:1/");
+    pacquet = pacquet.with_env("PNPM_CONFIG_REGISTRY", "http://0.0.0.0:1/");
     pacquet
         .with_arg("init")
         .assert()
@@ -142,7 +149,7 @@ fn offline_pins_the_running_pnpm_without_a_lookup() {
         npmrc_info,
         ..
     } = pinning_fixture(LATEST_PNPM);
-    pacquet.env("PNPM_CONFIG_OFFLINE", "true");
+    pacquet = pacquet.with_env("PNPM_CONFIG_OFFLINE", "true");
     pacquet
         .with_arg("init")
         .assert()
@@ -258,7 +265,7 @@ fn a_new_workspace_member_is_not_pinned() {
 }
 
 /// Every other command run from a plain subdirectory of a project acts on
-/// the project, but `init` scaffolds where the user stands — otherwise
+/// the project, but `init` scaffolds where the user stands; otherwise
 /// there would be no way to start a package inside an existing one.
 #[test]
 fn init_scaffolds_in_the_cwd_inside_an_existing_project() {

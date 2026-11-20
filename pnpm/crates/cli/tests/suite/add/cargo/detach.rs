@@ -1,9 +1,23 @@
-use super::{Command, CommandExtra, TempDir, assert_eq};
+use super::{
+    Command,
+    CommandExtra,
+    TempDir,
+    assert_eq,
+};
 use crate::cargo_install::crate_archive;
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 use pnpm_testing_utils::git_repo::GitRepoFixture;
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn init_git_crate(parent: &Path) -> (GitRepoFixture, String) {
     let repo = GitRepoFixture::init(parent, "git_dep");
@@ -155,9 +169,9 @@ fn add_crate_detaching_workspace_registry_keeps_private_registry_source() {
 
 fn read_cargo_dep_identity(manifest_path: &Path) -> (String, Option<String>, Option<String>) {
     let output = std::process::Command::new("cargo")
-        .current_dir(manifest_path.parent().unwrap())
-        .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
-        .arg(manifest_path)
+        .with_current_dir(manifest_path.parent().unwrap())
+        .with_args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
+        .with_arg(manifest_path)
         .output()
         .expect("run cargo metadata");
     let stderr = String::from_utf8_lossy(&output.stderr);

@@ -15,7 +15,6 @@ use_field_init_shorthand = true
 # version = "Two"
 # Provide a cleaner impl order
 # reorder_impl_items = true
-# Provide a cleaner import sort order
-# group_imports = "StdExternalCrate"
-# Group "use" statements by crate
-# imports_granularity = "Crate"
+# Keep imports merged by crate and list each item on its own line.
+imports_layout = "Vertical"
+imports_granularity = "Crate"

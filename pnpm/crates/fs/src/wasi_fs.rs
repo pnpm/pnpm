@@ -8,16 +8,34 @@
 //! mode a new file inherits and how long a contended lock is waited for.
 
 pub use pnpm_ffi_fs::file_link_count;
-pub(crate) use pnpm_ffi_fs::{FileIdentity, open_for_overwrite, path_identity, symlink};
+pub(crate) use pnpm_ffi_fs::{
+    FileIdentity,
+    open_for_overwrite,
+    path_identity,
+    symlink,
+};
 pub use pnpm_ffi_webcontainer::fs::{
-    check_file_owner, create_new, executable_access, file_mode, grant_directory_mode_beneath,
-    open_directory_nofollow_beneath, open_nofollow, register_sqlite_permissions,
+    check_file_owner,
+    create_new,
+    executable_access,
+    file_mode,
+    grant_directory_mode_beneath,
+    open_directory_nofollow_beneath,
+    open_nofollow,
+    register_sqlite_permissions,
 };
 pub(crate) use pnpm_ffi_webcontainer::fs::{
-    current_umask, path_mode, secure_directory, set_file_mode, user_id,
+    current_umask,
+    path_mode,
+    secure_directory,
+    set_file_mode,
+    user_id,
 };
 
-use std::{io, path::Path};
+use std::{
+    io,
+    path::Path,
+};
 
 pub(crate) use pnpm_ffi_fs::file_identity;
 pub(crate) use pnpm_ffi_webcontainer::fs::open_lock;

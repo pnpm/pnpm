@@ -1,10 +1,31 @@
 use super::{
-    hooks::{legacy_registries_warning, warn_legacy_registries},
-    resolve_engine_version, run_update_config_hooks,
+    hooks::{
+        legacy_registries_warning,
+        warn_legacy_registries,
+    },
+    resolve_engine_version,
+    run_update_config_hooks,
 };
-use pnpm_config::{Config, Host, NodeLinker, PNPM_VERSION, TrustPolicy};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
-use std::{collections::BTreeMap, fs, path::Path, sync::Mutex};
+use pnpm_config::{
+    Config,
+    Host,
+    NodeLinker,
+    PNPM_VERSION,
+    TrustPolicy,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+    SilentReporter,
+};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+    sync::Mutex,
+};
 
 #[test]
 fn legacy_registries_warning_names_routes_left_unchanged() {
@@ -626,7 +647,8 @@ async fn update_config_lockfile_dir_removes_old_global_virtual_store_node_path()
             "/custom{delimiter}{}",
             old_paths
                 .iter()
-                .map(|path| path.display().to_string())
+                .map(|path| path.display())
+                .map(|shown| shown.to_string())
                 .collect::<Vec<_>>()
                 .join(&delimiter.to_string()),
         ),
@@ -1119,14 +1141,14 @@ async fn update_config_hook_cannot_read_or_change_the_global_packages_settings()
 const ACCEPT_FULL: &str = "application/json; q=1.0, */*";
 
 /// `Accept` header the resolver sends for abbreviated metadata
-/// (`ACCEPT_ABBREVIATED_DOC`) — what the probe would use if it did *not*
+/// (`ACCEPT_ABBREVIATED_DOC`), what the probe would use if it did *not*
 /// derive full metadata from the trust policy.
 const ACCEPT_ABBREVIATED: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
 
 /// Full `pnpm` packument: carries the per-version `time` map. `1.0.0` has
 /// stronger trust evidence (`trustedPublisher` + provenance) than the
-/// later `1.1.0` (none) — a trust downgrade the no-downgrade check must
+/// later `1.1.0` (none), a trust downgrade the no-downgrade check must
 /// reject once it can see `time`.
 const FULL_DOWNGRADE_BODY: &str = r#"{
     "name": "pnpm",
@@ -1198,7 +1220,7 @@ const FULL_CLEAN_BODY: &str = r#"{
 
 /// Abbreviated packument: no `time` map. Served only to the abbreviated
 /// `Accept` header, so the probe reaches it only if it *fails* to request
-/// full metadata — in which case the trust check fails closed with
+/// full metadata, in which case the trust check fails closed with
 /// "missing time". A test that instead sees a "trust downgrade" (or a
 /// clean resolve) proves the probe requested full metadata.
 const ABBREVIATED_BODY: &str = r#"{
@@ -1226,7 +1248,7 @@ const ABBREVIATED_BODY: &str = r#"{
     }
 }"#;
 
-/// Abbreviated packument that *does* carry `time` — what a registry with
+/// Abbreviated packument that *does* carry `time`, what a registry with
 /// `registrySupportsTimeField=true` serves. It still omits the trust
 /// evidence (`_npmUser` / `dist.attestations`) that no abbreviated
 /// packument carries, so a no-downgrade check run against it would see no
@@ -1271,7 +1293,7 @@ fn no_downgrade_config(registry: String, cache_dir: &Path) -> Config {
 }
 
 /// Under `trustPolicy=no-downgrade`, the self-update probe must resolve
-/// against **full** metadata — the same as a regular install — so the
+/// against **full** metadata (the same as a regular install) so the
 /// no-downgrade check actually runs. It reaches the full packument (with
 /// `time`), sees the downgrade, rejects the requested `1.1.0`, and falls
 /// back to `1.0.0` for a range. If the probe fetched abbreviated metadata it
@@ -1584,4 +1606,31 @@ async fn update_config_rebases_relative_filters_and_reports_subdir_as_dir() {
 
     assert_eq!(config.filter, [other_dir.to_string_lossy().as_ref(), "../app"]);
     assert_eq!(config.filter_prod, ["{../app}..."]);
+}
+
+#[tokio::test]
+async fn global_update_config_hook_ignores_malformed_ancestor_workspace_manifest() {
+    let root = tempfile::tempdir().expect("tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "packages: [\n")
+        .expect("write malformed ancestor workspace settings");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_pkg_dir = pnpm_home.join("global/11");
+    fs::create_dir_all(&global_pkg_dir).expect("create global package directory");
+    let global_pnpmfile = root.path().join("trusted-global-pnpmfile.cjs");
+    fs::write(
+        &global_pnpmfile,
+        "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, GLOBAL_HOOK_APPLIED: '1' }; return config } } }",
+    )
+    .expect("write global pnpmfile");
+
+    let mut config = Config::default();
+    config.cli.command_target = pnpm_config::CommandTarget::GlobalPackages;
+    config.global_pnpmfile = Some(global_pnpmfile);
+    let mut config = config.current::<Host>(&pnpm_home).expect("load global configuration");
+
+    run_update_config_hooks::<SilentReporter>(&mut config, &global_pkg_dir)
+        .await
+        .expect("run global updateConfig hook despite malformed ancestor workspace");
+
+    assert_eq!(config.extra_env.get("GLOBAL_HOOK_APPLIED").map(String::as_str), Some("1"));
 }

@@ -1,5 +1,9 @@
 use super::{
-    OverlayPickResolver, assert_eq, dependency_result, fake_result, resolve_settlement_tree,
+    OverlayPickResolver,
+    assert_eq,
+    dependency_result,
+    fake_result,
+    resolve_settlement_tree,
     settlement_versions,
 };
 

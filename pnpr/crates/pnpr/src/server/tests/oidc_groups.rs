@@ -1,8 +1,21 @@
-use super::super::team_directory::{reload_teams, session_identity};
-use pnpr_auth::{AuthState, oidc::SessionUser};
-use pnpr_config::{Config, oidc::OidcTeamGrant};
+use super::super::team_directory::{
+    reload_teams,
+    session_identity,
+};
+use pnpr_auth::{
+    AuthState,
+    oidc::SessionUser,
+};
+use pnpr_config::{
+    Config,
+    oidc::OidcTeamGrant,
+};
 use pnpr_fixtures::MockConfigPresets;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{
+    Ipv4Addr,
+    SocketAddr,
+    SocketAddrV4,
+};
 
 fn session(teams: &[&str]) -> SessionUser {
     let teams = teams

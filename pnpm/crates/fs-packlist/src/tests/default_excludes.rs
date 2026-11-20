@@ -1,4 +1,10 @@
-use super::{json, packlist, tempdir, touch, write};
+use super::{
+    json,
+    packlist,
+    tempdir,
+    touch,
+    write,
+};
 use serde_json::Value;
 use std::path::Path;
 
@@ -158,6 +164,13 @@ fn files_field_naming_a_file_in_an_apple_double_directory_ships_it() {
     assert_eq!(packed(root, &manifest), names(&["package.json", "sub/._dir/keep.js"]));
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::numeric_escape_for_visible_character,
+        reason = "the Kelvin sign reads as `K`, and clippy rejects it written out"
+    )
+)]
 #[test]
 fn default_rules_match_ascii_case_only() {
     let dir = tempdir().unwrap();
@@ -172,6 +185,13 @@ fn default_rules_match_ascii_case_only() {
     );
 }
 
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::numeric_escape_for_visible_character,
+        reason = "the Kelvin sign reads as `K`, and clippy rejects it written out"
+    )
+)]
 #[test]
 fn default_rules_match_ascii_case_only_below_a_candidate_directory() {
     let dir = tempdir().unwrap();

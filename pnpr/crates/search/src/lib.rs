@@ -1,14 +1,18 @@
 //! Local implementation of the npm `/-/v1/search` endpoint.
 //!
 //! Verdaccio (which this server replaces in `@pnpm/registry-mock`)
-//! does **not** proxy search to its upstream npmjs — it scans the
+//! does **not** proxy search to its upstream npmjs; it scans the
 //! local storage and matches on package name. Tests rely on that
 //! behavior.
 
 use pnpr_error::Result;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SearchText {
@@ -29,10 +33,9 @@ pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchPar
     let text = query
         .strip_prefix("maintainer:")
         .filter(|maintainer| !maintainer.is_empty())
-        .map_or_else(
-            || SearchText::Package(query.clone()),
-            |maintainer| SearchText::Maintainer(maintainer.to_string()),
-        );
+        .map(std::string::ToString::to_string)
+        .map(SearchText::Maintainer)
+        .unwrap_or_else(|| SearchText::Package(query.clone()));
     Some(SearchParams {
         text,
         from: parse_from(query_string),
@@ -279,7 +282,8 @@ fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {
         Some(Value::Object(value)) => ["username", "name", "email"]
             .iter()
             .filter_map(|field| value.get(*field).and_then(Value::as_str))
-            .any(|value| value.to_lowercase().contains(needle)),
+            .map(str::to_lowercase)
+            .any(|lowercase| lowercase.contains(needle)),
         _ => false,
     }
 }

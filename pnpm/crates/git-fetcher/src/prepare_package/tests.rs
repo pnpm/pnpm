@@ -1,5 +1,8 @@
 use super::{
-    PreparePackageOptions, PreparedPackage, package_should_be_built, prepare_package,
+    PreparePackageOptions,
+    PreparedPackage,
+    package_should_be_built,
+    prepare_package,
     safe_join_path,
 };
 use crate::error::PreparePackageError;
@@ -10,7 +13,11 @@ use std::{
     collections::HashMap,
     fs,
     path::Path,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{
+        Arc,
+        LazyLock,
+        Mutex,
+    },
 };
 use tempfile::tempdir;
 
@@ -292,8 +299,8 @@ fn prepare_allows_untrusted_manifest_identity_by_dep_path() {
         }),
     );
 
-    // The policy sees `<manifest name>@<resolution id>` — the key a
-    // lockfile would record — not the bare resolution id.
+    // The policy sees `<manifest name>@<resolution id>` (the key a
+    // lockfile would record) not the bare resolution id.
     let pkg_resolution_id = "git+https://example.com/org/repo.git#abc123";
     let dep_path = format!("trusted-name@{pkg_resolution_id}");
     let result = prepare_package::<SilentReporter>(

@@ -1,14 +1,46 @@
 use super::{
-    ACTIVATION_CALLS, ARTIFACT_PROBE_CALLS, ActivationBinSets, ActivationFixture, Arc,
-    ArtifactProbeFailure, BACKUP_CLEANUP_HASH_CALLS, BackupCleanupFailure, GlobalInstallCleanup,
-    GlobalPackageInfo, GlobalRemovalTransaction, GlobalShims, HASH_FAILURE_CALLS, HashSet,
-    HashSwapFailure, Host, Ordering, PackageBinSource, RENAME_FAILURE_HASH_CALLS,
-    RenameRollbackFailure, TrackingActivation, activate_global_install,
-    activate_global_install_with_extra_bin_names, arm_backup_cleanup_blocker, backup_cleanup_guard,
-    backup_dirs, canonical, cleanup_replaced_global_installs, diagnostic_source_messages,
-    force_symlink_dir, fs, global_package_with_bins, hash_failure_guard, io, json,
-    plan_replaced_global_bins, record_virtual_shim_state, remove_global_install_entries,
-    resolved_hash_target, restore_virtual_shims, snapshot_global_package, test_link_bins,
+    ACTIVATION_CALLS,
+    ARTIFACT_PROBE_CALLS,
+    ActivationBinSets,
+    ActivationFixture,
+    Arc,
+    ArtifactProbeFailure,
+    BACKUP_CLEANUP_HASH_CALLS,
+    BackupCleanupFailure,
+    GlobalInstallCleanup,
+    GlobalPackageInfo,
+    GlobalRemovalTransaction,
+    GlobalShims,
+    HASH_FAILURE_CALLS,
+    HashSet,
+    HashSwapFailure,
+    Host,
+    Ordering,
+    PackageBinSource,
+    RENAME_FAILURE_HASH_CALLS,
+    RenameRollbackFailure,
+    TrackingActivation,
+    activate_global_install,
+    activate_global_install_with_extra_bin_names,
+    arm_backup_cleanup_blocker,
+    backup_cleanup_guard,
+    backup_dirs,
+    canonical,
+    cleanup_replaced_global_installs,
+    diagnostic_source_messages,
+    force_symlink_dir,
+    fs,
+    global_package_with_bins,
+    hash_failure_guard,
+    io,
+    json,
+    plan_replaced_global_bins,
+    record_virtual_shim_state,
+    remove_global_install_entries,
+    resolved_hash_target,
+    restore_virtual_shims,
+    snapshot_global_package,
+    test_link_bins,
     virtual_shim_owner,
 };
 
@@ -132,7 +164,7 @@ fn replacing_a_group_with_a_different_package_set_keeps_its_relinked_bins() {
     assert!(leftover.is_none());
 
     // Changing the set of packages changes the hash, so `shared` was
-    // rewritten to point at the new one just before this ran — unlinking the
+    // rewritten to point at the new one just before this ran, unlinking the
     // group it used to belong to must not take it away again.
     assert!(global_bin_dir.join("shared").exists());
     assert!(!global_bin_dir.join("dropped").exists());

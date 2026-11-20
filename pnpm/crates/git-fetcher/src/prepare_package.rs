@@ -8,21 +8,45 @@
 
 use crate::{
     error::PreparePackageError,
-    pm_shims::{provide_running_pnpm, shim_names, write_pm_shims},
-    preferred_pm::{PreferredPm, WantedPm, detect_wanted_pm},
+    pm_shims::{
+        provide_running_pnpm,
+        shim_names,
+        write_pm_shims,
+    },
+    preferred_pm::{
+        PreferredPm,
+        WantedPm,
+        detect_wanted_pm,
+    },
     process::Command,
 };
 
-use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_executor::{
+    LifecycleScriptError,
+    RunPostinstallHooks,
+    run_lifecycle_hook,
+};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
-    sync::{LazyLock, Mutex, PoisonError},
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        LazyLock,
+        Mutex,
+        PoisonError,
+    },
 };
 
 /// Scripts to re-run after `<pm>-install` finishes. `prepare` itself
@@ -30,7 +54,7 @@ use std::{
 /// into the install lifecycle), so we don't need to invoke it
 /// separately.
 ///
-/// Note: `prepublishOnly` is intentionally omitted here — neither npm
+/// Note: `prepublishOnly` is intentionally omitted here; neither npm
 /// nor Yarn run it for git-hosted deps.
 const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
@@ -49,7 +73,7 @@ pub type AllowBuildRef<'a> = &'a (dyn Fn(&str) -> Option<bool> + Send + Sync);
 pub struct PreparePackageOptions<'a> {
     pub scripts: crate::PrepareScriptOptions<'a>,
     pub allow_build: AllowBuildFn<'a>,
-    /// The package's resolution id — the bare `git+…#<commit>` or
+    /// The package's resolution id, the bare `git+…#<commit>` or
     /// archive URL. The gated dep path is synthesized from it and the
     /// fetched manifest's name, so the policy sees the same
     /// `<name>@<id>` key a lockfile would record.
@@ -290,12 +314,12 @@ fn prepublish_invocation(
 /// that cannot be read counts as unusable, so the dependency gets the one
 /// it asked for rather than a coin flip.
 /// Put the package manager the dependency asks for on the build's `PATH`,
-/// returning the scratch directory its shims live in — the caller keeps
+/// returning the scratch directory its shims live in, the caller keeps
 /// that alive for the prepare, because dropping it takes the shims with
 /// it.
 ///
 /// pnpm provides the package manager when the dependency pinned a version
-/// — that pin is what its authors test against — or when the host cannot
+/// (that pin is what its authors test against) or when the host cannot
 /// satisfy what the dependency ships. Otherwise the host's own install is
 /// left to do the job it has always done, which is also what happens when
 /// the shims cannot be written for an unpinned one.
@@ -398,9 +422,10 @@ fn host_can_prepare(wanted: &WantedPm) -> bool {
 fn probe_host(wanted: &WantedPm) -> bool {
     let wanted_range = wanted.version_spec
         .as_deref()
-        .and_then(|range| node_semver::Range::parse(range).ok());
+        .map(node_semver::Range::parse)
+        .and_then(Result::ok);
     // A dependency's scripts reach for any of the package manager's names
-    // — `yarnpkg` as readily as `yarn` — and nothing says two of them on
+    // (`yarnpkg` as readily as `yarn`) and nothing says two of them on
     // one host are the same install, so each has to answer for itself.
     shim_names(wanted.pm)
         .all(|name| {
@@ -420,7 +445,8 @@ fn probe_host(wanted: &WantedPm) -> bool {
                     .lines()
                     .next()
                     .map(str::trim)
-                    .and_then(|version| node_semver::Version::parse(version).ok())
+                    .map(node_semver::Version::parse)
+                    .and_then(Result::ok)
                     .is_some_and(|version| version.satisfies(wanted_range))
         })
 }
@@ -484,7 +510,7 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
 /// `sub` is a resolution's `path` field, which keeps the leading slash
 /// of the `#path:/packages/foo` specifier it came from. That slash is
 /// rooted at the repo, not the filesystem, so it is stripped before
-/// joining — [`Path::join`] would otherwise discard `root` and treat
+/// joining. [`Path::join`] would otherwise discard `root` and treat
 /// the whole thing as absolute, unlike the `path.join` upstream uses.
 pub(crate) fn safe_join_path(
     root: &Path,

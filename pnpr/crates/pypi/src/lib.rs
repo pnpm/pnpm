@@ -21,13 +21,25 @@ pub use project_file::ProjectFile;
 mod core_metadata;
 mod project_file;
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use pep440_rs::Version;
 use pnpr_package_name::canonicalize_python_name;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt::Write as _,
     str::FromStr,
 };
@@ -323,7 +335,8 @@ fn quality(accept: &str, media: &str) -> Option<f32> {
                 return None;
             }
             let weight = parameters
-                .filter_map(|parameter| parameter.trim().split_once('='))
+                .map(str::trim)
+                .filter_map(|trimmed| trimmed.split_once('='))
                 .find(|(name, _)| name.trim().eq_ignore_ascii_case("q"))
                 .map_or(1.0, |(_, value)| {
                     value

@@ -1,7 +1,19 @@
 use super::{
-    AsyncWriteExt, AtomicU64, ErrorKind, Ordering, Path, PathBuf, Result, fs, read_dir_if_present,
+    AsyncWriteExt,
+    AtomicU64,
+    ErrorKind,
+    Ordering,
+    Path,
+    PathBuf,
+    Result,
+    fs,
+    read_dir_if_present,
 };
-use crate::tmp_suffix::{RANDOM_HEX_DIGITS, TMP_MARKER, tmp_suffix};
+use crate::tmp_suffix::{
+    RANDOM_HEX_DIGITS,
+    TMP_MARKER,
+    tmp_suffix,
+};
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.

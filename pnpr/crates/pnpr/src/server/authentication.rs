@@ -1,9 +1,16 @@
 pub(super) use accounts::active_account_name;
 pub(super) use credentials::token_credentials;
 pub(super) use package_access::{
-    AuthorizationDecision, Ownership, allows_with_ownership, authorize,
-    authorize_against_packument, authorize_package, authorize_package_write,
-    authorize_with_ownership, authorize_without_owners, needs_package_owners,
+    AuthorizationDecision,
+    Ownership,
+    allows_with_ownership,
+    authorize,
+    authorize_against_packument,
+    authorize_package,
+    authorize_package_write,
+    authorize_with_ownership,
+    authorize_without_owners,
+    needs_package_owners,
 };
 pub(super) use pnpr_policy::Action;
 
@@ -16,10 +23,24 @@ use accounts::account_identity;
 use std::net::IpAddr;
 
 use axum::{
-    extract::{ConnectInfo, FromRequestParts, Request, State},
-    http::{HeaderMap, Method, StatusCode, header, request::Parts},
+    extract::{
+        ConnectInfo,
+        FromRequestParts,
+        Request,
+        State,
+    },
+    http::{
+        HeaderMap,
+        Method,
+        StatusCode,
+        header,
+        request::Parts,
+    },
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 
 use pnpr_auth::TokenRecord;
@@ -27,8 +48,12 @@ use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
 
 use super::{
-    AppState, PeerAddr, RegistrySource, oidc::WorkloadScope,
-    restrictions::check_token_restrictions, single_authorization_header,
+    AppState,
+    PeerAddr,
+    RegistrySource,
+    oidc::WorkloadScope,
+    restrictions::check_token_restrictions,
+    single_authorization_header,
 };
 
 #[derive(Clone)]
@@ -45,7 +70,8 @@ pub(super) struct PasswordAuthentication;
 pub(super) fn carries_bearer_secret(headers: &HeaderMap, expected: &str) -> bool {
     headers
         .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .and_then(|value| value.strip_prefix("Bearer "))
         .is_some_and(|sent| {
             super::ecosystem::sha256_hex(expected.as_bytes())
@@ -66,7 +92,7 @@ fn action_label(action: Action) -> &'static str {
 /// The caller resolved once by the [`authenticate`] middleware and stored
 /// in request extensions. Every registry handler that needs to know who is
 /// calling reads it back through this extractor rather than re-inspecting
-/// the `Authorization` header — so a request hits the auth backend exactly
+/// the `Authorization` header, so a request hits the auth backend exactly
 /// once, and the identity a handler sees is the same one the restriction
 /// gate already approved (no second lookup, no policy/identity race).
 #[derive(Clone)]
@@ -97,12 +123,12 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
 /// [`Identity`] in request extensions for the handlers (via
 /// [`AuthedCaller`]).
 ///
-/// This is also where bearer-token restrictions are enforced — ahead of
+/// This is also where bearer-token restrictions are enforced, ahead of
 /// every route handler, so a restricted token is rejected before a write
 /// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
 /// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
-/// both and surfaces them on `npm token list`, so it must enforce them too
-/// — otherwise a token the operator restricted could still publish, or be
+/// both and surfaces them on `npm token list`, so it must enforce them too;
+/// otherwise a token the operator restricted could still publish, or be
 /// used from any network. Basic-auth and anonymous requests carry no
 /// restriction and are still subject to the grants in
 /// the handlers; an unknown or revoked bearer token resolves to anonymous.
@@ -112,7 +138,7 @@ pub(super) async fn authenticate(
     next: Next,
 ) -> Response {
     // Copy what resolution needs out of the request before mutating its
-    // extensions below — the header and method borrows can't outlive the
+    // extensions below, the header and method borrows can't outlive the
     // `extensions_mut` call.
     let header = match single_authorization_header(request.headers()) {
         Ok(header) => header.map(str::to_owned),
@@ -320,8 +346,8 @@ async fn owned_parent(state: &AppState, key: &str) -> Result<Option<TokenRecord>
 /// backend at most once. Browser sessions and workload credentials check
 /// whether their account still exists. Invalid OIDC credentials are rejected even on
 /// public routes.
-/// A pnpr token — however the client carried it, see
-/// [`token_credentials`] — is looked up as a full record so its read-only /
+/// A pnpr token (however the client carried it, see
+/// [`token_credentials`]) is looked up as a full record so its read-only /
 /// CIDR restrictions can be enforced here (a violation is a `Forbidden`
 /// error); an unknown token, any other credential shape, and a missing
 /// header all resolve to [`Identity::Anonymous`]. `Err` is a backing-store
@@ -370,8 +396,8 @@ async fn resolve_caller(
             return Ok((identity, None));
         }
     }
-    // Anything that is not a pnpr token — a user:password Basic pair, another
-    // scheme, or no credentials — carries no request identity. Going through
+    // Anything that is not a pnpr token, a user:password Basic pair, another
+    // scheme, or no credentials, carries no request identity. Going through
     // `identify` here would re-run the token lookup and bypass the
     // restriction checks above, so resolve straight to anonymous.
     Ok((Identity::Anonymous, None))

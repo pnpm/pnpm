@@ -1,7 +1,10 @@
 use dashmap::DashMap;
 use std::{
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// [`std::fs::canonicalize`] for many paths that share their leading

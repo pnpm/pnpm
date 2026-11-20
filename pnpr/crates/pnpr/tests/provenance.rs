@@ -1,18 +1,44 @@
 //! Integration tests for npm publish with sigstore provenance,
 //! and the `/-/npm/v1/attestations` and `/-/npm/v1/keys` endpoints.
 
-use crate::{network::loopback_networks, npm::publish_doc, tokens::issue_token};
-use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+use crate::{
+    network::loopback_networks,
+    npm::publish_doc,
+    tokens::issue_token,
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
+use axum::{
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
+};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use pnpr::{
+    AuthState,
+    Config,
+    MaxUsers,
+    router,
+    router_with_auth,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
     fmt::Write as _,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
     time::Duration,
 };

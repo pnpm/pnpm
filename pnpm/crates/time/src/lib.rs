@@ -2,8 +2,14 @@
 
 use jiff::{
     Timestamp,
-    civil::{Date, DateTime},
-    fmt::temporal::{DateTimeParser, DateTimePrinter},
+    civil::{
+        Date,
+        DateTime,
+    },
+    fmt::temporal::{
+        DateTimeParser,
+        DateTimePrinter,
+    },
 };
 
 /// Parse an RFC 3339 timestamp, requiring seconds and an explicit offset.

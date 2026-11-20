@@ -4,10 +4,24 @@
 //! dependency to any package, so the check reads them from the record, not
 //! from the manifests.
 
-use super::{FileDigest, FileDigests, FileSignature, Path, PathBuf, Validation};
-use pnpm_lockfile::{Lockfile, LockfileResolution};
+use super::{
+    FileDigest,
+    FileDigests,
+    FileSignature,
+    Path,
+    PathBuf,
+    Validation,
+};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
 use pnpm_workspace_state::LocalDependencies;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+    HashSet,
+};
 
 /// Record the local dependencies of the lockfile at `lockfile_path`, and carry
 /// the entries of the other lockfiles `carried` records projects against.

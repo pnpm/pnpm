@@ -8,9 +8,22 @@ mod installation;
 
 mod fallback;
 
-use super::{FsCopyContents, FsHardLink, FsReflink, Host};
-use pnpm_fs::{LinkFailure, StoreFile};
-use std::{cell::Cell, fs, io, path::Path};
+use super::{
+    FsCopyContents,
+    FsHardLink,
+    FsReflink,
+    Host,
+};
+use pnpm_fs::{
+    LinkFailure,
+    StoreFile,
+};
+use std::{
+    cell::Cell,
+    fs,
+    io,
+    path::Path,
+};
 
 fn write_source(dir: &Path, name: &str, contents: &[u8]) -> StoreFile {
     let path = dir.join(name);

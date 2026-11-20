@@ -3,22 +3,40 @@
 use crate::cli_args::{
     deps_tree::{
         DependencyNode,
-        build::{DependenciesHierarchy, LoadedState, importer_id_for},
+        build::{
+            DependenciesHierarchy,
+            LoadedState,
+            importer_id_for,
+        },
         get_tree::MaxDepth,
         pkg_info::PkgInfoEnv,
     },
-    list::{ListArgs, TreeRequest, recursive::dedicated_project_config},
+    list::{
+        ListArgs,
+        TreeRequest,
+        recursive::dedicated_project_config,
+    },
     recursive::discover_workspace_projects,
 };
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use pnpm_workspace::Project;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     future::Future,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     pin::Pin,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+    },
 };
 
 type BoxedResult<'a, Output> = Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
@@ -318,7 +336,7 @@ fn linked_project_dirs(projects: &[Project]) -> HashMap<PathBuf, PathBuf> {
         let links_publish_directory = publish_config
             .and_then(|publish_config| publish_config.get("linkDirectory"))
             .and_then(serde_json::Value::as_bool)
-            != Some(false);
+            .unwrap_or(true);
         if links_publish_directory && let Some(publish_directory) = publish_directory {
             dirs.entry(lexical_normalize(&project.root_dir.join(publish_directory)))
                 .or_insert_with(|| project.root_dir.clone());

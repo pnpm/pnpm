@@ -1,5 +1,10 @@
 use super::{
-    BTreeMap, EnvVar, IndexMap, LoadWorkspaceYamlError, RegistryEntry, SentinelPlaceholders,
+    BTreeMap,
+    EnvVar,
+    IndexMap,
+    LoadWorkspaceYamlError,
+    RegistryEntry,
+    SentinelPlaceholders,
     env_replace_lossy,
 };
 use std::ops::Range;
@@ -221,7 +226,9 @@ impl UnresolvedPlaceholders {
     /// [`LoadWorkspaceYamlError::ConfigUnresolvedEnvVar`] for the first
     /// placeholder a [`Self::fail`] pass could not resolve.
     pub(super) fn into_result(self) -> Result<(), LoadWorkspaceYamlError> {
-        self.first.map_or(Ok(()), |var| Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var }))
+        self.first
+            .map(|var| Err(LoadWorkspaceYamlError::ConfigUnresolvedEnvVar { var }))
+            .unwrap_or(Ok(()))
     }
 
     /// `text` expanded, or `None` when its setting is to be left out.

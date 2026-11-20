@@ -1,4 +1,10 @@
-use super::{AddMockedRegistry, CommandExtra, CommandTempCwd, fs, pacquet_at};
+use super::{
+    AddMockedRegistry,
+    CommandExtra,
+    CommandTempCwd,
+    fs,
+    pacquet_at,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 /// `@pnpm.e2e/abc-parent-with-missing-peers` depends on `@pnpm.e2e/abc`,

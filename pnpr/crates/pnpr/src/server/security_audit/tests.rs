@@ -1,25 +1,53 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     io::Write,
 };
 
 use axum::{
     body::Bytes,
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    http::{
+        HeaderMap,
+        HeaderValue,
+        StatusCode,
+        header,
+    },
 };
-use flate2::{Compression, write::GzEncoder};
+use flate2::{
+    Compression,
+    write::GzEncoder,
+};
 use pnpr_osv::OsvIndex;
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
 use super::{
     PackageDestination,
-    encoding::{decode_request_body, decompress_gzip_bounded},
-    legacy_merge::{merge_upstream_legacy_responses, sanitize_upstream_legacy_response},
+    encoding::{
+        decode_request_body,
+        decompress_gzip_bounded,
+    },
+    legacy_merge::{
+        merge_upstream_legacy_responses,
+        sanitize_upstream_legacy_response,
+    },
     legacy_nodes::collect_installed_nodes,
-    legacy_report::{build_osv_legacy_report, derive_ghsa_id, infer_patched_versions},
+    legacy_report::{
+        build_osv_legacy_report,
+        derive_ghsa_id,
+        infer_patched_versions,
+    },
     legacy_sanitize::build_upstream_legacy_payload,
     legacy_specs::{
-        is_safe_semver_range, is_safe_semver_version, is_safe_sri_integrity, parse_name_and_spec,
+        is_safe_semver_range,
+        is_safe_semver_version,
+        is_safe_sri_integrity,
+        parse_name_and_spec,
         parse_npm_alias,
     },
 };

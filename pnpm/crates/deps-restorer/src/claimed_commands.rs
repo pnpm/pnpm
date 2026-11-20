@@ -1,8 +1,17 @@
-use pnpm_cmd_shim::{LinkBinsError, prune_stale_bins};
+use pnpm_cmd_shim::{
+    LinkBinsError,
+    prune_stale_bins,
+};
 use pnpm_fs::lexical_normalize;
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 
@@ -115,7 +124,7 @@ impl ClaimedCommands {
                 keys
             })
             .get(real)
-            .map_or(&[], Vec::as_slice)
+            .map_or_default(Vec::as_slice)
     }
 }
 

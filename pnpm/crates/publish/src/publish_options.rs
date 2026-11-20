@@ -4,19 +4,33 @@
 
 use std::collections::BTreeMap;
 
-use pnpm_diagnostics::miette::{self, Diagnostic};
+use pnpm_diagnostics::miette::{
+    self,
+    Diagnostic,
+};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 
 use crate::{
-    capabilities::{Clock, EnvVar, OidcFetch},
+    capabilities::{
+        Clock,
+        EnvVar,
+        OidcFetch,
+    },
     display_error::display_diagnostic,
     global_log::global_warn,
     oidc::{
-        DetermineProvenanceError, GetIdTokenError, OidcHttpOptions, determine_provenance,
-        fetch_auth_token, get_id_token,
+        DetermineProvenanceError,
+        GetIdTokenError,
+        OidcHttpOptions,
+        determine_provenance,
+        fetch_auth_token,
+        get_id_token,
     },
-    registry_config_keys::{NormalizedRegistryUrl, parse_supported_registry_url},
+    registry_config_keys::{
+        NormalizedRegistryUrl,
+        parse_supported_registry_url,
+    },
 };
 
 /// The package access level the registry should record. `public` or
@@ -119,7 +133,7 @@ pub enum FetchTokenAndProvenanceError {
 
 /// Try to obtain an auth token (and provenance flag) for `package_name` on
 /// `registry` via an OIDC token exchange. Returns `Ok(None)` when OIDC is not
-/// applicable or fails in a skippable way — the caller then falls back to
+/// applicable or fails in a skippable way, the caller then falls back to
 /// static credentials.
 ///
 /// `provenance_override` is the explicit `--provenance` value: when set, it is
@@ -144,7 +158,7 @@ where
     };
     let Some(id_token) = id_token else {
         // OIDC is not applicable (local publish / non-OIDC CI). Stay
-        // silent — only configuration errors in a supported CI warn.
+        // silent, only configuration errors in a supported CI warn.
         return Ok(None);
     };
 
@@ -163,7 +177,7 @@ where
     match determine_provenance::<Sys>(&auth_token, &id_token, package_name, registry, http).await {
         Ok(provenance) => Ok(Some(OidcTokenProvenance { auth_token, provenance })),
         Err(DetermineProvenanceError::Provenance(error)) => {
-            // Keep the OIDC auth token even when provenance can't be decided —
+            // Keep the OIDC auth token even when provenance can't be decided,
             // the publish itself can still go through, matching the npm CLI.
             global_warn::<Reporter>(&format!(
                 "Skipped setting provenance: {}",

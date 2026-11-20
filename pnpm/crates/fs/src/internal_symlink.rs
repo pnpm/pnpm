@@ -3,8 +3,13 @@
 
 use std::{
     collections::HashSet,
-    fs, io,
-    path::{Component, Path, PathBuf},
+    fs,
+    io,
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
 };
 
 /// The source symlinks an import or sync recreates. Either way, a link whose

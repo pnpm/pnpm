@@ -1,8 +1,18 @@
 use super::{
-    ForceSymlinkOutcome, Path, force_symlink_inner, fs, io, is_transient_file_lock_error,
-    remove_dir_all_with_retry, rename_with_retry, retry_transient_file_locks,
+    ForceSymlinkOutcome,
+    Path,
+    force_symlink_inner,
+    fs,
+    io,
+    is_transient_file_lock_error,
+    remove_dir_all_with_retry,
+    rename_with_retry,
+    retry_transient_file_locks,
 };
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use std::path::PathBuf;
 
 /// The one-shot recoveries [`force_symlink_inner`] has already spent on a
@@ -14,9 +24,9 @@ pub(super) struct TriedOnce {
     pub(super) rename: bool,
     pub(super) vanished: bool,
     /// A stale link was unlinked and the create reissued. A link that reads
-    /// as stale again afterwards is one the filesystem does not let go of —
-    /// a virtual `node_modules` serves its entries from a lockfile, and
-    /// reports the unlink done without removing anything — so the create's
+    /// as stale again afterwards is one the filesystem does not let go of
+    /// (a virtual `node_modules` serves its entries from a lockfile, and
+    /// reports the unlink done without removing anything) so the create's
     /// conflict is surfaced instead of unlinking it a third time.
     pub(super) retargeted: bool,
 }
@@ -57,7 +67,7 @@ pub(super) fn replace_unreadable_occupant(
 /// already gone.
 ///
 /// On the second attempt (`rename_tried`) this drops down to a plain unlink,
-/// as a fallback for an intermittent macOS bug — see
+/// as a fallback for an intermittent macOS bug; see
 /// [pnpm/pnpm#5909](https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890).
 pub(super) fn clear_symlink_occupant(
     link: &Path,

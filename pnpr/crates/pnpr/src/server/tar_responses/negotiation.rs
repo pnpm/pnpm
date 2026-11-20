@@ -1,4 +1,7 @@
-use super::{HeaderMap, header};
+use super::{
+    HeaderMap,
+    header,
+};
 
 /// The coding a tar response is sent in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +56,10 @@ impl Qualities {
             .to_ascii_lowercase();
         let quality = parts
             .find_map(|param| param.trim().strip_prefix("q="))
-            .map_or(Some(1.0), |quality| quality.trim().parse::<f32>().ok())
+            .map(str::trim)
+            .map(str::parse::<f32>)
+            .map(Result::ok)
+            .unwrap_or(Some(1.0))
             .unwrap_or(0.0);
         let slot = match coding.as_str() {
             "zstd" => &mut self.zstd,

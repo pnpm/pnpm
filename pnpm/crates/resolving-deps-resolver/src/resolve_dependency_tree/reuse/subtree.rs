@@ -6,13 +6,25 @@ pub(crate) use target_distance::TargetDistances;
 
 mod target_distance;
 
-use pnpm_lockfile::{PkgNameVerPeer, SnapshotEntry};
+use pnpm_lockfile::{
+    PkgNameVerPeer,
+    SnapshotEntry,
+};
 use rustc_hash::FxHashMap as HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 
-use crate::{UpdateReuseScope, lockfile_reuse::synthesize_reused_result};
+use crate::{
+    UpdateReuseScope,
+    lockfile_reuse::synthesize_reused_result,
+};
 
-use super::super::{lock_recoverable, tree_ctx::TreeCtx};
+use super::super::{
+    lock_recoverable,
+    tree_ctx::TreeCtx,
+};
 
 /// `true` when `key` and its entire transitive subtree can be
 /// synthesized from `lockfile`: every node a plain-semver registry

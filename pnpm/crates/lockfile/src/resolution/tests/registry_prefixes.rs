@@ -1,9 +1,15 @@
 use crate::{
-    DeclaredRegistryPrefixes, PkgNameVerPeer, RegistryContext, normalized_registry_key,
+    DeclaredRegistryPrefixes,
+    PkgNameVerPeer,
+    RegistryContext,
+    normalized_registry_key,
     same_registry,
 };
 use pretty_assertions::assert_eq;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 
 const DEFAULT: &str = "https://registry.npmjs.org/";
 

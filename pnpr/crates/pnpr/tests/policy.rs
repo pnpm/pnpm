@@ -5,12 +5,28 @@
 //! Static-mode (no upstream) to keep the tests hermetic.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{Config, router};
-use serde_json::{Value, json};
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use pnpr::{
+    Config,
+    router,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use std::net::{
+    Ipv4Addr,
+    SocketAddr,
+    SocketAddrV4,
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -101,7 +117,7 @@ async fn authenticated_access_token_from_yaml_gates_anonymous_reads() {
 
     // `@secret/*` requires auth: an anonymous read is 401.
     assert_eq!(status_of(app.clone(), get("/npm/@secret/thing")).await, StatusCode::UNAUTHORIZED);
-    // A `**` ($all) package is readable anonymously — it's just absent
+    // A `**` ($all) package is readable anonymously; it's just absent
     // on disk, so 404, which proves the access check passed.
     assert_eq!(status_of(app, get("/npm/lodash")).await, StatusCode::NOT_FOUND);
 }

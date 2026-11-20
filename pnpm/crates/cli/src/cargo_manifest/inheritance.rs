@@ -1,15 +1,33 @@
 use super::{
-    spans::{dotted_prefix, find_entry, line_start, quoted},
-    workspace::{rebase_workspace_path, resolve_local_path, resolve_workspace_dep_for_detach},
+    spans::{
+        dotted_prefix,
+        find_entry,
+        line_start,
+        quoted,
+    },
+    workspace::{
+        rebase_workspace_path,
+        resolve_local_path,
+        resolve_workspace_dep_for_detach,
+    },
 };
-use miette::{Result, bail};
+use miette::{
+    Result,
+    bail,
+};
 use std::{
     ops::Range,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use toml::{
     Spanned,
-    de::{DeTable, DeValue},
+    de::{
+        DeTable,
+        DeValue,
+    },
 };
 
 #[derive(Clone, Copy)]
@@ -203,11 +221,11 @@ fn optional_string_field<'a>(
 }
 
 fn disables_default_features(ws_table: &toml::Table) -> bool {
-    ws_table
+    !ws_table
         .get("default-features")
         .or_else(|| ws_table.get("default_features"))
         .and_then(toml::Value::as_bool)
-        == Some(false)
+        .unwrap_or(true)
 }
 
 fn member_sets_default_features(subtable: &DeTable<'_>) -> bool {
@@ -254,7 +272,8 @@ fn extract_string_array<'i>(value: &'i Spanned<DeValue<'i>>) -> Option<Vec<&'i s
     };
     items
         .iter()
-        .map(|item| item.get_ref().as_str())
+        .map(Spanned::get_ref)
+        .map(DeValue::as_str)
         .collect()
 }
 

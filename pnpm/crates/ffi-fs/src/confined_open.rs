@@ -10,7 +10,10 @@
 use std::{
     fs::File,
     io,
-    path::{Component, Path},
+    path::{
+        Component,
+        Path,
+    },
 };
 
 /// How many directory opens reaching a descendant took.
@@ -68,7 +71,11 @@ mod platform {
         fs::File,
         io,
         os::{
-            fd::{AsRawFd as _, FromRawFd as _, OwnedFd},
+            fd::{
+                AsRawFd as _,
+                FromRawFd as _,
+                OwnedFd,
+            },
             unix::ffi::OsStrExt as _,
         },
         path::Path,
@@ -163,7 +170,11 @@ mod platform {
         io,
         os::windows::{
             ffi::OsStrExt as _,
-            io::{AsRawHandle as _, FromRawHandle as _, OwnedHandle},
+            io::{
+                AsRawHandle as _,
+                FromRawHandle as _,
+                OwnedHandle,
+            },
         },
         path::Path,
         ptr,
@@ -172,17 +183,26 @@ mod platform {
         Wdk::{
             Foundation::OBJECT_ATTRIBUTES,
             Storage::FileSystem::{
-                FILE_DIRECTORY_FILE, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NtCreateFile,
+                FILE_DIRECTORY_FILE,
+                FILE_OPEN,
+                FILE_SYNCHRONOUS_IO_NONALERT,
+                NtCreateFile,
             },
         },
         Win32::{
             Foundation::{
-                OBJ_DONT_REPARSE, RtlNtStatusToDosError, STATUS_REPARSE_POINT_ENCOUNTERED,
+                OBJ_DONT_REPARSE,
+                RtlNtStatusToDosError,
+                STATUS_REPARSE_POINT_ENCOUNTERED,
                 UNICODE_STRING,
             },
             Storage::FileSystem::{
-                FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-                FILE_SHARE_WRITE, SYNCHRONIZE,
+                FILE_LIST_DIRECTORY,
+                FILE_READ_ATTRIBUTES,
+                FILE_SHARE_DELETE,
+                FILE_SHARE_READ,
+                FILE_SHARE_WRITE,
+                SYNCHRONIZE,
             },
             System::IO::IO_STATUS_BLOCK,
         },
@@ -270,7 +290,11 @@ mod platform {
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 mod platform {
     use super::Opens;
-    use std::{fs::File, io, path::Path};
+    use std::{
+        fs::File,
+        io,
+        path::Path,
+    };
 
     pub(super) fn open_directory_beneath(root: &File, path: &Path) -> io::Result<(File, Opens)> {
         super::open_components(root, path)

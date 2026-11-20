@@ -1,4 +1,8 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{
+    Component,
+    Path,
+    PathBuf,
+};
 
 fn is_safe_part(part: &str) -> bool {
     matches!(Path::new(part).components().next(), Some(Component::Normal(_))) && !part.contains(':')

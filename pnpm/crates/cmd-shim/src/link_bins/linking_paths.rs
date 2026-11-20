@@ -1,15 +1,28 @@
 use super::{
-    DirCreation, FsReadHead, LinkBinsError, LinkBinsOptions, OwnNodePaths, PackageBinSource,
-    bin_node_paths, remove_bin, shim_writer::with_extension_appended,
+    DirCreation,
+    FsReadHead,
+    LinkBinsError,
+    LinkBinsOptions,
+    OwnNodePaths,
+    PackageBinSource,
+    bin_node_paths,
+    remove_bin,
+    shim_writer::with_extension_appended,
 };
 use crate::bin_resolver::Command;
-use pnpm_fs::{is_subdir, realpath_missing};
+use pnpm_fs::{
+    is_subdir,
+    realpath_missing,
+};
 use rayon::prelude::*;
 use std::{
     borrow::Cow,
     ffi::OsStr,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 pub(super) struct LinkingPaths<'a> {
@@ -45,7 +58,8 @@ impl<'a> LinkingPaths<'a> {
             },
             relocatable_root: None,
             project_node_path: project_modules_dir(bins_dir, options)
-                .map(|dir| dir.to_string_lossy().into_owned()),
+                .map(Path::to_string_lossy)
+                .map(Cow::into_owned),
             extra_node_paths: Cow::Borrowed(&options.extra_node_paths),
             bin_dir,
         };
@@ -141,7 +155,7 @@ impl<'a> LinkingPaths<'a> {
 /// matching pnpm's bins linker.
 ///
 /// The result depends only on the package's symlink-resolved
-/// directory — every bin lives under the package root — so a
+/// directory (every bin lives under the package root) so a
 /// caller-supplied [`PackageBinSource::resolved_location`] makes this
 /// syscall-free; without one the package's `location` is
 /// canonicalized once, covering all of its bins.

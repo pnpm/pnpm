@@ -1,12 +1,24 @@
 use crate::{
-    DependenciesGraphNode, DirCloneCache, RequiresBuildBySnapshot,
-    create_virtual_store::{dir_clone_cacheable, package_content_changed},
+    DependenciesGraphNode,
+    DirCloneCache,
+    RequiresBuildBySnapshot,
+    create_virtual_store::{
+        dir_clone_cacheable,
+        package_content_changed,
+    },
 };
-use pnpm_lockfile::{PackageKey, PackageMetadata};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_reporter::Reporter;
 use std::{
-    collections::{HashMap, HashSet},
-    fmt, fs,
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fmt,
+    fs,
 };
 
 /// Projects only pristine, immutable snapshots into fresh hoisted destinations.
@@ -93,7 +105,7 @@ impl<'a> HoistedDirCloneCache<'a> {
 /// Whether the package's own files include a `node_modules` directory.
 /// A tarball can ship one without declaring `bundledDependencies`, and
 /// the hoisted importer merges such a directory with the nested
-/// packages the walker places inside it (`keep_modules_dir`) — which a
+/// packages the walker places inside it (`keep_modules_dir`), which a
 /// clone of the canonical slot cannot reproduce.
 fn ships_bundled_modules(cas_paths: &pnpm_fs::CasPaths) -> bool {
     cas_paths

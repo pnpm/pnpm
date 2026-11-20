@@ -22,7 +22,10 @@
 
 #![cfg(unix)]
 
-use pnpm_ffi_signal::{Interrupt, carries_handler};
+use pnpm_ffi_signal::{
+    Interrupt,
+    carries_handler,
+};
 use pnpm_testing_utils::signal_delivery::forwarded_delivery;
 
 /// Asserts on the `siginfo_t` the replaced handler received rather than only

@@ -1,5 +1,11 @@
 use super::{
-    Config, PackageManifest, Path, PathBuf, Validation, importer_id_from_root_dir, value_digest,
+    Config,
+    PackageManifest,
+    Path,
+    PathBuf,
+    Validation,
+    importer_id_from_root_dir,
+    value_digest,
 };
 
 pub(crate) fn workspace_bins_digest(

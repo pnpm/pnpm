@@ -5,7 +5,11 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use tempfile::TempDir;
 
 const AUTO_TRUST_ENV: &str = "PNPM_AUTO_APPROVE_PROJECT_BINS_FOR_TESTS";
@@ -302,7 +306,10 @@ const BUN_VERSION: &str = "1.2.19";
 /// archive's `bun` is a script that prints nothing.
 #[cfg(unix)]
 fn mock_bun_release(server: &mut mockito::Server, version: &str) -> [mockito::Mock; 3] {
-    use sha2::{Digest, Sha256};
+    use sha2::{
+        Digest,
+        Sha256,
+    };
     use std::io::Write;
 
     let arch = match pnpm_graph_hasher::host_arch() {
@@ -633,7 +640,7 @@ fn lookalike_package_does_not_shadow_the_global_bin() {
 }
 
 /// `globalShims: false` in the global config.yaml disables dispatch
-/// immediately — no relinking required.
+/// immediately, no relinking required.
 #[cfg(unix)]
 #[test]
 fn global_shims_setting_off_disables_dispatch() {
@@ -773,7 +780,7 @@ fn write_lockfile_verified_record(root: &TempDir, project: &Path) {
 }
 
 /// A `pnpm-workspace.yaml` in an ancestor of the pnpm home must not
-/// influence dispatch — only `<home>/pnpm-workspace.yaml` itself may.
+/// influence dispatch, only `<home>/pnpm-workspace.yaml` itself may.
 #[cfg(unix)]
 #[test]
 fn ancestors_of_the_pnpm_home_cannot_set_the_mode() {
@@ -827,7 +834,7 @@ fn global_fallback_preserves_quoted_shebang_arguments() {
     fs::create_dir_all(&cwd).unwrap();
 
     let output = shim_command(&root, &cwd, "tool", target.to_str().unwrap())
-        .arg("forwarded with spaces")
+        .with_arg("forwarded with spaces")
         .output()
         .unwrap();
 
@@ -857,7 +864,7 @@ fn global_fallback_prefers_the_sibling_interpreter() {
     fs::create_dir_all(&cwd).unwrap();
 
     let output = shim_command(&root, &cwd, "tool", target.to_str().unwrap())
-        .arg("--flag")
+        .with_arg("--flag")
         .output()
         .unwrap();
 
@@ -900,13 +907,13 @@ fn a_shim_runs_a_target_that_is_a_hard_link_of_it() {
         .join(format!("global/node_modules/pnpm/pnpm{}", std::env::consts::EXE_SUFFIX));
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     #[cfg(unix)]
-    let mut command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
+    let command = shim_command(&root, &cwd, "pnpm", target.to_str().unwrap());
     #[cfg(windows)]
-    let mut command = windows_shim_command(&root, &cwd, "pnpm", &target);
+    let command = windows_shim_command(&root, &cwd, "pnpm", &target);
     fs::hard_link(command.get_program(), &target).unwrap();
 
     let output = command
-        .arg("--version")
+        .with_arg("--version")
         .output()
         .unwrap();
 
@@ -1029,7 +1036,7 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
 }
 
 /// `globalShims: false` turns every context-aware shim off, so a shim
-/// added under it would sit on `PATH` doing nothing — and recording the
+/// added under it would sit on `PATH` doing nothing, and recording the
 /// opt-in would replace that off switch with a record that turns the
 /// built-in runtime shims back on. The command says so instead.
 #[test]
@@ -1050,7 +1057,7 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
     let stderr = String::from_utf8_lossy(&refused.stderr);
     assert!(stderr.contains("ERR_PNPM_SHIMS_DISABLED"), "{stderr}");
     assert_eq!(fs::read_to_string(config_dir.join("config.yaml")).unwrap(), "globalShims: false\n");
-    // Nothing was linked at all — not the bare shim, not a Windows
+    // Nothing was linked at all, not the bare shim, not a Windows
     // flavor, not the dispatcher beside them.
     let global_bin = root
         .path()
@@ -1075,7 +1082,7 @@ fn adding_a_shim_under_a_global_disable_is_refused() {
 }
 
 /// Removing a shim the record never held changes nothing, so it writes
-/// nothing — spelling the built-in defaults into the user's
+/// nothing, spelling the built-in defaults into the user's
 /// configuration is not what `pnpm shim rm` was asked to do.
 #[test]
 fn removing_a_shim_that_was_never_recorded_leaves_the_config_alone() {
@@ -1261,7 +1268,7 @@ fn adding_a_shim_over_another_package_s_bin_is_refused() {
 }
 
 /// Nothing installed the package behind the shim, so a project that
-/// neither pins nor depends on it has nothing to run — and the shim says
+/// neither pins nor depends on it has nothing to run, and the shim says
 /// so instead of falling through to whatever else is on `PATH`.
 #[cfg(unix)]
 #[test]

@@ -1,18 +1,33 @@
 use super::{
     super::{
-        AccountCredential, AccountStatus, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome,
-        UserBackend, UserRemoval,
+        AccountCredential,
+        AccountStatus,
+        PasswordChange,
+        TokenBackend,
+        TokenRecord,
+        UpsertOutcome,
+        UserBackend,
+        UserRemoval,
     },
-    AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
+    AuthSqlBackend,
+    InsertUser,
+    SqlAuth,
+    StoredUser,
 };
 use crate::validation::MAX_USERNAME_CHARS;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use std::{
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
     },
     time::Duration,
 };

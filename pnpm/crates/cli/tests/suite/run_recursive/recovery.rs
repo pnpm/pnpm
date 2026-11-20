@@ -1,13 +1,26 @@
 use super::{
-    Command, CommandExtra, CommandTempCwd, Value, append_line_script,
-    assert_recursive_run_bail_cancels_in_flight, build_appends_run_order, build_writes_marker, fs,
-    json, summary_statuses, write_marker_script, write_workspace,
+    Command,
+    CommandExtra,
+    CommandTempCwd,
+    Value,
+    append_line_script,
+    assert_recursive_run_bail_cancels_in_flight,
+    build_appends_run_order,
+    build_writes_marker,
+    fs,
+    json,
+    summary_statuses,
+    write_marker_script,
+    write_workspace,
 };
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use assert_cmd::{
+    assert::OutputAssertExt,
+    cargo::CommandCargoExt,
+};
 
 /// `--no-sort` disregards ordering entirely, so there is no graph for
 /// `--reverse` to turn around or for `--resume-from` to skip the anchor's
-/// dependencies in — both are no-ops and every project runs in workspace
+/// dependencies in; both are no-ops and every project runs in workspace
 /// order, exactly as in pnpm.
 #[test]
 fn recursive_run_no_sort_makes_reverse_and_resume_no_ops() {
@@ -470,7 +483,7 @@ fn recursive_run_recursion_guard_skips_originating_project() {
         ],
     );
 
-    // Pretend we're already inside `project-1`'s `build` lifecycle —
+    // Pretend we're already inside `project-1`'s `build` lifecycle,
     // pnpm's recursion guard should leave `project-1` alone while
     // still running `project-2`. Canonicalize the path so the env-var
     // value matches what `find_workspace_projects` derives internally:

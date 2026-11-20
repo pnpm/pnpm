@@ -8,7 +8,11 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn workspace_path_override_links_the_workspace_relative_target() {
@@ -109,8 +113,8 @@ fn root_relative_overrides_resolve_from_workspace_config_with_both_lockfile_mode
 
             let consumer = workspace.join("packages/deep/consumer");
             let runtime = Command::new("node")
-                .args(["-p", "require('target')"])
-                .current_dir(&consumer)
+                .with_args(["-p", "require('target')"])
+                .with_current_dir(&consumer)
                 .output()
                 .expect("run Node.js");
             if !runtime.status.success() || runtime.stdout != b"target\n" {

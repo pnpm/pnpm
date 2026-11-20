@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use pnpr_fixtures::{build_storage_at_with_substitutions, seed_storage_registries};
+use pnpr_fixtures::{
+    build_storage_at_with_substitutions,
+    seed_storage_registries,
+};
 
 /// Build verdaccio-shaped registry storage from raw package fixtures, so the
 /// `pnpr` server can serve them.

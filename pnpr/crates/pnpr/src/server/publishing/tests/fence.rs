@@ -4,7 +4,10 @@
 
 use crate::server::{
     AppState,
-    oci::{OciPublication, OciTarget},
+    oci::{
+        OciPublication,
+        OciTarget,
+    },
     publishing::commit_publishes,
     routing::state_and_router,
 };
@@ -12,8 +15,14 @@ use axum::body::Bytes;
 use pnpr_auth::AuthState;
 use pnpr_error::RegistryError;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_oci::{Digest, media_type};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_oci::{
+    Digest,
+    media_type,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_storage::Storage;
 use serde_json::json;
 use tempfile::TempDir;

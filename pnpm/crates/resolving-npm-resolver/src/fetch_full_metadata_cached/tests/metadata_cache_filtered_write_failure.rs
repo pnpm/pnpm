@@ -1,6 +1,13 @@
 use super::{
-    AuthHeaders, FULL_FILTERED_META_DIR, FetchFullMetadataCachedOptions, PACKAGE_BODY, TempDir,
-    ThrottledClient, fetch_full_metadata_cached, get_pkg_mirror_path, no_retry_opts,
+    AuthHeaders,
+    FULL_FILTERED_META_DIR,
+    FetchFullMetadataCachedOptions,
+    PACKAGE_BODY,
+    TempDir,
+    ThrottledClient,
+    fetch_full_metadata_cached,
+    get_pkg_mirror_path,
+    no_retry_opts,
 };
 
 /// A filtered full document is stored with the NDJSON writer. A cache
@@ -8,7 +15,10 @@ use super::{
 #[cfg(unix)]
 #[tokio::test]
 async fn read_only_cache_dir_does_not_fail_filtered_metadata() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let mut server = mockito::Server::new_async().await;
     let mock = server

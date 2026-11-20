@@ -7,7 +7,7 @@
 //! Upstream points these at real repositories on github.com. Here each
 //! test builds its own repo on disk and installs it over `git+file://`
 //! ([`GitRepoFixture`]), so the git install path runs end to end without
-//! reaching the network — the same technique upstream's own
+//! reaching the network, the same technique upstream's own
 //! `createGitPreparePackage` uses. What that trades away is the *host*
 //! identity: a `github:`/`gitlab:`/`bitbucket:` spec resolves to the
 //! host's archive URL (a `gitHosted: true` tarball resolution), while a
@@ -17,18 +17,38 @@
 
 use crate::_utils;
 
-use std::{fmt::Write as _, fs, path::Path, process::Command};
+use std::{
+    fmt::Write as _,
+    fs,
+    path::Path,
+    process::Command,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, LockfileResolution};
-use pnpm_testing_utils::{bin::CommandTempCwd, git_repo::GitRepoFixture};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    git_repo::GitRepoFixture,
+};
 use pretty_assertions::assert_eq;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use _utils::{
-    append_workspace_yaml_key, assert_success, importer_specifier, importer_version,
-    ndjson_records, read_lockfile, read_manifest, write_manifest_value,
+    append_workspace_yaml_key,
+    assert_success,
+    importer_specifier,
+    importer_version,
+    ndjson_records,
+    read_lockfile,
+    read_manifest,
+    write_manifest_value,
 };
 
 /// The `hi` package upstream installs under the `say-hi` alias. Two bin
@@ -81,8 +101,8 @@ fn write_dependencies(project: &Path, deps: &[(&str, &str)]) {
 
 fn add_submodule(repository: &Path, url: &str, path: &str) {
     Command::new("git")
-        .current_dir(repository)
-        .args(["-c", "protocol.file.allow=always", "submodule", "add", "--", url, path])
+        .with_current_dir(repository)
+        .with_args(["-c", "protocol.file.allow=always", "submodule", "add", "--", url, path])
         .assert()
         .success();
 }
@@ -144,7 +164,7 @@ fn install_from_a_git_repo() {
     assert_eq!(resolution.repo, repo.file_url());
     assert_eq!(resolution.path, None);
     // A non-host git dep with no alias records the bare `git+...#<commit>`
-    // ref in the importer, not `is-negative@git+...` — byte-for-byte what
+    // ref in the importer, not `is-negative@git+...`, byte-for-byte what
     // pnpm 11 writes.
     assert_eq!(importer_version(&lockfile, ".", "is-negative"), repo.git_url_at(&commit));
 
@@ -168,9 +188,10 @@ fn install_from_a_git_repo_with_submodules() {
     let commit = repository.commit("add submodule");
     write_dependencies(&workspace, &[("with-submodule", &repository.git_url_at(&commit))]);
 
-    pacquet.env("GIT_CONFIG_COUNT", "1");
-    pacquet.env("GIT_CONFIG_KEY_0", "protocol.file.allow");
-    pacquet.env("GIT_CONFIG_VALUE_0", "always");
+    pacquet = pacquet
+        .with_env("GIT_CONFIG_COUNT", "1")
+        .with_env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .with_env("GIT_CONFIG_VALUE_0", "always");
     pacquet
         .with_args(["install"])
         .assert()
@@ -210,9 +231,10 @@ fn install_from_a_git_repo_with_nested_submodules() {
     let commit = repository.commit("add middle submodule");
     write_dependencies(&workspace, &[("with-nested-submodule", &repository.git_url_at(&commit))]);
 
-    pacquet.env("GIT_CONFIG_COUNT", "1");
-    pacquet.env("GIT_CONFIG_KEY_0", "protocol.file.allow");
-    pacquet.env("GIT_CONFIG_VALUE_0", "always");
+    pacquet = pacquet
+        .with_env("GIT_CONFIG_COUNT", "1")
+        .with_env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .with_env("GIT_CONFIG_VALUE_0", "always");
     pacquet
         .with_args(["install"])
         .assert()
@@ -247,8 +269,8 @@ fn lockfile_only_from_a_git_repo_with_submodules_does_not_fetch_submodules() {
         "[submodule \"native\"]\npath = native\nurl = file:///nonexistent/submodule.git\n",
     );
     Command::new("git")
-        .current_dir(&work)
-        .args(["update-index", "--add", "--cacheinfo", "160000", &module_commit, "native"])
+        .with_current_dir(&work)
+        .with_args(["update-index", "--add", "--cacheinfo", "160000", &module_commit, "native"])
         .assert()
         .success();
     let commit = repository.commit("add broken submodule");
@@ -268,7 +290,7 @@ fn lockfile_only_from_a_git_repo_with_submodules_does_not_fetch_submodules() {
 
 /// No pnpm version computes an integrity for a git checkout, yet
 /// lockfiles in the wild record one. Installing must not choke on it, and
-/// must not write it back — nothing verifies a git checkout against a
+/// must not write it back; nothing verifies a git checkout against a
 /// hash. See <https://github.com/pnpm/pnpm/issues/13042>.
 #[test]
 fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
@@ -331,7 +353,7 @@ fn install_from_a_git_repo_whose_lockfile_records_an_integrity() {
 /// (`fromRepo.ts:61`).
 ///
 /// The alias is the point: the manifest and the importer entry key on
-/// `say-hi`, while the package resolves to `hi` — so the importer's
+/// `say-hi`, while the package resolves to `hi`, so the importer's
 /// version keeps the `hi@` prefix, the `pnpm:root` event reports both
 /// names, and both of the package's bins are linked under their own
 /// names rather than the alias.
@@ -392,7 +414,7 @@ fn install_from_a_git_repo_with_a_different_name_via_named_installation() {
 /// TS: `from a github repo with different name` (`fromRepo.ts:105`).
 ///
 /// Same shape as the named-installation case, reached through a
-/// manifest that already declares the alias rather than through `add` —
+/// manifest that already declares the alias rather than through `add`,
 /// upstream keeps both because the two entered the installer by
 /// different routes.
 #[test]
@@ -430,7 +452,7 @@ fn install_from_a_git_repo_with_a_different_name() {
 /// TS: `re-adding a git repo with a different tag` (`fromRepo.ts:276`).
 ///
 /// Each tag is a distinct commit, so re-adding must re-resolve to the
-/// second one and leave exactly one `packages:` entry behind — a stale
+/// second one and leave exactly one `packages:` entry behind, a stale
 /// entry for the first tag would mean the old commit is still installed.
 #[test]
 fn re_adding_a_git_repo_with_a_different_tag() {
@@ -740,7 +762,7 @@ fn registry_dependency_can_alias_a_git_dependency_that_provides_a_peer() {
 }
 
 /// A git specifier names a repository, not a package, so the name the
-/// peer is matched on lives only in the repo's own manifest — read
+/// peer is matched on lives only in the repo's own manifest, read
 /// during resolution, early enough for the hoist that
 /// `resolvePeersFromWorkspaceRoot` runs
 /// (<https://github.com/pnpm/pnpm/issues/13351>).
@@ -895,7 +917,7 @@ fn allow_builds(workspace: &Path, keys: &[&str]) {
     let mut yaml = std::fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
     assert!(
         !yaml.contains("allowBuilds:"),
-        "pnpm-workspace.yaml already has an `allowBuilds:` key — update this helper",
+        "pnpm-workspace.yaml already has an `allowBuilds:` key, update this helper",
     );
     if !yaml.ends_with('\n') {
         yaml.push('\n');
@@ -996,8 +1018,8 @@ fs.appendFileSync(path.join(root, '.git/config'), '\n# contaminated\n');
     let mut total_acquisitions = 0;
     for pass in &INSTALL_PASSES {
         pass.clear_previous_install(&workspace, &npmrc_info.store_dir);
-        let mut command = pnpm_at(&workspace);
-        command.env("PATH", &wrapper_path).args(pass.args());
+        let mut command =
+            pnpm_at(&workspace).with_env("PATH", &wrapper_path).with_args(pass.args());
         command.assert().success();
         total_acquisitions += pass.expected_acquisitions;
         let acquisitions = log.acquisitions();
@@ -1029,11 +1051,10 @@ fn aliasless_subdirectory_adds_share_one_source_while_resolving() {
         format!("{}&path:/packages/{name}", repo.git_url_at(&commit))
     });
     let log = GitCommandLog::new(root.path());
-    let mut command = pnpm_at(&workspace);
-    command
-        .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
-        .arg("add")
-        .args(&specs);
+    let mut command = pnpm_at(&workspace)
+        .with_env("PATH", prepend_to_path(log.bin.parent().unwrap()))
+        .with_arg("add")
+        .with_args(&specs);
     command.assert().success();
 
     // One checkout serves both selectors' name discovery; the install
@@ -1137,7 +1158,7 @@ fn a_tag_shared_by_many_workspace_projects_is_looked_up_once() {
         );
     }
     pnpm_at(&workspace)
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     // A pnpmfile the lockfile has not recorded makes the next install
@@ -1146,8 +1167,8 @@ fn a_tag_shared_by_many_workspace_projects_is_looked_up_once() {
     let log = GitCommandLog::new(root.path());
 
     pnpm_at(&workspace)
-        .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
-        .arg("install")
+        .with_env("PATH", prepend_to_path(log.bin.parent().unwrap()))
+        .with_arg("install")
         .assert()
         .success();
 
@@ -1203,7 +1224,7 @@ fn lockfile_update_reuses_the_locked_commit_of_a_git_dependency_with_peers() {
             "--ignore-pnpmfile",
             "--no-frozen-lockfile",
         ])
-        .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
+        .with_env("PATH", prepend_to_path(log.bin.parent().unwrap()))
         .assert()
         .success();
 
@@ -1265,11 +1286,11 @@ fn lockfile_update_keeps_the_aliased_git_child_of_a_git_dependency_with_peers() 
 
     pnpm_at(&workspace)
         .with_args(["install", "--lockfile-only", "--no-frozen-lockfile", "--ignore-scripts"])
-        .arg("--store-dir")
-        .arg(root.path().join("empty-store"))
-        .arg("--cache-dir")
-        .arg(root.path().join("empty-cache"))
-        .env("PATH", prepend_to_path(log.bin.parent().unwrap()))
+        .with_arg("--store-dir")
+        .with_arg(root.path().join("empty-store"))
+        .with_arg("--cache-dir")
+        .with_arg(root.path().join("empty-cache"))
+        .with_env("PATH", prepend_to_path(log.bin.parent().unwrap()))
         .assert()
         .success();
 

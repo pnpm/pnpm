@@ -1,14 +1,28 @@
 #[cfg(test)]
 pub(super) mod tests;
 
-use super::cargo_manifest_ops::{DeclaredCargoDep, declared_cargo_deps, same_declared_dep};
+use super::cargo_manifest_ops::{
+    DeclaredCargoDep,
+    declared_cargo_deps,
+    same_declared_dep,
+};
 use crate::cargo_deps::CargoWorkspaceDependency;
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use semver::VersionReq;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// A declaration's version requirement and the features it enables.
@@ -189,7 +203,8 @@ fn extend_unique_declared(
         }
         if let Some(existing) = all_declared
             .iter_mut()
-            .find(|existing| existing.group == dep.group && same_declared_dep(existing, &dep))
+            .filter(|existing| existing.group == dep.group)
+            .find(|existing| same_declared_dep(existing, &dep))
         {
             existing.merge_aliases_from(&dep);
         } else {

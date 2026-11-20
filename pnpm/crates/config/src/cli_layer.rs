@@ -47,6 +47,8 @@ pub enum CommandTarget {
     Project,
     /// The global packages, which `-g` commands install, update, and list.
     GlobalPackages,
+    /// An isolated temporary environment (`dlx`, `pnx`, `create`).
+    Dlx,
 }
 
 impl Config {

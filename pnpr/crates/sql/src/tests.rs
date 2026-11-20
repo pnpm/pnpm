@@ -2,7 +2,11 @@
 use super::mysql_pool;
 #[cfg(feature = "backend-postgres")]
 use super::postgres_pool;
-use super::{Arc, Duration, SqlBackendSettings};
+use super::{
+    Arc,
+    Duration,
+    SqlBackendSettings,
+};
 
 fn settings(url: &str) -> SqlBackendSettings {
     SqlBackendSettings {

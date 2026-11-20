@@ -1,8 +1,16 @@
 use crate::{
-    OverrideDependencyType, PackageSelector, ParseOverridesError, VersionOverride,
-    create_overrides_map_from_parsed, parse_overrides, parse_pkg_and_parent_selector,
+    OverrideDependencyType,
+    PackageSelector,
+    ParseOverridesError,
+    VersionOverride,
+    create_overrides_map_from_parsed,
+    parse_overrides,
+    parse_pkg_and_parent_selector,
 };
-use pnpm_catalogs_types::{Catalog, Catalogs};
+use pnpm_catalogs_types::{
+    Catalog,
+    Catalogs,
+};
 use std::collections::HashMap;
 
 fn vo(
@@ -128,7 +136,7 @@ fn rejects_invalid_selector() {
 
 #[test]
 fn rejects_invalid_selector_with_whitespace() {
-    // `foo > bar` — the regex requires the byte before `>` to be
+    // `foo > bar`: the regex requires the byte before `>` to be
     // non-space, so the parser sees no parent>child split and falls
     // through to `parse_pkg_selector("foo > bar")`, which fails
     // because `parse_wanted_dependency` doesn't validate the alias.

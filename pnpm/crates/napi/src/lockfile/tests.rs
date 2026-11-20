@@ -4,8 +4,14 @@ use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
-    FilterLockfileOptions, LockfileKind, ReadLockfileOptions, WriteLockfileOptions,
-    filter_lockfile_by_importers, lockfile_path, read_lockfile, write_lockfile,
+    FilterLockfileOptions,
+    LockfileKind,
+    ReadLockfileOptions,
+    WriteLockfileOptions,
+    filter_lockfile_by_importers,
+    lockfile_path,
+    read_lockfile,
+    write_lockfile,
 };
 
 const LOCKFILE: &str = "lockfileVersion: '9.0'

@@ -1,8 +1,14 @@
-use super::{CommandTempCwd, seed_package};
+use super::{
+    CommandTempCwd,
+    seed_package,
+};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::command_env::CommandTestExt;
-use std::{fs, process::Command};
+use std::{
+    fs,
+    process::Command,
+};
 
 #[test]
 fn clean_rootless_wildcard_prefix_preserves_members_under_overlapping_modules_dir() {
@@ -239,7 +245,8 @@ module.exports = {
     let lines: Vec<serde_json::Value> = fs::read_to_string(&log_path)
         .expect("read pre-res.jsonl")
         .lines()
-        .map(|line| serde_json::from_str(line).expect("parse jsonl line"))
+        .map(serde_json::from_str)
+        .map(|parsed| parsed.expect("parse jsonl line"))
         .collect();
     assert_eq!(lines.len(), 1, "preResolution ran once and replayed: {lines:?}");
     assert_eq!(lines[0]["exists"], serde_json::json!(true), "{lines:?}");

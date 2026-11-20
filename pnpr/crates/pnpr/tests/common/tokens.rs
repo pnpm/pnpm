@@ -1,8 +1,14 @@
 //! Tokens for tests that drive a router built on an in-memory `AuthState`.
 
-use pnpr::{AuthState, TokenBackend};
+use pnpr::{
+    AuthState,
+    TokenBackend,
+};
 use pnpr_auth::LAST_USED_GRANULARITY_MILLIS;
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 /// A token for `username`, stored as an account first: pnpr honors only
 /// tokens whose owner is an account.

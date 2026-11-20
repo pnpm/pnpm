@@ -1,5 +1,8 @@
 use super::mapped_drive_path;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[test]
 fn mapped_unc_path_uses_its_original_drive() {

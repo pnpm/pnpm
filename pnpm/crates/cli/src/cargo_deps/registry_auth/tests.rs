@@ -1,7 +1,20 @@
-use super::{crates_io, crates_io_from_sources, token_from_credentials};
-use pnpm_config::{EnvVar, EnvVarOs, GetHomeDir};
+use super::{
+    crates_io,
+    crates_io_from_sources,
+    token_from_credentials,
+};
+use pnpm_config::{
+    EnvVar,
+    EnvVarOs,
+    GetHomeDir,
+};
 use pnpm_network::AuthHeaders;
-use std::{ffi::OsString, fs, path::PathBuf, sync::Arc};
+use std::{
+    ffi::OsString,
+    fs,
+    path::PathBuf,
+    sync::Arc,
+};
 
 struct NoCredentialAccess;
 

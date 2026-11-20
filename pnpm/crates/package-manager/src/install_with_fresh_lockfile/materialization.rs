@@ -1,18 +1,50 @@
 use super::{
-    FinalScope, FreshInputs, FreshPlan, HostProbeInputs, InstallShape,
-    InstallWithFreshLockfileResult, LockfileOnlyOptions, LockfileViews, MaterializationScope,
-    OnDiskInputs, OnDiskOutput, OwnedInputs, PlanLockfiles, PlanScope, Resolved, ResolverSetup,
-    build_lockfile_phase, errors::InstallWithFreshLockfileError, finish_early_materialization,
-    finish_lockfile_only, manifest_transforms, persist_fresh_lockfile, plan_fresh_materialization,
-    resolver_setup, run_on_disk_phases, warn_stale_convergence_overrides_if_any,
+    FinalScope,
+    FreshInputs,
+    FreshPlan,
+    HostProbeInputs,
+    InstallShape,
+    InstallWithFreshLockfileResult,
+    LockfileOnlyOptions,
+    LockfileViews,
+    MaterializationScope,
+    OnDiskInputs,
+    OnDiskOutput,
+    OwnedInputs,
+    PlanLockfiles,
+    PlanScope,
+    Resolved,
+    ResolverSetup,
+    build_lockfile_phase,
+    errors::InstallWithFreshLockfileError,
+    finish_early_materialization,
+    finish_lockfile_only,
+    manifest_transforms,
+    persist_fresh_lockfile,
+    plan_fresh_materialization,
+    resolver_setup,
+    run_on_disk_phases,
+    warn_stale_convergence_overrides_if_any,
 };
-use crate::{AllowBuildPolicy, VirtualStoreLayout};
+use crate::{
+    AllowBuildPolicy,
+    VirtualStoreLayout,
+};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    Stage,
+    StageLog,
+};
 use pnpm_tarball::MemCache;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
 pub(super) struct MaterializationResources {
     tarball_mem_cache: Arc<MemCache>,
@@ -355,7 +387,7 @@ fn collect_known_bins(
     let mut known = pnpm_deps_restorer::PackageBins::new();
     for node in graph.values() {
         let manifest = node.resolve_result.package.manifest.as_deref();
-        if pnpm_deps_restorer::manifest_requires_build(manifest) != Some(false) {
+        if pnpm_deps_restorer::manifest_requires_build(manifest).unwrap_or(true) {
             continue;
         }
         let Some(bins) = pnpm_deps_restorer::manifest_bins(manifest) else {

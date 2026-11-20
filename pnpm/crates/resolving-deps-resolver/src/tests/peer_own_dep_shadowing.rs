@@ -1,6 +1,13 @@
 use super::{
-    DependencyGroup, HashMap, Mutex, ResolveDependencyTreeOptions, ResolveOptions, StubResolver,
-    fake_manifest, fake_result, resolve_dependency_tree,
+    DependencyGroup,
+    HashMap,
+    Mutex,
+    ResolveDependencyTreeOptions,
+    ResolveOptions,
+    StubResolver,
+    fake_manifest,
+    fake_result,
+    resolve_dependency_tree,
 };
 
 fn opts(auto_install_peers: bool) -> ResolveDependencyTreeOptions {
@@ -87,7 +94,7 @@ async fn without_auto_install_peers_the_own_dep_wins() {
 
 /// `types` is a direct dependency of the importer, so it is in
 /// `parser`'s parent scope and the peer edge resolves against it
-/// instead of `parser` nesting its own copy — pnpm's
+/// instead of `parser` nesting its own copy, pnpm's
 /// `parentPkgAliases` arm of the omission, which applies with
 /// `autoInstallPeers` off.
 #[tokio::test]

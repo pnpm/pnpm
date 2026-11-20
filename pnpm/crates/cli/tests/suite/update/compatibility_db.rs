@@ -1,4 +1,10 @@
-use super::{assert_eq, fs, pacquet, read_lockfile, setup};
+use super::{
+    assert_eq,
+    fs,
+    pacquet,
+    read_lockfile,
+    setup,
+};
 use assert_cmd::assert::OutputAssertExt;
 
 /// `vue-loader` has an entry in pnpm's built-in compatibility database that

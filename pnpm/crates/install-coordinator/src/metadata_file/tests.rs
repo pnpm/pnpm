@@ -1,5 +1,9 @@
 use super::MetadataFile;
-use std::{sync::mpsc, thread, time::Duration};
+use std::{
+    sync::mpsc,
+    thread,
+    time::Duration,
+};
 
 /// Opening a FIFO read-only waits for a writer, and a metadata path never
 /// gets one, so capture has to reject it on its type instead of waiting.

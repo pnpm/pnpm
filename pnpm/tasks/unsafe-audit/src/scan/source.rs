@@ -1,7 +1,14 @@
 //! Reading the `unsafe` in a source file, and the opt-out above it.
 
-use super::{Kind, Occurrence, lexical};
-use std::path::{Path, PathBuf};
+use super::{
+    Kind,
+    Occurrence,
+    lexical,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 /// Every `unsafe` in one file.
 ///

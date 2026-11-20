@@ -2,12 +2,26 @@
 //! the root project's package links and command shims there, as the first
 //! install did. Covers the configurations reported in
 //! <https://github.com/pnpm/pnpm/issues/17889>.
+use command_extra::CommandExtra;
 
-use super::{write_manifest, yaml_path};
-use crate::_utils::{append_workspace_yaml_key, pacquet_in};
+use super::{
+    write_manifest,
+    yaml_path,
+};
+use crate::_utils::{
+    append_workspace_yaml_key,
+    pacquet_in,
+};
 use assert_cmd::prelude::*;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 #[test]
 fn frozen_offline_install_keeps_links_in_an_external_modules_dir() {
@@ -95,18 +109,17 @@ fn install_with_external_modules(scenario: &Scenario<'_>, mode: InstallMode) {
         source,
         virtual_store,
     } = *scenario;
-    let mut command = pacquet_in(workspace);
-    command.arg("install");
+    let mut command = pacquet_in(workspace).with_arg("install");
     match source {
         ModulesDirSource::WorkspaceYaml => {}
         ModulesDirSource::CliFlag => {
-            command.arg("--modules-dir").arg(modules);
+            command = command.with_arg("--modules-dir").with_arg(modules);
         }
     }
     match mode {
         InstallMode::Initial => {}
         InstallMode::FrozenOffline => {
-            command.args(["--offline", "--frozen-lockfile"]);
+            command = command.with_args(["--offline", "--frozen-lockfile"]);
         }
     }
     command.assert().success();

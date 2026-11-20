@@ -3,11 +3,20 @@
 use super::LocalDepContext;
 use crate::install::lockfile_freshness::FreshnessCheckError;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_deps_resolver::{PeerSet, peer_shadowed_dependency_names};
-use std::collections::{HashMap, HashSet};
+use pnpm_resolving_deps_resolver::{
+    PeerSet,
+    peer_shadowed_dependency_names,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
 /// How the resolver treats the names a package declares both as one of its
 /// own dependencies and as a peer, decided by the resolver's own rule in

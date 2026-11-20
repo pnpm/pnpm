@@ -273,7 +273,7 @@ fn stop_without_script_succeeds_with_if_present() {
 }
 
 /// The mirror of the above: after the command name `--if-present` is the
-/// script's argument, so a missing script is still an error — pnpm reports
+/// script's argument, so a missing script is still an error, pnpm reports
 /// `Command "stop" not found` for the same invocation.
 #[test]
 fn stop_without_script_fails_when_if_present_follows_the_command() {

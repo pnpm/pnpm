@@ -1,4 +1,8 @@
-use super::{apply, drop_context_no_newline_markers, strip_cr_from_extended_headers};
+use super::{
+    apply,
+    drop_context_no_newline_markers,
+    strip_cr_from_extended_headers,
+};
 use diffy::Patch;
 use pretty_assertions::assert_eq;
 use text_block_macros::text_block_fnl;
@@ -153,7 +157,7 @@ fn keeps_an_unterminated_file_unterminated_after_an_unmarked_append() {
     assert_eq!(applied(original, patch), "one\ntwo\nthree");
 }
 
-/// Context that matches nothing is still a failure — the tolerances
+/// Context that matches nothing is still a failure, the tolerances
 /// widen what counts as a match, they don't make the applier accept a
 /// patch written against different content.
 #[test]

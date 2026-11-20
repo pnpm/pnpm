@@ -5,8 +5,15 @@
 //! Resource IDs are immutable account IDs. Login names remain mutable attributes.
 //! Deactivation revokes credentials; deletion also frees the login name.
 
-pub(super) use directory::{ScimState, is_deprovisioned, reload_directory};
-pub(super) use subjects::{resolve_subject, validate_oidc};
+pub(super) use directory::{
+    ScimState,
+    is_deprovisioned,
+    reload_directory,
+};
+pub(super) use subjects::{
+    resolve_subject,
+    validate_oidc,
+};
 
 mod directory;
 mod discovery;
@@ -16,24 +23,52 @@ mod subjects;
 mod tests;
 
 use super::{
-    AppState, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode,
-    authentication::carries_bearer_secret, parse_json_body,
+    AppState,
+    MAX_LOGIN_BODY_BYTES,
+    RegistryError,
+    Response,
+    StatusCode,
+    authentication::carries_bearer_secret,
+    parse_json_body,
 };
 use axum::{
     Router,
-    body::{Body, Bytes},
-    extract::{DefaultBodyLimit, FromRequestParts, Path, Query, State},
-    http::{header, request::Parts},
+    body::{
+        Body,
+        Bytes,
+    },
+    extract::{
+        DefaultBodyLimit,
+        FromRequestParts,
+        Path,
+        Query,
+        State,
+    },
+    http::{
+        header,
+        request::Parts,
+    },
     response::IntoResponse,
     routing::get,
 };
 use directory::{
-    ScimUser, create_user as create_stored, delete_user as delete_stored,
-    patch_user as patch_stored, replace_user as replace_stored,
+    ScimUser,
+    create_user as create_stored,
+    delete_user as delete_stored,
+    patch_user as patch_stored,
+    replace_user as replace_stored,
 };
-use resources::{list_response, parse_filter, parse_user, user_resource};
+use resources::{
+    list_response,
+    parse_filter,
+    parse_user,
+    user_resource,
+};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::collections::HashMap;
 
 const BASE: &str = "/-/pnpr/v0/scim/v2";

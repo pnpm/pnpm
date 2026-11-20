@@ -6,7 +6,11 @@
 
 use indexmap::IndexMap;
 use serde::Deserialize;
-use serde_saphyr::granit_parser::{Scanner, StrInput, TokenType};
+use serde_saphyr::granit_parser::{
+    Scanner,
+    StrInput,
+    TokenType,
+};
 use std::collections::HashSet;
 
 /// The `catalog:` / `catalogs:` slice of a `pnpm-workspace.yaml`, decoded
@@ -16,7 +20,7 @@ use std::collections::HashSet;
 pub(crate) struct Manifest {
     /// `configDependencies:` clean-specifier entries. Object-form
     /// entries (the legacy `{ tarball?, integrity }` shape) are dropped
-    /// here — they're only consulted to detect a no-op write of an
+    /// here, they're only consulted to detect a no-op write of an
     /// already-present clean specifier.
     pub(crate) config_dependencies: Option<IndexMap<String, String>>,
     /// `allowBuilds:` boolean entries. Consulted to detect a no-op write
@@ -62,7 +66,7 @@ pub(crate) struct SecurityExceptions {
     /// `auditConfig.ignoreGhsas:` list. Consulted to detect a no-op write
     /// of an already-present list.
     pub(crate) legacy_audit_ghsas: Option<Vec<String>>,
-    /// `audit.ignore:` list — the canonical spelling, which wins over
+    /// `audit.ignore:` list, the canonical spelling, which wins over
     /// `auditConfig.ignoreGhsas` when both are present.
     pub(crate) audit: Option<Vec<String>>,
     /// `minimumReleaseAgeExclude:` list. Consulted to detect a no-op write
@@ -120,7 +124,7 @@ struct AuditData {
 
 /// An `allowBuilds` value, tolerant of the string form pnpm also accepts
 /// (a version spec) so decoding a manifest that uses it doesn't fail. Only
-/// the boolean shape is retained — the only shape `pnpm approve-builds`
+/// the boolean shape is retained, the only shape `pnpm approve-builds`
 /// writes.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
@@ -174,7 +178,8 @@ impl Manifest {
             .unwrap_or_default();
         let (overrides, non_scalar_overrides) = split_overrides(data.overrides);
         let (text, aliases) = pnpm_yaml_document_sync::ScalarAliases::expand(&text)
-            .map_err(|error| Box::new(<serde_saphyr::Error as serde::de::Error>::custom(error)))?;
+            .map_err(<serde_saphyr::Error as serde::de::Error>::custom)
+            .map_err(Box::new)?;
 
         Ok(Manifest {
             config_dependencies: data.config_dependencies.map(clean_config_dependencies),

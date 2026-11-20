@@ -3,7 +3,11 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
 
 use super::{
-    assert_published_packages, clear_ci, link_workspace_packages, public_pkg, write_registry_npmrc,
+    assert_published_packages,
+    clear_ci,
+    link_workspace_packages,
+    public_pkg,
+    write_registry_npmrc,
     write_workspace,
 };
 
@@ -130,10 +134,10 @@ fn assert_lifecycle_failure_summary(batch: bool, hook: &str, wait: bool) {
     let mut command = clear_ci(pacquet)
         .with_args(["publish", "-r", "--force", "--no-git-checks", "--report-summary"]);
     if wait {
-        command.arg("--publish-wait-timeout=3000");
+        command = command.with_arg("--publish-wait-timeout=3000");
     }
     if batch {
-        command.arg("--batch");
+        command = command.with_arg("--batch");
     }
     let output = command.output().unwrap();
     assert!(!output.status.success(), "{output:?}");

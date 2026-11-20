@@ -2,7 +2,7 @@
 //!
 //! By the time control reaches this fetcher, `pnpm-tarball` has
 //! already downloaded the tarball, verified its integrity, and
-//! imported its file set into the CAS — the dispatcher hands us the
+//! imported its file set into the CAS, the dispatcher hands us the
 //! resulting `pnpm_fs::CasPaths` mapping relative paths to CAS
 //! file paths. From there we materialize the files into a writable
 //! temp dir, run `preparePackage` to (potentially) execute the dep's
@@ -19,10 +19,25 @@
 //!   final key.
 
 use crate::{
-    cas_io::{ImportedFiles, import_into_cas, materialize_into, synthesize_files_index},
+    cas_io::{
+        ImportedFiles,
+        import_into_cas,
+        materialize_into,
+        synthesize_files_index,
+    },
     error::GitFetcherError,
-    fetcher::{GitFetchOutput, NO_EXTRA_ENV, packlist_of, queue_files_index},
-    prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
+    fetcher::{
+        GitFetchOutput,
+        NO_EXTRA_ENV,
+        packlist_of,
+        queue_files_index,
+    },
+    prepare_package::{
+        AllowBuildRef,
+        PreparePackageOptions,
+        PreparedPackage,
+        prepare_package,
+    },
 };
 use pnpm_reporter::Reporter;
 
@@ -85,7 +100,7 @@ impl GitHostedTarballFetcher<'_> {
         // matches the file set the package would publish.
         let files = packlist_of(&prepared.pkg_dir)?;
 
-        // Fast path — when nothing got filtered out AND
+        // Fast path, when nothing got filtered out AND
         // prepare didn't mutate the tree (no build needed, or scripts
         // ignored), the materialized files are byte-identical to the
         // CAS source. Re-hashing every entry through `import_into_cas`
@@ -94,7 +109,7 @@ impl GitHostedTarballFetcher<'_> {
         //
         // `path.is_none()` is required because a sub-path means
         // `cas_paths` covers the whole monorepo while `files` covers
-        // only the sub-package — the count match is a coincidence
+        // only the sub-package, the count match is a coincidence
         // there, not equivalence.
         let fast_path_eligible =
             self.path.is_none() && files.len() == self.cas_paths.len();

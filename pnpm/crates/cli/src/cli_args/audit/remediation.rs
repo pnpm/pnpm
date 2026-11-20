@@ -1,10 +1,35 @@
 use super::{
-    Arc, AuditAdvisory, AuditArgs, AuditError, AuditFixObserver, AuditOutcome, AuditReport,
-    BTreeMap, Config, FixContext, FixMethod, GuardExhaustionPolicy, PackageVersionGuard,
-    PackageVersionGuardDecision, PackageVersionGuardFuture, RangeSpecStyle, ReleaseAgeExclusions,
-    Reporter, ResolutionObserver, ResolvedPackageHint, State, Version, VulnerabilityGuard,
-    filter_advisories_for_fix, fix::fix_override, fix_with_update, format_fix_with_update_output,
-    interactive_select, print_command_output, prune_ignored_ghsas, sanitize_inline,
+    Arc,
+    AuditAdvisory,
+    AuditArgs,
+    AuditError,
+    AuditFixObserver,
+    AuditOutcome,
+    AuditReport,
+    BTreeMap,
+    Config,
+    FixContext,
+    FixMethod,
+    GuardExhaustionPolicy,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    PackageVersionGuardFuture,
+    RangeSpecStyle,
+    ReleaseAgeExclusions,
+    Reporter,
+    ResolutionObserver,
+    ResolvedPackageHint,
+    State,
+    Version,
+    VulnerabilityGuard,
+    filter_advisories_for_fix,
+    fix::fix_override,
+    fix_with_update,
+    format_fix_with_update_output,
+    interactive_select,
+    print_command_output,
+    prune_ignored_ghsas,
+    sanitize_inline,
     satisfies_including_prerelease,
 };
 
@@ -163,7 +188,7 @@ impl AuditArgs {
     }
 
     /// The advisories a fix flow acts on. `None` when the interactive
-    /// prompt was cancelled or selected nothing — there is nothing to fix.
+    /// prompt was cancelled or selected nothing; there is nothing to fix.
     fn select_advisories(
         &self,
         filtered: BTreeMap<String, AuditAdvisory>,

@@ -1,11 +1,20 @@
-pub(crate) use fast_path::{check_strict_dep_builds_for_fast_path, register_workspace_in_store};
+pub(crate) use fast_path::{
+    check_strict_dep_builds_for_fast_path,
+    register_workspace_in_store,
+};
 pub(crate) use manifests::hook_one_manifest;
 pub(crate) use validate_frozen::PreparedFrozenRun;
-pub use validate_frozen::{FrozenVirtualStoreClean, PreparedFrozenInstall};
+pub use validate_frozen::{
+    FrozenVirtualStoreClean,
+    PreparedFrozenInstall,
+};
 
 mod fast_path;
 use fast_path::{
-    RepeatInstallVerdict, UpToDateCheck, lock_store, repeat_install_verdict,
+    RepeatInstallVerdict,
+    UpToDateCheck,
+    lock_store,
+    repeat_install_verdict,
     report_already_up_to_date,
 };
 
@@ -13,17 +22,31 @@ mod dispatch;
 use dispatch::Dispatched;
 
 mod manifests;
-use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hook};
+use manifests::{
+    HookedManifests,
+    manifest_freshness_inputs,
+    resolve_pnpmfile_hook,
+};
 
 mod wanted;
-use wanted::{Lockfiles, settle_wanted_lockfile};
+use wanted::{
+    Lockfiles,
+    settle_wanted_lockfile,
+};
 
 mod lockfile_load;
-use lockfile_load::{Loaded, load_lockfiles};
+use lockfile_load::{
+    Loaded,
+    load_lockfiles,
+};
 
 mod importer_selection;
 mod workspace;
-use workspace::{InstallScope, InstallWorkspace, workspace_projects};
+use workspace::{
+    InstallScope,
+    InstallWorkspace,
+    workspace_projects,
+};
 
 mod auto_dedupe;
 mod custom_fetcher_reuse;
@@ -32,7 +55,10 @@ mod manifest_validation;
 mod materialization_inputs;
 mod mode;
 mod store_fetch;
-use mode::{RunMode, WorkspaceManifestRollbackGuard};
+use mode::{
+    RunMode,
+    WorkspaceManifestRollbackGuard,
+};
 mod frozen_local_tarballs;
 mod owned;
 use owned::InstallOwned;
@@ -45,16 +71,32 @@ mod validate_frozen;
 use uninstall_hooks::run_pre_uninstall_hooks;
 
 use super::{
-    Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
-    Lockfile, PackageManifest, Path, PathBuf, Reporter, UpdateSeedPolicy,
-    build_resolution_verifiers, configured_or_discovered_workspace_dir, lockfile_root_dir,
+    Arc,
+    DependencyGroup,
+    InMemoryPackageMetaCache,
+    Install,
+    InstallError,
+    InstallRunOptions,
+    Lockfile,
+    PackageManifest,
+    Path,
+    PathBuf,
+    Reporter,
+    UpdateSeedPolicy,
+    build_resolution_verifiers,
+    configured_or_discovered_workspace_dir,
+    lockfile_root_dir,
 };
 use pnpm_config::Config;
 
 use crate::{
-    PolicyExcludes, PreferredVersionsOverride, ProjectMutation,
+    PolicyExcludes,
+    PreferredVersionsOverride,
+    ProjectMutation,
     catalog_cleanup::{
-        lockfile_catalogs, post_install_prune, write_workspace_catalogs,
+        lockfile_catalogs,
+        post_install_prune,
+        write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
 };
@@ -69,8 +111,8 @@ where
     /// no longer resolves.
     ///
     /// Both live out here because every success path of
-    /// [`Self::run_inner_impl`] — including the short-circuits that do
-    /// nothing but rewrite the lockfile — has to run them.
+    /// [`Self::run_inner_impl`] (including the short-circuits that do
+    /// nothing but rewrite the lockfile) has to run them.
     pub(crate) async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         options: InstallRunOptions<'a, '_>,
@@ -80,7 +122,7 @@ where
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
         // lockfile never merged them, and one that only reports what it
-        // would do never writes it — deleting them in either case drops
+        // would do never writes it, deleting them in either case drops
         // resolutions no file is left holding.
         let merge_will_be_saved = self.context.config.merge_git_branch_lockfiles
             && self.context.config.lockfile
@@ -332,6 +374,11 @@ pub struct InstallLockfilePolicy {
     pub frozen: bool,
     pub prefer_frozen: Option<bool>,
     pub ignore_manifest_check: bool,
+    /// Do not compare the settings the lockfile records with the current
+    /// ones. A mismatch neither fails a frozen install nor makes the install
+    /// resolve again. The current overrides still apply to the project
+    /// manifests, so a changed override still makes them outdated.
+    pub ignore_settings_check: bool,
     pub trust: bool,
     pub update_checksums: bool,
     pub excludes: PolicyExcludes,
@@ -350,6 +397,7 @@ impl InstallLockfilePolicy {
             frozen: false,
             prefer_frozen: None,
             ignore_manifest_check: false,
+            ignore_settings_check: false,
             trust: config.trust_lockfile,
             update_checksums: false,
             excludes: PolicyExcludes::Skip,
@@ -386,7 +434,7 @@ pub struct ResolutionInputs {
 // install short-circuit the verifier's own fetch chain, and
 // vice versa.
 // `trust_lockfile` or no active resolution policy leaves the verifier
-// list empty, making every gate a no-op — fresh local resolution is
+// list empty, making every gate a no-op, fresh local resolution is
 // already filtered by the resolver's own per-version gate
 // (`minimumReleaseAge` via `ResolveResult::policy_violation`,
 // `trustPolicy='no-downgrade'` via the npm resolver's
@@ -443,8 +491,8 @@ impl Verification {
 
 /// Resolution verifiers re-apply `minimumReleaseAge` /
 /// `trustPolicy='no-downgrade'` (plus the tarball-URL anti-tamper check) to
-/// every entry in the loaded `pnpm-lock.yaml`. `trust_lockfile` — the opt-out
-/// for environments that treat the on-disk lockfile as already-trusted —
+/// every entry in the loaded `pnpm-lock.yaml`. `trust_lockfile` (the opt-out
+/// for environments that treat the on-disk lockfile as already-trusted)
 /// leaves the list empty, making every gate a no-op.
 fn install_resolution_verifiers(
     config: &Config,

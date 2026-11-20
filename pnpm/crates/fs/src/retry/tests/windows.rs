@@ -1,10 +1,18 @@
-use crate::{remove_dir_all_with_retry, remove_file_with_retry, rename_with_retry};
+use crate::{
+    remove_dir_all_with_retry,
+    remove_file_with_retry,
+    rename_with_retry,
+};
 use pnpm_testing_utils::privileges::without_thread_privileges;
 use std::{
-    fs, io,
+    fs,
+    io,
     path::Path,
     process::Command,
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 use tempfile::tempdir;
 

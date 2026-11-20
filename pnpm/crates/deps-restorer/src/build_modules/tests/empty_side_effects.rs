@@ -1,13 +1,30 @@
 use super::{
-    super::{BuildModules, RebuildOptions},
-    TEST_LOGGED_METHODS, create_failing_postinstall_fixture, key, policy_from_specs,
+    super::{
+        BuildModules,
+        RebuildOptions,
+    },
+    TEST_LOGGED_METHODS,
+    create_failing_postinstall_fixture,
+    key,
+    policy_from_specs,
     root_importers,
 };
-use crate::{SideEffectsBySnapshot, SkippedSnapshots, VirtualStoreLayout};
+use crate::{
+    SideEffectsBySnapshot,
+    SkippedSnapshots,
+    VirtualStoreLayout,
+};
 use pnpm_config::PackageImportMethod;
-use pnpm_lockfile::{PackageKey, PackageMetadata, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+};
 use pnpm_reporter::SilentReporter;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 use tempfile::tempdir;
 
 const ENGINE: &str = "darwin;arm64;node20";

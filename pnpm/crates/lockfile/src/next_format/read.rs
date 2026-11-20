@@ -27,9 +27,18 @@ mod unbound;
 use keys::RestoredKey;
 
 use super::{
-    NextImporter, NextSections, NextSnapshotEntry, NextSnapshots, RestoreContext, RestoredSections,
+    NextImporter,
+    NextSections,
+    NextSnapshotEntry,
+    NextSnapshots,
+    RestoreContext,
+    RestoredSections,
 };
-use crate::{PackageKey, PkgName, PkgNameVerPeer};
+use crate::{
+    PackageKey,
+    PkgName,
+    PkgNameVerPeer,
+};
 use rayon::prelude::*;
 use std::collections::HashMap;
 

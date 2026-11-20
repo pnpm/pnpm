@@ -1,4 +1,4 @@
-//! `pacquet setup` — make pnpm available for global use.
+//! `pacquet setup`: make pnpm available for global use.
 //!
 //! The CLI is installed into the global packages directory, the `pn` /
 //! `pnpx` / `pnx` alias scripts are written into `$PNPM_HOME/bin`, and
@@ -11,15 +11,37 @@ mod path_extender;
 
 use crate::process::Command;
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
-use path_extender::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
-    PathExtenderReport, pwsh_quote, sh_quote,
+use miette::{
+    Context,
+    IntoDiagnostic,
 };
-use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
+use path_extender::{
+    AddDirToEnvPathOpts,
+    AddingPosition,
+    ConfigFileChangeType,
+    ConfigReport,
+    PathExtenderError,
+    PathExtenderReport,
+    pwsh_quote,
+    sh_quote,
+};
+use pnpm_config::{
+    Host,
+    PNPM_VERSION,
+    default_pnpm_home_dir,
+    ensure_windows_home_dir_env,
+};
 use pnpm_fs::write_atomic;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, path::Path};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[derive(Debug, Args)]
 pub struct SetupArgs {
@@ -274,7 +296,7 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
 
     let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
     if !status.success() {
-        let code = status.code().map_or_else(|| "unknown".to_string(), |code| code.to_string());
+        let code = exit_code_label(status.code());
         return Err(miette::miette!("Failed to install pnpm globally (exit code {code})"));
     }
     cleanup
@@ -325,6 +347,10 @@ fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+fn exit_code_label(code: Option<i32>) -> String {
+    code.map(|code| code.to_string()).unwrap_or_else(|| "unknown".to_string())
+}
+
 /// Write one alias, `subcommand` being the shell text it appends to the pnpm
 /// call (`" dlx"` for `pnpx` and `pnx`).
 ///
@@ -354,6 +380,10 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
 }
 
 /// The `sh` form of an alias, which reaches the sibling `pnpm` shim.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(perfectionist::em_dash_prose, reason = "pnpm v11 writes the same script")
+)]
 fn posix_alias_script(name: &str, subcommand: &str) -> String {
     format!(
         r#"#!/bin/sh

@@ -3,7 +3,14 @@
 //! whenever no ignore file excludes them, so they leak local secrets on
 //! publish. Naming a file in `files` is how a package ships one on purpose.
 
-use super::{LogEvent, LogLevel, Path, PathBuf, Reporter, Value};
+use super::{
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    Reporter,
+    Value,
+};
 use pnpm_fs_packlist::build_files_matcher;
 use pnpm_reporter::PnpmLog;
 use pnpm_text_sanitize::sanitize_inline;
@@ -21,12 +28,14 @@ pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
     let files_field = publish_manifest
         .get("files")
         .and_then(Value::as_array)
-        .map_or(&[][..], Vec::as_slice);
+        .map(Vec::as_slice)
+        .unwrap_or(&[][..]);
     let is_listed = named_in_files(files_field);
     let unlisted: Vec<&str> = files_map
         .keys()
         .filter_map(|name| name.strip_prefix("package/"))
-        .filter(|path| is_dotenv_file(path) && !is_listed(path))
+        .filter(|path| is_dotenv_file(path))
+        .filter(|path| !is_listed(path))
         .collect();
     if unlisted.is_empty() {
         return;

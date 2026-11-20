@@ -1,5 +1,8 @@
 use super::exchange_dirents;
-use std::{fs, io};
+use std::{
+    fs,
+    io,
+};
 
 #[test]
 fn exchanges_two_directories_or_reports_unsupported() {

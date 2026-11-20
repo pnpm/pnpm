@@ -7,24 +7,56 @@
 //! that replaces the git source. Cargo then resolves the pinned revision
 //! without a fetch of its own.
 
-use super::{add_cargo_checksum, slot_is_complete};
+use super::{
+    add_cargo_checksum,
+    slot_is_complete,
+};
 use cargo_lock::package::GitReference;
-use futures_util::{StreamExt, stream};
-use manifest::{Checkout, CheckoutPackage, entry_file_type, read_directory};
-use miette::{IntoDiagnostic, Result, WrapErr};
+use futures_util::{
+    StreamExt,
+    stream,
+};
+use manifest::{
+    Checkout,
+    CheckoutPackage,
+    entry_file_type,
+    read_directory,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pnpm_config::PackageImportMethod;
-use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_deps_restorer::{
+    ImportIndexedDirOpts,
+    import_indexed_dir,
+};
 use pnpm_git_fetcher::{
-    CheckoutOptions, SUPPORTED_GIT_PROTOCOLS, checkout_commit, checkout_submodules,
+    CheckoutOptions,
+    SUPPORTED_GIT_PROTOCOLS,
+    checkout_commit,
+    checkout_submodules,
 };
 use pnpm_network::redact_and_sanitize;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::StoreDir;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    fs, io,
-    path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicU8},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+        HashMap,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        atomic::AtomicU8,
+    },
 };
 
 /// Directory the vendored git packages are linked into, relative to the
@@ -41,7 +73,7 @@ const EXCLUDED_DIRECTORIES: [&str; 2] = [".git", "target"];
 /// A git repository at one revision, as `Cargo.lock` spells it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct GitSource {
-    /// The source identifier without the commit fragment — `git+<url>`
+    /// The source identifier without the commit fragment, `git+<url>`
     /// followed by the `rev`, `tag` or `branch` query the manifest asked
     /// for. Cargo reads it back as a source-replacement key.
     id: String,
@@ -275,7 +307,8 @@ fn import_package(
         nested: package_dirs
             .iter()
             .copied()
-            .filter(|dir| *dir != package.dir && dir.starts_with(&package.dir))
+            .filter(|dir| *dir != package.dir)
+            .filter(|dir| dir.starts_with(&package.dir))
             .collect(),
         manifest: &package.manifest,
     };

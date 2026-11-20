@@ -9,10 +9,18 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{
-        Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, Ordering},
+        Arc,
+        Mutex,
+        OnceLock,
+        atomic::{
+            AtomicBool,
+            Ordering,
+        },
     },
-    task::{Context, Poll},
+    task::{
+        Context,
+        Poll,
+    },
 };
 
 static REQUESTS: Mutex<Option<HashMap<u32, Arc<AtomicWaker>>>> = Mutex::new(None);

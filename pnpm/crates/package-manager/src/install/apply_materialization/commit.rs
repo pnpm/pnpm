@@ -1,8 +1,22 @@
 use super::super::{
-    Config, Host, InstallError, InstallWithFreshLockfileError, Lockfile, Modules,
-    PROJECT_LIFECYCLE_STAGES, PackageManifest, Path, PathBuf, SystemTime, build_modules_manifest,
-    current_contains_ignored_build, keep_recorded_layout, merge_filtered_modules_metadata,
-    merge_pending_builds, project_requires_lifecycle_scripts, write_modules_manifest,
+    Config,
+    Host,
+    InstallError,
+    InstallWithFreshLockfileError,
+    Lockfile,
+    Modules,
+    PROJECT_LIFECYCLE_STAGES,
+    PackageManifest,
+    Path,
+    PathBuf,
+    SystemTime,
+    build_modules_manifest,
+    current_contains_ignored_build,
+    keep_recorded_layout,
+    merge_filtered_modules_metadata,
+    merge_pending_builds,
+    project_requires_lifecycle_scripts,
+    write_modules_manifest,
 };
 
 pub(super) struct CommitModulesStateInputs<'a> {
@@ -126,7 +140,9 @@ pub(super) fn prepare_committed_build_state(
     .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
     .map_err(InstallError::WithFreshLockfile)?;
     let pending_builds = merge_pending_builds(
-        inputs.prior.layout.map_or(&[][..], |modules| modules.pending_builds.as_slice()),
+        inputs.prior.layout
+            .map(|modules| modules.pending_builds.as_slice())
+            .unwrap_or(&[][..]),
         deferred_projects(
             inputs.tree.config,
             inputs.materialized.manifests,
@@ -232,7 +248,7 @@ pub(super) fn deferred_projects(
 /// snapshot against it and skip the unchanged
 /// slots. Persist *after* `write_modules_manifest` succeeds so
 /// a manifest failure can't leave a fresh current-lockfile
-/// pointing at incomplete install state — the next frozen
+/// pointing at incomplete install state, the next frozen
 /// reinstall would otherwise diff against a graph that never
 /// finished committing.
 ///
@@ -380,7 +396,7 @@ pub(super) fn retain_current_ignored_builds(
         let decision = allow_build_policy.check(dep_path.as_str());
         let still_unbuilt = match retention {
             IgnoredBuildRetention::SettledByBuildPhase => decision.is_none(),
-            IgnoredBuildRetention::DeferredByHoistedFetch => decision != Some(false),
+            IgnoredBuildRetention::DeferredByHoistedFetch => decision.unwrap_or(true),
         };
         if current_contains_ignored_build(current, dep_path.as_str()) && still_unbuilt {
             next.ignored_builds.get_or_insert_default().insert(dep_path.clone());

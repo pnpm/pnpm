@@ -1,10 +1,22 @@
 //! Entries that another process removes or renames while the walk reads them.
 
-use super::super::{FsRead, FsReadDir, Host, LISTING_ATTEMPTS, PackageRules, walk_files};
+use super::super::{
+    FsRead,
+    FsReadDir,
+    Host,
+    LISTING_ATTEMPTS,
+    PackageRules,
+    walk_files,
+};
 use std::{
-    fs, io,
+    fs,
+    io,
     path::Path,
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    sync::atomic::{
+        AtomicBool,
+        AtomicUsize,
+        Ordering,
+    },
 };
 
 /// Implements [`FsRead`] for a fake that only changes how directories are

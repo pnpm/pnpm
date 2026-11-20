@@ -1,7 +1,19 @@
-use super::{DocumentPlaceholders, RestoringDeserializer, SeenKeys, visitor::RestoringVisitor};
+use super::{
+    DocumentPlaceholders,
+    RestoringDeserializer,
+    SeenKeys,
+    visitor::RestoringVisitor,
+};
 use serde::{
     Deserializer,
-    de::{DeserializeSeed, EnumAccess, MapAccess, SeqAccess, VariantAccess, Visitor},
+    de::{
+        DeserializeSeed,
+        EnumAccess,
+        MapAccess,
+        SeqAccess,
+        VariantAccess,
+        Visitor,
+    },
 };
 
 struct RestoringSeed<'text, 'keys, Seed> {

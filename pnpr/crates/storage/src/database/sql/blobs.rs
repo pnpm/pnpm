@@ -3,15 +3,29 @@
 
 use super::{
     PackageKey,
-    adapter::{Query, Row},
+    adapter::{
+        Query,
+        Row,
+    },
     to_generation,
 };
 use crate::{
     BlobId,
-    database::{BlobLookup, BlobRow, BlobState, MappedArtifact},
+    database::{
+        BlobLookup,
+        BlobRow,
+        BlobState,
+        MappedArtifact,
+    },
 };
-use pnpr_error::{RegistryError, Result};
-use pnpr_sql::{Dialect, DialectSql};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use pnpr_sql::{
+    Dialect,
+    DialectSql,
+};
 use std::collections::BTreeMap;
 
 /// The rows of the blobs a JSON array of identities names, in one namespace.

@@ -5,16 +5,32 @@
 use super::{
     super::{
         SqlDatabase,
-        adapter::{Connection, ReadSource, WriteTransaction},
+        adapter::{
+            Connection,
+            ReadSource,
+            WriteTransaction,
+        },
         schema::{
-            self, ALPHA_TABLE, LEGACY_AUTH_MARKER, LEGACY_MARKER, MARKER, SCHEMA_VERSION, Step,
+            self,
+            ALPHA_TABLE,
+            LEGACY_AUTH_MARKER,
+            LEGACY_MARKER,
+            MARKER,
+            SCHEMA_VERSION,
+            Step,
             TABLES,
         },
     },
     Db,
 };
-use pnpr_error::{RegistryError, Result};
-use std::{sync::Arc, time::Duration};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 pub(super) const PAYLOAD_TABLES: [&str; 11] = [
     "packages",
@@ -821,8 +837,16 @@ mod embedded_layout {
 #[cfg(feature = "backend-mysql")]
 mod mysql_recovery {
     use super::{
-        ALPHA_TABLE, Connection, Db, MARKER, ReadSource, RegistryError, Result, SCHEMA_VERSION,
-        SqlDatabase, schema,
+        ALPHA_TABLE,
+        Connection,
+        Db,
+        MARKER,
+        ReadSource,
+        RegistryError,
+        Result,
+        SCHEMA_VERSION,
+        SqlDatabase,
+        schema,
     };
     use std::sync::Arc;
 

@@ -1,9 +1,22 @@
 use crate::{
     metadata::parse_metadata,
-    model::{MetadataDependency, MetadataPackage, accepts_declared_version},
+    model::{
+        MetadataDependency,
+        MetadataPackage,
+        accepts_declared_version,
+    },
 };
-use cargo_lock::{Dependency, Lockfile, Package};
-use miette::{IntoDiagnostic, Report, Result, WrapErr};
+use cargo_lock::{
+    Dependency,
+    Lockfile,
+    Package,
+};
+use miette::{
+    IntoDiagnostic,
+    Report,
+    Result,
+    WrapErr,
+};
 use semver::Version;
 use std::str::FromStr;
 

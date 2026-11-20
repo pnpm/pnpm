@@ -1,4 +1,7 @@
-use axum::http::{HeaderMap, HeaderValue};
+use axum::http::{
+    HeaderMap,
+    HeaderValue,
+};
 
 use super::is_same_origin_request;
 

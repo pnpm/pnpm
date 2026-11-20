@@ -6,7 +6,10 @@
 
 #![expect(clippy::print_stdout, reason = "developer tool, not part of the pnpm binary")]
 
-use pnpm_unsafe_audit::{audit, workspace_root};
+use pnpm_unsafe_audit::{
+    audit,
+    workspace_root,
+};
 
 fn main() -> std::process::ExitCode {
     let findings = audit(&workspace_root());

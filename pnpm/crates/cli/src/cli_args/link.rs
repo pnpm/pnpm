@@ -1,16 +1,32 @@
 use crate::State;
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pnpm_config::Config;
-use pnpm_package_manager::{Install, ProjectMutation, linked_peer_dependencies_warning};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_package_manager::{
+    Install,
+    ProjectMutation,
+    linked_peer_dependencies_warning,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
 use pnpm_package_name::is_valid_dependency_alias;
 use pnpm_reporter::Reporter;
 use pnpm_workspace_manifest_writer::set_overrides;
 use std::{
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 

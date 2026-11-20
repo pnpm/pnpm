@@ -15,10 +15,23 @@ import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
 import { assertNotAddingToWorkspaceRoot } from './assertNotAddingToWorkspaceRoot.js'
+import {
+  approveDirectNonRegistryBuilds,
+  hasPendingDirectNonRegistryBuilds,
+  isLocalFilesystemSpecifier,
+  resolveLocalPackageSpec,
+} from './dlxDirectBuilds.js'
 import type { InstallCommandOptions } from './install.js'
 import { installDeps } from './installDeps.js'
 import { createGlobalPolicyCallbacks } from './resolutionPolicyManifest.js'
 import { warnAboutLinkedPeerDependencies } from './warnAboutLinkedPeerDependencies.js'
+
+export {
+  approveDirectNonRegistryBuilds,
+  hasPendingDirectNonRegistryBuilds,
+  isLocalFilesystemSpecifier,
+  resolveLocalPackageSpec,
+}
 
 export const shorthands: Record<string, string> = {
   'save-catalog': '--save-catalog-name=default',

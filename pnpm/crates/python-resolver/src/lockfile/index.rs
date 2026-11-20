@@ -1,7 +1,20 @@
-use super::{LockedPackage, Lockfile, marker_tree};
-use miette::{IntoDiagnostic, Result, WrapErr};
+use super::{
+    LockedPackage,
+    Lockfile,
+    marker_tree,
+};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use pep440_rs::Version;
-use pep508_rs::{MarkerTree, PackageName, Requirement, VersionOrUrl};
+use pep508_rs::{
+    MarkerTree,
+    PackageName,
+    Requirement,
+    VersionOrUrl,
+};
 use std::collections::BTreeMap;
 
 impl Lockfile {
@@ -109,7 +122,7 @@ impl<'a> LockIndex<'a> {
         requirement: &Requirement,
         excluded_marker: Option<&MarkerTree>,
     ) -> Result<Option<Vec<Requirement>>> {
-        let excluded_complement = excluded_marker.map(|marker| marker.clone().negate());
+        let excluded_complement = excluded_marker.cloned().map(|value| value.negate());
         let pins: Vec<LockedPin<'a>> = self
             .matching_index_pins(requirement)
             .into_iter()

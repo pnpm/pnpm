@@ -1,9 +1,15 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::PackageVersion;
-use crate::package_distribution::{AttestationsDist, PackageDistribution};
+use crate::package_distribution::{
+    AttestationsDist,
+    PackageDistribution,
+};
 
 /// The fields of a version that the lockfile policy checks read.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,7 +90,11 @@ pub(crate) fn deserialize_dependency_map<'de, Deser>(
 where
     Deser: serde::Deserializer<'de>,
 {
-    use serde::de::{self, MapAccess, Visitor};
+    use serde::de::{
+        self,
+        MapAccess,
+        Visitor,
+    };
     use std::fmt;
 
     struct DependencyMapVisitor;
@@ -129,7 +139,10 @@ pub(crate) fn deserialize_deprecated_field<'de, Deser>(
 where
     Deser: serde::Deserializer<'de>,
 {
-    use serde::de::{self, Visitor};
+    use serde::de::{
+        self,
+        Visitor,
+    };
     use std::fmt;
 
     struct DeprecatedVisitor;
@@ -212,7 +225,7 @@ pub struct NpmUser {
 }
 
 /// `_npmUser.approver` record on a per-version manifest. Its presence
-/// marks a staged publish — one that required a 2FA publish approval,
+/// marks a staged publish; one that required a 2FA publish approval,
 /// the strongest trust signal. The verifier only checks for the
 /// field's presence; `name` / `email` are kept for round-trip parity.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]

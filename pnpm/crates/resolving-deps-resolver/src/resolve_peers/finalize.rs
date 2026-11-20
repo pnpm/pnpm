@@ -4,30 +4,61 @@
 //! suffix, and the [`DependenciesGraph`] built from the per-node records
 //! keyed by those depPaths.
 
-pub(crate) use final_paths::{FinalDepPaths, PeerIdRecording};
+pub(crate) use final_paths::{
+    FinalDepPaths,
+    PeerIdRecording,
+};
 pub(crate) use graph_edges::merge_additional_edges;
 
 mod peer_scc;
 
 mod graph_edges;
-use graph_edges::{PeerNameTarjan, insert_graph_node, transitive_peer_names};
+use graph_edges::{
+    PeerNameTarjan,
+    insert_graph_node,
+    transitive_peer_names,
+};
 
 mod final_paths;
 
 use crate::{
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
     node_id::NodeId,
     resolve_peers::{
-        context::{SharedChain, link_node_id_as_dep_path, peer_id_pair, peer_segment_names},
-        walker::{MissingPeerInfo, Walker},
+        context::{
+            SharedChain,
+            link_node_id_as_dep_path,
+            peer_id_pair,
+            peer_segment_names,
+        },
+        walker::{
+            MissingPeerInfo,
+            Walker,
+        },
     },
-    resolved_tree::{ResolvedPackage, pkg_name_version},
+    resolved_tree::{
+        ResolvedPackage,
+        pkg_name_version,
+    },
 };
-use pnpm_deps_path::{DepPath, PeerId, link_path_to_peer_version};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    link_path_to_peer_version,
+};
 use pnpm_resolving_resolver_base::ResolveResult;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     sync::Arc,
 };
 
@@ -198,7 +229,7 @@ impl Walker<'_> {
 
     /// Finish this node's NodeId-level edges for the post-walk
     /// [`Walker::build_final_dep_paths`] rebuild: its regular children
-    /// overlaid with its *own* resolved peers — this node's own peer
+    /// overlaid with its *own* resolved peers; this node's own peer
     /// resolution, not the descendants' peers bubbled up for the
     /// suffix. A peer a descendant resolved (e.g. `debug`'s optional
     /// `supports-color`) is symlinked at the descendant that declares
@@ -217,7 +248,7 @@ impl Walker<'_> {
 
     /// The children's depPath edges become this node's graph children.
     /// Resolved peers become extra edges, aliased by peer name. If a peer's
-    /// depPath isn't known yet — typically a later sibling direct dep — the
+    /// depPath isn't known yet (typically a later sibling direct dep) the
     /// edge is deferred to the post-walk patch pass; the install layer drives
     /// off `graph_children`, so skipping the edge entirely would leave the
     /// peer un-symlinked in the parent's slot.
@@ -252,7 +283,7 @@ impl Walker<'_> {
     }
 
     /// A back-edge child whose occurrence node the walk skipped would render
-    /// as its bare package id — a snapshot no variant of the target has.
+    /// as its bare package id, a snapshot no variant of the target has.
     /// These remap it to the target's shared canonical occurrence, which the
     /// drivers walk at importer context.
     fn remapped_backedge_children(
@@ -289,7 +320,7 @@ impl Walker<'_> {
     /// `walk()` drains this list, so every peer that was reachable
     /// from an ancestor's [`ParentRefs`](super::context::ParentRefs) has
     /// a `DepPath` now. Peers that still don't resolve here came from a
-    /// `parent_chain` outside the walked set — there's nothing to patch,
+    /// `parent_chain` outside the walked set; there's nothing to patch,
     /// and the absence already surfaced via
     /// [`crate::PeerDependencyIssues::missing`].
     pub(super) fn patch_pending_peer_edges(&mut self) {
@@ -316,7 +347,7 @@ impl Walker<'_> {
     /// resolve to the same final depPath merge (taking the smallest
     /// `depth`, like the inline build).
     ///
-    /// Every edge — a regular child or a resolved peer — points at the
+    /// Every edge (a regular child or a resolved peer) points at the
     /// depPath the edge's own node resolved to, matching upstream's
     /// `resolveChildren`, which maps each `childrenNodeIds` entry
     /// through `pathsByNodeId`. A peer provider therefore keeps its own
@@ -390,7 +421,7 @@ impl Walker<'_> {
     /// a [`NodeRecord`] is created, so iterating `node_records` alone would
     /// restore the first (possibly deeper) walk's depth and miss a later
     /// shallower revisit. `node_dep_paths` carries every walked `NodeId`, so
-    /// the `Math.min` depth tie-break is recomputed here — the inline build
+    /// the `Math.min` depth tie-break is recomputed here, the inline build
     /// threaded it through `self.graph`, which this rebuild discards.
     fn min_depth_by_final_dep_path(
         &self,

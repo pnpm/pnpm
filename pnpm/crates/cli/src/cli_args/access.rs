@@ -1,8 +1,20 @@
 use clap::Args;
-use derive_more::{Display, Error};
-use list::{list_collaborators, list_packages};
+use derive_more::{
+    Display,
+    Error,
+};
+use list::{
+    list_collaborators,
+    list_packages,
+};
 use miette::Diagnostic;
-use permissions::{get_status, grant_access, revoke_access, set_mfa, set_status};
+use permissions::{
+    get_status,
+    grant_access,
+    revoke_access,
+    set_mfa,
+    set_status,
+};
 use pnpm_config::Config;
 use registry::build_access_context;
 
@@ -210,8 +222,8 @@ impl AccessArgs {
 /// The subcommand `params` name, and the arguments to pass it.
 ///
 /// `pnpm access` takes its subcommand as one or two leading params,
-/// with the rest — plus, for the shorthands, a value derived from the
-/// subcommand itself — forming its arguments.
+/// with the rest (plus, for the shorthands, a value derived from the
+/// subcommand itself) forming its arguments.
 fn parse_access_action(
     first: &str,
     second: Option<String>,

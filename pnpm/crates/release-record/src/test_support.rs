@@ -2,10 +2,22 @@
 //! verify.
 
 use crate::tuf::canonical::encode as canonical;
-use ed25519_dalek::{Signer as _, SigningKey};
-use pnpm_transparency_log::{Cosigner, NoteSigner};
-use serde_json::{Value, json};
-use sha2::{Digest as _, Sha256};
+use ed25519_dalek::{
+    Signer as _,
+    SigningKey,
+};
+use pnpm_transparency_log::{
+    Cosigner,
+    NoteSigner,
+};
+use serde_json::{
+    Value,
+    json,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
 
 pub const FUTURE: &str = "2099-01-01T00:00:00Z";
 pub const PAST: &str = "2000-01-01T00:00:00Z";

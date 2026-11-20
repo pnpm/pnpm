@@ -1,4 +1,7 @@
-use std::{collections::HashMap, iter};
+use std::{
+    collections::HashMap,
+    iter,
+};
 
 #[cfg(test)]
 mod tests;

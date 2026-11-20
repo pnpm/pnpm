@@ -3,7 +3,10 @@
 
 use pnpr::Config;
 use serde_json::Value;
-use std::{net::SocketAddr, path::Path};
+use std::{
+    net::SocketAddr,
+    path::Path,
+};
 
 /// Load `yaml`, written like a pnpr.yaml that declares its registries, with
 /// the registries moved into the database: see

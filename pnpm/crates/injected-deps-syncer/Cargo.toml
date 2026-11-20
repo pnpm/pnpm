@@ -28,6 +28,7 @@ pnpm-ffi-fs = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
+command-extra = { workspace = true }
 pnpm-fs = { workspace = true, features = ["test"] }
 pnpm-testing-utils = { workspace = true }
 

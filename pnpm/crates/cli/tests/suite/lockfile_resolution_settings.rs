@@ -3,13 +3,23 @@
 
 use crate::{
     _utils::read_lockfile,
-    auto_dedupe::{pnpm_at, write_project, write_settings},
+    auto_dedupe::{
+        pnpm_at,
+        write_project,
+        write_settings,
+    },
 };
 use command_extra::CommandExtra;
 use pnpm_lockfile::ResolutionSettings;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use serde_json::Value;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 const RECORDING: &str = "lockfile:\n  includeResolutionSettings: true\n";
 const NOT_RECORDED: &str = "The lockfile does not record that it was resolved with autoDedupe";

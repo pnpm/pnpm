@@ -1,4 +1,11 @@
-use super::{Config, DeclaredRegistries, NoEnv, NpmrcAuth, Path, assert_eq};
+use super::{
+    Config,
+    DeclaredRegistries,
+    NoEnv,
+    NpmrcAuth,
+    Path,
+    assert_eq,
+};
 
 #[test]
 fn apply_registry_and_warn_drains_warnings() {

@@ -1,7 +1,14 @@
 use std::borrow::Cow;
 
 use node_semver::Range;
-use pnpm_lockfile::{PkgName, PkgNameVerPeer, Prefix, RegistryContext, VersionPart, same_registry};
+use pnpm_lockfile::{
+    PkgName,
+    PkgNameVerPeer,
+    Prefix,
+    RegistryContext,
+    VersionPart,
+    same_registry,
+};
 use pnpm_resolving_resolver_base::parse_strict_semver_range;
 
 /// Whether the version locked as `key` for the child `alias` still satisfies
@@ -39,7 +46,7 @@ pub(crate) fn any_locked_key_admits<'key>(
         return false;
     };
     keys.into_iter()
-        .any(|key| wanted.admits(key, registries) == Some(true))
+        .any(|key| wanted.admits(key, registries).unwrap_or(false))
 }
 
 /// Whether `key` is the key a fresh resolve of `bare_specifier` for `alias`

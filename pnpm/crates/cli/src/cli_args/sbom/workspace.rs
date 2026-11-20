@@ -1,9 +1,27 @@
 use super::{
-    AutoExcludeRoot, Config, Display, Entry, Hash, HashMap, HashSet, LazyLockfile, Lockfile,
-    PackageKey, Path, PathBuf, SnapshotEntry, State, discover_workspace_projects,
-    importer_root_dir, print_no_projects_matched, select_recursive_projects,
-    selected_workspace_importer_ids, selectors_narrow_the_run, validate_importer_id,
+    AutoExcludeRoot,
+    Config,
+    Display,
+    Entry,
+    Hash,
+    HashMap,
+    HashSet,
+    LazyLockfile,
+    Lockfile,
+    PackageKey,
+    Path,
+    PathBuf,
+    SnapshotEntry,
+    State,
+    discover_workspace_projects,
+    importer_root_dir,
+    print_no_projects_matched,
+    select_recursive_projects,
+    selected_workspace_importer_ids,
+    selectors_narrow_the_run,
+    validate_importer_id,
 };
+use miette::WrapErr;
 
 /// The selected importer ids the lockfile has no entry for, sorted so the
 /// error names them in a stable order.
@@ -263,7 +281,7 @@ pub(super) fn select_importer_ids(
         return Ok(None);
     }
     // Selecting through the workspace can name a project the lockfile has
-    // no importer for, which only an out-of-date lockfile produces — pnpm
+    // no importer for, which only an out-of-date lockfile produces, pnpm
     // writes an entry for every project, `{}` for one with no
     // dependencies. Walking what is left would answer with an SBOM that
     // under-reports the selection's dependencies, so the run fails
@@ -285,9 +303,7 @@ pub(super) fn select_importer_ids(
 }
 
 pub(super) fn required_sbom_lockfile(state: &State) -> miette::Result<&Lockfile> {
-    let lockfile = state.lockfile
-        .get()
-        .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+    let lockfile = state.lockfile.get().wrap_err("load the lockfile")?;
 
     let Some(lockfile) = lockfile else {
         return Err(miette::miette!(

@@ -1,18 +1,38 @@
-use super::{build_has_bin_set, pkg_dir_under};
+use super::{
+    build_has_bin_set,
+    pkg_dir_under,
+};
 use crate::PackageManifests;
-use pnpm_cmd_shim::{LinkBinsError, PackageBinSource, ShimTargetCache};
-use pnpm_lockfile::{PackageKey, PackageMetadata};
-use pnpm_package_manifest::{find_parent_publish_manifest, parse_manifest_bytes};
+use pnpm_cmd_shim::{
+    LinkBinsError,
+    PackageBinSource,
+    ShimTargetCache,
+};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+};
+use pnpm_package_manifest::{
+    find_parent_publish_manifest,
+    parse_manifest_bytes,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
 /// Resolve the hoist pass's `(alias, snapshot key)` bin list into the
 /// `(alias, slot package dir)` pairs [`crate::BinCandidates::Resolved`]
-/// takes — the same slot derivation `symlink_hoisted_dependencies`
+/// takes, the same slot derivation `symlink_hoisted_dependencies`
 /// used to create the aliases.
 #[must_use]
 pub fn resolve_hoisted_bin_deps(
@@ -127,7 +147,10 @@ pub(super) fn prefetched_bin_source(
         return PrefetchedBin::ReadFromDisk;
     };
     if crate::snapshot_has_patch(snapshot_key)
-        || lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) != Some(&false)
+        || lookup.requires_build
+            .and_then(|flags| flags.get(snapshot_key))
+            .copied()
+            .unwrap_or(true)
     {
         return PrefetchedBin::ReadFromDisk;
     }

@@ -1,8 +1,16 @@
-use super::{create_short_hash, get_registered_projects, path_contains, register_project};
+use super::{
+    create_short_hash,
+    get_registered_projects,
+    path_contains,
+    register_project,
+};
 use crate::StoreDir;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 use tempfile::tempdir;
 
@@ -20,7 +28,7 @@ fn path_contains_resolves_parent_components_when_paths_do_not_exist() {
     let inner_sibling = Path::new("/tmp/nonexistent-workspace/../sibling/v11");
     assert!(
         !path_contains(outer, inner_sibling),
-        "`<workspace>/../sibling/v11` lexically resolves to `/tmp/sibling/v11` — outside the workspace",
+        "`<workspace>/../sibling/v11` lexically resolves to `/tmp/sibling/v11`, outside the workspace",
     );
 
     let inner_child = Path::new("/tmp/nonexistent-workspace/child/v11");

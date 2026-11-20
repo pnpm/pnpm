@@ -7,19 +7,37 @@
 //! dropped are not pulled back in.
 
 use super::{
-    RecursiveSelection, dependencies::projects_with_workspace_dependencies_filtered,
-    filtered_projects_dependencies, projects_to_verify, sequence_graph,
+    RecursiveSelection,
+    dependencies::projects_with_workspace_dependencies_filtered,
+    filtered_projects_dependencies,
+    projects_to_verify,
+    sequence_graph,
 };
-use pnpm_config::{Config, VerifyDepsBeforeRun};
+use pnpm_config::{
+    Config,
+    VerifyDepsBeforeRun,
+};
 use pnpm_package_manager::graph_sequencer;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace::{GraphPkg, Project};
-use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
+use pnpm_workspace_projects_graph::{
+    ProjectGraph,
+    ProjectGraphNode,
+};
 use pretty_assertions::assert_eq;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(
@@ -52,7 +70,7 @@ fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
 }
 
 /// A subset of `graph`'s nodes that keep their original `dependencies` arrays
-/// — still referencing the unselected projects — exactly as the real selected
+/// (still referencing the unselected projects) exactly as the real selected
 /// graph is built.
 fn select(graph: &ProjectGraph<()>, names: &[&str]) -> ProjectGraph<()> {
     names
@@ -355,6 +373,89 @@ fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link
     let mut expected = vec![pkg_a.root_dir, pkg_c.root_dir, pkg_d.root_dir];
     expected.sort();
     assert_eq!(verified, expected);
+}
+
+#[test]
+fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_link_edges_from_overrides() {
+    let tmp = tempfile::tempdir().unwrap();
+    let write_project = |name: &str, json: &str| {
+        let dir = tmp.path().join(name);
+        fs::create_dir_all(&dir).unwrap();
+        let manifest_path = dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        Project {
+            root_dir: dir,
+            manifest: PackageManifest::from_path(manifest_path).unwrap(),
+            dependency_manifest: None,
+        }
+    };
+    let app = write_project(
+        "app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"injected":"workspace:*","lib":"^1.0.0"}}"#,
+    );
+    let injected = write_project("injected", r#"{"name":"injected","version":"1.0.0"}"#);
+    let lib = write_project("lib", r#"{"name":"lib","version":"1.0.0"}"#);
+    let leaf =
+        |project| ProjectGraphNode { package: GraphPkg { project }, dependencies: Vec::new() };
+    let all: ProjectGraph<GraphPkg<'_>> = [
+        (
+            app.root_dir.clone(),
+            ProjectGraphNode {
+                package: GraphPkg { project: &app },
+                dependencies: vec![injected.root_dir.clone(), lib.root_dir.clone()],
+            },
+        ),
+        (injected.root_dir.clone(), leaf(&injected)),
+        (lib.root_dir.clone(), leaf(&lib)),
+    ]
+    .into_iter()
+    .collect();
+    let selected = std::iter::once((app.root_dir.clone(), all[&app.root_dir].clone())).collect();
+    let selection = RecursiveSelection {
+        selected,
+        all: Some(all),
+        prod_all: None,
+        prod_only_selected: HashSet::new(),
+    };
+    let config = Config {
+        verify_deps_before_run: VerifyDepsBeforeRun::Error,
+        shared_workspace_lockfile: false,
+        inject_workspace_packages: true,
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        overrides: Some(std::iter::once(("lib".to_string(), "link:./lib".to_string())).collect()),
+        ..Config::default()
+    };
+
+    let mut verified =
+        projects_to_verify([app.root_dir.as_path()], &selection, &config, tmp.path()).unwrap();
+    verified.sort();
+    let mut expected = vec![app.root_dir, lib.root_dir];
+    expected.sort();
+    assert_eq!(verified, expected);
+}
+
+#[test]
+fn projects_to_verify_reports_an_invalid_override() {
+    let tmp = tempfile::tempdir().unwrap();
+    let selection = RecursiveSelection {
+        selected: ProjectGraph::default(),
+        all: Some(ProjectGraph::default()),
+        prod_all: None,
+        prod_only_selected: HashSet::new(),
+    };
+    let config = Config {
+        verify_deps_before_run: VerifyDepsBeforeRun::Error,
+        shared_workspace_lockfile: false,
+        inject_workspace_packages: true,
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        overrides: Some(
+            std::iter::once(("lib".to_string(), "catalog:missing".to_string())).collect(),
+        ),
+        ..Config::default()
+    };
+
+    let error = projects_to_verify([tmp.path()], &selection, &config, tmp.path()).unwrap_err();
+    assert!(format!("{error:?}").contains("parsing the overrides"), "{error:?}");
 }
 
 #[test]

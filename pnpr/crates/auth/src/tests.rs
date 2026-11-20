@@ -1,13 +1,33 @@
 use super::{
-    AccountLifecycle, AccountStatusOutcome, NewToken, PasswordChange, PasswordCollisions,
-    PasswordImport, SqliteAuth, TokenBackend, TokenKind, UpsertOutcome, UserBackend, UserCreation,
-    UserRemoval, identify, parse_htpasswd, sha256_hex,
+    AccountLifecycle,
+    AccountStatusOutcome,
+    NewToken,
+    PasswordChange,
+    PasswordCollisions,
+    PasswordImport,
+    SqliteAuth,
+    TokenBackend,
+    TokenKind,
+    UpsertOutcome,
+    UserBackend,
+    UserCreation,
+    UserRemoval,
+    identify,
+    parse_htpasswd,
+    sha256_hex,
 };
 use crate::validation::{
-    MAX_USERNAME_CHARS, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
+    MAX_USERNAME_CHARS,
+    token_timestamp_from_sql,
+    token_timestamp_to_sql,
+    validate_username,
 };
 use pnpr_config::MaxUsers;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 use tokio::sync::Barrier;
 
 /// Tests run with cost 4 (the bcrypt crate's minimum sane value)
@@ -806,7 +826,10 @@ fn parse_htpasswd_accepts_sha1_entries() {
 
 #[test]
 fn personal_tokens_use_pnpr_prefix_base62_payload_and_ieee_crc32() {
-    use crate::token_store::format::{crc32_ieee, format_personal_token};
+    use crate::token_store::format::{
+        crc32_ieee,
+        format_personal_token,
+    };
 
     assert_eq!(crc32_ieee(b"123456789"), 0xCBF4_3926);
 
@@ -871,11 +894,11 @@ async fn postgres_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
     let (outcome, logged_in_id) = auth.add_or_login("alice", "secret123").await.unwrap();
     assert_eq!(outcome, UpsertOutcome::LoggedIn);
     assert_eq!(logged_in_id, user_id);
-    let (_, _) = auth.add_or_login("zo\u{00e9}", "secret123").await.unwrap();
+    let (_, _) = auth.add_or_login("zoé", "secret123").await.unwrap();
     let decomposed = auth.add_or_login("zoe\u{0301}", "secret123").await.unwrap_err();
     assert_eq!(decomposed.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(auth.account_id("zoe\u{0301}").await.unwrap(), None);
-    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zo\u{00e9}"]);
+    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zoé"]);
     let (raw, record) = auth
         .issue_token(&user_id, NewToken::new().with_readonly(true))
         .await
@@ -937,11 +960,11 @@ async fn mysql_auth_uses_unified_schema_migrations_and_round_trips_tokens() {
     let (outcome, logged_in_id) = auth.add_or_login("alice", "secret123").await.unwrap();
     assert_eq!(outcome, UpsertOutcome::LoggedIn);
     assert_eq!(logged_in_id, user_id);
-    let (_, _) = auth.add_or_login("zo\u{00e9}", "secret123").await.unwrap();
+    let (_, _) = auth.add_or_login("zoé", "secret123").await.unwrap();
     let decomposed = auth.add_or_login("zoe\u{0301}", "secret123").await.unwrap_err();
     assert_eq!(decomposed.status_code(), axum::http::StatusCode::BAD_REQUEST);
     assert_eq!(auth.account_id("zoe\u{0301}").await.unwrap(), None);
-    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zo\u{00e9}"]);
+    assert_eq!(auth.list_users().await.unwrap(), ["alice", "zoé"]);
     let (raw, record) = auth
         .issue_token(&user_id, NewToken::new().with_readonly(true))
         .await

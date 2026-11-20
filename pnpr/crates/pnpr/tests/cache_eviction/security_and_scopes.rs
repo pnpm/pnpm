@@ -1,18 +1,39 @@
 //! Private-scope secret rotation, symlink hardening, dry-run parity, and WAL verdict trim tests.
 
-use super::{create_file_with_age, test_config};
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir, StoreIndex};
+use super::{
+    create_file_with_age,
+    test_config,
+};
+use pnpm_store_dir::{
+    CafsFileInfo,
+    PackageFilesIndex,
+    SideEffectsDiff,
+    StoreDir,
+    StoreIndex,
+};
 use pnpr::{
     Config,
     cache_maintenance::{
-        CacheGcEffect, CacheGcOptions, CacheGcScope, active_cache_namespaces, collect_cache,
+        CacheGcEffect,
+        CacheGcOptions,
+        CacheGcScope,
+        active_cache_namespaces,
+        collect_cache,
     },
 };
 use rusqlite::Connection;
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
+    time::{
+        Duration,
+        SystemTime,
+        UNIX_EPOCH,
+    },
 };
 use tempfile::TempDir;
 
@@ -115,9 +136,13 @@ async fn verdict_db_trim_does_not_wipe_all_rows_under_concurrent_wal_reader_and_
         .execute_batch(
             "PRAGMA journal_mode = WAL;
              CREATE TABLE lockfile_verdicts (
-                 hash TEXT PRIMARY KEY,
+                 hash TEXT NOT NULL,
+                 footprint_key TEXT NOT NULL,
+                 footprint TEXT NOT NULL,
                  policy TEXT NOT NULL,
-                 verified_at_ms INTEGER NOT NULL
+                 epoch TEXT NOT NULL,
+                 verified_at_ms INTEGER NOT NULL,
+                 PRIMARY KEY (hash, epoch, footprint_key)
              );",
         )
         .unwrap();
@@ -132,10 +157,15 @@ async fn verdict_db_trim_does_not_wipe_all_rows_under_concurrent_wal_reader_and_
     for idx in 0..40_i64 {
         writer
             .execute(
-                "INSERT INTO lockfile_verdicts (hash, policy, verified_at_ms) VALUES (?1, ?2, ?3)",
+                "INSERT INTO lockfile_verdicts (
+                     hash, footprint_key, footprint, policy, epoch, verified_at_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 rusqlite::params![
                     format!("hash-{idx:04}"),
+                    "",
+                    "[]",
                     &big_policy,
+                    "",
                     now_ms - (40 - idx) * 1000
                 ],
             )

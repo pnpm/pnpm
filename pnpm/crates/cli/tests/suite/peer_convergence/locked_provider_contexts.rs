@@ -1,8 +1,16 @@
 use super::moving_providers::registry_from_manifests;
-use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_v11_bundle_path};
+use crate::_utils::{
+    ManifestDeps,
+    WorkspaceFixture,
+    assert_success,
+    read_v11_bundle_path,
+};
 use pnpm_lockfile::Lockfile;
 use serde_json::json;
-use std::{ffi::OsStr, fs};
+use std::{
+    ffi::OsStr,
+    fs,
+};
 
 #[derive(Clone, Copy)]
 enum ConsumerLayout {

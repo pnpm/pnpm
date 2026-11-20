@@ -1,6 +1,17 @@
 use super::{
-    Body, Method, RegistryError, Request, ServiceExt, StatusCode, TempDir, app_with_token, header,
-    record, signed, signed_json, to_bytes,
+    Body,
+    Method,
+    RegistryError,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    app_with_token,
+    header,
+    record,
+    signed,
+    signed_json,
+    to_bytes,
 };
 
 #[tokio::test]
@@ -50,7 +61,12 @@ async fn npm_authentication_errors_distinguish_missing_and_invalid_tokens() {
 
 #[tokio::test]
 async fn npm_errors_keep_status_safe_messages_and_retry_headers() {
-    use axum::{Router, middleware, response::IntoResponse, routing::get};
+    use axum::{
+        Router,
+        middleware,
+        response::IntoResponse,
+        routing::get,
+    };
     use serde_json::json;
     use std::time::Duration;
 
@@ -136,7 +152,11 @@ async fn npm_errors_keep_status_safe_messages_and_retry_headers() {
 
 #[tokio::test]
 async fn head_errors_have_no_body_and_owned_endpoints_return_json() {
-    use axum::{Router, middleware, routing::get};
+    use axum::{
+        Router,
+        middleware,
+        routing::get,
+    };
     let app = Router::new()
         .route("/npm/missing", get(|| async { RegistryError::NotFound }))
         .route("/-/pnpr/v0/missing", get(|| async { RegistryError::NotFound }))
@@ -241,7 +261,11 @@ async fn native_publish_errors_have_the_same_shape_at_root_and_under_npm() {
 
 #[tokio::test]
 async fn framework_rejections_on_native_endpoints_return_json() {
-    use axum::{Router, middleware, routing::get};
+    use axum::{
+        Router,
+        middleware,
+        routing::get,
+    };
     let app = Router::new()
         .route("/-/pnpr/v0/example", get(|| async { "ok" }))
         .layer(middleware::from_fn(super::super::routing::npm_errors::render));

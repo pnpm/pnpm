@@ -7,22 +7,52 @@
 //! a publication never discloses a package.
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, Identity, RegistrySource, authorize_package,
-    hosted_gate, not_found,
-    notes::{NoteRequest, note_text_response, read_note_body},
+    Action,
+    AppState,
+    AuthedCaller,
+    HostedGate,
+    Identity,
+    RegistrySource,
+    authorize_package,
+    hosted_gate,
+    not_found,
+    notes::{
+        NoteRequest,
+        note_text_response,
+        read_note_body,
+    },
     private_no_cache,
 };
 use axum::{
     Json,
-    extract::{Path, Query, State},
-    response::{IntoResponse, Response},
+    extract::{
+        Path,
+        Query,
+        State,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_registry::{Ecosystem, Resolved};
-use pnpr_storage::database::{ArtifactMember, Note, NoteChange, Publication, SqlDatabase};
+use pnpr_registry::{
+    Ecosystem,
+    Resolved,
+};
+use pnpr_storage::database::{
+    ArtifactMember,
+    Note,
+    NoteChange,
+    Publication,
+    SqlDatabase,
+};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::sync::Arc;
 
 /// The path segment naming the default namespace of registries without a `namespace`.

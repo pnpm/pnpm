@@ -1,18 +1,18 @@
 //! Fetchers for git-hosted dependencies, plus the `preparePackage`
 //! port both fetchers delegate to.
 //!
-//! Two fetcher entry points, sharing `prepare_package` / `packlist` /
+//! Two fetcher entry points, sharing the package preparation / `packlist` /
 //! the CAS-import helpers:
 //!
-//! - [`GitFetcher`] handles `LockfileResolution::Git` — shells out to
+//! - [`GitFetcher`] handles `LockfileResolution::Git`, shells out to
 //!   the system `git` binary.
 //! - [`GitHostedTarballFetcher`] handles
-//!   `TarballResolution { gitHosted: true }` — picks up a tarball the
+//!   `TarballResolution { gitHosted: true }`, picks up a tarball the
 //!   pacquet HTTP path has already downloaded into the CAS, materializes
-//!   it into a temp dir, and runs the same `prepare_package` + packlist
+//!   it into a temp dir, and runs the same preparation + packlist
 //!   passes.
 //!
-//! `prepare_package` lives in this crate rather than a sibling because
+//! The preparation lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.
 
 #[cfg(target_family = "wasm")]
@@ -20,18 +20,46 @@ extern crate pnpm_which as which;
 
 pub(crate) use pnpm_process as process;
 
-pub use error::{GitFetcherError, PreparePackageError};
+pub use error::{
+    GitFetcherError,
+    PreparePackageError,
+};
 pub use fetcher::{
-    CheckoutOptions, GitFetchOutput, GitFetcher, GitManifestQuery, cache_checkout_bundles,
-    checkout_cached_bundles, checkout_commit, checkout_existing_revision, checkout_revision,
-    checkout_submodules, checkout_submodules_offline, read_git_manifest,
+    CheckoutOptions,
+    GitFetchOutput,
+    GitFetcher,
+    GitManifestQuery,
+    cache_checkout_bundles,
+    checkout_cached_bundles,
+    checkout_commit,
+    checkout_existing_revision,
+    checkout_revision,
+    checkout_submodules,
+    checkout_submodules_offline,
+    read_git_manifest,
 };
-pub use options::{GitSource, GitStoreContext, PrepareScriptOptions, RunningPnpm};
-pub use preferred_pm::{PreferredPm, WantedPm, detect_preferred_pm, detect_wanted_pm};
+pub use options::{
+    GitSource,
+    GitStoreContext,
+    PrepareScriptOptions,
+    RunningPnpm,
+};
+pub use preferred_pm::{
+    PreferredPm,
+    WantedPm,
+    detect_preferred_pm,
+    detect_wanted_pm,
+};
 pub use prepare_package::{
-    PreparePackageOptions, PreparedPackage, prepare_package, resolve_package_build_permission,
+    PreparePackageOptions,
+    PreparedPackage,
+    prepare_package,
+    resolve_package_build_permission,
 };
-pub use protocols::{SUPPORTED_GIT_PROTOCOLS, read_allowed_git_protocols};
+pub use protocols::{
+    SUPPORTED_GIT_PROTOCOLS,
+    read_allowed_git_protocols,
+};
 pub use source_cache::GitSourceCache;
 pub use tarball_fetcher::GitHostedTarballFetcher;
 

@@ -6,7 +6,7 @@ use crate::lexer::Token;
 /// enable it.
 pub fn requires_test(predicate: &[Token]) -> bool {
     let mut evaluator = Evaluator { tokens: predicate, pos: 0 };
-    evaluator.predicate() == Some(false)
+    !evaluator.predicate().unwrap_or(true)
 }
 
 struct Evaluator<'tokens> {
@@ -115,7 +115,10 @@ fn skip_visibility_backwards(tokens: &[Token], item: usize) -> usize {
         let open = (0..item - 1)
             .rev()
             .find(|index| tokens[*index] == Token::Punct('('));
-        if let Some(open) = open.filter(|open| *open >= 1 && pub_at(open - 1)) {
+        if let Some(open) = open
+            .filter(|open| *open >= 1)
+            .filter(|open| pub_at(open - 1))
+        {
             return open - 1;
         }
     }

@@ -1,8 +1,17 @@
-use super::{PipelineRunStore, PublishPipelineRun};
+use super::{
+    PipelineRunStore,
+    PublishPipelineRun,
+};
 use pnpr_config::HostedStoreConfig;
-use pnpr_storage::{PipelineRunKey, Storage};
+use pnpr_storage::{
+    PipelineRunKey,
+    Storage,
+};
 use serde_json::json;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 use tempfile::TempDir;
 
 const ORG: &str = "acme";

@@ -3,14 +3,29 @@
 
 use crate::_utils;
 
-use _utils::{append_workspace_yaml_key, assert_success, ndjson_records, pacquet_in};
+use _utils::{
+    append_workspace_yaml_key,
+    assert_success,
+    ndjson_records,
+    pacquet_in,
+};
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
-    bin::{AddMockedRegistry, CommandTempCwd},
+    bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    },
     fs::is_symlink_or_junction,
 };
-use serde_json::{Value, json};
-use std::{fs, path::Path, process::Command};
+use serde_json::{
+    Value,
+    json,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 const LINKERS: [&str; 2] = ["isolated", "hoisted"];
 

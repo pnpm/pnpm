@@ -1,12 +1,33 @@
-use super::{BundleRange, Integration, StoredHash, integrate};
+use super::{
+    BundleRange,
+    Integration,
+    StoredHash,
+    integrate,
+};
 use crate::{
-    proof::{LogError, verify_inclusion},
-    tiles::{TILE_HEIGHT, TilePath},
+    proof::{
+        LogError,
+        verify_inclusion,
+    },
+    tiles::{
+        TILE_HEIGHT,
+        TilePath,
+    },
 };
 use pretty_assertions::assert_eq;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{
+    BTreeMap,
+    HashMap,
+};
 use tlog_tiles::{
-    Hash, HashReader, Tile, TileHashReader, TileReader, prove_record, record_hash, tree_hash,
+    Hash,
+    HashReader,
+    Tile,
+    TileHashReader,
+    TileReader,
+    prove_record,
+    record_hash,
+    tree_hash,
 };
 
 /// A stored-hash table, as the registry keeps one in SQL.

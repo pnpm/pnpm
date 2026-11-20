@@ -1,15 +1,46 @@
 pub(crate) mod members;
 
-use super::manifest::{Manifest, SourceDeclaration};
+use super::manifest::{
+    Manifest,
+    SourceDeclaration,
+};
 use members::members_of;
-use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+    bail,
+};
 use pep440_rs::Version;
-use pep508_rs::{ExtraName, MarkerEnvironment, MarkerTree, PackageName, VerbatimUrl};
-use pnpm_python_resolver::{LockedDirectory, Lockfile, Packages, WheelMetadata, parse_requirement};
-use source::{Declared, path_target, reject_unresolvable, sole_source};
+use pep508_rs::{
+    ExtraName,
+    MarkerEnvironment,
+    MarkerTree,
+    PackageName,
+    VerbatimUrl,
+};
+use pnpm_python_resolver::{
+    LockedDirectory,
+    Lockfile,
+    Packages,
+    WheelMetadata,
+    parse_requirement,
+};
+use source::{
+    Declared,
+    path_target,
+    reject_unresolvable,
+    sole_source,
+};
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -122,7 +153,7 @@ pub(super) struct Workspace {
     manifests: BTreeMap<PathBuf, Arc<Manifest>>,
     inherited: BTreeMap<PathBuf, (PathBuf, Arc<Manifest>)>,
     /// The workspace root whose environment each project shares, for the
-    /// members of a workspace that asks for one — see [`members`].
+    /// members of a workspace that asks for one; see [`members`].
     shared: BTreeMap<PathBuf, PathBuf>,
     selection: Option<Selection>,
 }
@@ -407,7 +438,7 @@ fn read_project(
     if manifest.distribution() != Some(name) {
         bail!("the Python project at {} does not declare `{name}`", path.display());
     }
-    if manifest.tool.uv.package == Some(false) {
+    if !manifest.tool.uv.package.unwrap_or(true) {
         bail!(
             "the Python project at {} sets `tool.uv.package = false`, so it builds no package for \
              `{name}` to install",

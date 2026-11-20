@@ -1,12 +1,18 @@
 use super::super::workspace_state::build_workspace_state;
 use pnpm_config::Config;
-use pnpm_modules_yaml::{Clock, IncludedDependencies};
+use pnpm_modules_yaml::{
+    Clock,
+    IncludedDependencies,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::ConfigDependency;
 use std::{
     collections::BTreeMap,
     path::PathBuf,
-    time::{Duration, SystemTime},
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 use tempfile::tempdir;
 
@@ -183,7 +189,7 @@ fn records_every_workspace_project_keyed_by_root_dir() {
 /// pnpm's `createWorkspaceState` records `configDependencies`
 /// verbatim. When pacquet is the install engine for a project that
 /// declares one (the `@pnpm/pacquet` configDependency itself), the
-/// written state must carry the same map — otherwise pnpm's
+/// written state must carry the same map; otherwise pnpm's
 /// `checkDepsStatus` reads a missing value, treats the install as
 /// stale, and reinstalls on every `pnpm run` / `pnpm node`.
 #[test]
@@ -222,7 +228,10 @@ fn corp_lockfile() -> pnpm_lockfile::Lockfile {
 /// leaves a plain key under a route that moved since.
 #[test]
 fn recorded_registry_routes_follow_the_install_that_resolved_the_plain_keys() {
-    use crate::install_state::{ResolvedImporters, recorded_registry_routes_after_install};
+    use crate::install_state::{
+        ResolvedImporters,
+        recorded_registry_routes_after_install,
+    };
     let old = "https://old.example.test/";
     let new = "https://new.example.test/";
     let mut config = Config::new();

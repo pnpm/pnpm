@@ -1,8 +1,23 @@
 use super::{
-    AuthSources, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
-    LoadWorkspaceYamlError, NpmrcAuth, Path, TrustedSettings, WorkspaceSettings,
-    build_package_manager_bootstrap, collect_explicit_trusted_settings, default_config_dir,
-    default_state_dir, ensure_windows_dir_envs, resolve_configured_state_dir,
+    AuthSources,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    ExplicitPaths,
+    GetCurrentDir,
+    GetHomeDir,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    NpmrcAuth,
+    Path,
+    TrustedSettings,
+    WorkspaceSettings,
+    build_package_manager_bootstrap,
+    collect_explicit_trusted_settings,
+    default_config_dir,
+    default_state_dir,
+    ensure_windows_dir_envs,
+    resolve_configured_state_dir,
 };
 
 /// A failed [`Config::current_keeping_warnings`].
@@ -22,8 +37,8 @@ impl Config {
     /// [`CliLayer::setting_values`](crate::CliLayer::setting_values), then
     /// the [`CliLayer`](crate::CliLayer) registry routes.
     ///
-    /// Other `.npmrc` entries — project-structural settings like
-    /// `storeDir`, `lockfile` and `hoist-pattern` — are silently
+    /// Other `.npmrc` entries (project-structural settings like
+    /// `storeDir`, `lockfile` and `hoist-pattern`) are silently
     /// ignored here. Those must come from `pnpm-workspace.yaml` or CLI
     /// flags, matching pnpm 11.
     ///
@@ -50,7 +65,7 @@ impl Config {
     }
 
     /// Like [`Config::current`], but the project `pnpm-workspace.yaml` does
-    /// not contribute the `minimumReleaseAge` / `trustPolicy` policies — see
+    /// not contribute the `minimumReleaseAge` / `trustPolicy` policies; see
     /// [`WorkspaceSettings::clear_self_update_policy`].
     pub fn current_for_self_update<Sys>(
         self,
@@ -127,9 +142,17 @@ impl Config {
         if self.ignore_workspace {
             return None;
         }
+        if self.cli.command_target == crate::CommandTarget::GlobalPackages {
+            return start_dir
+                .join(crate::workspace_yaml::WORKSPACE_MANIFEST_FILENAME)
+                .is_file()
+                .then(|| (start_dir.to_path_buf(), None));
+        }
         pnpm_workspace::WORKSPACE_DIR_ENV_VARS
             .iter()
-            .find_map(|name| Sys::var_os(name).filter(|value| !value.is_empty()))
+            .copied()
+            .map(Sys::var_os)
+            .find_map(|variable| variable.filter(|value| !value.is_empty()))
             .map(std::path::PathBuf::from)
             .or_else(|| {
                 crate::workspace_yaml::find_workspace_manifest(start_dir)
@@ -214,7 +237,7 @@ impl Config {
 
         // Apply `_auth` routes after workspace yaml (so they win over
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
-        // explicit `pnpm_config_registry` / `--registry` still wins) —
+        // explicit `pnpm_config_registry` / `--registry` still wins),
         // pnpm's "CLI > _auth > yaml" precedence.
         npmrc_auth.apply_json_env_registries(self, &declared_registries);
 
@@ -262,8 +285,8 @@ impl Config {
         declared_registries: &mut crate::npmrc_auth::DeclaredRegistries,
     ) {
         npmrc_auth.apply_registry_and_warn(self, declared_registries);
-        // Proxy cascade fires unconditionally — even when no `.npmrc`
-        // is found — because the env-var fallback is a normalization step
+        // Proxy cascade fires unconditionally (even when no `.npmrc`
+        // is found) because the env-var fallback is a normalization step
         // on the resolved config, not a function of `.npmrc` presence.
         npmrc_auth.proxy.apply_proxy_cascade::<Sys>(self);
         // pnpm does not honor Node's TLS env vars (`NODE_EXTRA_CA_CERTS`,
@@ -303,7 +326,7 @@ impl Config {
     /// env vars override yaml.
     ///
     /// `workspace_dir` save/restore is the same trick used for the
-    /// global config above — `apply_to` would otherwise clobber
+    /// global config above, `apply_to` would otherwise clobber
     /// `workspace_dir` with `start_dir`, hiding the workspace yaml's
     /// location (or, if there was no yaml, setting it to a value
     /// that doesn't actually correspond to a discovered workspace).

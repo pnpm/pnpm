@@ -1,8 +1,19 @@
 use super::{
-    HashMap, IndexMap, LazyLock, Mutex, PacquetConfig, Path, PathBuf, ResolveRequest, StoreDir,
+    HashMap,
+    IndexMap,
+    LazyLock,
+    Mutex,
+    PacquetConfig,
+    Path,
+    PathBuf,
+    ResolveRequest,
+    StoreDir,
 };
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
 pub(super) const MAX_ACTIVE_CONFIGS: usize = 1024;
 
@@ -64,7 +75,7 @@ impl EffectiveResolverSettings {
     /// The client's own values whenever it sends them. A client that sends
     /// none (one older than
     /// [pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)) falls
-    /// back to the input lockfile on a frozen request — nothing is
+    /// back to the input lockfile on a frozen request; nothing is
     /// re-resolved there, the freshness gate compares these against the
     /// config, and the server's defaults would call a lockfile that is valid
     /// for its owner stale. On an update-capable request it falls back to the
@@ -187,8 +198,9 @@ impl ConfigKeyInputs {
             request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
         let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
         let overrides = request.overrides
-            .as_ref()
-            .and_then(|value| serde_json::from_value(value.clone()).ok());
+            .clone()
+            .map(serde_json::from_value)
+            .and_then(Result::ok);
         ConfigKeyInputs {
             registry,
             overrides,

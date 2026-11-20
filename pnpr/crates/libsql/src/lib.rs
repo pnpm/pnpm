@@ -11,18 +11,36 @@ extern crate pnpr_error;
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
-pub use connector::{DialRetryGuard, LibsqlConnector};
-pub use pool::{Checkout, ConnectionPool, first_row};
+pub use connector::{
+    DialRetryGuard,
+    LibsqlConnector,
+};
+pub use pool::{
+    Checkout,
+    ConnectionPool,
+    first_row,
+};
 
 mod connector;
 mod pool;
 
 use connector::is_plain_http;
-use libsql::{Builder, Database, Error as LibsqlError};
+use libsql::{
+    Builder,
+    Database,
+    Error as LibsqlError,
+};
 use pnpm_network::is_url_secure_for_credentials;
 use pnpr_config::LibsqlSettings;
-use pnpr_error::{RegistryError, Result};
-use std::{future::Future, path::Path, time::Duration};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use std::{
+    future::Future,
+    path::Path,
+    time::Duration,
+};
 
 /// The connector for the database `settings` name, the settings of the
 /// config block `section`, such as `storage.database`. An auth token must not

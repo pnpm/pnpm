@@ -1,4 +1,7 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 const PACKAGE: &str = "injected-benchmark-library";
 const FILE_COUNT: usize = 10_000;

@@ -1,18 +1,42 @@
 use super::{
-    ChildSeedScope, DependencySpec, HashSet, NodeKind, NodeSeed, ParentPkgAliases, Pipe,
-    PkgNameVerPeer, ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey,
-    async_recursion, child_wanted, children_warmup_claimed, claim_children_warmup,
-    declaring_manifest_dir, extract_children, future, is_update_target, landed_on_prior_entry,
-    node_depends_on_changed_direct_dep, opts_for_child_spec, peer_shadowed_dependencies,
-    project_relative_cache_scope, resolve_wanted_cached, resolves_children_through_catalogs,
-    try_reuse_node, walk_child_specs, wanted_package_root_link,
+    ChildSeedScope,
+    DependencySpec,
+    HashSet,
+    NodeKind,
+    NodeSeed,
+    ParentPkgAliases,
+    Pipe,
+    PkgNameVerPeer,
+    ResolveOptions,
+    Resolver,
+    TreeCtx,
+    WantedDependency,
+    WantedKey,
+    async_recursion,
+    child_wanted,
+    children_warmup_claimed,
+    claim_children_warmup,
+    declaring_manifest_dir,
+    extract_children,
+    future,
+    is_update_target,
+    landed_on_prior_entry,
+    node_depends_on_changed_direct_dep,
+    opts_for_child_spec,
+    peer_shadowed_dependencies,
+    project_relative_cache_scope,
+    resolve_wanted_cached,
+    resolves_children_through_catalogs,
+    try_reuse_node,
+    walk_child_specs,
+    wanted_package_root_link,
 };
 
 /// Speculatively warm a freshly-seeded node's whole subtree so its
 /// packuments download while the level barriers wait for their
-/// slowest members. Results are discarded — the real picks run in the
+/// slowest members. Results are discarded (the real picks run in the
 /// walk phase with the level's preferred-versions overlay and hit the
-/// warm metadata caches — and errors are swallowed: a speculative
+/// warm metadata caches) and errors are swallowed: a speculative
 /// fetch must never fail the install (the real resolve will surface
 /// it). Recovers the cross-level pipelining the postponed-resolution
 /// barrier otherwise serializes; pure overlap, no behavioral effect.
@@ -175,7 +199,7 @@ fn children_to_warm(
 
 /// The child edges a warm-up walks: the declared children minus the ones a
 /// peer shadows, with `catalog:` ranges dereferenced. `None` when the
-/// manifest or a catalog reference cannot be read — the real walk reports it.
+/// manifest or a catalog reference cannot be read, the real walk reports it.
 pub(super) fn warm_child_specs(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,

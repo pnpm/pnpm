@@ -1,11 +1,22 @@
 //! The store verification a run that fetches into the store starts while
 //! it resolves. See [`StoreVerification`].
 
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir};
-use pnpm_tarball::{PrefetchIntegrityCheck, prefetch_cas_paths};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+};
+use pnpm_tarball::{
+    PrefetchIntegrityCheck,
+    prefetch_cas_paths,
+};
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+    },
 };
 use tokio::task::JoinHandle;
 

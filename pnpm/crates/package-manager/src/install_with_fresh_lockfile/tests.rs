@@ -1,14 +1,24 @@
 use super::{
-    ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
-    importers_consuming_linked_peers, include_transitive_optional_dependencies,
-    is_partial_workspace_selection, manifest_transforms::build_manifest_transforms,
+    ImporterUpdateSeedPolicy,
+    UpdateSeedPolicy,
+    compute_package_extensions_checksum,
+    importers_consuming_linked_peers,
+    include_transitive_optional_dependencies,
+    is_partial_workspace_selection,
+    manifest_transforms::build_manifest_transforms,
 };
 use crate::install_with_fresh_lockfile::{
     persist::verify_merged_repair,
-    seed_policy::{full_resolution_required, update_reuse_scopes},
+    seed_policy::{
+        full_resolution_required,
+        update_reuse_scopes,
+    },
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, PackageExtension};
+use pnpm_config::{
+    Config,
+    PackageExtension,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
@@ -101,7 +111,7 @@ fn builtin_compatibility_extensions_do_not_apply_to_importer_manifests() {
 
 /// Ports `installing/.../packageExtensions.ts:103-153`
 /// `packageExtensionsChecksum does not change regardless of keys
-/// order` — two `Config::package_extensions` populated with the
+/// order`, two `Config::package_extensions` populated with the
 /// same selectors and entries in a different declared order must
 /// produce the same `sha256-…` lockfile checksum. Without the
 /// sorted-keys hash, the order-sensitive `IndexMap` iteration
@@ -137,8 +147,8 @@ fn compute_checksum_is_none_when_extensions_absent() {
 /// `Some({})` (an explicitly empty map) also collapses to `None`,
 /// mirroring pnpm's `if (!object || isEmpty(object)) return undefined`.
 /// Without the empty-map guard, an explicit `packageExtensions: {}`
-/// in pnpm-workspace.yaml — or an env-var-driven override clearing
-/// a parent layer — would hash to a checksum while pnpm omits the
+/// in pnpm-workspace.yaml (or an env-var-driven override clearing
+/// a parent layer) would hash to a checksum while pnpm omits the
 /// field, causing spurious drift on cross-tool installs.
 #[test]
 fn compute_checksum_is_none_for_explicit_empty_map() {
@@ -232,7 +242,7 @@ fn linked_peer_consumers(projects: &[(&str, serde_json::Value)]) -> Vec<String> 
 }
 
 /// The candidate set stays empty when nothing in the workspace declares
-/// a peer — the case the report's cost is scoped for.
+/// a peer, the case the report's cost is scoped for.
 #[test]
 fn a_workspace_without_peer_declarations_adds_no_candidates() {
     assert_eq!(

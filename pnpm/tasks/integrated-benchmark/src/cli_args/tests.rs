@@ -1,4 +1,8 @@
-use super::{RegistryMode, TargetKind, TargetSpec};
+use super::{
+    RegistryMode,
+    TargetKind,
+    TargetSpec,
+};
 use std::str::FromStr;
 
 #[test]

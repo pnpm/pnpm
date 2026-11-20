@@ -1,12 +1,12 @@
-//! `PUT /-/pnpr/v0/publish` — one publish transaction across ecosystems.
+//! `PUT /-/pnpr/v0/publish`: one publish transaction across ecosystems.
 //!
 //! Mounted at the server root, under `/npm/`, and under a named npm
 //! registry's `/npm/~<registry>/`, so both cross-ecosystem releases and
 //! `pnpm publish --batch` (which resolves relative to the configured npm
 //! registry URL) address the same handler.
 //!
-//! Each entry names its `ecosystem` — absent means npm, so an npm batch body
-//! is already a valid one — and carries what that surface's own publish
+//! Each entry names its `ecosystem` (absent means npm, so an npm batch body
+//! is already a valid one) and carries what that surface's own publish
 //! endpoint takes, with the binary parts base64-encoded. Every entry is
 //! validated and staged before any of them is committed, and the whole batch
 //! commits as one generation of its hosted namespace, or not at all: a
@@ -16,35 +16,71 @@
 //! (see `publishing::atomic`).
 
 use super::{
-    AppState, AuthedCaller, Identity,
-    cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
-    oci::{OciPublication, authorize_publication},
+    AppState,
+    AuthedCaller,
+    Identity,
+    cargo::{
+        CratePublication,
+        authorize_crate_publish,
+        verify_crate_archive,
+    },
+    oci::{
+        OciPublication,
+        authorize_publication,
+    },
     oidc::WorkloadScope,
     publishing::{
-        PublishReceipt, StagedPublish, check_body_versions, cleanup_tmp_slots, commit_publication,
-        publication_name, publication_request, publish_committed_response,
-        refuse_notes_of_published_python_versions, replayed_outcome, single_namespace,
-        stage_publish, take_note, take_version_note, validate_publish_doc,
+        PublishReceipt,
+        StagedPublish,
+        check_body_versions,
+        cleanup_tmp_slots,
+        commit_publication,
+        publication_name,
+        publication_request,
+        publish_committed_response,
+        refuse_notes_of_published_python_versions,
+        replayed_outcome,
+        single_namespace,
+        stage_publish,
+        take_note,
+        take_version_note,
+        validate_publish_doc,
     },
-    pypi::{PypiPublication, authorize_upload, verify_upload},
+    pypi::{
+        PypiPublication,
+        authorize_upload,
+        verify_upload,
+    },
     resolve_write_target,
     staged_archives::StagedReferences,
 };
 use axum::{
     Extension,
     body::Bytes,
-    extract::{Path, State},
+    extract::{
+        Path,
+        State,
+    },
     http::HeaderMap,
-    response::{IntoResponse, Response},
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use base64::{
+    Engine,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpr_cargo::PublishMetadata;
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_pypi::Upload;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    database::{PublicationRequest, PublishNotes},
+    database::{
+        PublicationRequest,
+        PublishNotes,
+    },
     publish::now_iso,
 };
 use serde::Deserialize;
@@ -92,7 +128,8 @@ async fn serve(
 ) -> Response {
     let key = headers
         .get(IDEMPOTENCY_KEY)
-        .and_then(|key| key.to_str().ok());
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok);
     super::publishing::retry::retry_reclaimed(&state.inner.locks.publish_replays, body, |body| {
         publish_batch(state, caller, key, body)
     })
@@ -216,7 +253,8 @@ async fn publish_batch(
     // just like with a single publish.
     let names: Vec<&str> = validated
         .iter()
-        .map(|entry| entry.key().as_str())
+        .map(ValidatedEntry::key)
+        .map(CanonicalPackageName::as_str)
         .collect();
     let _guards = state.inner.locks.packages.lock_many(&names).await;
     // Every entry is authorized above, so a retry gets the outcome of the

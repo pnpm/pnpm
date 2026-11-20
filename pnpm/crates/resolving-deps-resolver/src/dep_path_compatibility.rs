@@ -8,8 +8,14 @@ use pnpm_deps_path::DepPath;
 use rustc_hash::FxHashSet as HashSet;
 
 use crate::{
-    dependencies_graph::{DependenciesGraph, DependenciesGraphNode},
-    peer_dependents_dedupe::{CollapseGuard, OptionalPeerScope},
+    dependencies_graph::{
+        DependenciesGraph,
+        DependenciesGraphNode,
+    },
+    peer_dependents_dedupe::{
+        CollapseGuard,
+        OptionalPeerScope,
+    },
 };
 
 /// Number of edges a variant carries: its child dependencies plus the
@@ -26,7 +32,7 @@ pub(crate) fn node_deps_count(node: &DependenciesGraphNode) -> usize {
 /// carries a peer suffix absorb the variant whose child does not.
 ///
 /// Compares dependency/peer *sets* only, not package identity, so callers
-/// must pass depPaths already known to share a `pkgIdWithPatchHash` —
+/// must pass depPaths already known to share a `pkgIdWithPatchHash`;
 /// otherwise two unrelated leaf packages (both with empty sets) would
 /// count as compatible.
 ///

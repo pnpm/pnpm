@@ -33,15 +33,35 @@ mod teams;
 mod timestamps;
 
 use crate::{
-    DocumentWrite, HostedDocumentVersion, Storage,
-    database::{Generation, RenderStats, TagChange, TagUpdate},
+    DocumentWrite,
+    HostedDocumentVersion,
+    Storage,
+    database::{
+        Generation,
+        RenderStats,
+        TagChange,
+        TagUpdate,
+    },
 };
-use pnpr_config::{DatabaseBackend, HostedStoreConfig, StorageConfig};
+use pnpr_config::{
+    DatabaseBackend,
+    HostedStoreConfig,
+    StorageConfig,
+};
 use pnpr_error::RegistryError;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 #[cfg(feature = "backend-libsql")]
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
 use tempfile::TempDir;
 
 /// A database under test. Every [`storage`] of it is another pnpr
@@ -250,7 +270,7 @@ pub(super) fn packument(name: &str, versions: &[&str]) -> Value {
     json!({
         "name": name,
         "description": "a package",
-        "dist-tags": versions.last().map_or_else(|| json!({}), |version| json!({ "latest": version })),
+        "dist-tags": versions.last().map(|version| json!({ "latest": version })).unwrap_or_else(|| json!({})),
         "versions": manifests,
         "time": time,
         "maintainers": [{ "name": "someone", "userId": "u-someone" }],

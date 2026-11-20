@@ -1,5 +1,12 @@
-use super::{FsWrite, Host};
-use std::{fs, os::unix::fs::PermissionsExt, process::Command};
+use super::{
+    FsWrite,
+    Host,
+};
+use std::{
+    fs,
+    os::unix::fs::PermissionsExt,
+    process::Command,
+};
 
 #[test]
 fn atomic_replacement_publishes_an_executable_shim() {

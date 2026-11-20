@@ -1,6 +1,20 @@
 use super::{
-    AuthState, Body, Request, ServiceExt, StatusCode, TempDir, acme_config, body_json, get, gzip,
-    header, hosted_publish_request, issue_token, router_with_auth, tar_of, widget_tar,
+    AuthState,
+    Body,
+    Request,
+    ServiceExt,
+    StatusCode,
+    TempDir,
+    acme_config,
+    body_json,
+    get,
+    gzip,
+    header,
+    hosted_publish_request,
+    issue_token,
+    router_with_auth,
+    tar_of,
+    widget_tar,
 };
 
 async fn put_json(

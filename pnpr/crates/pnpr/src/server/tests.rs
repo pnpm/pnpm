@@ -10,23 +10,55 @@ mod web_ui;
 use super::{
     PeerAddr,
     authentication::token_credentials,
-    restrictions::{cidr_contains, cidr_whitelist_allows, is_write_request},
-    router_with_auth, tilde_registry,
+    restrictions::{
+        cidr_contains,
+        cidr_whitelist_allows,
+        is_write_request,
+    },
+    router_with_auth,
+    tilde_registry,
 };
 use async_trait::async_trait;
 use axum::{
-    body::{Body, to_bytes},
+    body::{
+        Body,
+        to_bytes,
+    },
     extract::ConnectInfo,
-    http::{Method, Request, StatusCode, header},
+    http::{
+        Method,
+        Request,
+        StatusCode,
+        header,
+    },
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use pnpr_auth::{AuthState, TokenBackend, TokenRecord};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64_STANDARD,
+};
+use pnpr_auth::{
+    AuthState,
+    TokenBackend,
+    TokenRecord,
+};
 use pnpr_config::Config;
-use pnpr_error::{RegistryError, Result};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_policy::{AccessList, PackageRule, PackageRules};
+use pnpr_policy::{
+    AccessList,
+    PackageRule,
+    PackageRules,
+};
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    net::{
+        IpAddr,
+        Ipv4Addr,
+        Ipv6Addr,
+        SocketAddr,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;
@@ -344,8 +376,14 @@ async fn team_tokens_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    use pnpr_policy::{AccessToken, Identity};
-    use pnpr_registry::{Ecosystem, PackagePattern};
+    use pnpr_policy::{
+        AccessToken,
+        Identity,
+    };
+    use pnpr_registry::{
+        Ecosystem,
+        PackagePattern,
+    };
     config.routing.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
@@ -377,8 +415,8 @@ async fn team_tokens_reach_package_authorization() {
 
     // Over HTTP: the team member reaches storage (404, the package is
     // absent); a caller denied by the *explicit* `@team/*` entry is
-    // rejected loudly — 401 for anonymous, so clients can prompt for
-    // credentials — rather than masked (masking is the registry-level
+    // rejected loudly (401 for anonymous, so clients can prompt for
+    // credentials) rather than masked (masking is the registry-level
     // default's behavior, not an explicit entry's).
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     let allowed = app
@@ -678,7 +716,7 @@ async fn team_listing_masks_callers_the_registry_denies() {
         PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$authenticated"])));
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
     // An anonymous caller gets the not-found mask on reads and mutations
-    // alike — team names must not become an existence probe.
+    // alike, team names must not become an existence probe.
     for (method, path) in [
         (Method::GET, "/npm/-/org/myorg/team"),
         (Method::GET, "/npm/-/team/myorg/developers/user"),

@@ -1,7 +1,14 @@
 use super::{
-    AddError, AddResolveInputs,
-    aliasless::{AliaslessDependency, resolve_aliasless_specifier},
-    specifier::{ProtocolSelector, split_name_spec},
+    AddError,
+    AddResolveInputs,
+    aliasless::{
+        AliaslessDependency,
+        resolve_aliasless_specifier,
+    },
+    specifier::{
+        ProtocolSelector,
+        split_name_spec,
+    },
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::LogEvent;

@@ -2,15 +2,37 @@
 //! requests, who may write one, and that grants live in the database.
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use pnpr::{Config, router_with_auth};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use pnpr_storage::{HostedDocumentVersion, Storage};
-use serde_json::{Value, json};
+use pnpr::{
+    Config,
+    router_with_auth,
+};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use pnpr_storage::{
+    HostedDocumentVersion,
+    Storage,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::Path,
 };
 use tempfile::TempDir;
@@ -106,7 +128,10 @@ async fn send_conditional(app: &axum::Router, sent: Sent<'_>) -> (StatusCode, Va
     if let Some(version) = sent.if_match {
         request = request.header("if-match", format!(r#""{version}""#));
     }
-    let body = sent.body.map(|body| Body::from(body.to_string())).unwrap_or_else(Body::empty);
+    let body = sent.body
+        .map(|body| body.to_string())
+        .map(Body::from)
+        .unwrap_or_else(Body::empty);
     let response = app
         .clone()
         .oneshot(request.body(body).unwrap())
@@ -579,3 +604,5 @@ async fn an_import_refuses_a_grant_that_cannot_apply() {
     }
     assert_eq!(grant_names(&app, &root).await, before);
 }
+
+mod resolver_invalidation;

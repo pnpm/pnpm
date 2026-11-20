@@ -3,12 +3,18 @@
 use super::{
     PackageKey,
     adapter::Connection,
-    commit::{Commit, PackageRow},
+    commit::{
+        Commit,
+        PackageRow,
+    },
     transactions::Freshness,
 };
 use crate::database::PackageMetadata;
 use pnpr_error::Result;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_sql::DialectSql;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -131,7 +137,7 @@ pub(super) fn state_owners(ecosystem: Ecosystem, state: &[u8]) -> Result<Vec<Str
     } else {
         // Other ecosystems' documents are opaque here; one that does not
         // parse records no owners.
-        Ok(serde_json::from_slice(state).map_or_else(|_| Vec::new(), |state| owner_ids(&state)))
+        Ok(serde_json::from_slice(state).map_or_default(|state| owner_ids(&state)))
     }
 }
 

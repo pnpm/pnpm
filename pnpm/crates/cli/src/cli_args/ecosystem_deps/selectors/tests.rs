@@ -1,5 +1,7 @@
 use super::{
-    EcosystemFilterKind, parse_update_selectors, patterns_for_ecosystem,
+    EcosystemFilterKind,
+    parse_update_selectors,
+    patterns_for_ecosystem,
     validate_ecosystem_selectors,
 };
 use pnpm_config::Config;
@@ -156,4 +158,50 @@ fn update_selectors_reject_direct_url_pypi_requirements() {
     .expect_err("direct URL requirement should be rejected by update")
     .to_string();
     assert!(err.contains("direct URL requirements are not supported by pnpm update"), "{err}");
+}
+
+#[test]
+fn update_selectors_drop_orphan_exclusions_across_ecosystems() {
+    let mut config = Config::default();
+    config.cargo.enabled = true;
+    config.python.enabled = true;
+
+    let cargo_and_exclude =
+        parse_update_selectors(&["crate:serde".to_string(), "!lodash".to_string()], &config)
+            .unwrap();
+    assert!(cargo_and_exclude.node_selectors.is_empty());
+    assert!(cargo_and_exclude.bare_patterns.is_empty());
+    assert_eq!(cargo_and_exclude.cargo_requests.len(), 1);
+    assert_eq!(cargo_and_exclude.cargo_exclusions, vec!["lodash"]);
+
+    let bare_and_exclude =
+        parse_update_selectors(&["react".to_string(), "!lodash".to_string()], &config).unwrap();
+    assert_eq!(bare_and_exclude.node_selectors, vec!["react", "!lodash"]);
+    assert!(bare_and_exclude.bare_patterns.is_empty());
+    assert_eq!(bare_and_exclude.cargo_exclusions, vec!["lodash"]);
+    assert_eq!(bare_and_exclude.python_exclusions, vec!["lodash"]);
+
+    let scoped_and_exclude =
+        parse_update_selectors(&["@scope/pkg".to_string(), "!lodash".to_string()], &config)
+            .unwrap();
+    assert_eq!(scoped_and_exclude.node_selectors, vec!["@scope/pkg", "!lodash"]);
+    assert!(scoped_and_exclude.bare_patterns.is_empty());
+    assert!(scoped_and_exclude.cargo_requests.is_empty());
+    assert!(scoped_and_exclude.python_requests.is_empty());
+
+    let only_exclude = parse_update_selectors(&["!lodash".to_string()], &config).unwrap();
+    assert_eq!(only_exclude.node_selectors, vec!["!lodash"]);
+    assert_eq!(only_exclude.bare_patterns, vec!["!lodash"]);
+}
+
+#[test]
+fn patterns_for_ecosystem_drops_orphan_exclusions_when_another_ecosystem_is_selected() {
+    let selectors = vec!["crate:serde".to_string(), "!lodash".to_string()];
+
+    assert_eq!(
+        patterns_for_ecosystem(&selectors, EcosystemFilterKind::Cargo).unwrap(),
+        vec!["serde", "!lodash"],
+    );
+    assert!(patterns_for_ecosystem(&selectors, EcosystemFilterKind::Python).unwrap().is_empty());
+    assert!(patterns_for_ecosystem(&selectors, EcosystemFilterKind::Node).unwrap().is_empty());
 }

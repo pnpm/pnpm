@@ -7,19 +7,39 @@
 //! fetched once per install, shared between the picks that need it, and
 //! cached on disk with no expiry.
 
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 use pnpm_network::{
-    LocalResponse, read_limited_body, retry_async, send_with_retry, should_retry_status,
+    LocalResponse,
+    read_limited_body,
+    retry_async,
+    send_with_retry,
+    should_retry_status,
 };
-use pnpm_registry::{InstallV2Entry, PackageVersion};
+use pnpm_registry::{
+    InstallV2Entry,
+    PackageVersion,
+};
 use reqwest::header;
 use tokio::sync::OnceCell;
 
-use super::{PackageMetaCache, PickPackageContext, PickPackageError, serves_pnpr_format};
+use super::{
+    PackageMetaCache,
+    PickPackageContext,
+    PickPackageError,
+    serves_pnpr_format,
+};
 use crate::{
     RegistryRevisionSelector,
-    mirror::{RELEASE_RECORDS_DIR, release_record_path, save_meta, scoped_meta_dir},
+    mirror::{
+        RELEASE_RECORDS_DIR,
+        release_record_path,
+        save_meta,
+        scoped_meta_dir,
+    },
     registry_url::to_registry_url,
 };
 
@@ -163,7 +183,8 @@ impl ReleaseRecordRequest<'_> {
             }
         })
         .await
-        .map_err(|error| ReleaseRecordError::Other(error.to_string()))
+        .map_err(|error| error.to_string())
+        .map_err(ReleaseRecordError::Other)
     }
 
     /// The record in `body`, checked to name the picked version.
@@ -185,10 +206,12 @@ async fn read_release_record_response(
     }
     let response = response
         .error_for_status()
-        .map_err(|error| ReleaseRecordError::Other(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(ReleaseRecordError::Other)?;
     let lasting = is_immutable_cache_control(response.headers());
     let body = read_limited_body(response, RELEASE_RECORD_BODY_LIMIT).await
-        .map_err(|error| ReleaseRecordError::Other(error.to_string()))?;
+        .map_err(|error| error.to_string())
+        .map_err(ReleaseRecordError::Other)?;
     if body.truncated {
         return Err(ReleaseRecordError::Other(format!(
             "it is larger than {RELEASE_RECORD_BODY_LIMIT} bytes",
@@ -200,7 +223,8 @@ async fn read_release_record_response(
 fn is_immutable_cache_control(headers: &header::HeaderMap) -> bool {
     headers
         .get(header::CACHE_CONTROL)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .is_some_and(|value| {
             value
                 .split(',')

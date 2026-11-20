@@ -1,13 +1,25 @@
 use super::ResolvePeersOptions;
-use crate::{NodeId, ResolvedTree, TreeChildren};
-use pnpm_deps_path::{DepPath, index_of_dep_path_suffix};
+use crate::{
+    DependenciesTreeNode,
+    NodeId,
+    ResolvedTree,
+    TreeChildren,
+};
+use pnpm_deps_path::{
+    DepPath,
+    index_of_dep_path_suffix,
+};
 use pnpm_lockfile::Lockfile;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
 
 pub(crate) fn has_contexts(tree: &ResolvedTree) -> bool {
     tree.dependencies_tree
         .values()
-        .any(|node| node.locked_peer_context().is_some())
+        .map(DependenciesTreeNode::locked_peer_context)
+        .any(|locked_peer_context| locked_peer_context.is_some())
 }
 
 pub(crate) fn mark_changed_children(tree: &mut ResolvedTree, lockfile: Option<&Lockfile>) {
@@ -17,7 +29,9 @@ pub(crate) fn mark_changed_children(tree: &mut ResolvedTree, lockfile: Option<&L
             let TreeChildren::Realized(children) = &node.children else { return None };
             let snapshot = node
                 .previous_dep_path()
-                .and_then(|path| path.as_str().parse().ok())
+                .map(DepPath::as_str)
+                .map(str::parse)
+                .and_then(Result::ok)
                 .and_then(|key| lockfile?.snapshots.as_ref()?.get(&key));
             let aliases: HashSet<_> = children
                 .iter()

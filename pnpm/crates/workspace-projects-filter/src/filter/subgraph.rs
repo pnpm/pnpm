@@ -1,4 +1,9 @@
-use super::{HashMap, Path, PathBuf, ProjectGraph};
+use super::{
+    HashMap,
+    Path,
+    PathBuf,
+    ProjectGraph,
+};
 use crate::parse_project_selector::DependencyTraversal;
 use indexmap::IndexSet;
 

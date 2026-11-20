@@ -1,19 +1,36 @@
 use super::{
-    FreshInputs, ManifestSlots, OwnedInputs,
+    FreshInputs,
+    ManifestSlots,
+    OwnedInputs,
     errors::InstallWithFreshLockfileError,
-    fix_lockfile_copy, hook_log_fn, include_transitive_optional_dependencies,
-    is_partial_workspace_selection, manifest_transforms, resolver_setup,
-    seed_policy::{UpdateSeedPolicy, update_reuse_scopes},
+    fix_lockfile_copy,
+    hook_log_fn,
+    include_transitive_optional_dependencies,
+    is_partial_workspace_selection,
+    manifest_transforms,
+    resolver_setup,
+    seed_policy::{
+        UpdateSeedPolicy,
+        update_reuse_scopes,
+    },
     start_early_materialization,
 };
 
 mod stores;
 use crate::store_init::init_store_dir_best_effort;
-use pnpm_config::{Config, NodeLinker, TrustPolicy};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+    TrustPolicy,
+};
 use pnpm_lockfile::Lockfile;
 use pnpm_network::AuthHeaders;
 use pnpm_reporter::Reporter;
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::Arc,
+};
 use stores::open_stores;
 
 /// What the setup phase hands the resolve phase: the registries, the

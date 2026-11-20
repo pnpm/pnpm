@@ -1,14 +1,30 @@
 //! Rebuild identities after pruning without changing the retained graph.
 
 use super::{
-    NextFormatError, RestoreContext, read,
-    write::{Explicit, MAX_ROUNDS, check_round_trip, same_entry, snapshots::Snapshots},
+    NextFormatError,
+    RestoreContext,
+    read,
+    write::{
+        Explicit,
+        MAX_ROUNDS,
+        check_round_trip,
+        same_entry,
+        snapshots::Snapshots,
+    },
 };
 use crate::{
-    ImporterDepVersion, Lockfile, PackageKey, PkgName, ProjectSnapshot, SnapshotDepRef,
+    ImporterDepVersion,
+    Lockfile,
+    PackageKey,
+    PkgName,
+    ProjectSnapshot,
+    SnapshotDepRef,
     SnapshotEntry,
 };
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{
+    HashMap,
+    hash_map::Entry,
+};
 
 type Rekeys = HashMap<PackageKey, PackageKey>;
 

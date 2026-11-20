@@ -1,6 +1,17 @@
 use super::{
-    AllowBuildValue, HashSet, IndexMap, Inline, Manifest, flow, insert_top_level_block, locate,
-    locate_mapping, mapping_keys, remove_top_level_block, render, replace_value_text_at,
+    AllowBuildValue,
+    HashSet,
+    IndexMap,
+    Inline,
+    Manifest,
+    flow,
+    insert_top_level_block,
+    locate,
+    locate_mapping,
+    mapping_keys,
+    remove_top_level_block,
+    render,
+    replace_value_text_at,
     write_rendered_entry_at,
 };
 
@@ -65,8 +76,8 @@ fn write_allow_build(
 
 /// Add `name: <placeholder>` to the `allowBuilds:` block, creating the
 /// block when absent. An entry that already exists is left alone whatever
-/// its value, so a recorded decision — or a placeholder a previous install
-/// wrote — survives. Returns whether the document changed.
+/// its value, so a recorded decision (or a placeholder a previous install
+/// wrote) survives. Returns whether the document changed.
 pub(crate) fn add_undecided_allow_build(
     manifest: &mut Manifest,
     name: &str,
@@ -190,7 +201,7 @@ fn text_without_allow_builds(
         Inline::Unsupported => return None,
         Inline::Block => locate(text, &[block]).map(|mapping| mapping.entries)?,
     };
-    // Entries are removed by pairing each text line with its decoded key —
+    // Entries are removed by pairing each text line with its decoded key,
     // the raw key text can differ from the decoded form (quoting, escapes).
     // A count mismatch means the two views disagree (e.g. duplicate keys),
     // so leave the block untouched.
@@ -206,8 +217,8 @@ fn text_without_allow_builds(
     Some(out)
 }
 
-/// The package name an `allowBuilds` key identifies — the key itself for a
-/// bare name, the name half of a `name@version` dep-path key — or `None`
+/// The package name an `allowBuilds` key identifies (the key itself for a
+/// bare name, the name half of a `name@version` dep-path key) or `None`
 /// for keys carrying no single package name (hashless git-repo keys,
 /// malformed shapes). The key shapes mirror
 /// `allow_build_key_from_ignored_build` in the deps-restorer crate, which
@@ -234,7 +245,8 @@ fn allow_builds_keys_in_text(text: &str) -> Vec<String> {
     serde_saphyr::from_str::<OnlyAllowBuilds>(text)
         .ok()
         .and_then(|parsed| parsed.allow_builds)
-        .map(|map| map.into_keys().collect())
+        .map(IndexMap::into_keys)
+        .map(std::iter::Iterator::collect)
         .unwrap_or_default()
 }
 

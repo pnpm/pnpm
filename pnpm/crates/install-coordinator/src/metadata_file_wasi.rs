@@ -1,8 +1,18 @@
-use miette::{IntoDiagnostic, Result, WrapErr};
+use miette::{
+    IntoDiagnostic,
+    Result,
+    WrapErr,
+};
 use std::{
     fs,
-    io::{self, Read as _},
-    path::{Path, PathBuf},
+    io::{
+        self,
+        Read as _,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[derive(PartialEq, Eq)]

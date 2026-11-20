@@ -16,15 +16,32 @@
 //! the way every other store consumer and prune keep out of each
 //! other's way.
 
-use crate::{StoreDir, StoreLockError};
-use derive_more::{Display, Error};
+use crate::{
+    StoreDir,
+    StoreLockError,
+};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_fs::LockMode;
 use std::{
-    fs::{self, File, TryLockError},
+    fs::{
+        self,
+        File,
+        TryLockError,
+    },
     io,
-    path::{Component, Path, PathBuf},
-    time::{Duration, SystemTime},
+    path::{
+        Component,
+        Path,
+        PathBuf,
+    },
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 /// The directory under the store's `tmp/` that holds the private installs.
@@ -194,7 +211,7 @@ fn refuse_symlink(dir: &Path) -> io::Result<()> {
 
 /// Whether a process still holds the private install at `dir`. One with
 /// no `in-use` file was abandoned before it was marked. One whose lock
-/// cannot be probed — the filesystem holds no OS locks — is judged by
+/// cannot be probed (the filesystem holds no OS locks) is judged by
 /// its age instead.
 fn is_in_use(dir: &Path) -> io::Result<bool> {
     let in_use = match File::open(dir.join(IN_USE_FILE)) {

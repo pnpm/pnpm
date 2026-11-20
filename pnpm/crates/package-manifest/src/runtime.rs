@@ -1,6 +1,16 @@
-use pnpm_tool_protocol::{is_tool_specifier, strip_tool_protocol};
+use pnpm_tool_protocol::{
+    is_tool_specifier,
+    strip_tool_protocol,
+};
 
-use super::{Map, PackageManifestError, Range, Value, Version, json};
+use super::{
+    Map,
+    PackageManifestError,
+    Range,
+    Value,
+    Version,
+    json,
+};
 
 /// Runtime aliases recognised by `devEngines.runtime` /
 /// `engines.runtime` reification.

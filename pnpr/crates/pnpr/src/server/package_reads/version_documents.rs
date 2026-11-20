@@ -2,11 +2,28 @@
 //! records, `<base>/<name>/<version>+r<revision>`.
 
 use super::{
-    AppState, CanonicalPackageName, Ecosystem, Identity, RegistryError, RegistrySource, Response,
-    Value, addressed_registry, caller_scoped, dist_view, extract_upstream_version_manifest,
-    extract_version_manifest, hosted_read_namespace, is_osv_vulnerable_packument_version,
-    is_tar_registry, not_found, read_source_packument, registry_endpoint,
-    reload_source_packument_lacking_version, resolve_registry_source, resolve_version_or_tag,
+    AppState,
+    CanonicalPackageName,
+    Ecosystem,
+    Identity,
+    RegistryError,
+    RegistrySource,
+    Response,
+    Value,
+    addressed_registry,
+    caller_scoped,
+    dist_view,
+    extract_upstream_version_manifest,
+    extract_version_manifest,
+    hosted_read_namespace,
+    is_osv_vulnerable_packument_version,
+    is_tar_registry,
+    not_found,
+    read_source_packument,
+    registry_endpoint,
+    reload_source_packument_lacking_version,
+    resolve_registry_source,
+    resolve_version_or_tag,
     tar_integrities_of,
 };
 use axum::response::IntoResponse;

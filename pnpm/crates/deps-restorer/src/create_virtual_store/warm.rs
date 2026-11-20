@@ -1,21 +1,44 @@
 use super::{
-    CreateVirtualStoreError, SnapshotWithCacheKey,
-    cache_keys::{SlotReuse, dir_clone_cacheable},
-    cas_paths_key, partition, removed_aliases_for,
+    CreateVirtualStoreError,
+    SnapshotWithCacheKey,
+    cache_keys::{
+        SlotReuse,
+        dir_clone_cacheable,
+    },
+    cas_paths_key,
+    partition,
+    removed_aliases_for,
     slot_linking::{
-        LinkSlotsParallel, SlotLink, emit_warm_snapshot_progress, link_slots_parallel,
+        LinkSlotsParallel,
+        SlotLink,
+        emit_warm_snapshot_progress,
+        link_slots_parallel,
         warm_progress_already_reported,
     },
 };
-use crate::{CasPathsByPkgId, InstallPackageBySnapshotError};
-use pnpm_git_fetcher::{GitFetcherError, resolve_package_build_permission};
-use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName};
+use crate::{
+    CasPathsByPkgId,
+    InstallPackageBySnapshotError,
+};
+use pnpm_git_fetcher::{
+    GitFetcherError,
+    resolve_package_build_permission,
+};
+use pnpm_lockfile::{
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+};
 use pnpm_package_manifest::read_package_json_from_cas_paths;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::PrefetchResult;
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 
@@ -42,6 +65,19 @@ pub(super) fn enforce_cached_git_prepare_policy(
     }
     Ok(())
 }
+fn snapshot_metadata<'a>(
+    packages: &'a HashMap<PackageKey, PackageMetadata>,
+    snapshot_key: &PackageKey,
+    metadata_key: &PackageKey,
+) -> Result<&'a PackageMetadata, CreateVirtualStoreError> {
+    packages
+        .get(metadata_key)
+        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
+            snapshot_key: snapshot_key.to_string(),
+            metadata_key: metadata_key.to_string(),
+        })
+}
+
 /// Whether the warm slot of one git-hosted snapshot may be reused. `false`
 /// drops the cache key so the snapshot is fetched and prepared afresh.
 pub(super) fn cached_git_prepare_allowed(
@@ -54,14 +90,12 @@ pub(super) fn cached_git_prepare_allowed(
     let Some(key) = cache_key else { return Ok(true) };
     let Some(cas_paths) = prefetch.cas_paths.get(key) else { return Ok(true) };
     let metadata_key = snapshot_key.without_peer();
-    let metadata = packages
-        .get(&metadata_key)
-        .ok_or_else(|| CreateVirtualStoreError::MissingPackageMetadata {
-            snapshot_key: snapshot_key.to_string(),
-            metadata_key: metadata_key.to_string(),
-        })?;
+    let metadata = snapshot_metadata(packages, snapshot_key, &metadata_key)?;
     if !is_git_hosted_resolution(&metadata.resolution)
-        || prefetch.requires_prepare.get(key) == Some(&false)
+        || !prefetch.requires_prepare
+            .get(key)
+            .copied()
+            .unwrap_or(true)
     {
         return Ok(true);
     }
@@ -138,8 +172,9 @@ impl<'a> SlotBuilds<'a> {
         crate::snapshot_has_patch(snapshot_key)
             || (requires_build
                 && !self.ignore_scripts
-                && self.allow_build_policy.check(&snapshot_key.without_peer().to_string())
-                    == Some(true))
+                && self.allow_build_policy
+                    .check(&snapshot_key.without_peer().to_string())
+                    .unwrap_or(false))
     }
 }
 /// The pristine CAS paths of every warm snapshot whose package may publish
@@ -177,7 +212,7 @@ pub(super) struct WarmLinkBatch<'a> {
     pub(super) template: &'a LinkSlotsParallel<'a>,
 }
 /// Link every warm slot. Hoisted skips the batch entirely: no virtual-store
-/// slot gets written, so there's no per-snapshot link work to do — the CAS
+/// slot gets written, so there's no per-snapshot link work to do, the CAS
 /// paths captured by the caller are the only output the link phase consumes,
 /// and all link work is routed into the hoisted linker instead. It still wants
 /// the progress reporter to fire so `pnpm:progress imported`-style updates

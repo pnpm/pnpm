@@ -12,14 +12,20 @@
 //! is why it lives here rather than in the verifier crate.
 
 use crate::VirtualStoreLayout;
-use pnpm_lockfile::{PackageKey, SnapshotEntry};
+use pnpm_lockfile::{
+    PackageKey,
+    SnapshotEntry,
+};
 use pnpm_lockfile_verification::VerifyError;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{
+    BTreeSet,
+    HashMap,
+};
 
 /// Reject the install when any snapshot's computed virtual-store slot
 /// resolves outside the store root or its package directory. The whole
-/// `snapshots` map is scanned — not just the survivors of the warm-install
-/// skip filter — so a poisoned snapshot that would be skipped as unchanged
+/// `snapshots` map is scanned (not just the survivors of the warm-install
+/// skip filter) so a poisoned snapshot that would be skipped as unchanged
 /// is still rejected before any directory is created.
 ///
 /// Surfaces [`VerifyError::InvalidDependencyAlias`]

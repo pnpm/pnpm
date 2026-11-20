@@ -1,37 +1,61 @@
 //! The `registries` setting: one entry per registry, keyed by its URL.
 //!
-//! Every fact in an entry is a fact about that server — how it lays out
-//! tarball URLs, and which routes reach it — so a registry is declared once
+//! Every fact in an entry is a fact about that server (how it lays out
+//! tarball URLs, and which routes reach it) so a registry is declared once
 //! and each fact is stated in one place. [`RegistryLookups`] is the inverse of
 //! the routes, because a scope resolves to exactly one registry while a
 //! registry serves many.
 
-pub use pnpm_resolving_resolver_base::{Ecosystem, RegistryDeclaration, RegistryPrefixes};
+pub use pnpm_resolving_resolver_base::{
+    Ecosystem,
+    RegistryDeclaration,
+    RegistryPrefixes,
+};
 
-pub use python::{EcosystemIndex, PythonRegistryRoute};
+pub use python::{
+    EcosystemIndex,
+    PythonRegistryRoute,
+};
 
-pub use ecosystems::{serves_another_ecosystem, take_roles_from_earlier_layers};
+pub use ecosystems::{
+    serves_another_ecosystem,
+    take_roles_from_earlier_layers,
+};
 
-pub use env_placeholders::{refuse_env_placeholder_entries, retain_without_env_placeholders};
+pub use env_placeholders::{
+    refuse_env_placeholder_entries,
+    retain_without_env_placeholders,
+};
 
 use super::LoadWorkspaceYamlError;
-use crate::workspace_yaml::{redact_registry_url, registry_url_has_userinfo};
+use crate::workspace_yaml::{
+    redact_registry_url,
+    registry_url_has_userinfo,
+};
 use ecosystems::DeclaredIndexes;
 use indexmap::IndexMap;
 use pnpm_lockfile::RegistryOptions;
 use pnpm_network::normalize_registry_url;
 use serde::{
-    Deserialize, Deserializer,
-    de::{MapAccess, Visitor, value::MapAccessDeserializer},
+    Deserialize,
+    Deserializer,
+    de::{
+        MapAccess,
+        Visitor,
+        value::MapAccessDeserializer,
+    },
 };
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt,
     num::NonZeroUsize,
 };
 
 /// The bare scope standing for the registry that packages resolve from when
-/// no scope matches — the one the `registry` setting names.
+/// no scope matches, the one the `registry` setting names.
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
 
 /// Credentials and TLS material stay in `.npmrc`, which is not committed.
@@ -405,7 +429,7 @@ pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDe
 }
 
 /// [`to_declarations`] plus the default registry declared as the bare `@`
-/// scope and each registry's `networkConcurrency` — the resolved view
+/// scope and each registry's `networkConcurrency`, the resolved view
 /// `pnpm config get registries` prints, where nothing travels separately.
 /// A pnpr server receives neither: it does not make the client's requests.
 #[must_use]

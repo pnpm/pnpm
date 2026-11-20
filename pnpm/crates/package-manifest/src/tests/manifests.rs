@@ -1,8 +1,24 @@
 use super::{
-    BundleDependencies, DependencyGroup, InitAuthor, InitOptions, NamedTempFile, PackageManifest,
-    PackageManifestError, Pipe, Write, assert_eq, assert_snapshot, extract_license, json,
-    parse_manifest_bytes, read_to_string, safe_read_package_json_from_dir, tempdir,
+    BundleDependencies,
+    DependencyGroup,
+    InitAuthor,
+    InitOptions,
+    NamedTempFile,
+    PackageManifest,
+    PackageManifestError,
+    Pipe,
+    Write,
+    assert_eq,
+    assert_snapshot,
+    extract_license,
+    json,
+    parse_manifest_bytes,
+    read_to_string,
+    safe_read_package_json_from_dir,
+    tempdir,
 };
+#[cfg(not(windows))]
+use command_extra::CommandExtra;
 
 #[cfg(unix)]
 #[test]
@@ -52,10 +68,13 @@ fn new_manifests_use_normal_file_creation_permissions() {
 #[cfg(unix)]
 fn check_manifest_creation_with_controlled_umask() {
     let output = std::process::Command::new("sh")
-        .args(["-c", r#"umask 022; exec "$@""#, "manifest-permissions-test"])
-        .arg(std::env::current_exe().unwrap())
-        .args(["--exact", "tests::manifests::new_manifests_use_normal_file_creation_permissions"])
-        .env("PNPM_TEST_MANIFEST_CREATION_UMASK", "022")
+        .with_args(["-c", r#"umask 022; exec "$@""#, "manifest-permissions-test"])
+        .with_arg(std::env::current_exe().unwrap())
+        .with_args([
+            "--exact",
+            "tests::manifests::new_manifests_use_normal_file_creation_permissions",
+        ])
+        .with_env("PNPM_TEST_MANIFEST_CREATION_UMASK", "022")
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
@@ -210,8 +229,8 @@ fn new_manifests_end_with_a_final_newline() {
     assert!(read_to_string(&tmp).unwrap().ends_with('\n'));
 }
 
-/// Editors on Windows — and published packages such as Vite's
-/// `utf8-bom-package` fixture — write manifests with a leading UTF-8 BOM.
+/// Editors on Windows (and published packages such as Vite's
+/// `utf8-bom-package` fixture) write manifests with a leading UTF-8 BOM.
 /// pnpm decodes them through `strip-bom`, so pacquet must accept them too
 /// instead of failing at line 1 column 1.
 #[test]

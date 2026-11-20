@@ -1,12 +1,31 @@
 use super::{
-    Arc, HashSet, Package, PackageVersion, PackageVersionPolicy, PickPackageError,
-    PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck,
-    Timestamp, VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
-    pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
+    Arc,
+    HashSet,
+    Package,
+    PackageVersion,
+    PackageVersionPolicy,
+    PickPackageError,
+    PickPackageFromMetaOptions,
+    RegistryPackageSpec,
+    RegistryPackageSpecType,
+    SkippedTimeCheck,
+    Timestamp,
+    VersionSelectors,
+    filter_pkg_metadata_versions,
+    offline_store::tarball_key,
+    pick_lowest_version_by_version_range,
+    pick_package_from_meta,
+    pick_version_by_version_range,
     warn_missing_time_once,
 };
-use crate::{OfflineStoreView, PickPackageFromMetaError};
-use node_semver::{Identifier, Version};
+use crate::{
+    OfflineStoreView,
+    PickPackageFromMetaError,
+};
+use node_semver::{
+    Identifier,
+    Version,
+};
 
 /// Same fields as [`super::PickPackageOptions`] minus the dispatcher-only
 /// ones (registry, `dry_run`); plus the `ignore_missing_time_field`
@@ -23,7 +42,7 @@ pub(super) struct PickerOpts<'a> {
 }
 
 /// Picker that may throw a recoverable
-/// [`PickPackageFromMetaError::MissingTime`] — orchestrator callers
+/// [`PickPackageFromMetaError::MissingTime`], orchestrator callers
 /// swallow that on the fast paths so the network fetch can replace
 /// abbreviated metadata with full.
 pub(super) fn pick_matching_version_fast(
@@ -306,7 +325,7 @@ pub(super) fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromM
 /// narrowed to the store-held versions; when nothing store-held satisfies the
 /// spec, the original pick returns so the existing failure surfaces unchanged
 /// ([pnpm/pnpm#10715](https://github.com/pnpm/pnpm/issues/10715)).
-/// An exact-version or tag pick names its target outright — only a range has
+/// An exact-version or tag pick names its target outright, only a range has
 /// older alternatives worth falling back to.
 ///
 /// The narrowing only probes the versions the re-pick could return: those
@@ -340,7 +359,7 @@ pub(super) async fn pick_from_meta_offline(
         return Ok((meta, picked));
     };
     // Fast path: the pick the preferences already made is installable
-    // offline — one presence check, no re-pick. A pick without integrity
+    // offline; one presence check, no re-pick. A pick without integrity
     // cannot be verified against the store, so it falls through to the
     // narrowed re-pick, which only offers versions the store can verify.
     let picked_key =

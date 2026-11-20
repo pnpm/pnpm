@@ -1,18 +1,39 @@
 pub(super) use projects::{
-    ProjectScriptsInputs, build_root_importer_project_manifests_list,
-    build_selected_project_manifests_list, mutated_project_dirs, projects_running_own_scripts,
+    ProjectScriptsInputs,
+    build_root_importer_project_manifests_list,
+    build_selected_project_manifests_list,
+    mutated_project_dirs,
+    projects_running_own_scripts,
     selected_manifest_freshness_inputs,
 };
-pub(crate) use projects::{build_project_manifests_list, replace_project_manifest};
-pub(crate) use write::{CarriedSettings, StateProjects, StateWrite, recorded_workspace_state};
+pub(crate) use projects::{
+    build_project_manifests_list,
+    replace_project_manifest,
+};
+pub(crate) use write::{
+    CarriedSettings,
+    StateProjects,
+    StateWrite,
+    recorded_workspace_state,
+};
 
 mod projects;
 
 mod write;
 
 use super::{
-    BTreeMap, Catalogs, Clock, Config, IncludedDependencies, NodeLinker, PackageManifest, Path,
-    PathBuf, ProjectEntry, WorkspaceState, manifest_string_field,
+    BTreeMap,
+    Catalogs,
+    Clock,
+    Config,
+    IncludedDependencies,
+    NodeLinker,
+    PackageManifest,
+    Path,
+    PathBuf,
+    ProjectEntry,
+    WorkspaceState,
+    manifest_string_field,
 };
 use crate::install_state::last_validated_timestamp;
 use pnpm_deps_restorer::ImporterModulesDirs;
@@ -103,7 +124,7 @@ pub(crate) fn lockfile_root_for(
     if !config.shared_workspace_lockfile {
         return manifest_dir.to_path_buf();
     }
-    workspace_dir.map_or_else(|| manifest_dir.to_path_buf(), Path::to_path_buf)
+    workspace_dir.map(Path::to_path_buf).unwrap_or_else(|| manifest_dir.to_path_buf())
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm
@@ -199,7 +220,7 @@ fn insert_workspace_package(
 /// assembled.
 ///
 /// Pure in-memory: no file I/O, no read-failure warnings, no lockfile
-/// or importer traversal. Every project — root and siblings alike —
+/// or importer traversal. Every project (root and siblings alike)
 /// reuses the [`PackageManifest`] reference already loaded for the
 /// install dispatch.
 pub(super) fn build_projects_map(

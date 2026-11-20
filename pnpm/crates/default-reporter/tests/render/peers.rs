@@ -1,9 +1,19 @@
-use super::{render, state_with_options};
+use super::{
+    render,
+    state_with_options,
+};
 use pnpm_default_reporter::{
     SummaryScope,
-    state::{ReporterOptions, ScopeOptions},
+    state::{
+        ReporterOptions,
+        ScopeOptions,
+    },
 };
-use pnpm_reporter::{LogEvent, LogLevel, PeerDependencyIssuesLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PeerDependencyIssuesLog,
+};
 
 #[test]
 fn peer_warning_targets_the_command_scope_and_is_printed_once() {

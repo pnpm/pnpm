@@ -1,25 +1,65 @@
-use super::{Endpoint, ErrorCode, Request, error, json, parse_endpoint};
+use super::{
+    Endpoint,
+    ErrorCode,
+    Request,
+    error,
+    json,
+    parse_endpoint,
+};
 use crate::server::{
-    AppState, AuthedCaller, Identity, TargetRegistry,
+    AppState,
+    AuthedCaller,
+    Identity,
+    TargetRegistry,
     authentication::token_credentials,
-    ecosystem::{addressed_registry, sha256_hex},
+    ecosystem::{
+        addressed_registry,
+        sha256_hex,
+    },
 };
 use axum::{
-    extract::{OriginalUri, State},
-    http::{HeaderMap, Method, StatusCode, header},
+    extract::{
+        OriginalUri,
+        State,
+    },
+    http::{
+        HeaderMap,
+        Method,
+        StatusCode,
+        header,
+    },
     response::Response,
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use grants::{GrantQuery, granted_scopes};
+use base64::{
+    Engine as _,
+    engine::general_purpose::URL_SAFE_NO_PAD,
+};
+use grants::{
+    GrantQuery,
+    granted_scopes,
+};
 use p256::ecdsa::{
-    Signature, SigningKey,
-    signature::{Signer as _, Verifier as _},
+    Signature,
+    SigningKey,
+    signature::{
+        Signer as _,
+        Verifier as _,
+    },
 };
 use pnpr_error::RegistryError;
 use pnpr_registry::Ecosystem;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
-use std::{collections::BTreeMap, fmt::Write as _};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
+use std::{
+    collections::BTreeMap,
+    fmt::Write as _,
+};
 
 pub(super) const TOKEN_PREFIX: &str = "pnpr_oci_";
 const TTL: u64 = 300;
@@ -154,12 +194,16 @@ async fn issue_token(
         addressed_registry(state, registry, Ecosystem::Oci).ok_or(RegistryError::NotFound)?;
     let raw = headers
         .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .and_then(Result::ok)
         .and_then(token_credentials);
     if raw.is_some() && *identity == Identity::Anonymous {
         return Ok(error(ErrorCode::Unauthorized, "invalid credentials"));
     }
-    let parent = raw.as_ref().map(|raw| sha256_hex(raw.as_bytes()));
+    let parent = raw
+        .as_ref()
+        .map(String::as_bytes)
+        .map(sha256_hex);
     let record = match &parent {
         Some(parent) => state.inner.identity.auth.tokens.find_by_key(parent).await?,
         None => None,

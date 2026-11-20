@@ -2,13 +2,23 @@
 //! latest version of each outdated package, read from a registry declared
 //! `serverType: pnpr`.
 
-use super::{OutdatedArgs, OutdatedFormat, OutdatedPackage};
+use super::{
+    OutdatedArgs,
+    OutdatedFormat,
+    OutdatedPackage,
+};
 use crate::cli_args::{
     registry_client::{
-        build_registry_client, resolve_registries_with_override, resolve_registry_for_package,
+        build_registry_client,
+        resolve_registries_with_override,
+        resolve_registry_for_package,
     },
     release_notes::{
-        NotesReader, UpgradeNotes, render_upgrade_notes, stores_notes, upgrade_notes_json,
+        NotesReader,
+        UpgradeNotes,
+        render_upgrade_notes,
+        stores_notes,
+        upgrade_notes_json,
     },
 };
 use pnpm_config::Config;

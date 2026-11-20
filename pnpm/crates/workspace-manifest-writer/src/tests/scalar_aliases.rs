@@ -1,4 +1,9 @@
-use super::{catalogs, project, run, run_cleanup};
+use super::{
+    catalogs,
+    project,
+    run,
+    run_cleanup,
+};
 
 #[test]
 fn pruning_an_anchor_promotes_the_first_surviving_alias() {

@@ -2,13 +2,30 @@
 //! grace has passed for whatever of the task is still provably the task.
 
 use super::{
-    RunningExecution, Stop, TrackerState,
-    signal::{descendant_processes, group_has_member, in_signalled_group, signal},
+    RunningExecution,
+    Stop,
+    TrackerState,
+    signal::{
+        descendant_processes,
+        group_has_member,
+        in_signalled_group,
+        signal,
+    },
 };
 use std::{
-    sync::{Arc, Mutex, PoisonError},
-    thread::{self, JoinHandle},
-    time::{Duration, Instant},
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+    },
+    thread::{
+        self,
+        JoinHandle,
+    },
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 /// How long a cancelled task has to stop on `SIGTERM` before it is killed.

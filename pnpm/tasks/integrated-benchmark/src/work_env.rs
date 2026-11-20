@@ -1,16 +1,25 @@
 pub(crate) use peer_heavy::seed_peer_heavy_registry;
 
+use command_extra::CommandExtra;
+
 mod scripts;
 use scripts::{
-    build_cleanup_command, create_install_script, dir_contains_file, may_create_lockfile,
-    sync_bench_repo, wipe_bench_dir,
+    build_cleanup_command,
+    create_install_script,
+    dir_contains_file,
+    may_create_lockfile,
+    sync_bench_repo,
+    wipe_bench_dir,
 };
 
 mod fixtures;
 mod peer_heavy;
 
 use fixtures::{
-    create_generated_projects, create_npmrc, create_package_json, create_pnpm_workspace,
+    create_generated_projects,
+    create_npmrc,
+    create_package_json,
+    create_pnpm_workspace,
     save_pristine_copies,
 };
 
@@ -24,17 +33,32 @@ mod revision_auth;
 mod revision_mock;
 mod server_config;
 use server_config::{
-    PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
-    cold_revision_mock_command, distinct_public_route_registries, mint_pnpr_token,
-    serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    PnprServer,
+    PnprServerPaths,
+    RevisionMockRegistry,
+    append_pnpr_auth_to_npmrc,
+    cold_revision_mock_command,
+    distinct_public_route_registries,
+    mint_pnpr_token,
+    serves_npm_under_base_path,
+    wait_for_pnpr_ready,
+    write_pnpr_benchmark_config,
 };
 
 mod measurements;
 use measurements::{
-    BenchmarkDiagnostics, BenchmarkTargetDiagnostics, HyperfineCommand, check_peer_heavy_speedup,
-    collect_pnpr_direct_ratios, non_trivial_cold_batch, read_benchmark_diagnostics,
-    read_hyperfine_report, read_phase_events, render_diagnostics_markdown,
-    requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
+    BenchmarkDiagnostics,
+    BenchmarkTargetDiagnostics,
+    HyperfineCommand,
+    check_peer_heavy_speedup,
+    collect_pnpr_direct_ratios,
+    non_trivial_cold_batch,
+    read_benchmark_diagnostics,
+    read_hyperfine_report,
+    read_phase_events,
+    render_diagnostics_markdown,
+    requires_fresh_pnpr_cold_batch_metrics,
+    summarize_phase_events,
 };
 
 mod diagnostics;
@@ -45,7 +69,11 @@ mod servers;
 mod build;
 
 use crate::{
-    cli_args::{RegistryMode, TargetKind, TargetSpec},
+    cli_args::{
+        RegistryMode,
+        TargetKind,
+        TargetSpec,
+    },
     verify::executor,
 };
 use os_display::Quotable;
@@ -53,8 +81,13 @@ use pipe_trait::Pipe;
 use std::{
     collections::HashMap,
     fmt,
-    fs::{self},
-    path::{Path, PathBuf},
+    fs::{
+        self,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
@@ -73,8 +106,8 @@ const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
 const PNPR_DIRECT_ABS_SLACK_SECONDS: f64 = 0.015;
 // A pacquet peer-resolution blowup lands *below* 1x on this DAG, so the floor
 // only has to clear measurement noise, not encode how far ahead pacquet is.
-// The TypeScript resolver's own hot-cache cost moves independently — offline
-// resolution of this fixture dropped from ~34s to ~3s in pnpm/pnpm#13504 — and
+// The TypeScript resolver's own hot-cache cost moves independently (offline
+// resolution of this fixture dropped from ~34s to ~3s in pnpm/pnpm#13504) and
 // a floor tracking that headroom would fail on every TypeScript perf win.
 // Compared on each target's fastest run: see `benchmark_target_min`.
 const PACQUET_PNPM_SPEEDUP_MIN: f64 = 1.25;
@@ -132,7 +165,7 @@ impl<'a> From<&'a TargetSpec> for BenchId<'a> {
     }
 }
 
-/// Static bench id of the proxy-cache populator — the one id that warms
+/// Static bench id of the proxy-cache populator, the one id that warms
 /// the registry's on-disk cache rather than being benchmarked.
 const INIT_PROXY_CACHE_ID: &str = ".init-proxy-cache";
 
@@ -188,7 +221,7 @@ impl WorkEnv {
         self.options.selection.targets.iter().map(BenchId::from)
     }
 
-    /// Every bench dir the run will touch — every target plus, when
+    /// Every bench dir the run will touch; every target plus, when
     /// requested, the system-pnpm sibling.
     fn benchmarked_ids(&self) -> impl Iterator<Item = BenchId<'_>> + '_ {
         self.target_ids()
@@ -200,7 +233,7 @@ impl WorkEnv {
     }
 
     /// Repository to fetch pnpm revisions from. Falls back to the
-    /// pacquet repo when the caller didn't override it — useful when
+    /// pacquet repo when the caller didn't override it, useful when
     /// the same monorepo checkout contains both code bases.
     fn pnpm_repository(&self) -> &'_ Path {
         self.options.build.pnpm_repository.as_deref().unwrap_or_else(|| self.repository())
@@ -238,7 +271,7 @@ impl WorkEnv {
     /// front of a runtime-resolved bundle path.
     ///
     /// The script `cd`s into the bench dir before exec-ing this, so
-    /// every path here is relative to the bench dir — that lets the
+    /// every path here is relative to the bench dir, that lets the
     /// pnpm-target branch defer `pnpm.mjs` vs `pnpm.cjs` resolution
     /// to script runtime (after `build()` has produced the bundle),
     /// and also avoids embedding absolute paths that might contain
@@ -312,7 +345,7 @@ impl WorkEnv {
         if populate_proxy_cache {
             eprintln!("Populating proxy registry cache...");
             Command::new("bash")
-                .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
+                .with_arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
                 .pipe_mut(executor("install.bash"));
         }
     }
@@ -342,13 +375,13 @@ impl WorkEnv {
         // preserves `store-dir` / `cache-dir` so subsequent iterations can
         // reuse them, which means whatever a previous run / scenario /
         // partial invocation left behind would otherwise carry into the
-        // warmup — and the warmup wouldn't actually be what primes them.
+        // warmup, and the warmup wouldn't actually be what primes them.
         // Wiping once upfront makes the warmup the priming run no matter
         // what state the work-env was in. For cold-cache scenarios this is
         // redundant with the per-iteration wipe but harmless (Copilot
         // review on <https://github.com/pnpm/pacquet/pull/296>).
         // `pnpr-storage` is the per-target pnpr server's
-        // store + cache (only present for `pnpr@<rev>` targets) — wiping it
+        // store + cache (only present for `pnpr@<rev>` targets), wiping it
         // upfront (but never per-iteration) makes the hyperfine warmup the
         // run that primes the server, so timed runs measure a warm
         // long-running server even while the client is cold. `cold-mock-storage`
@@ -403,26 +436,25 @@ impl WorkEnv {
     }
 
     fn run_hyperfine(&self, cleanup_command: &str) {
-        let mut command = Command::new("hyperfine");
-        command
-            .current_dir(self.root())
-            .arg("--prepare")
-            .arg(cleanup_command);
+        let mut command = Command::new("hyperfine")
+            .with_current_dir(self.root())
+            .with_arg("--prepare")
+            .with_arg(cleanup_command);
 
         self.options.hyperfine_options.append_to(&mut command);
 
         for id in self.benchmarked_ids() {
-            command
-                .arg("--command-name")
-                .arg(id.to_string())
-                .arg(self.bash_command(id));
+            command = command
+                .with_arg("--command-name")
+                .with_arg(id.to_string())
+                .with_arg(self.bash_command(id));
         }
 
-        command
-            .arg("--export-json")
-            .arg(self.root().join("BENCHMARK_REPORT.json"))
-            .arg("--export-markdown")
-            .arg(self.root().join("BENCHMARK_REPORT.md"));
+        command = command
+            .with_arg("--export-json")
+            .with_arg(self.root().join("BENCHMARK_REPORT.json"))
+            .with_arg("--export-markdown")
+            .with_arg(self.root().join("BENCHMARK_REPORT.md"));
 
         executor("hyperfine")(&mut command);
     }
@@ -435,19 +467,19 @@ impl WorkEnv {
         for round in 0..SYSCALL_COUNT_ROUNDS {
             for id in self.benchmarked_ids() {
                 Command::new("bash")
-                    .current_dir(self.root())
-                    .arg("-c")
-                    .arg(cleanup_command)
+                    .with_current_dir(self.root())
+                    .with_arg("-c")
+                    .with_arg(cleanup_command)
                     .pipe_mut(executor("syscall count cleanup"));
                 eprintln!("Counting syscalls for {id}, round {round}...");
                 Command::new("strace")
-                    .current_dir(self.root())
-                    .arg("--follow-forks")
-                    .arg("--summary-only")
-                    .arg("--output")
-                    .arg(self.syscall_counts_path(id, round))
-                    .arg("bash")
-                    .arg(self.script_path(id))
+                    .with_current_dir(self.root())
+                    .with_arg("--follow-forks")
+                    .with_arg("--summary-only")
+                    .with_arg("--output")
+                    .with_arg(self.syscall_counts_path(id, round))
+                    .with_arg("bash")
+                    .with_arg(self.script_path(id))
                     .pipe_mut(executor("strace install"));
             }
         }
@@ -461,14 +493,14 @@ impl WorkEnv {
         for id in self.benchmarked_ids() {
             eprintln!("Pre-warming the install state for {id}...");
             Command::new("bash")
-                .arg(self.script_path(id))
+                .with_arg(self.script_path(id))
                 .pipe_mut(executor("install.bash"));
         }
     }
 
-    /// Offline scenarios can't let hyperfine's warmup prime the caches — the
+    /// Offline scenarios can't let hyperfine's warmup prime the caches (the
     /// measured `--offline` command fails against the mirror the
-    /// pre-benchmark wipe just emptied — so the online priming script runs
+    /// pre-benchmark wipe just emptied) so the online priming script runs
     /// once per target first.
     ///
     /// The per-iteration cleanup runs before the priming too: a reused
@@ -481,9 +513,9 @@ impl WorkEnv {
         let scenario =
             self.options.selection.scenario.expect("scenario set when prewarm_caches() is reached");
         Command::new("bash")
-            .current_dir(self.root())
-            .arg("-c")
-            .arg(cleanup_command)
+            .with_current_dir(self.root())
+            .with_arg("-c")
+            .with_arg(cleanup_command)
             .pipe_mut(executor("prewarm cleanup"));
         for id in self.benchmarked_ids() {
             if scenario.uses_cargo_workspace_fixture() {
@@ -491,7 +523,7 @@ impl WorkEnv {
             }
             eprintln!("Pre-warming caches for {id}...");
             Command::new("bash")
-                .arg(self.prewarm_script_path(id))
+                .with_arg(self.prewarm_script_path(id))
                 .pipe_mut(executor(PREWARM_SCRIPT));
             if scenario.uses_cargo_workspace_fixture() {
                 cargo_workspace::verify_materialized_crates(&self.bench_dir(id));
@@ -504,13 +536,13 @@ impl WorkEnv {
     fn install_for_lockfile_comparison(&self, cleanup_command: &str) {
         eprintln!("Verifying peer-heavy lockfile parity...");
         Command::new("bash")
-            .current_dir(self.root())
-            .arg("-c")
-            .arg(cleanup_command)
+            .with_current_dir(self.root())
+            .with_arg("-c")
+            .with_arg(cleanup_command)
             .pipe_mut(executor("lockfile comparison cleanup"));
         for id in self.target_ids() {
             Command::new("bash")
-                .arg(self.script_path(id))
+                .with_arg(self.script_path(id))
                 .pipe_mut(executor("lockfile comparison install"));
         }
     }

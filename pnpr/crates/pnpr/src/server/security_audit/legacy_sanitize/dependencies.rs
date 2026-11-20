@@ -1,10 +1,22 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use serde_json::{Map, Value};
+use serde_json::{
+    Map,
+    Value,
+};
 
 use super::{
-    LocalScopePool, MAX_DEPENDENCY_DEPTH, REDACTED_SCOPE_PREFIX, SanitizeCtx,
-    collect_reserved_scope_indices, copy_bool_fields, copy_sri_integrity, is_safe_semver_version,
+    LocalScopePool,
+    MAX_DEPENDENCY_DEPTH,
+    REDACTED_SCOPE_PREFIX,
+    SanitizeCtx,
+    collect_reserved_scope_indices,
+    copy_bool_fields,
+    copy_sri_integrity,
+    is_safe_semver_version,
     parse_npm_alias,
 };
 

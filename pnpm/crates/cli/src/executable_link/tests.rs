@@ -1,5 +1,8 @@
 use super::replace_executable;
-use std::{fs, os::unix::fs::PermissionsExt as _};
+use std::{
+    fs,
+    os::unix::fs::PermissionsExt as _,
+};
 
 #[test]
 fn publishes_the_target_of_a_relative_symlink() {

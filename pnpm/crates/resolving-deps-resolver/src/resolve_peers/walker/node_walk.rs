@@ -1,9 +1,33 @@
 use super::{
-    Arc, BTreeMap, CacheHitContext, ChildChains, ChildEdge, ChildOutputs, ChildParentRefs,
-    ChildrenWalk, DeferredChildren, DepPath, HashMap, MissingSummary, NodeEntry, NodeId,
-    NodeOutput, NodePeersContext, NodeWalkContext, ParentPkgInfo, ParentRefs, PeerWalkMode,
-    PeersCacheItem, SettledPeers, SharedChain, SubtreePaths, UndoRealize, WalkedNode, Walker,
-    chain_with_pkg_id, merge_realize_undo,
+    Arc,
+    BTreeMap,
+    CacheHitContext,
+    ChildChains,
+    ChildEdge,
+    ChildOutputs,
+    ChildParentRefs,
+    ChildrenWalk,
+    DeferredChildren,
+    DepPath,
+    HashMap,
+    MissingSummary,
+    NodeEntry,
+    NodeId,
+    NodeOutput,
+    NodePeersContext,
+    NodeWalkContext,
+    ParentPkgInfo,
+    ParentRefs,
+    PeerWalkMode,
+    PeersCacheItem,
+    SettledPeers,
+    SharedChain,
+    SubtreePaths,
+    UndoRealize,
+    WalkedNode,
+    Walker,
+    chain_with_pkg_id,
+    merge_realize_undo,
 };
 
 impl Walker<'_> {
@@ -311,7 +335,7 @@ impl Walker<'_> {
             // compute the real depPath and insert it into
             // `node_dep_paths`. Returning the bare id here ensures the
             // current ancestor's peer-suffix construction can use a
-            // `name@version` PeerId — see [`build_peer_id`] for the
+            // `name@version` PeerId; see [`build_peer_id`] for the
             // cycle handling.
             let tree_node = &self.tree.dependencies_tree[node_id];
             let pkg_id = Arc::<str>::clone(&self.tree.packages[&tree_node.resolved_package_id].id);

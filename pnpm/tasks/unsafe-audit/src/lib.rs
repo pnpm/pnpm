@@ -10,9 +10,20 @@
 //! by [`audit`], and an entry whose crate no longer holds any `unsafe` is
 //! caught as stale.
 
-pub use crates::{Member, members};
-pub use exemption::{Exemption, Tier, exempt};
-pub use scan::{Finding, Occurrence, audit};
+pub use crates::{
+    Member,
+    members,
+};
+pub use exemption::{
+    Exemption,
+    Tier,
+    exempt,
+};
+pub use scan::{
+    Finding,
+    Occurrence,
+    audit,
+};
 
 mod crates;
 mod exemption;

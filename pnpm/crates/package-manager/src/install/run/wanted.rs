@@ -1,14 +1,30 @@
 use super::{
     super::{
-        Arc, FastUpdateLockfileOptions, FreshnessScope, InstallError, Lockfile, PackageManifest,
-        Path, PathBuf, Reporter, check_lockfile_freshness,
-        lockfile_freshness::{DependencyManifestSources, LockfileFreshnessInputs},
-        prune_merged_branch_lockfile, try_fast_update_lockfile,
+        Arc,
+        FastUpdateLockfileOptions,
+        FreshnessScope,
+        InstallError,
+        Lockfile,
+        PackageManifest,
+        Path,
+        PathBuf,
+        Reporter,
+        check_lockfile_freshness,
+        lockfile_freshness::{
+            DependencyManifestSources,
+            LockfileFreshnessInputs,
+        },
+        prune_merged_branch_lockfile,
+        try_fast_update_lockfile,
     },
-    InstallView, RunMode,
+    InstallView,
+    RunMode,
     lockfile_load::Loaded,
     manifest_freshness_inputs,
-    workspace::{InstallScope, InstallWorkspace},
+    workspace::{
+        InstallScope,
+        InstallWorkspace,
+    },
 };
 use pnpm_config::Config;
 
@@ -155,6 +171,7 @@ pub(super) fn freshness_inputs<'r>(
         pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
         scope: FreshnessScope {
             ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
+            ignore_settings_check: install.lockfile_policy.ignore_settings_check,
             prune_stale_importers: scope.prune_stale_importers,
             allow_missing_dependency_free_importers: true,
             frozen_lockfile: false,
@@ -270,7 +287,7 @@ async fn may_fast_update_with_hooks(
 
 /// A lockfile whose Git conflict markers were merged away has to be
 /// written back, and only a resolution writes it, so the fast update is
-/// off the table for it — as it is for every other input the update
+/// off the table for it, as it is for every other input the update
 /// cannot account for.
 pub(super) fn may_fast_update_lockfile(
     install: InstallView<'_>,

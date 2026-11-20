@@ -4,13 +4,16 @@ use pnpm_testing_utils::bin::CommandTempCwd;
 use pretty_assertions::assert_eq;
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     process::Command,
 };
 
 /// Canonicalize a path the way the production CLI does. The CLI runs
 /// `dunce::canonicalize` on `--dir`, so the printed path is the resolved
-/// form — e.g. on macOS a `/var/folders/...` temp dir surfaces as
+/// form, e.g. on macOS a `/var/folders/...` temp dir surfaces as
 /// `/private/var/folders/...`. Mirror that so the expected value matches.
 fn canonicalize(path: &Path) -> PathBuf {
     dunce::canonicalize(path).expect("canonicalize path")
@@ -27,7 +30,7 @@ fn root_prints_the_local_node_modules_dir() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet root should succeed");
 
-    // Deliberately not trimmed, unlike `store path` — pnpm's `root` handler
+    // Deliberately not trimmed, unlike `store path`, pnpm's `root` handler
     // emits the path with its trailing newline (`${path}\n`).
     let expected = format!("{}\n", canonicalize(&workspace).join("node_modules").display());
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
@@ -153,6 +156,46 @@ fn root_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
         stderr.contains("Using --global skips the package manager check for this project"),
         "stderr should carry the pm-check warning: {stderr}",
     );
+
+    drop(root);
+}
+
+#[cfg(unix)]
+#[test]
+fn root_global_ignores_broken_project_workspace_config_in_cwd() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: [\n")
+        .expect("write malformed pnpm-workspace.yaml");
+    fs::write(workspace.join("package.json"), r#"{ "packageManager": "pnpm@0.0.0" }"#)
+        .expect("write package.json");
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_DIR", "")
+        .with_env("pnpm_config_global_dir", "")
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("COREPACK_ROOT", "/fake/corepack")
+        .with_env("PATH", path)
+        .with_args(["root", "-g"])
+        .output()
+        .expect("run pacquet root -g");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet root -g should succeed despite broken CWD yaml");
+    let expected = format!(
+        "{}\n",
+        pnpm_home
+            .join("global")
+            .join(pnpm_config::GLOBAL_LAYOUT_VERSION)
+            .display(),
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
 
     drop(root);
 }

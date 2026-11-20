@@ -1,15 +1,30 @@
 //! Production [`GitProbe`] and [`GitCommandRunner`] implementations.
 
 use crate::{
-    git_resolver::{GitProbe, ProbeFuture},
+    git_resolver::{
+        GitProbe,
+        ProbeFuture,
+    },
     pinned_remote::pinned_git_config,
     process::Command,
-    resolve_ref::{GitCommandRunner, GitRunError},
+    resolve_ref::{
+        GitCommandRunner,
+        GitRunError,
+    },
 };
 
-use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    sync::Arc,
+    time::Duration,
+};
 
-use pnpm_network::{AddressGuard, ThrottledClient};
+use pnpm_network::{
+    AddressGuard,
+    ThrottledClient,
+};
 use reqwest::StatusCode;
 
 /// Production [`GitProbe`]: issues the HEAD via the install-wide
@@ -18,8 +33,8 @@ use reqwest::StatusCode;
 pub struct RealGitProbe {
     pub http_client: Arc<ThrottledClient>,
     /// Per-attempt deadline, overriding the client's much larger
-    /// `fetchTimeout`. The probe only gates an optimization — failure
-    /// falls back to a `type: git` resolution that always works — so
+    /// `fetchTimeout`. The probe only gates an optimization, failure
+    /// falls back to a `type: git` resolution that always works, so
     /// an archive endpoint a firewall blackholes (reachable
     /// `github.com`, blocked `codeload.github.com`) must cost seconds,
     /// not attempts × `fetchTimeout`.

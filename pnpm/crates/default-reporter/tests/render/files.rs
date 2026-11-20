@@ -1,6 +1,17 @@
-use super::{ReporterOptions, ignored_scripts, render, state, state_with_options};
+use super::{
+    ReporterOptions,
+    ignored_scripts,
+    render,
+    state,
+    state_with_options,
+};
 use pnpm_default_reporter::state::Output;
-use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, PendingSkillsLog};
+use pnpm_reporter::{
+    ExecutionTimeLog,
+    LogEvent,
+    LogLevel,
+    PendingSkillsLog,
+};
 
 #[test]
 fn the_ignored_builds_instruction_defaults_to_the_pnpm_command() {

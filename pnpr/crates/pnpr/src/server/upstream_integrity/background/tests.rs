@@ -1,8 +1,21 @@
-use super::{MAX_ACTIVE_PACKUMENTS, schedule, wait};
-use crate::server::{AppState, routing::state_and_router};
+use super::{
+    MAX_ACTIVE_PACKUMENTS,
+    schedule,
+    wait,
+};
+use crate::server::{
+    AppState,
+    routing::state_and_router,
+};
 use pnpr_auth::AuthState;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
-use serde_json::{Value, json};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use std::time::Duration;
 
 fn state(dir: &std::path::Path, upstream: &str) -> AppState {
@@ -135,7 +148,8 @@ async fn a_refresh_during_backfill_retries_the_new_document() {
         .unwrap();
     schedule(&state, "test", upstream, &name);
     tokio::time::timeout(Duration::from_secs(10), observed.recv()).await.unwrap().unwrap();
-    super::super::refresh_cached_packument(&state, "test", &name, document("new"))
+    let fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
+    super::super::refresh_cached_packument(&state, "test", &name, document("new"), fetch_seq)
         .await
         .unwrap();
     schedule(&state, "test", upstream, &name);
@@ -409,4 +423,313 @@ async fn a_full_queue_rejects_pin_waits_and_allows_a_later_retry() {
     let pinned: Value = serde_json::from_slice(&bytes).unwrap();
     assert!(pinned["versions"]["1.0.0"]["dist"]["integrity"].as_str().is_some());
     archive.assert_async().await;
+}
+
+#[tokio::test]
+async fn refresh_cached_packument_rejects_older_fetch_completion_after_newer_write() {
+    let server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server.url());
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let doc = |sig: &str| {
+        serde_json::to_vec(&json!({
+            "versions": {
+                "1.0.0": {
+                    "dist": {
+                        "tarball": format!("{}/example/-/example-1.0.0.tgz?sig={sig}", server.url()),
+                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    }
+                }
+            }
+        }))
+        .unwrap()
+    };
+
+    let earliest_stale_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let older_valid_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let newer_failed_seq = state.inner.proxy.packument_writes.begin_fetch();
+
+    // A newer refresh that fails to parse or persist must not advance the
+    // committed sequence or suppress a pending valid fetch.
+    assert!(
+        super::super::refresh_cached_packument(
+            &state,
+            "test",
+            &name,
+            b"{malformed".to_vec(),
+            newer_failed_seq,
+        )
+        .await
+        .is_err(),
+    );
+    let super::super::RefreshOutcome::Stored(initial) = super::super::refresh_cached_packument(
+        &state,
+        "test",
+        &name,
+        doc("initial"),
+        older_valid_seq,
+    )
+    .await
+    .unwrap() else {
+        panic!("pending valid fetch still commits after newer failed refresh");
+    };
+    let initial_json: Value = serde_json::from_slice(&initial.bytes).unwrap();
+    assert!(
+        initial_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=initial"),
+    );
+
+    let newer_refresh_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let older_read_seq = earliest_stale_seq;
+
+    let super::super::RefreshOutcome::Stored(accepted) = super::super::refresh_cached_packument(
+        &state,
+        "test",
+        &name,
+        doc("rotated"),
+        newer_refresh_seq,
+    )
+    .await
+    .unwrap() else {
+        panic!("newer refresh stored");
+    };
+    let accepted_json: Value = serde_json::from_slice(&accepted.bytes).unwrap();
+    assert!(
+        accepted_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=rotated"),
+    );
+
+    let super::super::RefreshOutcome::Stored(stale_result) =
+        super::super::refresh_cached_packument(
+            &state,
+            "test",
+            &name,
+            doc("expired"),
+            older_read_seq,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("stale read returns newer stored bytes");
+    };
+    let returned_json: Value = serde_json::from_slice(&stale_result.bytes).unwrap();
+    assert!(
+        returned_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=rotated"),
+    );
+
+    let stored = state.inner.storage
+        .read_upstream_document_any("test", &name)
+        .await
+        .unwrap()
+        .unwrap();
+    let stored_json: Value = serde_json::from_slice(&stored).unwrap();
+    assert!(
+        stored_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=rotated"),
+    );
+}
+
+#[tokio::test]
+async fn failed_purge_still_suppresses_older_fetch_and_cached_reads() {
+    let mut server = mockito::Server::new_async().await;
+    let server_url = server.url();
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server_url);
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+    let doc = |sig: &str| {
+        serde_json::to_vec(&json!({
+            "versions": {
+                "1.0.0": {
+                    "dist": {
+                        "tarball": format!("{server_url}/example/-/example-1.0.0.tgz?sig={sig}"),
+                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    }
+                }
+            }
+        }))
+        .unwrap()
+    };
+
+    state.inner.storage
+        .write_upstream_document("fail-ns", &name, &doc("stale"))
+        .await
+        .unwrap();
+
+    let older_fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let purge_seq = state.inner.proxy.packument_writes.begin_fetch();
+
+    let purged = crate::server::upstream_packuments::purge::purge_cached_package_with(
+        &state,
+        "fail-ns",
+        &name,
+        purge_seq,
+        || async { Err(std::io::Error::other("simulated removal failure").into()) },
+    )
+    .await
+    .unwrap();
+    assert!(matches!(purged, crate::server::upstream_packuments::purge::PurgeOutcome::Purged,));
+    let retained_doc =
+        state.inner.config.storage.cache_dir.join("fail-ns/packages/@/example/document.json");
+    assert!(retained_doc.exists());
+    assert!(
+        state.inner.storage
+            .read_upstream_document_any("fail-ns", &name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    // An older pre-404 fetch completion is rejected without restoring or returning metadata.
+    assert!(matches!(
+        super::super::refresh_cached_packument(
+            &state,
+            "fail-ns",
+            &name,
+            doc("pre-404"),
+            older_fetch_seq,
+        )
+        .await
+        .unwrap(),
+        super::super::RefreshOutcome::SupersededByPurge,
+    ));
+    assert!(state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+
+    // Across a restart, a fresh AppState with empty in-memory write order still
+    // suppresses the retained file on both storage reads and stale-if-error recovery.
+    drop(state);
+    let state = self::state(tmp.path(), &server_url);
+    let routing = state.routing();
+    let upstream = &routing.upstream_clients["mirror"];
+    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+    assert!(retained_doc.exists());
+    assert!(
+        state.inner.storage
+            .read_upstream_document_any("fail-ns", &name)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let outage_mock = server
+        .mock("GET", "/example")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
+    assert!(
+        crate::server::load_upstream_packument(
+            &state,
+            "fail-ns",
+            upstream,
+            &name,
+            Duration::from_secs(3600),
+        )
+        .await
+        .is_err(),
+    );
+    outage_mock.assert_async().await;
+
+    // A cached read also ignores any purged copy and re-checks upstream (404).
+    let not_found_mock = server
+        .mock("GET", "/example")
+        .with_status(404)
+        .expect(1)
+        .create_async()
+        .await;
+    assert!(
+        crate::server::load_upstream_packument(
+            &state,
+            "fail-ns",
+            upstream,
+            &name,
+            Duration::from_secs(3600),
+        )
+        .await
+        .unwrap()
+        .is_none(),
+    );
+    not_found_mock.assert_async().await;
+
+    // Re-seed a fresh purged marker across restart so `refresh_cached_packument`
+    // is tested while the durable `.purged` marker is actively present on disk.
+    state.inner.storage
+        .write_upstream_document("fail-ns", &name, &doc("stale-2"))
+        .await
+        .unwrap();
+    state.inner.storage.mark_upstream_package_purged("fail-ns", &name).await.unwrap();
+    drop(state);
+    let state = self::state(tmp.path(), &server_url);
+    assert!(state.inner.storage.is_upstream_package_purged("fail-ns", &name).await.unwrap());
+    let republished_seq = state.inner.proxy.packument_writes.begin_fetch();
+    assert!(matches!(
+        super::super::refresh_cached_packument(
+            &state,
+            "fail-ns",
+            &name,
+            doc("republished"),
+            republished_seq,
+        )
+        .await
+        .unwrap(),
+        super::super::RefreshOutcome::Stored(_),
+    ));
+    assert!(!state.inner.proxy.packument_writes.is_purged("fail-ns", &name));
+    assert!(!state.inner.storage.is_upstream_package_purged("fail-ns", &name).await.unwrap());
+    let republished = state.inner.storage
+        .read_upstream_document_any("fail-ns", &name)
+        .await
+        .unwrap()
+        .expect("republished packument is readable after clearing purge marker");
+    let republished_json: Value = serde_json::from_slice(&republished).unwrap();
+    assert!(
+        republished_json["versions"]["1.0.0"]["dist"]["tarball"]
+            .as_str()
+            .unwrap()
+            .ends_with("?sig=republished"),
+    );
+}
+
+#[tokio::test]
+async fn superseded_by_purge_returns_none_before_reading_broken_storage() {
+    let server = mockito::Server::new_async().await;
+    let tmp = tempfile::tempdir().unwrap();
+    let state = state(tmp.path(), &server.url());
+    let name = CanonicalPackageName::parse("example", Ecosystem::Npm).unwrap();
+
+    let older_fetch_seq = state.inner.proxy.packument_writes.begin_fetch();
+    let purge_seq = state.inner.proxy.packument_writes.begin_fetch();
+    crate::server::upstream_packuments::purge::purge_cached_package_with(
+        &state,
+        "broken-ns",
+        &name,
+        purge_seq,
+        || async { Ok(true) },
+    )
+    .await
+    .unwrap();
+
+    // Place a directory at `document.json` so `read_upstream_document_any` errors.
+    let doc_dir =
+        state.inner.config.storage.cache_dir.join("broken-ns/packages/@/example/document.json");
+    std::fs::create_dir_all(&doc_dir).unwrap();
+    assert!(state.inner.storage.read_upstream_document_any("broken-ns", &name).await.is_err());
+
+    let outcome = super::super::refresh_cached_packument(
+        &state,
+        "broken-ns",
+        &name,
+        b"{\"versions\":{}}".to_vec(),
+        older_fetch_seq,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(outcome, super::super::RefreshOutcome::SupersededByPurge));
 }

@@ -2,12 +2,26 @@
 
 use crate::{
     digest::RecordDigest,
-    identity::{LogEntry, LogEntryError, RecordIdentity, RecordKey},
+    identity::{
+        LogEntry,
+        LogEntryError,
+        RecordIdentity,
+        RecordKey,
+    },
     profile::Profile,
-    purl::{Purl, PurlError},
+    purl::{
+        Purl,
+        PurlError,
+    },
 };
-use derive_more::{Display, Error};
-use serde::{Deserialize, Deserializer};
+use derive_more::{
+    Display,
+    Error,
+};
+use serde::{
+    Deserialize,
+    Deserializer,
+};
 
 /// The `schema` of every record this crate reads.
 pub const RECORD_SCHEMA: &str = "pnpr-release-record/1";

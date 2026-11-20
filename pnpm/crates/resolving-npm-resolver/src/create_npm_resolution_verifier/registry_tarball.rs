@@ -1,4 +1,7 @@
-use super::{LockfileResolution, is_git_hosted_tarball_url};
+use super::{
+    LockfileResolution,
+    is_git_hosted_tarball_url,
+};
 
 /// Tarball URL recorded on an npm-registry resolution. The verifier
 /// uses it for prefix-matching against named registries; absence
@@ -29,7 +32,7 @@ pub(super) fn npm_registry_tarball(resolution: &LockfileResolution) -> Option<Op
             }
             Some(Some(t.tarball.as_str()))
         }
-        // Custom resolutions have no packument lookup — the pnpmfile
+        // Custom resolutions have no packument lookup, the pnpmfile
         // custom resolver, not the npm registry, is their authority.
         LockfileResolution::Directory(_)
         | LockfileResolution::Git(_)

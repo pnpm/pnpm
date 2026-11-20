@@ -1,17 +1,52 @@
 mod relocate;
 mod snapshots;
 
-use snapshots::{DeploySnapshots, convert_deploy_snapshots};
+use snapshots::{
+    DeploySnapshots,
+    convert_deploy_snapshots,
+};
 
 use super::{
-    Config, Context, DependencyGroup, DeployError, DeployWorkspaceSettings, DirectoryResolution,
-    HashMap, HashSet, Lockfile, LockfileResolution, Map, PackageKey, PackageManifest,
-    PackageMetadata, Path, PathBuf, PkgName, Project, ProjectInfo, ProjectPathKey, ProjectSnapshot,
-    ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec, SelectedProject, State, Value,
-    bind_singleton_peers, convert_package_key, convert_package_metadata,
-    convert_resolved_dependency_spec, create_file_url_key, deploy_peer_edges,
-    deploy_workspace_settings, is_ancestor_path, lexical_normalize,
-    omit_peers_of_excluded_dependencies, prune_deploy_lockfile_graph, relative_path, same_path,
+    Config,
+    Context,
+    DependencyGroup,
+    DeployError,
+    DeployWorkspaceSettings,
+    DirectoryResolution,
+    HashMap,
+    HashSet,
+    Lockfile,
+    LockfileResolution,
+    Map,
+    PackageKey,
+    PackageManifest,
+    PackageMetadata,
+    Path,
+    PathBuf,
+    PkgName,
+    Project,
+    ProjectInfo,
+    ProjectPathKey,
+    ProjectSnapshot,
+    ResolveBases,
+    ResolvedDependencyMap,
+    ResolvedDependencySpec,
+    SelectedProject,
+    State,
+    Value,
+    bind_singleton_peers,
+    convert_package_key,
+    convert_package_metadata,
+    convert_resolved_dependency_spec,
+    create_file_url_key,
+    deploy_peer_edges,
+    deploy_workspace_settings,
+    is_ancestor_path,
+    lexical_normalize,
+    omit_peers_of_excluded_dependencies,
+    prune_deploy_lockfile_graph,
+    relative_path,
+    same_path,
 };
 use pnpm_tool_protocol::is_tool_specifier;
 
@@ -284,7 +319,7 @@ fn importer_linked_publish_dir(
     projects_by_path: &HashMap<ProjectPathKey, ProjectInfo>,
 ) -> Option<PathBuf> {
     let publish_directory = project_snapshot.publish_directory.as_deref()?;
-    if project_snapshot.link_directory == Some(false) {
+    if !project_snapshot.link_directory.unwrap_or(true) {
         return None;
     }
     let publish_dir = lexical_normalize(&project_root.join(publish_directory));

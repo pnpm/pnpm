@@ -1,6 +1,12 @@
-use super::{ignored_lockfile_pnpm_field_keys, ignored_pnpm_field_keys};
+use super::{
+    ignored_lockfile_pnpm_field_keys,
+    ignored_pnpm_field_keys,
+};
 use crate::cli_args::package_manager::read_root_manifest_json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn write_manifest(dir: &Path, contents: &str) {
     fs::write(dir.join("package.json"), contents).expect("write package.json");

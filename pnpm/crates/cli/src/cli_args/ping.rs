@@ -1,12 +1,21 @@
 use crate::cli_args::registry_client::{
-    apply_auth_and_otp, build_registry_client, join_registry_endpoint,
+    apply_auth_and_otp,
+    build_registry_client,
+    join_registry_endpoint,
 };
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, normalize_registry_url, redact_and_sanitize, send_with_retry,
+    RetryOpts,
+    ThrottledClient,
+    normalize_registry_url,
+    redact_and_sanitize,
+    send_with_retry,
 };
 use serde_json::Value;
 use std::time::Instant;

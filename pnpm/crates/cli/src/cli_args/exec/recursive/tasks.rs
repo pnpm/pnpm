@@ -1,8 +1,28 @@
 use super::{
-    Config, ExecArgs, ExecError, ExecutionStatus, IndexMap, Instant, LogEvent, Mutex, Path,
-    PathBuf, ProcessTracker, ProjectExecution, RecursiveExecError, ScriptOutput, Status,
-    TaskCompletion, TaskGraph, TaskKey, TaskNode, count_failures, filtered_projects_dependencies,
-    reverse_task_graph, spawn_exec_task, write_recursive_summary,
+    Config,
+    ExecArgs,
+    ExecError,
+    ExecutionStatus,
+    IndexMap,
+    Instant,
+    LogEvent,
+    Mutex,
+    Path,
+    PathBuf,
+    ProcessTracker,
+    ProjectExecution,
+    RecursiveExecError,
+    ScriptOutput,
+    Status,
+    TaskCompletion,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    count_failures,
+    filtered_projects_dependencies,
+    reverse_task_graph,
+    spawn_exec_task,
+    write_recursive_summary,
 };
 use crate::cli_args::reporter::script_output_colors;
 
@@ -126,7 +146,7 @@ pub(super) fn exec_concurrency(args: &ExecArgs, config: &Config, task_count: usi
 }
 
 /// Record a passed task in the run state, aborting the whole run when
-/// the state cannot be written — a run whose state is unrecorded cannot
+/// the state cannot be written, a run whose state is unrecorded cannot
 /// be resumed, so continuing would build a summary nothing can act on.
 fn record_task_passed(
     task_run_state: &crate::cli_args::task_run_state::TaskRunState,

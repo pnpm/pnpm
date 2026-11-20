@@ -15,19 +15,32 @@
 //! ([#16839](https://github.com/pnpm/pnpm/issues/16839)).
 //!
 //! An `install` that finishes through the repeat-install fast path never
-//! reaches this module — that path deliberately returns before the async
+//! reaches this module, that path deliberately returns before the async
 //! runtime and the HTTP client exist. The check runs on the next install
 //! that has work to do.
 
 use crate::cli_args::registry_client::build_registry_client;
 use jiff::Timestamp;
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::{
+    Config,
+    PNPM_VERSION,
+};
 use pnpm_fs::write_atomic;
 use pnpm_registry::Package;
-use pnpm_reporter::{LogEvent, LogLevel, UpdateCheckLog};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    UpdateCheckLog,
+};
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
-use serde_json::{Map, Value};
-use std::{collections::HashMap, path::Path};
+use serde_json::{
+    Map,
+    Value,
+};
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 use tokio::task::JoinHandle;
 
 /// How long a recorded check suppresses the next one.
@@ -99,7 +112,7 @@ async fn check(config: &Config, state_file: &Path, state: Map<String, Value>, em
 }
 
 /// The version behind pnpm's `latest` tag on the registry the project
-/// installs from — the same registry `pnpm add pnpm` would reach, not the
+/// installs from, the same registry `pnpm add pnpm` would reach, not the
 /// trusted bootstrap registry `self-update` provisions the engine from. A
 /// registry that serves pnpm without a `latest` tag answers `None`.
 async fn latest_pnpm_version(config: &Config) -> miette::Result<Option<String>> {
@@ -126,7 +139,7 @@ fn read_state(state_file: &Path) -> Map<String, Value> {
 /// [`UPDATE_CHECK_FREQUENCY_MS`].
 ///
 /// A missing, unparsable, or future timestamp reads as "never checked", so
-/// a corrupted state file — or a clock that moved backwards — makes pnpm
+/// a corrupted state file (or a clock that moved backwards) makes pnpm
 /// check again rather than go quiet until the recorded time comes around.
 fn checked_recently(state: &Map<String, Value>, now: Timestamp) -> bool {
     state

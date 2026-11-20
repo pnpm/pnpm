@@ -1,14 +1,34 @@
 use super::super::{
-    AppInner, Upstream, compute_upstream_cache_namespace, ecosystem::upstream_fetch_guard,
+    AppInner,
+    Ecosystem,
+    Upstream,
+    compute_upstream_cache_namespace,
+    ecosystem::{
+        is_fetchable_artifact_url,
+        upstream_fetch_guard,
+    },
 };
 use indexmap::IndexMap;
-use pnpm_network::{AddressGuard, RedirectGuard};
-use pnpr_config::{Config, RoutingConfig, UpstreamConfig};
+use pnpm_network::{
+    AddressGuard,
+    RedirectGuard,
+};
+use pnpr_config::{
+    Config,
+    RoutingConfig,
+    UpstreamConfig,
+};
 use pnpr_route::RouteContext;
 use reqwest::header::HeaderMap;
 use std::{
     ops::Deref,
-    sync::{Arc, OnceLock, PoisonError, RwLock, atomic::Ordering},
+    sync::{
+        Arc,
+        OnceLock,
+        PoisonError,
+        RwLock,
+        atomic::Ordering,
+    },
     time::Duration,
 };
 
@@ -130,17 +150,30 @@ fn upstream_clients(
     routing.upstreams
         .iter()
         .map(|(name, upstream)| {
+            let ecosystem = upstream_ecosystem(routing, name);
             let reused = previous.and_then(|previous| {
-                let unchanged = previous.client_keys.get(name) == client_keys.get(name);
+                let unchanged = previous.client_keys.get(name) == client_keys.get(name)
+                    && upstream_ecosystem(&previous.routing, name) == ecosystem;
                 previous.upstream_clients
                     .get(name)
                     .filter(|_| unchanged)
                     .cloned()
             });
-            let client = reused.unwrap_or_else(|| stored_upstream(name, upstream, guard_context));
+            let client =
+                reused.unwrap_or_else(|| stored_upstream(name, ecosystem, upstream, guard_context));
             (name.clone(), client)
         })
         .collect()
+}
+
+fn upstream_ecosystem(routing: &RoutingConfig, name: &str) -> Ecosystem {
+    routing.registries
+        .ecosystem(name)
+        .unwrap_or_else(|| {
+            name.split_once('/')
+                .and_then(|(prefix, _)| Ecosystem::all().find(|eco| eco.as_str() == prefix))
+                .unwrap_or_default()
+        })
 }
 
 /// The client of an upstream the database stores. An API-written URL must not
@@ -150,6 +183,7 @@ fn upstream_clients(
 /// this server's own `public_url` origin.
 fn stored_upstream(
     name: &str,
+    ecosystem: Ecosystem,
     upstream: &UpstreamConfig,
     guard_context: &UpstreamGuardContext,
 ) -> Upstream {
@@ -159,11 +193,24 @@ fn stored_upstream(
         fetch_guard(url)
             && current_context(&literal_context).allows_stored_upstream_url(url.as_str())
     });
-    let connect_context = Arc::clone(guard_context);
-    let connect_guard: AddressGuard = Arc::new(move |_host, address| {
-        current_context(&connect_context).allows_stored_upstream_address(address)
+    let connect_guard = stored_connect_guard(guard_context);
+    let client = Upstream::new(name, upstream).with_fetch_and_connect_guards(guard, connect_guard);
+    if ecosystem != Ecosystem::Npm {
+        return client;
+    }
+    let tarball_context = Arc::clone(guard_context);
+    let tarball_guard: RedirectGuard = Arc::new(move |url| {
+        is_fetchable_artifact_url(url)
+            && current_context(&tarball_context).allows_stored_upstream_url(url.as_str())
     });
-    Upstream::new(name, upstream).with_fetch_and_connect_guards(guard, connect_guard)
+    client.with_declared_tarball_guards(tarball_guard, stored_connect_guard(guard_context))
+}
+
+fn stored_connect_guard(guard_context: &UpstreamGuardContext) -> AddressGuard {
+    let connect_context = Arc::clone(guard_context);
+    Arc::new(move |_host, address| {
+        current_context(&connect_context).allows_stored_upstream_address(address)
+    })
 }
 
 fn current_context(guard_context: &UpstreamGuardContext) -> Arc<RouteContext> {

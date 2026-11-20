@@ -1,11 +1,22 @@
 //! The record that lets a repeated `--lockfile-only` install skip resolving
 //! a lockfile a deduplicating resolution already wrote.
 
-use crate::auto_dedupe::{DEP, pnpm_at, write_project, write_settings};
+use crate::auto_dedupe::{
+    DEP,
+    pnpm_at,
+    write_project,
+    write_settings,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    path::Path,
+};
 
 const PROJECTS: &str = "packages:\n  - low\n  - high\nautoDedupe: true\n";
 

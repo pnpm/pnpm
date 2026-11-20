@@ -11,15 +11,35 @@
 pub(crate) use pnpm_process as process;
 
 pub use apply::{
-    MANIFEST_FILE_NAME, PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch,
+    MANIFEST_FILE_NAME,
+    PatchApplyError,
+    PatchPreview,
+    apply_patch_to_dir,
+    preview_patch,
 };
 pub use commit::*;
 pub use pnpm_patching_config::{
-    CalcPatchHashError, ExtendedPatchInfo, ParsedKey, PatchGroup, PatchGroupRangeItem,
-    PatchGroupRecord, PatchInfo, PatchInput, PatchKeyConflictError, PatchNonSemverRangeError,
-    ResolvePatchedDependenciesError, UnusedPatchError, UnusedPatches, all_patch_keys,
-    calc_patch_hashes, create_hex_hash_from_file, get_patch_info, group_patched_dependencies,
-    parse_key, resolve_and_group, verify_patches,
+    CalcPatchHashError,
+    ExtendedPatchInfo,
+    ParsedKey,
+    PatchGroup,
+    PatchGroupRangeItem,
+    PatchGroupRecord,
+    PatchInfo,
+    PatchInput,
+    PatchKeyConflictError,
+    PatchNonSemverRangeError,
+    ResolvePatchedDependenciesError,
+    UnusedPatchError,
+    UnusedPatches,
+    all_patch_keys,
+    calc_patch_hashes,
+    create_hex_hash_from_file,
+    get_patch_info,
+    group_patched_dependencies,
+    parse_key,
+    resolve_and_group,
+    verify_patches,
 };
 
 mod apply;

@@ -1,4 +1,11 @@
-use super::{AppState, Arc, CanonicalPackageName, HashSet, RegistryError, Value};
+use super::{
+    AppState,
+    Arc,
+    CanonicalPackageName,
+    HashSet,
+    RegistryError,
+    Value,
+};
 
 pub(super) fn filter_osv_vulnerable_versions(
     packument: &mut Value,

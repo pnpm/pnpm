@@ -1,8 +1,18 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{
+    HashMap,
+    HashSet,
+};
 
-use serde_json::{Map, Value, json};
+use serde_json::{
+    Map,
+    Value,
+    json,
+};
 
-use super::legacy_report::{LegacyAuditMetadata, LegacyVulnerabilityCounts};
+use super::legacy_report::{
+    LegacyAuditMetadata,
+    LegacyVulnerabilityCounts,
+};
 
 pub(super) fn sanitize_upstream_legacy_response(
     doc: &mut Map<String, Value>,
@@ -144,6 +154,7 @@ fn recompute_vulnerability_counts(doc: &mut Map<String, Value>) {
 fn json_usize(obj: &Map<String, Value>, key: &str) -> usize {
     obj.get(key)
         .and_then(Value::as_u64)
-        .and_then(|num| usize::try_from(num).ok())
+        .map(usize::try_from)
+        .and_then(Result::ok)
         .unwrap_or(0)
 }

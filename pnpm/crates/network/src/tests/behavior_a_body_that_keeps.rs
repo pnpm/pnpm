@@ -1,6 +1,13 @@
 use super::{
-    Duration, NetworkSettings, NoProxySetting, PerRegistryTls, ProxyConfig, ThrottledClient,
-    TlsConfig, client_with_fetch_timeout, drain_until_timed_out,
+    Duration,
+    NetworkSettings,
+    NoProxySetting,
+    PerRegistryTls,
+    ProxyConfig,
+    ThrottledClient,
+    TlsConfig,
+    client_with_fetch_timeout,
+    drain_until_timed_out,
 };
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/14604>.
@@ -88,7 +95,7 @@ fn default_network_concurrency_stays_within_floor_and_cap() {
 }
 
 /// A redirect to a host the guard rejects must fail the request before the
-/// off-allowlist target is ever contacted — the redirect SSRF boundary.
+/// off-allowlist target is ever contacted, the redirect SSRF boundary.
 #[tokio::test]
 async fn redirect_guard_blocks_off_allowlist_redirect_target() {
     let mut server = mockito::Server::new_async().await;
@@ -193,7 +200,10 @@ async fn max_sockets_caps_concurrent_sockets_per_origin() {
 /// does not wait behind the tarballs of packages it already resolved.
 #[tokio::test]
 async fn max_sockets_serves_queued_metadata_before_queued_downloads() {
-    use std::sync::{Arc, Mutex};
+    use std::sync::{
+        Arc,
+        Mutex,
+    };
 
     let client = Arc::new(ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)));
     let held = client.acquire_for_url("https://registry.example.com/held").await;

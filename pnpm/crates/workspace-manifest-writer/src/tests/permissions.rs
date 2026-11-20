@@ -1,6 +1,13 @@
-use super::{TempDir, WORKSPACE_MANIFEST_FILENAME, fs};
+use super::{
+    TempDir,
+    WORKSPACE_MANIFEST_FILENAME,
+    fs,
+};
 use crate::PermissionValue;
-use pnpm_config::{SkillsPermission, SkillsPermission::All};
+use pnpm_config::{
+    SkillsPermission,
+    SkillsPermission::All,
+};
 
 fn run(original: Option<&str>, entries: &[(&str, PermissionValue)]) -> Option<String> {
     let dir = TempDir::new().expect("temp dir");

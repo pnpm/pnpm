@@ -3,8 +3,14 @@ mod uninstall;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// A `node -e` lifecycle script that appends `<stage>\n` to
 /// `order.txt` in the script's cwd (the project root). pacquet
@@ -248,7 +254,7 @@ fn failing_project_script_fails_the_install() {
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
-    // `exit 1` is shell-agnostic — a non-zero exit in both `sh -c`
+    // `exit 1` is shell-agnostic, a non-zero exit in both `sh -c`
     // and `cmd /d /s /c`. Mirrors pnpm's own test
     // (`preinstall: 'exit 1'`).
     let package_json = serde_json::json!({
@@ -504,7 +510,7 @@ fn ignore_scripts_skips_project_lifecycle_scripts() {
 }
 
 /// `pacquet update --latest` with no selectors rewrites every direct
-/// dependency's spec, which makes it pnpm's `installSome` — a partial
+/// dependency's spec, which makes it pnpm's `installSome`, a partial
 /// mutation that does not run the project's own lifecycle scripts,
 /// unlike a bare `pacquet update`.
 #[test]
@@ -558,11 +564,20 @@ fn latest_update_without_selectors_does_not_run_project_lifecycle_scripts() {
 /// schedule: before every other stage, only for the root, and only
 /// when scripts are not suppressed and `devDependencies` are installed.
 mod dev_preinstall {
-    use super::{append_order_script, project_with_lifecycle_scripts};
+    use super::{
+        append_order_script,
+        project_with_lifecycle_scripts,
+    };
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-    use std::{fs, process::Command};
+    use pnpm_testing_utils::bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    };
+    use std::{
+        fs,
+        process::Command,
+    };
 
     fn project_with_dev_preinstall() -> serde_json::Value {
         let mut manifest = project_with_lifecycle_scripts();
@@ -817,7 +832,7 @@ mod dev_preinstall {
     }
 
     /// The bin a workspace package publishes may not exist until the
-    /// root's `pnpm:devPreinstall` writes it — next.js generates a
+    /// root's `pnpm:devPreinstall` writes it, next.js generates a
     /// placeholder `next` bin that way. Running the hook after linking
     /// (or not at all) leaves every dependent's shim pointing at a file
     /// that isn't there.
@@ -937,8 +952,15 @@ mod dev_preinstall {
 mod root_preinstall {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
-    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-    use std::{fs, path::Path, process::Command};
+    use pnpm_testing_utils::bin::{
+        AddMockedRegistry,
+        CommandTempCwd,
+    };
+    use std::{
+        fs,
+        path::Path,
+        process::Command,
+    };
 
     /// Published at 100.0.0, 100.1.0, and 101.0.0.
     const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";

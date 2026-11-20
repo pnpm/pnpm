@@ -1,4 +1,11 @@
-use super::{LogId, NoteSigner, ReconcileOutcome, Result, Storage, StoredCheckpoint};
+use super::{
+    LogId,
+    NoteSigner,
+    ReconcileOutcome,
+    Result,
+    Storage,
+    StoredCheckpoint,
+};
 
 pub(crate) struct ConcurrentReconcile {
     pub(crate) restarted: bool,

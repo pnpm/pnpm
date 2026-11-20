@@ -2,7 +2,7 @@ use super::flow;
 
 /// How the value a key path names is written.
 pub(crate) enum Inline {
-    /// A block body on the following lines — or no such key at all. The
+    /// A block body on the following lines, or no such key at all. The
     /// line-oriented splices in this module apply.
     Block,
     /// An inline value none of the splices can edit: a multi-line flow
@@ -105,7 +105,8 @@ fn inline_value_start(text: &str, path: &[&str]) -> Option<usize> {
 fn inline_value_on_line(text: &str, line_start: usize) -> Option<usize> {
     let line_end = text[line_start..]
         .find('\n')
-        .map_or(text.len(), |offset| line_start + offset);
+        .map(|offset| line_start + offset)
+        .unwrap_or(text.len());
     let content = &text[line_start..line_end];
     let indent = content.len() - content.trim_start().len();
     let colon = indent + structural_colon_index(&content[indent..])?;
@@ -204,7 +205,7 @@ pub(super) fn is_top_level_block_boundary(content: &str) -> bool {
 /// The mapping-key a structural line declares (`key:` or `key: value`), if any.
 ///
 /// The key/value delimiter is the first `:` that ends the line or is followed
-/// by whitespace — a `:` inside the value, or inside a key (quoted or not,
+/// by whitespace, a `:` inside the value, or inside a key (quoted or not,
 /// e.g. an `allowBuilds` artifact key like `foo@https://example.com/foo.tgz`),
 /// is not the delimiter. Splitting on the first `:` would truncate such keys.
 fn line_key(content: &str) -> Option<String> {
@@ -251,7 +252,7 @@ pub(super) fn comment_start(value: &str) -> Option<usize> {
 }
 
 /// Byte offset of the quote closing the scalar `value` opens with.
-/// `None` when it is never closed, which leaves the value unparsable —
+/// `None` when it is never closed, which leaves the value unparsable,
 /// the caller then treats the whole of it as the value rather than
 /// guessing where a comment might start.
 ///
@@ -325,7 +326,7 @@ pub(super) fn block_end(all: &[Line<'_>], key_idx: usize, hi: usize, base_indent
 }
 
 /// The child indent is whatever the block's first structural line
-/// uses, not a hard-coded two spaces — so a manifest written with a
+/// uses, not a hard-coded two spaces, so a manifest written with a
 /// wider indent is still traversed correctly.
 fn child_indent(
     all: &[Line<'_>],
@@ -346,7 +347,8 @@ fn mapping_at(
 ) -> Mapping {
     let body_start = all
         .get(key_idx + 1)
-        .map_or(all[key_idx].end, |line| line.start);
+        .map(|line| line.start)
+        .unwrap_or(all[key_idx].end);
     let entries = collect_entries(all, key_idx + 1, block_end_idx, child_indent);
     Mapping { body_start, entry_indent: child_indent, entries }
 }
@@ -372,7 +374,8 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
             .unwrap_or(to);
         let block_end = all
             .get(block_end_idx)
-            .map_or(all[to - 1].end, |line| line.start);
+            .map(|line| line.start)
+            .unwrap_or(all[to - 1].end);
         entries.push(EntryPos {
             key,
             line_start: all[idx].start,
@@ -398,7 +401,8 @@ pub(super) fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let block_end_idx = leading_comment_start(&all, body_start, next_key_idx);
     let block_end = all
         .get(block_end_idx)
-        .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
+        .map(|line| line.start)
+        .unwrap_or_else(|| all.last().map_or(0, |line| line.end));
     Some(TopLevelSpan { key_line_start: all[key_idx].start, block_end })
 }
 

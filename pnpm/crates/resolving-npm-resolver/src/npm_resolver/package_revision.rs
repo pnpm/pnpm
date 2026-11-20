@@ -1,8 +1,18 @@
 use super::{
-    Cow, Integrity, InvalidRevisionSpecifierError, InvalidTarballRevisionMetadataError,
-    MalformedRevisionHistoryError, NoMatchingRevisionError, PackageVersion, RegistryPackageSpec,
-    RegistryRevisionSelector, ResolveError, TarballRevision, has_complete_sha512_digest,
-    is_on_revision_tarball_route, is_revision_registry_tarball_url,
+    Cow,
+    Integrity,
+    InvalidRevisionSpecifierError,
+    InvalidTarballRevisionMetadataError,
+    MalformedRevisionHistoryError,
+    NoMatchingRevisionError,
+    PackageVersion,
+    RegistryPackageSpec,
+    RegistryRevisionSelector,
+    ResolveError,
+    TarballRevision,
+    has_complete_sha512_digest,
+    is_on_revision_tarball_route,
+    is_revision_registry_tarball_url,
 };
 
 /// The tarball's revision, when the registry serves one: it must pair
@@ -224,7 +234,8 @@ pub(super) fn validate_current_package_revision(
     };
     let revision = raw_revision
         .as_u64()
-        .and_then(|revision| TarballRevision::try_from(revision).ok())
+        .map(TarballRevision::try_from)
+        .and_then(Result::ok)
         .map(TarballRevision::get)
         .ok_or_else(|| {
             malformed_revision_history(

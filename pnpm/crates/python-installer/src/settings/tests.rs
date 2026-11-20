@@ -1,5 +1,11 @@
-use super::{parse_index, python_index};
-use pnpm_config::{Config, Ecosystem};
+use super::{
+    parse_index,
+    python_index,
+};
+use pnpm_config::{
+    Config,
+    Ecosystem,
+};
 
 fn config_with_pypi_indexes(indexes: &[&str]) -> Config {
     let mut config = Config::default();

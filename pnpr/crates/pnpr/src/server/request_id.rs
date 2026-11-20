@@ -1,4 +1,7 @@
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::Arc,
+};
 
 /// A validated request identifier, either echoed from an incoming `x-request-id` header
 /// or generated fresh as an RFC 4122 / RFC 9562 UUID v4.

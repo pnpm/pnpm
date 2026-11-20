@@ -19,30 +19,62 @@ mod version_selection;
 
 use crate::{
     errors::{
-        InvalidRevisionSpecifierError, InvalidTarballIntegrityError, MalformedRevisionHistoryError,
+        InvalidRevisionSpecifierError,
+        InvalidTarballIntegrityError,
+        MalformedRevisionHistoryError,
         NoMatchingRevisionError,
     },
-    npm_resolver::{NpmResolver, is_not_found_error},
+    npm_resolver::{
+        NpmResolver,
+        is_not_found_error,
+    },
     pick_package::{
-        InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
+        InMemoryPackageMetaCache,
+        shared_packument_fetch_locker,
+        shared_picked_manifest_cache,
     },
     resolve_from_workspace::ResolveFromWorkspaceError,
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
-use pnpm_lockfile::{LockfileResolution, RegistryResolution, TarballRevision};
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_lockfile::{
+    LockfileResolution,
+    RegistryResolution,
+    TarballRevision,
+};
+use pnpm_network::{
+    AuthHeaders,
+    RetryOpts,
+    ThrottledClient,
+};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, GuardExhaustionPolicy, LatestQuery, PackageVersionGuard,
-    PackageVersionGuardDecision, PackageVersionGuardFuture, PkgResolutionId, ResolveOptions,
-    TrustPolicy, UpdateBehavior, WantedDependency, WorkspacePackage, WorkspacePackages,
+    CurrentPkg,
+    GuardExhaustionPolicy,
+    LatestQuery,
+    PackageVersionGuard,
+    PackageVersionGuardDecision,
+    PackageVersionGuardFuture,
+    PkgResolutionId,
+    ResolveOptions,
+    TrustPolicy,
+    UpdateBehavior,
+    WantedDependency,
+    WorkspacePackage,
+    WorkspacePackages,
     WorkspacePackagesByVersion,
 };
 use pnpm_version_policy::create_package_version_policy;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        BTreeMap,
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 use tempfile::TempDir;
@@ -164,7 +196,7 @@ pub(super) fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard>
     guard_rejecting(versions, GuardExhaustionPolicy::Fail)
 }
 
-/// Packument body for `@jsr/foo__bar` — the npm-shaped name JSR
+/// Packument body for `@jsr/foo__bar`, the npm-shaped name JSR
 /// serves `@foo/bar`.
 const JSR_PACKAGE_BODY: &str = r#"{
     "name": "@jsr/foo__bar",
@@ -198,7 +230,7 @@ const JSR_PACKAGE_BODY: &str = r#"{
 
 /// Packument where the earlier-published `1.0.0` carries the strongest
 /// trust evidence available here (`trustedPublisher` + provenance) and
-/// the later `1.1.0` carries none — a trust downgrade. Resolving
+/// the later `1.1.0` carries none, a trust downgrade. Resolving
 /// `^1.0.0` picks `1.1.0` (the max), so the resolver-time gate must
 /// reject it under `trustPolicy='no-downgrade'`.
 const TRUST_DOWNGRADE_PACKAGE_BODY: &str = r#"{
@@ -272,7 +304,7 @@ fn packument_with_many_versions(count: u32) -> String {
 }
 
 /// Packument whose `1.5.0+build` key carries a manifest `version` of
-/// `1.5.0` — i.e. the version-map key differs from the parsed manifest
+/// `1.5.0`, i.e. the version-map key differs from the parsed manifest
 /// version, the case a malformed/malicious registry can produce.
 const MISMATCHED_KEY_BODY: &str = r#"{
     "name": "acme",
@@ -413,7 +445,8 @@ fn revision_package_body(tarball: &str, revision: &serde_json::Value) -> String 
         "H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ";
     let original_tarball = tarball
         .rsplit_once("+r")
-        .map_or_else(|| tarball.to_string(), |(base, _)| format!("{base}+r0"));
+        .map(|(base, _)| format!("{base}+r0"))
+        .unwrap_or_else(|| tarball.to_string());
     let original = json!({
         "revision": 0,
         "integrity": format!("sha512-{}==", original_digest.replace('_', "/").replace('-', "+")),

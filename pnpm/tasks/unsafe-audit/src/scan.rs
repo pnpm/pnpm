@@ -1,8 +1,15 @@
 //! Reading the policy off the source.
 
-pub use finding::{Finding, Kind, Occurrence};
+pub use finding::{
+    Finding,
+    Kind,
+    Occurrence,
+};
 
-use policy::{audit_member, workspace_findings};
+use policy::{
+    audit_member,
+    workspace_findings,
+};
 use std::path::Path;
 
 /// Every way the workspace rooted at `root` departs from the policy.

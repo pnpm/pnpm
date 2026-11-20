@@ -7,6 +7,7 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { tempDir } from '@pnpm/prepare'
 
 import { importIndexedDir } from '../src/importIndexedDir.js'
+import { createIndexedPkgImporter } from '../src/index.js'
 import { overwriteDirSync } from '../src/overwriteDir.js'
 
 test.each(['copy', 'clone'] as const)('importIndexedDir() safeToSkip preserves a build output hardlinked into a %s-imported package', (method) => {
@@ -770,4 +771,35 @@ test.each([false, true])('importIndexedDir() keeps internal directory links to u
   expect(fs.lstatSync(path.join(dest, 'file-link')).isFile()).toBe(true)
   expect(fs.readFileSync(path.join(dest, 'file-link'), 'utf8')).toBe('content')
   expect(fs.existsSync(path.join(dest, 'omitted'))).toBe(false)
+})
+
+test.each(['clone-or-copy', 'auto'] as const)('createIndexedPkgImporter(%s) imports a fresh target after skipping an already-placed safeToSkip slot', (method) => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const placedSlot = path.join(tmp, 'placed-slot')
+  const stagedTarget = path.join(tmp, 'staged-target')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg","version":"1.0.0"}')
+  fs.writeFileSync(path.join(src, 'bin.js'), 'console.log("ok")\n')
+  fs.mkdirSync(placedSlot, { recursive: true })
+  fs.copyFileSync(path.join(src, 'package.json'), path.join(placedSlot, 'package.json'))
+  fs.copyFileSync(path.join(src, 'bin.js'), path.join(placedSlot, 'bin.js'))
+
+  const filesMap = new Map([
+    ['bin.js', path.join(src, 'bin.js')],
+    ['package.json', path.join(src, 'package.json')],
+  ])
+  const importPackage = createIndexedPkgImporter(method)
+  expect(importPackage(placedSlot, {
+    filesMap,
+    force: false,
+    resolvedFrom: 'remote',
+    safeToSkip: true,
+  })).toBeUndefined()
+  expect(importPackage(stagedTarget, {
+    filesMap,
+    force: true,
+    resolvedFrom: 'remote',
+  })).toBeDefined()
+  expect(fs.readFileSync(path.join(stagedTarget, 'bin.js'), 'utf8')).toBe('console.log("ok")\n')
 })

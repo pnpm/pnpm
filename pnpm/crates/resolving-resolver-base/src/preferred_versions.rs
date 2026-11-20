@@ -1,12 +1,18 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+};
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Allocation-friendly map type for [`PreferredVersions`].
 ///
 /// `BTreeMap` (not `HashMap`) keeps iteration order stable across
 /// runs, which matters because the deps-resolver consults these to
-/// break version ties — a flapping order would let identical inputs
+/// break version ties, a flapping order would let identical inputs
 /// produce different lockfile picks.
 pub type PreferredVersions = BTreeMap<String, VersionSelectors>;
 

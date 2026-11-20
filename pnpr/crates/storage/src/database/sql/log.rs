@@ -1,9 +1,19 @@
 //! The sequenced entries of each namespace's transparency logs, one log per
 //! namespace and ecosystem.
 
-use super::{PackageKey, adapter::Connection};
-use crate::transparency_log::{ImportedLogEntry, LogId, RawLogState};
-use pnpr_error::{RegistryError, Result};
+use super::{
+    PackageKey,
+    adapter::Connection,
+};
+use crate::transparency_log::{
+    ImportedLogEntry,
+    LogId,
+    RawLogState,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
 use pnpr_package_name::Ecosystem;
 use pnpr_sql::DialectSql;
 use std::ops::Range;
@@ -86,7 +96,8 @@ pub(super) fn head_and_size(connection: &dyn Connection, log: &LogId) -> Result<
         .next()
         .map(|mut row| row.get::<i64>(0))
         .transpose()?
-        .and_then(|count| u64::try_from(count).ok())
+        .map(u64::try_from)
+        .and_then(Result::ok)
         .unwrap_or_default();
     Ok(RawLogState { head, sequenced })
 }

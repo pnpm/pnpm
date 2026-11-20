@@ -1,5 +1,13 @@
-use sqlx::{Database, Pool, Transaction};
-use std::{fmt, sync::Arc, time::Duration};
+use sqlx::{
+    Database,
+    Pool,
+    Transaction,
+};
+use std::{
+    fmt,
+    sync::Arc,
+    time::Duration,
+};
 
 /// Bound checkout before a write starts, without canceling an in-flight write.
 pub(super) struct RequestPool<Db: Database> {

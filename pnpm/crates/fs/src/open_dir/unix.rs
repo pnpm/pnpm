@@ -10,13 +10,22 @@ mod write;
 
 use super::{
     ChildFileStat,
-    child_ops::{ensure_within_max_bytes, read_bounded_bytes},
+    child_ops::{
+        ensure_within_max_bytes,
+        read_bounded_bytes,
+    },
 };
 use pnpm_ffi_fs::EntryKind;
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs::File,
-    io::{self, ErrorKind},
+    io::{
+        self,
+        ErrorKind,
+    },
 };
 
 /// Whether opening a name as a directory failed because nothing, a file, or

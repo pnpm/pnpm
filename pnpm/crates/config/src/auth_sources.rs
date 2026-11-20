@@ -1,7 +1,22 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NpmrcAuth, Path, PathBuf, Pipe, TrustedSettings, WorkspaceSettings, api::FsReadFile,
-    read_npm_env, read_npmrc_file, read_pnpm_env,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    Host,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    NpmrcAuth,
+    Path,
+    PathBuf,
+    Pipe,
+    TrustedSettings,
+    WorkspaceSettings,
+    api::FsReadFile,
+    read_npm_env,
+    read_npmrc_file,
+    read_pnpm_env,
 };
 
 /// The merged `.npmrc` view, and the same merge restricted to sources
@@ -33,7 +48,7 @@ where
         Some(path) => npmrc_source::<Host>(path, |text| {
             // Relative `cafile`/`certfile` entries resolve against
             // the file's directory; for a bare filename (no parent)
-            // that's the empty path — i.e. the process cwd — never
+            // that's the empty path (i.e. the process cwd) never
             // the file itself.
             let dir = path
                 .parent()
@@ -72,8 +87,8 @@ fn parse_trusted_source<Sys: EnvVar>(text: &str, dir: &Path, path: &Path) -> Npm
 /// URL-scoped credentials from `npm_config_//...` / `pnpm_config_//...`
 /// environment variables. These are trusted (they come from the
 /// environment, not the repository) and host-scoped by construction, so
-/// they sit at the top of the precedence chain — above the project
-/// `.npmrc` — following the env-over-workspace ordering.
+/// they sit at the top of the precedence chain (above the project
+/// `.npmrc`) following the env-over-workspace ordering.
 fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
     let auth = NpmrcAuth::from_url_scoped_env::<Sys>();
     (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
@@ -130,6 +145,44 @@ pub(super) fn note_declared_registries(
     }
 }
 
+fn is_trusted_auth_file<Sys: GetCurrentDir>(
+    project_npmrc_path: &Path,
+    user_npmrc_path: Option<&Path>,
+) -> bool {
+    user_npmrc_path.is_some_and(|user| {
+        if user.is_absolute() {
+            user == project_npmrc_path
+        } else {
+            Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
+        }
+    })
+}
+
+fn is_dlx_stripped_npmrc_key(key: &str) -> bool {
+    matches!(
+        key,
+        "https-proxy"
+            | "http-proxy"
+            | "proxy"
+            | "no-proxy"
+            | "noproxy"
+            | "strict-ssl"
+            | "local-address"
+            | "ca"
+            | "cafile"
+            | "cert"
+            | "key",
+    ) || [":ca", ":cafile", ":cert", ":certfile", ":key", ":keyfile"]
+        .iter()
+        .any(|suffix| key.ends_with(suffix))
+}
+
+fn clear_dlx_untrusted_project_npmrc(auth: &mut NpmrcAuth) {
+    auth.proxy = crate::npmrc_auth::NpmrcProxy::default();
+    auth.tls = crate::npmrc_auth::NpmrcTls::default();
+    auth.raw_ini_config.retain(|key, _| !is_dlx_stripped_npmrc_key(key));
+}
+
 impl Config {
     /// The project `.npmrc`, parsed as untrusted unless the user-level auth
     /// file explicitly points at it. A registry URL it may not expand fails the
@@ -143,25 +196,18 @@ impl Config {
         Sys: EnvVar + GetCurrentDir,
     {
         let project_npmrc_path = project_npmrc_dir.join(".npmrc");
-        // When npmrcAuthFile explicitly points at the project .npmrc, the user has
-        // opted in to trusting it — allow auth env expansion and suppress the warning.
-        // A relative value (e.g. `PNPM_CONFIG_NPMRC_AUTH_FILE=.npmrc`) is anchored
-        // at the cwd — where the user-level read actually reads it from, and
-        // how pnpm's `path.resolve` anchors it.
-        let project_is_trusted_auth_file = user_npmrc_path.is_some_and(|user| {
-            if user.is_absolute() {
-                user == project_npmrc_path
-            } else {
-                Sys::current_dir().is_ok_and(|cwd| cwd.join(user) == project_npmrc_path)
-            }
-        });
+        let project_is_trusted = is_trusted_auth_file::<Sys>(&project_npmrc_path, user_npmrc_path);
+        let is_dlx = self.cli.command_target == crate::CommandTarget::Dlx;
         let mut source = npmrc_source::<Host>(&project_npmrc_path, |text| {
-            let mut auth = if project_is_trusted_auth_file {
+            let mut auth = if project_is_trusted {
                 NpmrcAuth::from_ini::<Sys>(text, project_npmrc_dir)
             } else {
                 NpmrcAuth::from_project_ini::<Sys>(text, project_npmrc_dir)
             };
             auth.rescope_unscoped(&project_npmrc_path.display().to_string());
+            if is_dlx && !project_is_trusted {
+                clear_dlx_untrusted_project_npmrc(&mut auth);
+            }
             auth
         });
         if let Some(key) =

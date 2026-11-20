@@ -1,13 +1,26 @@
 //! The requests for the note routes. A `404` is an absent note, never an
 //! error: a registry that stores no notes for the package answers it too.
 
-use crate::cli_args::registry_client::{apply_auth_and_otp, auth_header_for_package};
+use crate::cli_args::registry_client::{
+    apply_auth_and_otp,
+    auth_header_for_package,
+};
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, redact_url_credentials};
-use pnpm_release_notes::{MAX_NOTE_BYTES, NotesList, PublicationRef};
-use reqwest::{Url, header::HeaderMap};
+use pnpm_network::{
+    ThrottledClient,
+    redact_url_credentials,
+};
+use pnpm_release_notes::{
+    MAX_NOTE_BYTES,
+    NotesList,
+    PublicationRef,
+};
+use reqwest::{
+    Url,
+    header::HeaderMap,
+};
 
 /// The most a `<name>/-/notes` document may take. A registry caps it at
 /// 1 MiB of JSON.
@@ -159,7 +172,8 @@ fn publication_link(request_url: &str, headers: &HeaderMap) -> Option<Publicatio
     let target = headers
         .get_all("link")
         .iter()
-        .filter_map(|value| value.to_str().ok())
+        .map(reqwest::header::HeaderValue::to_str)
+        .filter_map(Result::ok)
         .flat_map(|value| value.split(','))
         .find(|link| link.contains(r#"rel="publication-notes""#))?;
     let reference = target

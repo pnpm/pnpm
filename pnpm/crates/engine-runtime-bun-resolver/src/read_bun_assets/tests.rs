@@ -1,6 +1,9 @@
 use pretty_assertions::assert_eq;
 
-use super::{parse_asset_name, release_base};
+use super::{
+    parse_asset_name,
+    release_base,
+};
 
 #[test]
 fn parses_apple_silicon_zip() {

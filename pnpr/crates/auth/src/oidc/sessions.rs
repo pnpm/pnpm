@@ -1,11 +1,26 @@
 use jiff::Timestamp;
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::Mutex,
+};
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::{
-    MAX_ENTRIES, OidcState, RegistryError, Result, SESSION_PREFIX, SessionUser, handoffs::Handoff,
-    random_secret, rejected, unavailable, web_login::WebLogins,
+    MAX_ENTRIES,
+    OidcState,
+    RegistryError,
+    Result,
+    SESSION_PREFIX,
+    SessionUser,
+    handoffs::Handoff,
+    random_secret,
+    rejected,
+    unavailable,
+    web_login::WebLogins,
 };
 
 /// Browser sign-ins on this process: the sessions pnpr issued, the

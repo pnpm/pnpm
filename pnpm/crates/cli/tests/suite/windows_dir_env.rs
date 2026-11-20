@@ -1,7 +1,10 @@
 #![cfg(windows)]
 
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
+};
 use std::fs;
 
 const UNRESOLVED_PNPM_HOME: &str = r"%PNPM_TEST_UNSET_VARIABLE%\pnpm";

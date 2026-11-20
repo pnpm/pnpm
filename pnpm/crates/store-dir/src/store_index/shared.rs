@@ -1,6 +1,11 @@
 use super::{
-    Backend, PackageFilesIndex, SharedReadonlyStoreIndex, StoreIndex, StoreIndexError,
-    decode_index_value, files::FilesIndex,
+    Backend,
+    PackageFilesIndex,
+    SharedReadonlyStoreIndex,
+    StoreIndex,
+    StoreIndexError,
+    decode_index_value,
+    files::FilesIndex,
 };
 
 impl StoreIndex {

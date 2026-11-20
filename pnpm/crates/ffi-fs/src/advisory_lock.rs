@@ -4,7 +4,11 @@
 //! [`io::ErrorKind::Unsupported`] on Android although the platform has
 //! `flock`, so the lock is taken through `flock` directly there.
 
-use std::{fs::File, io, os::fd::AsRawFd as _};
+use std::{
+    fs::File,
+    io,
+    os::fd::AsRawFd as _,
+};
 
 /// Which conflicting locks a request excludes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

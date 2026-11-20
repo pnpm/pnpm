@@ -1,7 +1,13 @@
 //! The `ecosystem` a `registries` entry names, and the rules that span the
 //! whole map because of it.
 
-use super::{Config, Path, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, fs};
+use super::{
+    Config,
+    Path,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    fs,
+};
 use crate::Ecosystem;
 
 fn load(yaml: &str) -> Result<Config, String> {

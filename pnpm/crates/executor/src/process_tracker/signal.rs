@@ -4,9 +4,17 @@
 #[cfg(target_os = "linux")]
 pub(super) mod linux;
 
-use super::{RunningExecution, Stop};
+use super::{
+    RunningExecution,
+    Stop,
+};
 use crate::process::Command;
-use std::{collections::HashMap, io::Read, process::Stdio, time::Duration};
+use std::{
+    collections::HashMap,
+    io::Read,
+    process::Stdio,
+    time::Duration,
+};
 
 impl Stop {
     fn signal(self) -> libc::c_int {

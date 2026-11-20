@@ -1,6 +1,11 @@
 use pnpm_lockfile::RegistryServerType;
 use serde::Deserialize;
-use std::{collections::BTreeMap, fmt, num::NonZeroUsize, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    num::NonZeroUsize,
+    sync::Arc,
+};
 
 /// The registry the built-in `@jsr` scope routes to when the user has not
 /// pointed it elsewhere.

@@ -1,4 +1,8 @@
-use super::{LinkFailure, LinkFallback, LinkFallbackPolicy};
+use super::{
+    LinkFailure,
+    LinkFallback,
+    LinkFallbackPolicy,
+};
 use pretty_assertions::assert_eq;
 use std::io;
 

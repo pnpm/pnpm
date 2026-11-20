@@ -1,13 +1,19 @@
 use crate::{
     base_project::GraphProject,
     dependency_rewriter::DependencyRewriter,
-    graph::{ProjectGraph, ProjectGraphNode},
+    graph::{
+        ProjectGraph,
+        ProjectGraphNode,
+    },
 };
 use indexmap::IndexMap;
 use node_semver::Version;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
-    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+    CatalogAnchor,
+    CatalogResolutionResult,
+    WantedDependency,
+    resolve_from_catalog,
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_fs::lexical_normalize;
@@ -18,7 +24,10 @@ use rayon::prelude::*;
 use std::{
     collections::HashMap,
     fmt,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// The workspace's catalogs, and the directory their relative paths are
@@ -143,15 +152,18 @@ where
     ProjectFields {
         node_keys: projects
             .iter()
-            .map(|project| project.root_dir().to_path_buf())
+            .map(super::base_project::BaseProject::root_dir)
+            .map(Path::to_path_buf)
             .collect(),
         names: projects
             .iter()
-            .map(|project| project.manifest_name().map(str::to_string))
+            .map(|project| project.manifest_name())
+            .map(|manifest_name| manifest_name.map(str::to_string))
             .collect(),
         versions: projects
             .iter()
-            .map(|project| project.manifest_version().map(str::to_string))
+            .map(|project| project.manifest_version())
+            .map(|manifest_version| manifest_version.map(str::to_string))
             .collect(),
         dependency_lists: projects
             .iter()
@@ -262,7 +274,7 @@ enum SpecKind<'a> {
     Directory(&'a str),
     /// A semver version or range, matched by name + version.
     VersionOrRange,
-    /// Neither (tag, git URL, `npm:` alias, ...) — no edge.
+    /// Neither (tag, git URL, `npm:` alias, ...), no edge.
     Skip,
 }
 
@@ -365,7 +377,7 @@ fn resolve_by_name_version(
 ) -> Option<PathBuf> {
     let candidates = lookups.by_name.get(dep_name)?;
 
-    if lookups.link_workspace_packages == Some(false) && !is_workspace_spec {
+    if !lookups.link_workspace_packages.unwrap_or(true) && !is_workspace_spec {
         unmatched.push(Unmatched { pkg_name: dep_name.to_string(), range: raw_spec.to_string() });
         return None;
     }

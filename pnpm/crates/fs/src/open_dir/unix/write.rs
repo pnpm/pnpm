@@ -2,12 +2,22 @@
 //! the old contents or the new ones and never a half-written file.
 
 use super::is_symlink_at;
-use crate::open_dir::{ChildWrite, unique_child_tmp_name};
+use crate::open_dir::{
+    ChildWrite,
+    unique_child_tmp_name,
+};
 use pnpm_ffi_fs::FileMode;
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::{
+        OsStr,
+        OsString,
+    },
     fs::File,
-    io::{self, ErrorKind, Write as _},
+    io::{
+        self,
+        ErrorKind,
+        Write as _,
+    },
 };
 
 /// How many names to try before giving up on finding a free one.

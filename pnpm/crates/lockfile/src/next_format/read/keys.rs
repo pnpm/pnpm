@@ -1,18 +1,40 @@
 //! Rebuilding each snapshot's peer-suffixed key from its providers.
 
 use super::{
-    super::{RestoreContext, tarjan},
-    Graph, Provider, Sid,
+    super::{
+        RestoreContext,
+        tarjan,
+    },
+    Graph,
+    Provider,
+    Sid,
 };
 use crate::{
-    DEFAULT_PEERS_SUFFIX_MAX_LENGTH, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer,
-    RecordedPeerBindings, name_version_from_package_key, patch_groups_from_hashes,
+    DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
+    PackageKey,
+    PackageMetadata,
+    PkgName,
+    PkgNameVerPeer,
+    RecordedPeerBindings,
+    name_version_from_package_key,
+    patch_groups_from_hashes,
 };
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
-use pnpm_patching_config::{PatchGroupRecord, get_patch_info};
+use pnpm_deps_path::{
+    DepPath,
+    PeerId,
+    create_peer_dep_graph_hash,
+    link_path_to_peer_version,
+};
+use pnpm_patching_config::{
+    PatchGroupRecord,
+    get_patch_info,
+};
 use rayon::prelude::*;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     sync::Arc,
 };
 
@@ -239,7 +261,7 @@ impl SuffixRules {
             .and_then(|settings| settings.peers_suffix_max_length)
             .unwrap_or(DEFAULT_PEERS_SUFFIX_MAX_LENGTH);
         SuffixRules {
-            dedupe: settings.is_some_and(|settings| settings.dedupe_peers == Some(true)),
+            dedupe: settings.is_some_and(|settings| settings.dedupe_peers.unwrap_or(false)),
             max_length: usize::try_from(max_length).unwrap_or(usize::MAX),
         }
     }

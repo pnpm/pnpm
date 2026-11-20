@@ -10,15 +10,26 @@
 //! 3. the same sync after a source edit;
 //! 4. a frozen install into a clean tree.
 
-use crate::_utils::{WorkspaceFixture, assert_success, copy_sources, walk_files};
+use crate::_utils::{
+    WorkspaceFixture,
+    assert_success,
+    copy_sources,
+    walk_files,
+};
 
 use std::{
     collections::BTreeMap,
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 #[derive(Debug, Clone, Copy)]
 struct Layout {

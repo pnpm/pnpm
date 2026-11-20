@@ -1,7 +1,18 @@
 use super::{
-    BTreeMap, ConfigDependency, EnvLockfile, HashMap, LockfileResolution, PackageKey,
-    SilentReporter, TempDir, build_resolver, harness, integrity_of, options,
-    resolve_and_install_config_deps, tarball_url_of,
+    BTreeMap,
+    ConfigDependency,
+    EnvLockfile,
+    HashMap,
+    LockfileResolution,
+    PackageKey,
+    SilentReporter,
+    TempDir,
+    build_resolver,
+    harness,
+    integrity_of,
+    options,
+    resolve_and_install_config_deps,
+    tarball_url_of,
 };
 
 /// Reaching the registry under a different host spelling than the one it

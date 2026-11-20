@@ -2,7 +2,10 @@ use super::HoistedModulesDirs;
 use std::{
     collections::HashSet,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Pre-create the destination parents serially — cheap, deduplicated,

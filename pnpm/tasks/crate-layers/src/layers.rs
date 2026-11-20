@@ -1,9 +1,18 @@
 use crate::{
-    graph::{CrateGraph, Edge},
-    problem::{Metric, Problem},
+    graph::{
+        CrateGraph,
+        Edge,
+    },
+    problem::{
+        Metric,
+        Problem,
+    },
 };
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -162,7 +171,7 @@ impl Layers {
     fn upward_edges<'graph>(&self, graph: &'graph CrateGraph) -> Vec<&'graph Edge> {
         let linked = graph.edges.iter().filter(|edge| edge.kind.is_linked());
         linked
-            .filter(|edge| self.is_upward(edge) == Some(true))
+            .filter(|edge| self.is_upward(edge).unwrap_or(false))
             .collect()
     }
 

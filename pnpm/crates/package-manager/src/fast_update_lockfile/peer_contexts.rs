@@ -1,7 +1,16 @@
 use super::{
-    DroppedEdges, Lockfile, PkgNameVerPeer, peer_id_of, reachable_from_keys, snapshot_child_keys,
+    DroppedEdges,
+    Lockfile,
+    PkgNameVerPeer,
+    peer_id_of,
+    reachable_from_keys,
+    snapshot_child_keys,
 };
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
 
 pub(crate) fn peer_sensitive_packages(lockfile: &Lockfile) -> HashSet<PkgNameVerPeer> {
     let mut parents: HashMap<PkgNameVerPeer, Vec<PkgNameVerPeer>> = HashMap::new();

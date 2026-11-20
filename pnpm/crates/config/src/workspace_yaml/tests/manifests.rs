@@ -1,6 +1,11 @@
 use super::{
-    Config, LoadWorkspaceYamlError, Pipe, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    assert_eq, fs,
+    Config,
+    LoadWorkspaceYamlError,
+    Pipe,
+    WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
+    assert_eq,
+    fs,
 };
 
 /// Pnpm's `readManifestRaw` only treats `ENOENT` as "no manifest" and

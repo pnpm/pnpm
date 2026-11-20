@@ -1,6 +1,12 @@
 use super::{
-    JsonValue, NpmResolutionVerifier, PkgName, ResolutionVerification,
-    TRUST_DOWNGRADE_VIOLATION_CODE, TrustCheckOptions, TrustPolicy, fail_if_trust_downgraded,
+    JsonValue,
+    NpmResolutionVerifier,
+    PkgName,
+    ResolutionVerification,
+    TRUST_DOWNGRADE_VIOLATION_CODE,
+    TrustCheckOptions,
+    TrustPolicy,
+    fail_if_trust_downgraded,
     format_trust_violation,
 };
 
@@ -18,7 +24,12 @@ impl NpmResolutionVerifier {
             "variationResolutionsVerified",
         ]
         .into_iter()
-        .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
+        .all(|flag| {
+            cached_policy
+                .get(flag)
+                .and_then(JsonValue::as_bool)
+                .unwrap_or(false)
+        });
         if !recorded_every_unconditional_rule {
             return false;
         }

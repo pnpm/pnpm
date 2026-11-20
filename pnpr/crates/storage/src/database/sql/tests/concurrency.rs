@@ -1,12 +1,29 @@
 //! Concurrent writers, restarts, and lost commits.
 
-use super::{Db, blobs, config, npm, packument, read, storage, try_write, write};
-use crate::{DocumentWrite, Storage, database::SqlDatabase};
+use super::{
+    Db,
+    blobs,
+    config,
+    npm,
+    packument,
+    read,
+    storage,
+    try_write,
+    write,
+};
+use crate::{
+    DocumentWrite,
+    Storage,
+    database::SqlDatabase,
+};
 use futures_util::future::join_all;
 use pnpr_error::RegistryError;
 use serde_json::json;
 use std::{
-    sync::{Arc, mpsc},
+    sync::{
+        Arc,
+        mpsc,
+    },
     time::Duration,
 };
 use tempfile::TempDir;
@@ -163,7 +180,10 @@ async fn a_transaction_cut_off_before_commit_leaves_nothing() {
 
 #[test]
 fn a_busy_database_is_a_conflict_that_a_rerun_may_clear() {
-    use super::super::{adapter::Adapter, sqlite::SqliteAdapter};
+    use super::super::{
+        adapter::Adapter,
+        sqlite::SqliteAdapter,
+    };
     let tmp = TempDir::new().unwrap();
     let adapter = SqliteAdapter::open(&tmp.path().join("metadata.sqlite")).unwrap();
     let failure = |code| {
@@ -176,7 +196,11 @@ fn a_busy_database_is_a_conflict_that_a_rerun_may_clear() {
 
 #[test]
 fn a_failed_commit_is_rolled_back() {
-    use super::super::{adapter::Adapter, batch::WriteTransaction, sqlite::SqliteAdapter};
+    use super::super::{
+        adapter::Adapter,
+        batch::WriteTransaction,
+        sqlite::SqliteAdapter,
+    };
     let tmp = TempDir::new().unwrap();
     let adapter = SqliteAdapter::open(&tmp.path().join("metadata.sqlite")).unwrap();
     adapter
@@ -201,7 +225,10 @@ fn a_failed_commit_is_rolled_back() {
 
 #[test]
 fn a_write_left_in_its_transaction_does_not_block_the_next() {
-    use super::super::{adapter::Adapter, sqlite::SqliteAdapter};
+    use super::super::{
+        adapter::Adapter,
+        sqlite::SqliteAdapter,
+    };
     let tmp = TempDir::new().unwrap();
     let adapter = SqliteAdapter::open(&tmp.path().join("metadata.sqlite")).unwrap();
     let err = adapter

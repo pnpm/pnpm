@@ -1,9 +1,16 @@
 use super::response;
-use axum::{Router, body::to_bytes, routing::get};
+use axum::{
+    Router,
+    body::to_bytes,
+    routing::get,
+};
 use hyper::ext::ReasonPhrase;
 use pnpr_error::RegistryError;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{
+    AsyncReadExt,
+    AsyncWriteExt,
+};
 
 #[tokio::test]
 async fn upload_failure_reason_is_written_on_the_http1_status_line() {

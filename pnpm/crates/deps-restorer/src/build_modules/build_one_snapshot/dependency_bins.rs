@@ -1,9 +1,23 @@
-use super::{BuildModulesError, BuildOneSnapshot, PackageKey};
+use super::{
+    BuildModulesError,
+    BuildOneSnapshot,
+    PackageKey,
+};
 use crate::build_options::HoistedBinPlans;
-use pnpm_cmd_shim::{DirectoryBinPlan, Host, LinkBinsOptions};
+use pnpm_cmd_shim::{
+    DirectoryBinPlan,
+    Host,
+    LinkBinsOptions,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 #[cfg(test)]

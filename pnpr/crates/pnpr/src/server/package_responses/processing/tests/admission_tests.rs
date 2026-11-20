@@ -1,11 +1,23 @@
 use super::{
-    AppState, Arc, AtomicBool, CanonicalPackageName, Config, MockConfigPresets, Ordering,
-    PackumentProcessing, TempDir, Workers, document,
+    AppState,
+    Arc,
+    AtomicBool,
+    CanonicalPackageName,
+    Config,
+    MockConfigPresets,
+    Ordering,
+    PackumentProcessing,
+    TempDir,
+    Workers,
+    document,
 };
 
 #[tokio::test]
 async fn admission_precedes_polling_the_source_loader() {
-    use std::{future::Future, task::Poll};
+    use std::{
+        future::Future,
+        task::Poll,
+    };
     let processing = PackumentProcessing {
         admissions: super::super::admission::Admissions::new(1),
         ..PackumentProcessing::default()
@@ -66,7 +78,10 @@ async fn slow_upstream_misses_do_not_block_a_fresh_cached_package() {
     use axum::{
         Router,
         body::Body,
-        http::{Request, StatusCode},
+        http::{
+            Request,
+            StatusCode,
+        },
         routing::get,
     };
     use tower::ServiceExt;
@@ -142,7 +157,10 @@ async fn slow_upstream_misses_do_not_block_a_fresh_cached_package() {
 
 #[tokio::test]
 async fn upstream_admission_has_an_instance_wide_bound() {
-    use super::super::admission::{Admissions, DocumentSource};
+    use super::super::admission::{
+        Admissions,
+        DocumentSource,
+    };
     use std::future::Future;
 
     let admissions = Admissions::new(2);
@@ -262,7 +280,12 @@ struct ControlledUpstream {
 }
 
 async fn controlled_upstream(cache: bool, capacity: usize) -> ControlledUpstream {
-    use axum::{Json, Router, extract::Path, routing::get};
+    use axum::{
+        Json,
+        Router,
+        extract::Path,
+        routing::get,
+    };
 
     let release = Arc::new(tokio::sync::Notify::new());
     let origin_release = Arc::clone(&release);

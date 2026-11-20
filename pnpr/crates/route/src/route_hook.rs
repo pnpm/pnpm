@@ -1,9 +1,26 @@
-use pnpm_network::{AddressGuard, LocalResponse};
+use pnpm_network::{
+    AddressGuard,
+    LocalResponse,
+};
 
 use super::{
-    AUTHORIZATION, Arc, Footprint, Identity, LocalFetch, MetadataCacheScope, Mutex,
-    PrivateAccessDescriptor, ResolvedAlias, RouteClass, RouteContext, UpstreamConfig,
-    UpstreamRouteHook, fmt, headers_credential_digest, nerf_prefix, scheme_of,
+    AUTHORIZATION,
+    Arc,
+    Footprint,
+    Identity,
+    LocalFetch,
+    MetadataCacheScope,
+    Mutex,
+    PrivateAccessDescriptor,
+    ResolvedAlias,
+    RouteClass,
+    RouteContext,
+    UpstreamConfig,
+    UpstreamRouteHook,
+    fmt,
+    headers_credential_digest,
+    nerf_prefix,
+    scheme_of,
 };
 
 /// The [`UpstreamRouteHook`] pnpr installs on a resolve's
@@ -23,7 +40,7 @@ pub struct RouteHook {
 }
 
 impl fmt::Debug for RouteHook {
-    /// Redacts `Self::secret` — the descriptor-HMAC key must never reach a
+    /// Redacts `Self::secret`, the descriptor-HMAC key must never reach a
     /// log line or panic dump, or the private namespace becomes correlatable.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RouteHook")
@@ -101,10 +118,23 @@ impl UpstreamRouteHook for RouteHook {
     fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
         let local_package = self.context.local_package(url);
         let package = local_package.as_deref().or(package);
-        // Read-only classification — this must not record into the
+        // Read-only classification; this must not record into the
         // footprint (`authorize` already does, at the real fetch point).
         match self.context.classify(&self.identity, url, package) {
-            RouteClass::Public => MetadataCacheScope::Public,
+            RouteClass::Public => {
+                if self.context.is_denied_own_package(&self.identity, url, package) {
+                    MetadataCacheScope::Private {
+                        descriptor_id: super::footprint::denied_digest_id(
+                            &self.identity,
+                            url,
+                            package,
+                            &self.secret,
+                        ),
+                    }
+                } else {
+                    MetadataCacheScope::Public
+                }
+            }
             RouteClass::Hosted { policy_id } => MetadataCacheScope::Private {
                 descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }.digest_id(
                     &self.secret,
@@ -137,7 +167,8 @@ impl ResolvedAlias {
         let authorization = upstream.headers
             .get(AUTHORIZATION)
             .filter(|_| !upstream.public)
-            .and_then(|value| value.to_str().ok())
+            .map(reqwest::header::HeaderValue::to_str)
+            .and_then(Result::ok)
             .map(str::to_string);
         Some(Self {
             name: name.to_string(),

@@ -1,5 +1,12 @@
-use super::{ArtifactPayload, BuilderProfile, SignedArtifactEnvelope};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use super::{
+    ArtifactPayload,
+    BuilderProfile,
+    SignedArtifactEnvelope,
+};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
 use pnpm_shared_artifact_protocol::ArtifactProtocolError;
 use std::collections::BTreeMap;
 

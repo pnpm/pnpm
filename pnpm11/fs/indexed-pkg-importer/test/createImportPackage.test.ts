@@ -450,3 +450,57 @@ test('a blocker replaced by the directory it was in the way of does not fail a s
   }).not.toThrow()
   expect(inspections).toBeGreaterThan(1)
 })
+
+testOnLinuxOnly('packageImportMethod=clone-or-copy and auto: safeToSkip shared-slot hit does not lock in cloning before probing reflinks', () => {
+  const sharedSlot = path.join('project', 'shared-slot')
+  fs.mkdirSync(sharedSlot, { recursive: true })
+  fs.writeFileSync(path.join(sharedSlot, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(sharedSlot, 'index.js'), 'console.log(1)')
+
+  const sharedStat = fs.statSync(path.join(sharedSlot, 'package.json'), { bigint: true })
+  jest.mocked(gfs.statSync).mockImplementation(((file: string) => {
+    if (file === 'hash1') return fs.statSync(path.join(sharedSlot, 'package.json'), { bigint: true })
+    if (file === 'hash2') return fs.statSync(path.join(sharedSlot, 'index.js'), { bigint: true })
+    return sharedStat
+  }) as unknown as typeof gfs.statSync)
+  // Mirror @reflink/reflink on Windows NTFS: throws an Error with no `.code`
+  // property when copy-on-write cloning is unsupported.
+  jest.mocked(gfs.copyFileSync).mockImplementation((_src, _dest, flags?: number) => {
+    if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
+      throw new Error('Source volume does not support copy-on-write')
+    }
+  })
+  jest.mocked(gfs.linkSync).mockImplementation(() => {})
+
+  const filesMap = new Map([
+    ['index.js', 'hash2'],
+    ['package.json', 'hash1'],
+  ])
+
+  const cloneOrCopy = createIndexedPkgImporter('clone-or-copy')
+  expect(cloneOrCopy(sharedSlot, {
+    filesMap,
+    force: false,
+    resolvedFrom: 'remote',
+    safeToSkip: true,
+  })).toBeUndefined()
+  expect(cloneOrCopy('project2/staged', {
+    filesMap,
+    force: true,
+    resolvedFrom: 'remote',
+  })).toBe('copy')
+
+  fs.rmSync('project2', { recursive: true, force: true })
+  const autoImporter = createIndexedPkgImporter('auto')
+  expect(autoImporter(sharedSlot, {
+    filesMap,
+    force: false,
+    resolvedFrom: 'remote',
+    safeToSkip: true,
+  })).toBeUndefined()
+  expect(autoImporter('project2/staged', {
+    filesMap,
+    force: true,
+    resolvedFrom: 'remote',
+  })).toBe('hardlink')
+})

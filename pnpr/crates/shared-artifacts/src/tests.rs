@@ -15,34 +15,88 @@ use std::{
     fmt,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{
+            AtomicBool,
+            AtomicUsize,
+            Ordering,
+        },
     },
-    time::{Duration, Instant},
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use futures_util::{StreamExt as _, stream::BoxStream};
+use base64::{
+    Engine as _,
+    engine::general_purpose::STANDARD as BASE64,
+};
+use futures_util::{
+    StreamExt as _,
+    stream::BoxStream,
+};
 use object_store::{
-    CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    ObjectStoreExt, PutMultipartOptions, PutOptions, PutPayload, PutResult, RenameOptions,
-    memory::InMemory, path::Path as ObjectPath,
+    CopyOptions,
+    GetOptions,
+    GetResult,
+    ListResult,
+    MultipartUpload,
+    ObjectMeta,
+    ObjectStore,
+    ObjectStoreExt,
+    PutMultipartOptions,
+    PutOptions,
+    PutPayload,
+    PutResult,
+    RenameOptions,
+    memory::InMemory,
+    path::Path as ObjectPath,
 };
 use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, ArtifactVariant, BuilderProfile, CompatibilityConstraints,
-    MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, ResolveArtifactsRequest, ResolveArtifactsResponse, ResolvedArtifact,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    ARTIFACT_KIND,
+    ArtifactBlobUpload,
+    ArtifactCandidate,
+    ArtifactFile,
+    ArtifactManifest,
+    ArtifactPayload,
+    ArtifactSubject,
+    ArtifactVariant,
+    BuilderProfile,
+    CompatibilityConstraints,
+    MAX_RESOLVE_RESPONSE_SIZE,
+    MAX_VARIANTS_PER_CANDIDATE,
+    OwnerScope,
+    PackageIdentity,
+    PublishArtifactRequest,
+    ResolveArtifactsRequest,
+    ResolveArtifactsResponse,
+    ResolvedArtifact,
+    SIGNATURE_ALGORITHM,
+    SignedArtifactEnvelope,
+    WORKSPACE_TASK_ARTIFACT_KIND,
 };
-use pnpr_config::{ArtifactQuota, HostedStoreConfig, normalize_key_prefix};
+use pnpr_config::{
+    ArtifactQuota,
+    HostedStoreConfig,
+    normalize_key_prefix,
+};
 use pnpr_error::RegistryError;
-use sha2::{Digest as _, Sha512};
+use sha2::{
+    Digest as _,
+    Sha512,
+};
 use tempfile::TempDir;
 
 use super::{
-    ArtifactUsage, CompilerCacheKey, ResolveBudget, SharedArtifactStore, artifact_operation_id,
-    is_variant_file, is_write_conflict, owner_key,
+    ArtifactUsage,
+    CompilerCacheKey,
+    ResolveBudget,
+    SharedArtifactStore,
+    artifact_operation_id,
+    is_variant_file,
+    is_write_conflict,
+    owner_key,
 };
 
 fn lookup(owner: &str) -> ResolveArtifactsRequest {
@@ -63,7 +117,7 @@ fn publication(builder_id: &str) -> PublishArtifactRequest {
 }
 
 /// One input key admits one artifact per set of compatibility constraints, so a
-/// test wanting several of them for one dependency has to vary the platform —
+/// test wanting several of them for one dependency has to vary the platform,
 /// which is the only reason a second artifact for one input is legitimate.
 fn for_platform(mut request: PublishArtifactRequest, index: usize) -> PublishArtifactRequest {
     let mut payload: ArtifactPayload =
@@ -185,7 +239,7 @@ struct FailArtifactWrites {
     fail_deletes: bool,
     /// Stands in for a publication whose constraints merely overlap this one's.
     /// It lands once this one's variant is written, which is after the overlap
-    /// scan found the entry clear — the window a conditional create on a
+    /// scan found the entry clear, the window a conditional create on a
     /// different path cannot close. Writes pass through rather than failing.
     publish_overlapping_after_create: Option<(String, Vec<u8>)>,
     /// Fails reads of this path, so a scan that reaches it cannot finish.
@@ -207,8 +261,8 @@ struct QuotaFaults {
     /// conflict the loser would see.
     claim_slot_first: Option<(String, Vec<u8>)>,
     /// Fails reads of the slot *after* the first, so the pre-check still finds
-    /// it free and the failure lands on the re-read that follows a lost create
-    /// — the only point where the loser is charged for what it did not store.
+    /// it free and the failure lands on the re-read that follows a lost create,
+    /// the only point where the loser is charged for what it did not store.
     fail_slot_read_after_first: Option<Arc<AtomicUsize>>,
     /// Counts writes of the usage document, which is what a reservation and a
     /// release each cost against a hosted store.
@@ -217,7 +271,7 @@ struct QuotaFaults {
 
 #[derive(Debug)]
 enum FailOnly {
-    /// The quota write that follows this path being stored — the registration a
+    /// The quota write that follows this path being stored, the registration a
     /// publication takes again once its artifact is durable, rather than the
     /// reservation that precedes it.
     RegistrationAfter(String),

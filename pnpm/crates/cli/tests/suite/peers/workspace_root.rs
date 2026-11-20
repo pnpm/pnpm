@@ -1,8 +1,17 @@
-use super::{run_peers, write_linked_chain_project};
+use super::{
+    run_peers,
+    write_linked_chain_project,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
+use std::{
+    fs,
+    process::Command,
+};
 
 /// In a workspace with autoInstallPeers: false and
 /// strictPeerDependencies: true, a linked workspace package's peer dependency
@@ -228,7 +237,10 @@ fn run_peer_fixture(
 }
 
 fn write_peer_provider(fixture: &crate::_utils::WorkspaceFixture, location: &str) {
-    use crate::_utils::{ManifestDeps, write_project_manifest};
+    use crate::_utils::{
+        ManifestDeps,
+        write_project_manifest,
+    };
     let providers = ManifestDeps {
         prod: &[("@pnpm.e2e/peer-a", "1.0.0"), ("@pnpm.e2e/peer-c", "1.0.0")],
         ..ManifestDeps::default()
@@ -259,7 +271,12 @@ fn check_peer_reuse(
     settings: PeerReuseSettings,
     provider_location: &str,
 ) {
-    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, ndjson_records};
+    use crate::_utils::{
+        ManifestDeps,
+        WorkspaceFixture,
+        assert_success,
+        ndjson_records,
+    };
     let PeerReuseSettings { auto_install, dedupe, from_root } = settings;
     let root_provider = provider_location == "root";
     let fixture = WorkspaceFixture::new();
@@ -349,7 +366,12 @@ fn check_reuse_warning(fixture: &crate::_utils::WorkspaceFixture, expected: bool
 
 #[test]
 fn reused_required_peer_executable_availability() {
-    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success, read_v11_bundle_path};
+    use crate::_utils::{
+        ManifestDeps,
+        WorkspaceFixture,
+        assert_success,
+        read_v11_bundle_path,
+    };
 
     let bundle = read_v11_bundle_path();
     for cli in std::iter::once(None).chain(bundle.as_deref().map(Some)) {
@@ -402,7 +424,11 @@ fn reused_required_peer_executable_availability() {
 /// <https://github.com/orgs/pnpm/discussions/16666>
 #[test]
 fn turning_off_dedupe_peer_dependents_drops_an_optional_peer_another_project_provided() {
-    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success};
+    use crate::_utils::{
+        ManifestDeps,
+        WorkspaceFixture,
+        assert_success,
+    };
 
     let bundle = crate::_utils::read_v11_bundle_path();
     for cli in std::iter::once(None).chain(bundle.as_deref().map(Some)) {
@@ -461,7 +487,11 @@ fn turning_off_dedupe_peer_dependents_drops_an_optional_peer_another_project_pro
 
 #[test]
 fn project_scoped_optional_peers_keep_another_projects_optional_peer_out() {
-    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success};
+    use crate::_utils::{
+        ManifestDeps,
+        WorkspaceFixture,
+        assert_success,
+    };
 
     let fixture = WorkspaceFixture::new();
     fixture.append_workspace_yaml("dedupePeerDependents: true\nprojectScopedOptionalPeers: true\n");
@@ -503,7 +533,11 @@ fn project_scoped_optional_peers_keep_another_projects_optional_peer_out() {
 
 #[test]
 fn turning_on_project_scoped_optional_peers_re_resolves_the_lockfile() {
-    use crate::_utils::{ManifestDeps, WorkspaceFixture, assert_success};
+    use crate::_utils::{
+        ManifestDeps,
+        WorkspaceFixture,
+        assert_success,
+    };
 
     let fixture = WorkspaceFixture::new();
     fixture.write_root_manifest("root", ManifestDeps::default());

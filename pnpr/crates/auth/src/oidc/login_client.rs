@@ -2,9 +2,21 @@
 //! discovered metadata and the client-secret method it advertises.
 
 use super::{
-    AuthType, ClientId, ClientSecret, CoreClient, CoreClientAuthMethod, CoreProviderMetadata,
-    EndpointMaybeSet, EndpointNotSet, EndpointSet, OidcState, Provider, RedirectUrl, Result,
-    invalid_config, rejected,
+    AuthType,
+    ClientId,
+    ClientSecret,
+    CoreClient,
+    CoreClientAuthMethod,
+    CoreProviderMetadata,
+    EndpointMaybeSet,
+    EndpointNotSet,
+    EndpointSet,
+    OidcState,
+    Provider,
+    RedirectUrl,
+    Result,
+    invalid_config,
+    rejected,
 };
 
 pub(super) type LoginClient = CoreClient<
@@ -44,7 +56,10 @@ impl OidcState {
         Ok(CoreClient::from_provider_metadata(
             metadata,
             ClientId::new(config.audience.clone()),
-            login.client_secret.clone().map(|secret| ClientSecret::new(secret.into_inner())),
+            login.client_secret
+                .clone()
+                .map(pnpr_config::Secret::into_inner)
+                .map(ClientSecret::new),
         )
         .set_auth_type(auth_type)
         .set_redirect_uri(

@@ -1,5 +1,11 @@
 use super::{
-    Ledger, assemble, assemble_with_unpublished, assert_eq, make_intent, make_project, on_lane,
+    Ledger,
+    assemble,
+    assemble_with_unpublished,
+    assert_eq,
+    make_intent,
+    make_project,
+    on_lane,
     release,
 };
 

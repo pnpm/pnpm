@@ -2,18 +2,34 @@
 //! [`super::get_hoistable_optional_peers`], and
 //! [`super::peer_shadowed_dependencies`].
 
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use std::{collections::BTreeMap, path::Path, sync::LazyLock};
+use rustc_hash::{
+    FxHashMap as HashMap,
+    FxHashSet as HashSet,
+};
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::LazyLock,
+};
 
 use pnpm_resolving_resolver_base::{
-    PreferredVersions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    PreferredVersions,
+    VersionSelectorEntry,
+    VersionSelectorType,
+    VersionSelectorWithWeight,
 };
 use pretty_assertions::assert_eq;
 
 use super::{
-    HoistPeersOptions, MissingPeerInfo, ProviderTiers, WorkspaceRootDep,
-    get_hoistable_optional_peers, get_hoistable_optional_peers_with_preferred_versions,
-    hoist_peers, optional_peer_specifier, peer_shadowed_dependencies,
+    HoistPeersOptions,
+    MissingPeerInfo,
+    ProviderTiers,
+    WorkspaceRootDep,
+    get_hoistable_optional_peers,
+    get_hoistable_optional_peers_with_preferred_versions,
+    hoist_peers,
+    optional_peer_specifier,
+    peer_shadowed_dependencies,
 };
 use crate::parent_pkg_aliases::ParentPkgAliases;
 
@@ -952,7 +968,12 @@ fn auto_install_peers_keeps_an_out_of_scope_optional_peer_as_a_dependency() {
 
 #[test]
 fn locked_provider_eligibility_depends_on_requirement_and_scope() {
-    use super::{LockedProvider, PeerScope, ProviderPick, provider_for};
+    use super::{
+        LockedProvider,
+        PeerScope,
+        ProviderPick,
+        provider_for,
+    };
     use crate::PeerDep;
 
     for flags in 0..8 {

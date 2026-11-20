@@ -1,21 +1,42 @@
 use crate::{
     ConfigDepError,
-    manifest_lockfile::{package_metadata, read_dependency_map},
+    manifest_lockfile::{
+        package_metadata,
+        read_dependency_map,
+    },
     options::ConfigDepsInstallOptions,
     prune_env_lockfile,
     resolve_optional_subdeps::resolution_has_integrity,
-    verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile},
+    verify_env_lockfile::{
+        verify_env_lockfile,
+        write_verified_env_lockfile,
+    },
 };
 use pnpm_config::PNPM_VERSION;
 use pnpm_lockfile::{
-    EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, TarballResolution,
+    EnvLockfile,
+    LockfileResolution,
+    PackageKey,
+    PkgName,
+    PkgVerPeer,
+    RegistryResolution,
+    SnapshotDepRef,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
 };
 use pnpm_resolving_resolver_base::{
-    NoMatchingVersionError, ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    NoMatchingVersionError,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    WantedDependency,
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{
+        BTreeMap,
+        HashMap,
+    },
     path::PathBuf,
 };
 
@@ -23,15 +44,15 @@ const PACKAGE_MANAGER_DEPS_WITH_EXE: [&str; 2] = ["pnpm", "@pnpm/exe"];
 const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
-/// Resolve the closure of `package_manager_deps` — the packages a package
-/// manager is installed from — at `version`, record it in the env lockfile
+/// Resolve the closure of `package_manager_deps` (the packages a package
+/// manager is installed from) at `version`, record it in the env lockfile
 /// at `opts.root_dir`, and return that lockfile.
 ///
 /// `force_resync` skips the recorded-entries fast path, so entries that look
 /// up to date but are invalid (e.g. resolutions carrying tarball URLs
 /// written by an earlier pnpm) are discarded and re-resolved. Such entries
-/// already record the version the manifest pins — only pnpm's own reading of
-/// them is at stake — so under `opts.lockfile.frozen` the re-resolution
+/// already record the version the manifest pins (only pnpm's own reading of
+/// them is at stake) so under `opts.lockfile.frozen` the re-resolution
 /// happens in memory and the lockfile is left untouched, rather than failing
 /// a command the manifest and the lockfile agree on. Entries that do not
 /// record the pinned version are the case `--frozen-lockfile` exists for and
@@ -188,7 +209,7 @@ async fn record_package(
 }
 
 /// Rewrite a registry tarball resolution to integrity-only form, dropping
-/// tarball URLs a registry advertises on a host other than its own —
+/// tarball URLs a registry advertises on a host other than its own,
 /// load-balanced proxies and Artifactory-style mirrors do this, see
 /// <https://github.com/pnpm/pnpm/issues/13619>. The package-manager
 /// bootstrap never fetches a URL recorded in the lockfile: the download URL

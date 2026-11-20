@@ -1,14 +1,29 @@
+use command_extra::CommandExtra;
 mod backtracking;
 mod compatibility;
 mod frozen;
 
 use super::{
-    approve, assert_failure_contains, project, python, python_project, serve, serve_backends, wheel,
+    approve,
+    assert_failure_contains,
+    project,
+    python,
+    python_project,
+    serve,
+    serve_backends,
+    wheel,
 };
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
-use sha2::{Digest, Sha256};
-use std::{fs, path::Path, process::Command};
+use sha2::{
+    Digest,
+    Sha256,
+};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 use url::Url;
 
 #[tokio::test]
@@ -47,22 +62,22 @@ async fn direct_and_uv_url_wheels_are_hashed_and_replayed_offline() {
         }
         declare_platforms(root.path());
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         assert!(lock.contains(&digest), "lock: {lock}");
-        python(root.path()).args(["-c", "import alpha, helper; import importlib.metadata as m, json; print(json.loads(m.distribution('alpha').read_text('direct_url.json'))['archive_info']['hashes']['sha256'])"])
+        python(root.path()).with_args(["-c", "import alpha, helper; import importlib.metadata as m, json; print(json.loads(m.distribution('alpha').read_text('direct_url.json'))['archive_info']['hashes']['sha256'])"])
             .assert().success().stdout(format!("{digest}{}", if cfg!(windows) { "\r\n" } else { "\n" }));
         artifact.assert_async().await;
         index.assert_async().await;
         pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
         pacquet_in(root.path())
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         python(root.path())
-            .args(["-c", "import alpha, helper"])
+            .with_args(["-c", "import alpha, helper"])
             .assert()
             .success();
         assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
@@ -82,11 +97,14 @@ async fn direct_wheel_hashes_and_identities_are_verified() {
         .await;
     let url = format!("{}/alpha-1.0-py3-none-any.whl", server.url());
     project(root.path(), &server.url(), &[&format!("alpha @ {url}#sha256={}", "0".repeat(64))]);
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "integrity");
+    assert_failure_contains(&mut pacquet_in(root.path()).with_arg("install"), "integrity");
     artifact.assert_async().await;
     let digest = format!("{:x}", Sha256::digest(&archive));
     project(root.path(), &server.url(), &[&format!("other @ {url}#sha256={digest}")]);
-    assert_failure_contains(pacquet_in(root.path()).arg("install"), "names a wheel of alpha");
+    assert_failure_contains(
+        &mut pacquet_in(root.path()).with_arg("install"),
+        "names a wheel of alpha",
+    );
     assert!(!root.path().join("pylock.toml").exists(), "failed install published a lockfile");
 }
 
@@ -109,15 +127,15 @@ async fn a_transitive_direct_wheel_is_not_resolved_from_the_index() {
         .await;
     project(root.path(), &server.url(), &["alpha"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import alpha, helper"])
+        .with_args(["-c", "import alpha, helper"])
         .assert()
         .success();
     artifact.assert_async().await;
@@ -125,9 +143,9 @@ async fn a_transitive_direct_wheel_is_not_resolved_from_the_index() {
 
 fn git(root: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
-        .args(["-c", "commit.gpgSign=false", "-c", "tag.gpgSign=false"])
-        .current_dir(root)
-        .args(args)
+        .with_args(["-c", "commit.gpgSign=false", "-c", "tag.gpgSign=false"])
+        .with_current_dir(root)
+        .with_args(args)
         .output()
         .unwrap();
     assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
@@ -195,8 +213,8 @@ async fn git_revisions_and_direct_requirements_pin_commits_and_replay_offline() 
         declare_platforms(root.path());
         let trace = root.path().join("git-trace");
         pacquet_in(root.path())
-            .env("GIT_TRACE", &trace)
-            .arg("install")
+            .with_env("GIT_TRACE", &trace)
+            .with_arg("install")
             .assert()
             .success();
         let invocations = fs::read_to_string(&trace).unwrap();
@@ -204,12 +222,12 @@ async fn git_revisions_and_direct_requirements_pin_commits_and_replay_offline() 
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         assert!(lock.contains(&format!(r#"commit-id = "{commit}""#)), "lock: {lock}");
         assert!(!lock.contains("packages.directory"), "git source locked as a directory: {lock}");
-        python(root.path()).args(["-c", "import fork, importlib.metadata as m, json; print(fork.MARKER); print(json.loads(m.distribution('fork').read_text('direct_url.json'))['vcs_info']['commit_id'])"])
+        python(root.path()).with_args(["-c", "import fork, importlib.metadata as m, json; print(fork.MARKER); print(json.loads(m.distribution('fork').read_text('direct_url.json'))['vcs_info']['commit_id'])"])
             .assert().success().stdout(format!("workspace fork{newline}{commit}{newline}", newline=if cfg!(windows) { "\r\n" } else { "\n" }));
         pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
         pacquet_in(root.path())
-            .env("GIT_ALLOW_PROTOCOL", "https")
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_env("GIT_ALLOW_PROTOCOL", "https")
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
@@ -217,7 +235,7 @@ async fn git_revisions_and_direct_requirements_pin_commits_and_replay_offline() 
         fs::write(root.path().join("pyproject.toml"), manifest.replace(revision, "different"))
             .unwrap();
         assert_failure_contains(
-            pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]),
+            &mut pacquet_in(root.path()).with_args(["install", "--offline", "--frozen-lockfile"]),
             "requirements changed",
         );
     }
@@ -231,7 +249,7 @@ async fn a_git_dependency_is_not_built_without_its_own_approval() {
     let server = mockito::Server::new_async().await;
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@{commit}")]);
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "requires approval of pkg:pypi/fork",
     );
 }
@@ -246,11 +264,11 @@ async fn inactive_url_requirements_are_not_fetched() {
         &["alpha @ https://example.invalid/alpha-1.0-py3-none-any.whl ; sys_platform == 'never'"],
     );
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
 }
@@ -284,14 +302,14 @@ async fn transitive_urls_selected_by_extras_replay_from_the_lockfile() {
         .await;
     project(root.path(), &server.url(), &["alpha[helpers]"]);
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
-    python(root.path()).args(["-c", "import alpha, helper; import importlib.metadata as m, json; assert json.loads(m.distribution('helper').read_text('direct_url.json'))['archive_info']['hashes']['sha256']"]).assert().success();
+    python(root.path()).with_args(["-c", "import alpha, helper; import importlib.metadata as m, json; assert json.loads(m.distribution('helper').read_text('direct_url.json'))['archive_info']['hashes']['sha256']"]).assert().success();
     artifact.assert_async().await;
 }
 
@@ -323,7 +341,7 @@ async fn a_git_subdirectory_stays_at_its_locked_commit_when_the_branch_moves() {
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@main#subdirectory=python")]);
     approve(root.path(), "fork");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -334,22 +352,22 @@ async fn a_git_subdirectory_stays_at_its_locked_commit_when_the_branch_moves() {
         &["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "move"],
     );
     pacquet_in(root.path())
-        .args(["install", "--frozen-lockfile"])
+        .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import fork; assert fork.MARKER == 'workspace fork'"])
+        .with_args(["-c", "import fork; assert fork.MARKER == 'workspace fork'"])
         .assert()
         .success();
     assert_eq!(fs::read_to_string(root.path().join("pylock.toml")).unwrap(), lock);
     drop(repo);
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     fs::write(root.path().join("pylock.toml"), lock.replace(&commit, "main")).unwrap();
     assert_failure_contains(
-        pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]),
+        &mut pacquet_in(root.path()).with_args(["install", "--offline", "--frozen-lockfile"]),
         "requires a full commit hash",
     );
 }
@@ -363,7 +381,7 @@ async fn git_subdirectories_cannot_escape_the_repository() {
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@{commit}#subdirectory=..")]);
     approve(root.path(), "fork");
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "subdirectory must be relative and stay inside",
     );
 }
@@ -384,7 +402,7 @@ async fn git_version_constraints_still_apply_to_uv_sources() {
     )
     .unwrap();
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "Python dependency resolution failed",
     );
 }
@@ -401,15 +419,15 @@ async fn git_sources_are_inherited_from_a_workspace_root() {
     fs::write(root.path().join("pyproject.toml"), format!("[tool.uv.workspace]\nmembers=['packages/*']\n[tool.uv.sources]\nfork = {{ git = '{url}', rev = '{commit}' }}\n")).unwrap();
     python_project(&root.path().join("packages/app"), "app", "dependencies=['fork']");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(&root.path().join("packages/app"))
-        .args(["-c", "import fork"])
+        .with_args(["-c", "import fork"])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
 }
@@ -461,20 +479,20 @@ async fn git_projects_without_a_pyproject_use_legacy_backend_dependencies() {
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@{commit}")]);
     approve(root.path(), "fork");
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import fork, helper"])
+        .with_args(["-c", "import fork, helper"])
         .assert()
         .success();
     pnpm_fs::remove_symlink_dir(&root.path().join(".venv")).unwrap();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import fork, helper"])
+        .with_args(["-c", "import fork, helper"])
         .assert()
         .success();
 }
@@ -514,11 +532,11 @@ async fn nested_git_builds_reuse_completed_backend_environments() {
         &format!("requires = ['tinybackend', 'fork @ git+{first_url}@{first_commit}', 'otherfork @ git+{second_url}@{second_commit}']"),
     )).unwrap();
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import app"])
+        .with_args(["-c", "import app"])
         .assert()
         .success();
     index.assert_async().await;
@@ -542,7 +560,7 @@ async fn cyclic_git_build_requirements_fail_without_hanging() {
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@main")]);
     approve(root.path(), "fork");
     assert_failure_contains(
-        pacquet_in(root.path()).arg("install"),
+        &mut pacquet_in(root.path()).with_arg("install"),
         "cyclic Python build requirements",
     );
 }
@@ -577,23 +595,23 @@ async fn git_submodules_are_preserved_in_offline_checkouts() {
     project(root.path(), &server.url(), &[&format!("fork @ git+{url}@main#subdirectory=src/fork")]);
     approve(root.path(), "fork");
     pacquet_in(root.path())
-        .env("GIT_CONFIG_COUNT", "1")
-        .env("GIT_CONFIG_KEY_0", "protocol.file.allow")
-        .env("GIT_CONFIG_VALUE_0", "always")
-        .arg("install")
+        .with_env("GIT_CONFIG_COUNT", "1")
+        .with_env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .with_env("GIT_CONFIG_VALUE_0", "always")
+        .with_arg("install")
         .assert()
         .success();
     drop(child);
     drop(repo);
     pacquet_in(root.path())
-        .env("GIT_CONFIG_COUNT", "1")
-        .env("GIT_CONFIG_KEY_0", "protocol.file.allow")
-        .env("GIT_CONFIG_VALUE_0", "always")
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_env("GIT_CONFIG_COUNT", "1")
+        .with_env("GIT_CONFIG_KEY_0", "protocol.file.allow")
+        .with_env("GIT_CONFIG_VALUE_0", "always")
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", "import fork"])
+        .with_args(["-c", "import fork"])
         .assert()
         .success();
 }
@@ -653,7 +671,7 @@ async fn remote_and_index_sources_of_one_version_replay_for_the_correct_platform
         approve(root.path(), "fork");
         declare_platforms(root.path());
         pacquet_in(root.path())
-            .arg("install")
+            .with_arg("install")
             .assert()
             .success();
         let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
@@ -676,15 +694,15 @@ async fn remote_and_index_sources_of_one_version_replay_for_the_correct_platform
             "{code}; import importlib.util; assert importlib.util.find_spec('helper') is None",
         );
         python(root.path())
-            .args(["-c", &code])
+            .with_args(["-c", &code])
             .assert()
             .success();
         pacquet_in(root.path())
-            .args(["install", "--offline", "--frozen-lockfile"])
+            .with_args(["install", "--offline", "--frozen-lockfile"])
             .assert()
             .success();
         python(root.path())
-            .args(["-c", &code])
+            .with_args(["-c", &code])
             .assert()
             .success();
     }
@@ -731,20 +749,20 @@ async fn different_git_versions_keep_their_built_files_until_installation() {
     approve(root.path(), "fork");
     declare_platforms(root.path());
     pacquet_in(root.path())
-        .arg("install")
+        .with_arg("install")
         .assert()
         .success();
     let code = "import fork, importlib.metadata as m; assert m.version('fork') == '1.0'";
     python(root.path())
-        .args(["-c", code])
+        .with_args(["-c", code])
         .assert()
         .success();
     pacquet_in(root.path())
-        .args(["install", "--offline", "--frozen-lockfile"])
+        .with_args(["install", "--offline", "--frozen-lockfile"])
         .assert()
         .success();
     python(root.path())
-        .args(["-c", code])
+        .with_args(["-c", code])
         .assert()
         .success();
 }
@@ -764,7 +782,7 @@ async fn narrowed_remote_sources_are_rejected_before_fetching() {
             let manifest = fs::read_to_string(&path).unwrap();
             fs::write(&path, format!("{manifest}\n[tool.uv.sources]\nalpha = {{ {kind} = 'https://example.test/alpha', {narrowing} }}\n")).unwrap();
             assert_failure_contains(
-                pacquet_in(root.path()).arg("install"),
+                &mut pacquet_in(root.path()).with_arg("install"),
                 &format!("pnpm does not support the {diagnostic} Python source"),
             );
         }
@@ -778,7 +796,7 @@ async fn offline_git_cache_errors_redact_ssh_userinfo() {
     project(root.path(), &server.url(), &["alpha @ git+ssh://secret-token@example.test/repo@main"]);
     approve(root.path(), "alpha");
     let output = pacquet_in(root.path())
-        .args(["install", "--offline"])
+        .with_args(["install", "--offline"])
         .output()
         .unwrap();
     assert!(!output.status.success());
@@ -819,12 +837,12 @@ async fn add_supports_pep508_direct_wheel_and_git_urls_and_preserves_disjoint_ma
 
     let url = format!("{}/files/alpha-1.0-py3-none-any.whl#sha256={digest}", server.url());
     pacquet_in(root.path())
-        .args(["add", "--save-exact", &format!("pypi:alpha[fast] @ {url}")])
+        .with_args(["add", "--save-exact", &format!("pypi:alpha[fast] @ {url}")])
         .assert()
         .success();
 
     pacquet_in(root.path())
-        .args(["add", &format!("pypi:fork @ git+{git_url}@{commit}")])
+        .with_args(["add", &format!("pypi:fork @ git+{git_url}@{commit}")])
         .assert()
         .success();
 
@@ -836,7 +854,7 @@ async fn add_supports_pep508_direct_wheel_and_git_urls_and_preserves_disjoint_ma
         "linux"
     };
     pacquet_in(root.path())
-        .args(["add", &format!("pypi:beta>=2.0 ; sys_platform == '{active_platform}'")])
+        .with_args(["add", &format!("pypi:beta>=2.0 ; sys_platform == '{active_platform}'")])
         .assert()
         .success();
 
@@ -846,7 +864,8 @@ async fn add_supports_pep508_direct_wheel_and_git_urls_and_preserves_disjoint_ma
         .as_array()
         .unwrap()
         .iter()
-        .map(|entry| entry.as_str().unwrap())
+        .map(toml::Value::as_str)
+        .map(Option::unwrap)
         .collect::<Vec<_>>();
     assert_eq!(
         deps,
@@ -859,7 +878,7 @@ async fn add_supports_pep508_direct_wheel_and_git_urls_and_preserves_disjoint_ma
     );
     artifact.assert_async().await;
     python(root.path())
-        .args(["-c", "import alpha, helper, fork, beta; assert beta.VERSION == '2.0'"])
+        .with_args(["-c", "import alpha, helper, fork, beta; assert beta.VERSION == '2.0'"])
         .assert()
         .success();
 }

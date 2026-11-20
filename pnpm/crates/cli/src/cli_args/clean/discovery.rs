@@ -6,19 +6,31 @@ use super::{
         dispatch::RunCtx,
         pipelines::InstallFamilyPlan,
         recursive::{
-            AutoExcludeRoot, notice_workspace_dir, print_no_projects_matched,
+            AutoExcludeRoot,
+            notice_workspace_dir,
+            print_no_projects_matched,
             select_recursive_projects,
         },
     },
-    CleanScope, is_narrowed_workspace_clean,
+    CleanScope,
+    is_narrowed_workspace_clean,
 };
 use miette::Context;
 use modules_overlap::{
-    custom_root_clean_dirs, discover_workspace_for_clean, explicit_literal_member_dirs,
+    custom_root_clean_dirs,
+    discover_workspace_for_clean,
+    explicit_literal_member_dirs,
 };
 use pnpm_config::Config;
-use pnpm_workspace::{FindWorkspaceProjectsOpts, Project, find_workspace_projects};
-use std::path::{Path, PathBuf};
+use pnpm_workspace::{
+    FindWorkspaceProjectsOpts,
+    Project,
+    find_workspace_projects,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 pub(super) struct CleanTargets {
     pub(super) dirs: Vec<PathBuf>,
@@ -222,7 +234,8 @@ fn collect_protected_member_dirs(
         .iter()
         .map(|project| &project.root_dir)
         .chain(explicit_dirs.iter())
-        .filter_map(|dir| dunce::canonicalize(dir).ok())
+        .map(dunce::canonicalize)
+        .filter_map(Result::ok)
         .filter(|dir| dir != real_root_dir)
         .collect();
     protected.sort();

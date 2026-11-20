@@ -1,11 +1,31 @@
 use super::{
-    ArchiveStoreProjection, AuthHeaders, FASTIFY_ERROR_INTEGRITY, FASTIFY_ERROR_TARBALL,
-    FetchTarballForResolution, IngestTarballToStore, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
-    SharedVerifiedFilesCache, SilentReporter, TarballError, ThrottledClient, fast_retry_opts,
-    integrity, tempdir_with_leaked_path, test_retry_opts,
+    ArchiveStoreProjection,
+    AuthHeaders,
+    FASTIFY_ERROR_INTEGRITY,
+    FASTIFY_ERROR_TARBALL,
+    FetchTarballForResolution,
+    IngestTarballToStore,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    MemCache,
+    SharedVerifiedFilesCache,
+    SilentReporter,
+    TarballError,
+    ThrottledClient,
+    fast_retry_opts,
+    integrity,
+    tempdir_with_leaked_path,
+    test_retry_opts,
 };
-use crate::{CacheValue, CachedTarball, package_mem_cache_key};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use crate::{
+    CacheValue,
+    CachedTarball,
+    package_mem_cache_key,
+};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::RwLock;
 
 async fn wait_until_claimed(mem_cache: &MemCache, cache_key: &str) {

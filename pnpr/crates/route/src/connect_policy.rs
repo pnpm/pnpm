@@ -1,8 +1,14 @@
 use std::net::IpAddr;
 
 use pnpm_network::is_public_address;
-use pnpr_config::{IpNetwork, RoutingConfig};
-use url::{Host, Url};
+use pnpr_config::{
+    IpNetwork,
+    RoutingConfig,
+};
+use url::{
+    Host,
+    Url,
+};
 
 /// The addresses pnpr may open a resolver connection to: public addresses,
 /// the networks the operator allowed with `routes.allowedPrivateNetworks`,

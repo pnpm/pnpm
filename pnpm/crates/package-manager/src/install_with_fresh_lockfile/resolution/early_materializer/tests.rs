@@ -1,5 +1,11 @@
-use super::{EarlyMaterializationFit, early_materialization_eligible};
-use pnpm_config::{Config, NodeLinker};
+use super::{
+    EarlyMaterializationFit,
+    early_materialization_eligible,
+};
+use pnpm_config::{
+    Config,
+    NodeLinker,
+};
 
 /// The default shape this optimization is built for: an isolated,
 /// unfiltered, non-hoisted install with no custom fetcher.

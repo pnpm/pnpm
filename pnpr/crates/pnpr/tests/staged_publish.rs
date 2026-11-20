@@ -1,18 +1,40 @@
-//! Integration tests for the `-/stage` endpoints — the server half of
+//! Integration tests for the `-/stage` endpoints, the server half of
 //! `pnpm stage`. Static-mode (no upstream) to keep the tests hermetic.
 
 use crate::npm;
 
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{
+        Body,
+        to_bytes,
+    },
+    http::{
+        Request,
+        StatusCode,
+    },
 };
-use npm::{npm_tgz, npm_tgz_with, publish_doc, sha1_hex};
-use pnpr::{Config, MaxUsers, router};
+use npm::{
+    npm_tgz,
+    npm_tgz_with,
+    publish_doc,
+    sha1_hex,
+};
+use pnpr::{
+    Config,
+    MaxUsers,
+    router,
+};
 use pnpr_fixtures::MockConfigPresets;
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{
+        Ipv4Addr,
+        SocketAddr,
+        SocketAddrV4,
+    },
     path::PathBuf,
 };
 use tempfile::TempDir;
@@ -495,7 +517,10 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
 /// for a rejection.
 #[tokio::test]
 async fn an_approval_that_loses_its_version_leaves_the_stage_to_reject() {
-    use object_store::{ObjectStore, memory::InMemory};
+    use object_store::{
+        ObjectStore,
+        memory::InMemory,
+    };
     use pnpr::HostedStoreConfig;
     use std::sync::Arc;
 

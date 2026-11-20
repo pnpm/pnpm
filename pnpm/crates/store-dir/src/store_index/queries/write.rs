@@ -1,5 +1,8 @@
 use super::{
-    super::{PackageFilesIndex, StoreIndexError},
+    super::{
+        PackageFilesIndex,
+        StoreIndexError,
+    },
     EncodingErrorPolicy,
 };
 use rusqlite::Connection;

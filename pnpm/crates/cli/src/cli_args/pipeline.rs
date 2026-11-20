@@ -1,67 +1,146 @@
-//! `pnpm pipeline` — run a named set of workspace tasks the way a CI run
+//! `pnpm pipeline`: run a named set of workspace tasks the way a CI run
 //! would: affected-since-base selection as a pre-pass, the task graph in
 //! dependency order without bailing, cached task results restored instead
 //! of re-run, and a machine-readable account of what happened.
 //!
-//! Proof of concept for the `pnpm ci` RFC (pnpm/rfcs — "pnpm as the CI
+//! Proof of concept for the `pnpm ci` RFC (pnpm/rfcs, "pnpm as the CI
 //! engine"), with the task cache of pnpm/rfcs#22 as a local tier and an
 //! optional remote one. The command name is `pipeline` because `pnpm ci`
 //! is already the clean-install command.
 
 pub(crate) use agent::WatchPolling;
-pub use agent::{WatchInvocation, run_watch};
-pub use arguments::{DEFAULT_PIPELINE_NAME, PipelineArgs, PipelineInvocation};
+pub use agent::{
+    WatchInvocation,
+    run_watch,
+};
+pub use arguments::{
+    DEFAULT_PIPELINE_NAME,
+    PipelineArgs,
+    PipelineInvocation,
+};
 pub use report::RunUpload;
-pub use selection::{Selection, SelectionMode};
+pub use selection::{
+    Selection,
+    SelectionMode,
+};
 
 mod arguments;
 
 use super::{
-    recursive::{ExecutionStatus, Status, discover_workspace_projects, keeps_workspace_root},
-    reporter::{ReporterType, reporter_emit},
-    run::{RunContext, ScriptSelector, run_stages},
+    recursive::{
+        ExecutionStatus,
+        Status,
+        discover_workspace_projects,
+        keeps_workspace_root,
+    },
+    reporter::{
+        ReporterType,
+        reporter_emit,
+    },
+    run::{
+        RunContext,
+        ScriptSelector,
+        run_stages,
+    },
 };
-use crate::{cli_args::recursive::filtered_projects_dependencies, process::Command};
+use crate::{
+    cli_args::recursive::filtered_projects_dependencies,
+    process::Command,
+};
 
-use cache::{CacheDisposition, TaskCache};
-use derive_more::{Display, Error};
-use execution::{RunTaskOptions, is_output_cacheable, run_pipeline_task, task_environment};
+use cache::{
+    CacheDisposition,
+    TaskCache,
+};
+use derive_more::{
+    Display,
+    Error,
+};
+use execution::{
+    RunTaskOptions,
+    is_output_cacheable,
+    run_pipeline_task,
+    task_environment,
+};
 use indexmap::IndexMap;
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::{
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_executor::ScriptOutput;
-use pnpm_injected_deps_syncer::{BinLinkSettings, CopyFiles, SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{
+    BinLinkSettings,
+    CopyFiles,
+    SyncInjectedDeps,
+    sync_injected_deps,
+};
 use pnpm_package_manager::{
-    make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
+    make_node_package_map_option,
+    make_node_require_option,
+    package_map_path_for_execution,
     pnp_path_for_execution,
 };
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog};
-use pnpm_workspace::{GraphPkg, Project};
-use pnpm_workspace_projects_filter::{GetChangedProjectsOptions, get_changed_projects};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+};
+use pnpm_workspace::{
+    GraphPkg,
+    Project,
+};
+use pnpm_workspace_projects_filter::{
+    GetChangedProjectsOptions,
+    get_changed_projects,
+};
 use pnpm_workspace_projects_graph::ProjectGraph;
 use pnpm_workspace_task_scheduler::{
-    BuildPipelineTaskGraphOptions, ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion,
-    TaskGraph, TaskKey, TaskNode, build_pipeline_task_graph, format_task,
-    render_task_graph_dry_run, schedule_tasks, sequence_tasks, task_graph_to_json,
+    BuildPipelineTaskGraphOptions,
+    ScheduleTasksOptions,
+    SequenceTasksOptions,
+    TaskCompletion,
+    TaskGraph,
+    TaskKey,
+    TaskNode,
+    build_pipeline_task_graph,
+    format_task,
+    render_task_graph_dry_run,
+    schedule_tasks,
+    sequence_tasks,
+    task_graph_to_json,
 };
 use report::RunReport;
 
 use cache_tiers::CacheTiers;
 use remote_cache::RemoteTaskCache;
 use reporting::{
-    StatusCounts, TaskCachePlan, compute_task_keys, print_dry_run, record_task_outcome,
+    StatusCounts,
+    TaskCachePlan,
+    compute_task_keys,
+    print_dry_run,
+    record_task_outcome,
     reported_task_keys,
 };
 use selection::{
-    SelectAffectedOptions, build_full_graph, git_stdout, select_affected_projects,
+    SelectAffectedOptions,
+    build_full_graph,
+    git_stdout,
+    select_affected_projects,
     workspace_identity,
 };
 
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap,
+        HashSet,
+    },
     env,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Mutex,
     time::Instant,
 };
@@ -309,7 +388,7 @@ impl<'a> PipelineRun<'a> {
         self.conclude(
             plan.report,
             Some(format!(
-                r#"Pipeline "{}": {} tasks — {} passed ({hits} from cache), {} failed, {} skipped."#,
+                r#"Pipeline "{}": {} tasks, {} passed ({hits} from cache), {} failed, {} skipped."#,
                 plan.name,
                 statuses.len(),
                 counts.passed,

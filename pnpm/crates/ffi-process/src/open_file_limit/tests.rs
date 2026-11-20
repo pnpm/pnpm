@@ -1,4 +1,7 @@
-use super::{raise_open_file_limit, soft_open_file_limit};
+use super::{
+    raise_open_file_limit,
+    soft_open_file_limit,
+};
 
 #[test]
 fn the_soft_limit_is_readable() {

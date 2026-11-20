@@ -1,12 +1,19 @@
-//! `pacquet logout` — revoke the registry auth token and remove it from the
+//! `pacquet logout`: revoke the registry auth token and remove it from the
 //! global `config.yaml`. The command logic lives in `pnpm-auth-commands`;
 //! this module is the thin CLI adapter that resolves config into
 //! [`LogoutOptions`].
 
 use clap::Args;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
+use pnpm_auth_commands::logout::{
+    Host as AuthHost,
+    LogoutOptions,
+    logout,
+};
 use pnpm_config::Config;
 use pnpm_reporter::Reporter;
 use std::collections::HashMap;

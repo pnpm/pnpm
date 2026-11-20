@@ -1,15 +1,34 @@
 use super::{
-    InstallWithFreshLockfileResult, errors::InstallWithFreshLockfileError,
+    InstallWithFreshLockfileResult,
+    errors::InstallWithFreshLockfileError,
     seed_policy::UpdateSeedPolicy,
 };
-use crate::{HoistedDependencies, SkippedSnapshots};
+use crate::{
+    HoistedDependencies,
+    SkippedSnapshots,
+};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, SymlinkedLockfile};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_lockfile::{
+    Lockfile,
+    SymlinkedLockfile,
+};
+use pnpm_package_manifest::{
+    DependencyGroup,
+    PackageManifest,
+};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    Reporter,
+    Stage,
+    StageLog,
+};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     path::Path,
     sync::Arc,
 };
@@ -76,8 +95,8 @@ pub(super) async fn persist_fresh_lockfile(
 ///
 /// The lockfile walk that renders the report reads a linked project's
 /// manifest and checks its peers against the *consuming* importer's
-/// dependencies. Peer resolution has no counterpart for that check — a
-/// `link:` node's own peers are the linked importer's business — so
+/// dependencies. Peer resolution has no counterpart for that check, a
+/// `link:` node's own peers are the linked importer's business, so
 /// these importers never reach
 /// `peer_dependency_issues_by_importer` and have to join the report's
 /// candidate set on their own. Only the direct consumer is needed: it
@@ -85,10 +104,10 @@ pub(super) async fn persist_fresh_lockfile(
 ///
 /// Answered from the manifests the install already parsed, so a
 /// workspace whose projects declare no peers costs one pass over the
-/// declared dependencies and no I/O. Over-approximates — a
+/// declared dependencies and no I/O. Over-approximates, a
 /// `workspace:` dependency the lockfile records as an injected
 /// directory rather than a link still counts, as does a target this
-/// cannot name — which only widens the walk.
+/// cannot name, which only widens the walk.
 pub(super) fn importers_consuming_linked_peers(
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     lockfile_dir: &Path,
@@ -153,7 +172,7 @@ pub(super) fn linked_target_may_declare_peers(
         // `workspace:<name>@<range>` names the project it links
         // to; the bare form takes that name from the entry key.
         // The range picks among the projects sharing that name,
-        // so any one of them declaring a peer counts — reaching
+        // so any one of them declaring a peer counts, reaching
         // for the picked version would duplicate
         // `resolve_workspace_range` to narrow an answer that is
         // only ever "walk this importer too".

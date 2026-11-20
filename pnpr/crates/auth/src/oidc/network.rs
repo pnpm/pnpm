@@ -1,7 +1,20 @@
-use pnpm_network::{GuardedDnsResolver, is_public_address, native_dns_resolver};
-use pnpr_error::{RegistryError, Result};
-use std::{net::IpAddr, sync::Arc};
-use url::{Host, Url};
+use pnpm_network::{
+    GuardedDnsResolver,
+    is_public_address,
+    native_dns_resolver,
+};
+use pnpr_error::{
+    RegistryError,
+    Result,
+};
+use std::{
+    net::IpAddr,
+    sync::Arc,
+};
+use url::{
+    Host,
+    Url,
+};
 
 pub(super) fn public_resolver() -> Arc<GuardedDnsResolver> {
     Arc::new(GuardedDnsResolver::new(

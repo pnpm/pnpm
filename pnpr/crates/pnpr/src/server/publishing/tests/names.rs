@@ -1,20 +1,39 @@
 use crate::server::{
     AuthedCaller,
     batch::serve_ecosystem_publish,
-    publishing::{atomic::publication_request, publish_package},
+    publishing::{
+        atomic::publication_request,
+        publish_package,
+    },
     routing::state_and_router,
 };
 use axum::{
-    body::{Bytes, to_bytes},
+    body::{
+        Bytes,
+        to_bytes,
+    },
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::{
+        HeaderMap,
+        StatusCode,
+    },
 };
 use pnpr_auth::AuthState;
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::{
+    CanonicalPackageName,
+    Ecosystem,
+};
 use pnpr_policy::Identity;
-use pnpr_storage::database::{BatchDocument, PublishNotes, ReleaseRecords};
-use serde_json::{Value, json};
+use pnpr_storage::database::{
+    BatchDocument,
+    PublishNotes,
+    ReleaseRecords,
+};
+use serde_json::{
+    Value,
+    json,
+};
 use tempfile::TempDir;
 
 #[tokio::test]

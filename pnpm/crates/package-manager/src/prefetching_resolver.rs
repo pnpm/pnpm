@@ -24,7 +24,7 @@
 //!
 //! That prefetch is speculative, and a run may switch it off
 //! ([`PrefetchPolicy::downloads`]). Reading an archive whose resolution
-//! describes it only partly is not speculative — the lockfile records
+//! describes it only partly is not speculative, the lockfile records
 //! the hash the bytes yield, and the dependency walk reads the
 //! package's children out of the manifest inside. Such a read publishes
 //! its extraction too, so the install pass never downloads the archive a
@@ -34,27 +34,56 @@
 //! an unpinned tarball before that read can download it.
 
 use crate::install_package_from_registry::{
-    extract_tarball, manifest_file_count, manifest_unpacked_size,
+    extract_tarball,
+    manifest_file_count,
+    manifest_unpacked_size,
 };
-use dashmap::{DashMap, DashSet};
+use dashmap::{
+    DashMap,
+    DashSet,
+};
 use pnpm_config::Config;
-use pnpm_deps_restorer::{CustomFetcherSession, ResolvedTarballMetadata};
-use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
+use pnpm_deps_restorer::{
+    CustomFetcherSession,
+    ResolvedTarballMetadata,
+};
+use pnpm_lockfile::{
+    LockfileResolution,
+    is_git_hosted_tarball_url,
+};
 use pnpm_network::ThrottledClient;
 use pnpm_package_is_installable::{
-    SupportedArchitectures, WantedPlatformRef, platform_is_supported,
+    SupportedArchitectures,
+    WantedPlatformRef,
+    platform_is_supported,
 };
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
+    LatestQuery,
+    ResolveFuture,
+    ResolveLatestFuture,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
     WantedDependency,
 };
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreIndexWriter,
+};
 use pnpm_tarball::{
-    ArchiveStoreProjection, IngestTarballToStore, MemCache, SharedReportedProgressKeys,
+    ArchiveStoreProjection,
+    IngestTarballToStore,
+    MemCache,
+    SharedReportedProgressKeys,
     package_mem_cache_key,
 };
-use std::{future::Future, marker::PhantomData, sync::Arc};
+use std::{
+    future::Future,
+    marker::PhantomData,
+    sync::Arc,
+};
 use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -201,7 +230,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     ///
     /// Non-tarball resolutions (git, directory, registry-shape,
     /// binary, variations) and resolutions missing a structured
-    /// `name@version` fall through to a no-op — the install path's
+    /// `name@version` fall through to a no-op, the install path's
     /// per-protocol code path handles them.
     ///
     /// The spawned task's result is dropped: the `MemCache` slot
@@ -326,7 +355,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         wanted_dependency: &WantedDependency,
         result: &ResolveResult,
     ) -> bool {
-        if wanted_dependency.optional != Some(true) || !is_remote_tarball(&result.resolution) {
+        if !wanted_dependency.optional.unwrap_or(false) || !is_remote_tarball(&result.resolution) {
             return false;
         }
         let manifest = crate::platform_manifest_from_resolve_result(

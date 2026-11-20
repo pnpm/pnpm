@@ -2,37 +2,55 @@
 //! install them all.
 //!
 //! Handles three input shapes:
-//! 1. old object form `{ tarball?, integrity }` — migrated inline into
+//! 1. old object form `{ tarball?, integrity }`, migrated inline into
 //!    the lockfile when it carries a tarball URL, otherwise resolved,
-//! 2. old string form `<version>+<integrity>` — resolved against the
+//! 2. old string form `<version>+<integrity>`, resolved against the
 //!    registry for its tarball URL, keeping the inline integrity,
-//! 3. new clean specifier (`1.2.0` / `^1.0.0`) — resolved against the
+//! 3. new clean specifier (`1.2.0` / `^1.0.0`), resolved against the
 //!    registry when it isn't already pinned in the lockfile.
 
 use crate::{
-    ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
-    prune_env_lockfile, read_config_dependency_lockfile,
+    ConfigDepError,
+    install_config_deps::install_config_deps,
+    options::ConfigDepsInstallOptions,
+    prune_env_lockfile,
+    read_config_dependency_lockfile,
     resolve_optional_subdeps::resolve_optional_subdeps,
     verify_config_dep_resolutions::verify_config_dep_resolutions,
     verify_env_lockfile::write_verified_env_lockfile,
 };
 use pnpm_lockfile::{
-    EnvLockfile, LockfileFormOptions, LockfileResolution, PackageKey, PackageMetadata,
-    SnapshotEntry, SpecifierAndResolution, TarballResolution, TarballUrlOptions,
+    EnvLockfile,
+    LockfileFormOptions,
+    LockfileResolution,
+    PackageKey,
+    PackageMetadata,
+    SnapshotEntry,
+    SpecifierAndResolution,
+    TarballResolution,
+    TarballUrlOptions,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    ResolutionPolicyOptions, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
-    VersionSelectorType, WantedDependency,
+    ResolutionPolicyOptions,
+    ResolveOptions,
+    ResolveResult,
+    Resolver,
+    UpdateBehavior,
+    VersionSelectorType,
+    WantedDependency,
 };
 use pnpm_workspace_state::ConfigDependency;
 use ssri::Integrity;
 use std::collections::BTreeMap;
 
 mod plan;
-use plan::{ToResolve, plan_config_deps};
+use plan::{
+    ToResolve,
+    plan_config_deps,
+};
 
 fn lockfile_form(tarball_url_options: TarballUrlOptions<'_>) -> LockfileFormOptions<'_> {
     let TarballUrlOptions { registry, server_type } = tarball_url_options;
@@ -394,7 +412,7 @@ fn migrate_into_lockfile(
     Ok(())
 }
 
-/// A `packages:` entry carrying only a resolution — the shape a config
+/// A `packages:` entry carrying only a resolution, the shape a config
 /// dependency (with no peer/engine metadata of its own) takes.
 fn registry_package_metadata(resolution: LockfileResolution) -> PackageMetadata {
     PackageMetadata {

@@ -1,6 +1,56 @@
-use super::{super::latest_subtree::unmatched_direct_names, UpdateScope};
-use pnpm_matcher::{Matcher, create_matcher};
+use super::{
+    super::{
+        LatestRewriteCtx,
+        latest_subtree::unmatched_direct_names,
+        override_governed,
+        warn_pinned_override,
+    },
+    UpdatePlan,
+    UpdateScope,
+    widen_drop_targets_by_matcher,
+};
+use crate::UpdateSeedPolicy;
+use pnpm_matcher::{
+    Matcher,
+    create_matcher,
+};
+use pnpm_reporter::Reporter;
 use std::collections::HashSet;
+
+/// Bare-name selectors with a depth: every matching name updates, at any
+/// depth.
+pub(super) fn name_matched_seed_policy<Reporter: self::Reporter>(
+    scope: &UpdateScope<'_>,
+    plan: &mut UpdatePlan,
+    rewrite_ctx: &LatestRewriteCtx<'_, '_>,
+) -> UpdateSeedPolicy {
+    let patterns = update_matcher_patterns(scope);
+    let matcher = create_matcher(&patterns);
+    let ignore_matcher = update_ignore_matcher(scope);
+    let ignored_resolved_names = ignored_resolved_names(scope, ignore_matcher.as_ref());
+    for (name, group, previous) in scope.direct {
+        if !matches_update_pattern(&matcher, ignore_matcher.as_ref(), name) {
+            continue;
+        }
+        // An override-governed declaration is not the bump's to move, and one
+        // pinned to a single version has no room to move at all, which the
+        // user should hear about.
+        if let Some(overridden) = override_governed(scope, name, *group) {
+            warn_pinned_override::<Reporter>(rewrite_ctx, overridden);
+        } else if scope.version.save {
+            plan.bump_targets.push((name.clone(), *group, previous.clone()));
+        }
+        plan.drop_targets.insert(name.clone(), None);
+    }
+    widen_drop_targets_by_matcher(
+        scope.lockfile.document,
+        plan,
+        &matcher,
+        ignore_matcher.as_ref(),
+        &ignored_resolved_names,
+    );
+    plan.drop_only(scope.max_depth())
+}
 
 pub(crate) fn ignored_resolved_names(
     scope: &UpdateScope<'_>,

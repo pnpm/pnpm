@@ -1,12 +1,22 @@
 //! Uploading, claiming, and giving back staged archives.
 
 use super::{
-    STAGE_ATTEMPTS, STAGED_ARCHIVE_MAX_AGE, STAGED_ARCHIVE_RENEWAL_MARGIN, StagedArchiveKey,
-    incarnation_for_upload, is_claimable, unix_now,
+    STAGE_ATTEMPTS,
+    STAGED_ARCHIVE_MAX_AGE,
+    STAGED_ARCHIVE_RENEWAL_MARGIN,
+    StagedArchiveKey,
+    incarnation_for_upload,
+    is_claimable,
+    unix_now,
 };
 use crate::{
-    RegistryError, Result, Storage,
-    database::{StagedRecord, StagedState},
+    RegistryError,
+    Result,
+    Storage,
+    database::{
+        StagedRecord,
+        StagedState,
+    },
 };
 
 impl Storage {

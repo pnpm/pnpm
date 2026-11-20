@@ -2,7 +2,12 @@
 //! process, named by its id, whose `stat` file holds the process's state
 //! and process group among its fields.
 
-use std::{fs, io, path::Path, process};
+use std::{
+    fs,
+    io,
+    path::Path,
+    process,
+};
 
 /// Whether the group led by `leader` may still hold a process that has not
 /// exited. Only two readings in a row of `table` that show the same members

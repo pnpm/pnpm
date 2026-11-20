@@ -1,4 +1,7 @@
-use super::{body_display_string, read_sanitized_error_body};
+use super::{
+    body_display_string,
+    read_sanitized_error_body,
+};
 use pnpm_network::LimitedBody;
 
 #[test]

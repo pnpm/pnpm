@@ -1,14 +1,25 @@
 use super::{
-    BTreeMap, IgnoreEntryFilter, MAX_UNTRUSTED_PREALLOC_BYTES, PackageBin, PackageFilesIndex,
-    StoreDir, TarLimits, TarballError, extract_tarball_entries_alongside,
+    BTreeMap,
+    IgnoreEntryFilter,
+    MAX_UNTRUSTED_PREALLOC_BYTES,
+    PackageBin,
+    PackageFilesIndex,
+    StoreDir,
+    TarLimits,
+    TarballError,
+    extract_tarball_entries_alongside,
     stream_extract_gzipped_tarball_with_tar,
 };
 use ssri::Integrity;
 use tracing::instrument;
-use zune_inflate::{DeflateDecoder, DeflateOptions, errors::DecodeErrorStatus};
+use zune_inflate::{
+    DeflateDecoder,
+    DeflateOptions,
+    errors::DecodeErrorStatus,
+};
 
-/// Bound an untrusted unpacked-size claim — the registry's
-/// `dist.unpackedSize` or the archive's own gzip trailer — before it
+/// Bound an untrusted unpacked-size claim (the registry's
+/// `dist.unpackedSize` or the archive's own gzip trailer) before it
 /// reaches zune-inflate, which reserves the hint as an infallible
 /// zero-filled `vec![0; hint]` and aborts the process if that
 /// allocation fails.
@@ -20,7 +31,7 @@ pub(crate) fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usi
 /// refusing to inflate past [`MAX_UNTRUSTED_PREALLOC_BYTES`].
 ///
 /// The ceiling is the same one [`should_stream_extract`] pivots on, so
-/// the two agree on how large an archive the eager path may hold — the
+/// the two agree on how large an archive the eager path may hold, the
 /// difference being that this one measures the archive instead of
 /// trusting a hint about it. Both signals [`should_stream_extract`] has
 /// can be wrong: `dist.unpackedSize` is attacker-controlled, and the
@@ -66,14 +77,14 @@ pub(crate) fn is_eager_decode_limit_exceeded(error: &TarballError) -> bool {
 ///
 /// The last four bytes of a gzip member are ISIZE: what it decodes to,
 /// modulo 2^32. It is the archive's own claim and no more trustworthy
-/// than the registry's `dist.unpackedSize` — but it is available where
+/// than the registry's `dist.unpackedSize`, but it is available where
 /// that one often is not (a lockfile records no unpacked size, so a
 /// frozen install has nothing else), and routing on it means an honest
 /// archive that inflates past the eager ceiling is streamed on the
 /// first pass instead of being decoded twice. A dishonest one is still
 /// caught by [`decompress_gzip`]'s ceiling.
 ///
-/// `None` unless the buffer opens with a deflate member header — the
+/// `None` unless the buffer opens with a deflate member header, the
 /// same three bytes the decoder itself checks first. A body that will
 /// fail at the decoder anyway keeps taking the path whose diagnostic
 /// says so, rather than being routed by four bytes of whatever it
@@ -116,7 +127,7 @@ pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
 /// claim ([`extract_gzipped_tarball_with_tar`] takes the larger of the
 /// registry's `dist.unpackedSize` and the gzip trailer's). A claim is
 /// attacker-controlled, but here it only picks between two correct
-/// extraction paths — a lying value costs at most the wrong path's
+/// extraction paths, a lying value costs at most the wrong path's
 /// performance profile, and [`decompress_gzip`]'s ceiling keeps even
 /// that path's memory bounded.
 pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option<usize>) -> bool {
@@ -133,7 +144,7 @@ pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 4 * 1024 * 1024
 /// whichever of the two extractors suits its size.
 ///
 /// Eager extraction buys zero-copy payload slices and one big parallel
-/// write phase, and holds the whole decompressed archive to do it —
+/// write phase, and holds the whole decompressed archive to do it,
 /// multiplied across every extraction running concurrently. It is
 /// therefore taken only while the archive is small:
 /// [`should_stream_extract`] routes on the size signals available

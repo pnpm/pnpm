@@ -1,6 +1,15 @@
-use super::{Arc, HashMap, HashSet, NodeId, PeersCacheItem};
+use super::{
+    Arc,
+    HashMap,
+    HashSet,
+    NodeId,
+    PeersCacheItem,
+};
 use crate::resolve_peers::optional_peer_ranges::OptionalPeerRanges;
-use std::collections::{BTreeMap, btree_map};
+use std::collections::{
+    BTreeMap,
+    btree_map,
+};
 
 #[derive(Debug, Default)]
 struct PkgCacheEntries {

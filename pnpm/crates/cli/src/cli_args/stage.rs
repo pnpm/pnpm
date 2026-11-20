@@ -1,9 +1,9 @@
-//! `pacquet stage` — stage packages for publishing, deferring
+//! `pacquet stage`: stage packages for publishing, deferring
 //! proof-of-presence (2FA) approval to a later point in time.
 //!
 //! `stage publish` runs the regular publish pipeline (packing, lifecycle
 //! scripts, OIDC/OTP) against the registry's staging endpoint; the remaining
-//! subcommands — `list`, `view`, `approve`, `reject`, `download` — talk to
+//! subcommands (`list`, `view`, `approve`, `reject`, `download`) talk to
 //! the registry's `-/stage` API directly.
 
 pub use registry::StageRegistryError;
@@ -12,40 +12,84 @@ mod approve;
 mod summarize_tarball;
 
 use super::{
-    publish::{PublishArgs, PublishFlags},
+    publish::{
+        PublishArgs,
+        PublishFlags,
+    },
     sanitize::body_display_string,
 };
 use crate::cli_args::registry_client::{
-    build_registry_client, resolve_target_registry_for_package, web_auth_fetch_options,
+    build_registry_client,
+    resolve_target_registry_for_package,
+    web_auth_fetch_options,
 };
 use clap::Args;
-use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use miette::{
+    Context,
+    Diagnostic,
+    IntoDiagnostic,
+};
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, normalize_registry_url, read_limited_body, redact_url_credentials,
+    RetryOpts,
+    ThrottledClient,
+    normalize_registry_url,
+    read_limited_body,
+    redact_url_credentials,
     send_with_retry,
 };
 use pnpm_network_web_auth::{
-    Host as WebAuthHost, OtpChallenge, OtpError, OtpErrorBody, OtpSession, WebAuthFetchOptions,
+    Host as WebAuthHost,
+    OtpChallenge,
+    OtpError,
+    OtpErrorBody,
+    OtpSession,
+    WebAuthFetchOptions,
     WithOtpError,
 };
-use pnpm_publish::{Host, PublishSummary, resolve_otp_from_env};
-use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_publish::{
+    Host,
+    PublishSummary,
+    resolve_otp_from_env,
+};
+use pnpm_reporter::{
+    GlobalLog,
+    LogEvent,
+    LogLevel,
+    Reporter,
+};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use registry::{
-    StageContext, fetch_stage_items, fetch_stage_tarball, stage_endpoint_url, stage_json_request,
-    stage_request_in_session, stage_request_with_otp,
+    StageContext,
+    fetch_stage_items,
+    fetch_stage_tarball,
+    stage_endpoint_url,
+    stage_json_request,
+    stage_request_in_session,
+    stage_request_with_otp,
 };
 use render::{
-    json_pretty, render_stage_item, render_stage_publish_summary, render_tarball_summary,
+    json_pretty,
+    render_stage_item,
+    render_stage_publish_summary,
+    render_tarball_summary,
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::{path::Path, sync::Arc};
-use summarize_tarball::{create_tarball_filename, summarize_tarball};
+use std::{
+    path::Path,
+    sync::Arc,
+};
+use summarize_tarball::{
+    create_tarball_filename,
+    summarize_tarball,
+};
 
 /// The staged-list page size; matches pnpm's paginated `-/stage` reads.
 const PER_PAGE: usize = 100;
@@ -192,7 +236,7 @@ impl StageArgs {
         }
     }
 
-    /// `stage publish` — the regular publish pipeline against the staging
+    /// `stage publish`: the regular publish pipeline against the staging
     /// endpoint, rendered as `+ <pkg> (staged with id <id>)` lines or a
     /// name-keyed JSON object.
     async fn stage_publish<Reporter: self::Reporter>(
@@ -229,7 +273,7 @@ impl StageArgs {
         Ok(Some(lines.join("\n")))
     }
 
-    /// `stage list [<package-spec>]` — every staged version, paginated.
+    /// `stage list [<package-spec>]`: every staged version, paginated.
     async fn stage_list(&self, config: &Config) -> miette::Result<Option<String>> {
         let package_filter = parse_package_filter(self.params.get(1))?;
         let context = self.stage_context(config, package_filter.as_deref())?;
@@ -251,7 +295,7 @@ impl StageArgs {
         Ok(Some(rendered.join("\n\n")))
     }
 
-    /// `stage view <stage-id>` — one staged version's metadata.
+    /// `stage view <stage-id>`: one staged version's metadata.
     async fn stage_view(&self, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "view")?;
         let context = self.stage_context(config, None)?;
@@ -265,7 +309,7 @@ impl StageArgs {
         Ok(Some(render_stage_item(&item)))
     }
 
-    /// `stage reject <stage-id>` — permanently delete the staged version.
+    /// `stage reject <stage-id>`: permanently delete the staged version.
     async fn stage_reject<Reporter: self::Reporter>(
         &self,
         config: &Config,
@@ -287,7 +331,7 @@ impl StageArgs {
         Ok(Some(format!("Staged package {stage_id} has been rejected.")))
     }
 
-    /// `stage download <stage-id>` — fetch the staged tarball into `dir` and
+    /// `stage download <stage-id>`: fetch the staged tarball into `dir` and
     /// print its summary.
     async fn stage_download(&self, dir: &Path, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "download")?;
@@ -302,7 +346,8 @@ impl StageArgs {
         // the write against any bare-basename assumption it might not cover.
         if output_path
             .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
+            .map(std::ffi::OsStr::to_string_lossy)
+            .map(std::borrow::Cow::into_owned)
             != Some(filename.clone())
             || output_path.parent() != Some(dir)
         {

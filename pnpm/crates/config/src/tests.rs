@@ -1,9 +1,16 @@
 use std::{
     ffi::OsString,
     fmt::Write as _,
-    fs, io,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 use pnpm_store_dir::StoreDir;
@@ -11,13 +18,31 @@ use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 use tracing::Level;
-use tracing_subscriber::{Layer, layer::SubscriberExt};
+use tracing_subscriber::{
+    Layer,
+    layer::SubscriberExt,
+};
 
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
-    NodeLinker, NodePackageMapMode, NodePackageMapType, PackageImportMethod, TrustPolicy,
+    Config,
+    EnvVar,
+    EnvVarOs,
+    GetCurrentDir,
+    GetHomeDir,
+    Host,
+    LinkProbe,
+    LoadWorkspaceYamlError,
+    NodeLinker,
+    NodePackageMapMode,
+    NodePackageMapType,
+    PackageImportMethod,
+    TrustPolicy,
 };
-use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
+use crate::defaults::{
+    GLOBAL_LAYOUT_VERSION,
+    default_state_dir,
+    default_store_dir,
+};
 
 /// Capture all tracing WARN messages emitted during a closure, each followed
 /// by its structured fields, since some warnings say which setting or variable
@@ -198,17 +223,17 @@ fn display_store_dir(store_dir: &StoreDir) -> String {
 /// otherwise let the developer's real shell steer pacquet's global
 /// `config.yaml` loader or its `PNPM_CONFIG_*` overlay:
 ///
-/// - `XDG_CONFIG_HOME` / `LOCALAPPDATA` — both feed
+/// - `XDG_CONFIG_HOME` / `LOCALAPPDATA`; both feed
 ///   [`crate::defaults::default_config_dir`], so a value set on the
 ///   dev box would point the global-config loader at a real
 ///   `config.yaml` on disk.
-/// - `PNPM_CONFIG_*` / `pnpm_config_*` — the env-var overlay reads
+/// - `PNPM_CONFIG_*` / `pnpm_config_*`, the env-var overlay reads
 ///   the entire schema, so a stray `PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE`
 ///   in the developer's shell would flip GVS in every test that
 ///   otherwise expects defaults.
 ///
 /// Tests that exercise those code paths declare per-test fakes
-/// that satisfy [`EnvVar`] with their own response logic — they
+/// that satisfy [`EnvVar`] with their own response logic; they
 /// don't go through this helper.
 fn safe_host_var(name: &str) -> Option<String> {
     if name == "XDG_CONFIG_HOME" || name == "LOCALAPPDATA" {
@@ -249,7 +274,7 @@ inert_link_probe!(HostNoHome);
 host_current_dir!(HostNoHome);
 
 /// Write a `.npmrc` that declares its own registry plus an unscoped
-/// `_authToken`, so the token pins to that registry — the shape the
+/// `_authToken`, so the token pins to that registry, the shape the
 /// precedence assertions check the winning file by.
 fn write_registry_auth_file(path: &Path, registry: &str, token: &str) {
     fs::write(path, format!("registry={registry}\n_authToken={token}\n")).expect("write auth file");
@@ -261,7 +286,7 @@ fn write_file(path: &Path, contents: &str) {
 
 /// Load `Config` with a project `.npmrc` in `start_dir` plus a
 /// user-level file pointed at by `npmrcAuthFile`. Home resolves to
-/// `None` ([`HostNoHome`]) so only these two files participate —
+/// `None` ([`HostNoHome`]) so only these two files participate,
 /// the multi-file merge + per-file rescoping under test.
 fn load_with_project_and_user(project_npmrc: &str, user_file: PathBuf) -> Config {
     let project = tempdir().expect("project tempdir");
@@ -404,3 +429,5 @@ mod includes;
 mod tls_settings;
 
 mod global_packages;
+
+mod dlx;

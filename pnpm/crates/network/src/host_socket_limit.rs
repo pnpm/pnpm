@@ -2,12 +2,18 @@
 
 use crate::{
     DEFAULT_MAX_SOCKETS,
-    priority_semaphore::{Permit, PrioritySemaphore},
+    priority_semaphore::{
+        Permit,
+        PrioritySemaphore,
+    },
 };
 use std::{
     collections::HashMap,
     num::NonZeroUsize,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        Mutex,
+    },
 };
 
 /// How the `maxSockets` configuration maps to a per-origin cap.

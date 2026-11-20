@@ -1,5 +1,12 @@
-use super::{SPAWNING, spawning, watchdog_spawning};
-use tokio::sync::{Mutex, MutexGuard};
+use super::{
+    SPAWNING,
+    spawning,
+    watchdog_spawning,
+};
+use tokio::sync::{
+    Mutex,
+    MutexGuard,
+};
 
 static TEST_LOCK: Mutex<()> = Mutex::const_new(());
 

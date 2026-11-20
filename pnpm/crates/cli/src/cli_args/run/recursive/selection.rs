@@ -1,11 +1,41 @@
 use super::{
-    super::listing::split_regex_literal, BuildTaskGraphOptions, Config, ExecutionStatus, GraphPkg,
-    HashMap, HashSet, IndexMap, IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PnpmLog,
-    ProcessTracker, ProjectGraph, RecursiveRunError, RunArgs, ScriptSelector, TaskGraph, TaskKey,
-    TaskRunExecutionSettings, TaskRunStateContext, TaskSettings, build_task_graph, count_failures,
-    env, filtered_projects_dependencies, find_resume_root, render_project_commands,
-    render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph, task_graph_to_json,
-    task_run_execution_settings, throw_or_filter_hidden_scripts, write_recursive_summary,
+    super::listing::split_regex_literal,
+    BuildTaskGraphOptions,
+    Config,
+    ExecutionStatus,
+    GraphPkg,
+    HashMap,
+    HashSet,
+    IndexMap,
+    IntoDiagnostic,
+    LogEvent,
+    LogLevel,
+    Path,
+    PathBuf,
+    PnpmLog,
+    ProcessTracker,
+    ProjectGraph,
+    RecursiveRunError,
+    RunArgs,
+    ScriptSelector,
+    TaskGraph,
+    TaskKey,
+    TaskRunExecutionSettings,
+    TaskRunStateContext,
+    TaskSettings,
+    build_task_graph,
+    count_failures,
+    env,
+    filtered_projects_dependencies,
+    find_resume_root,
+    render_project_commands,
+    render_task_graph_dry_run,
+    resume_task_graph_from,
+    reverse_task_graph,
+    task_graph_to_json,
+    task_run_execution_settings,
+    throw_or_filter_hidden_scripts,
+    write_recursive_summary,
 };
 use pnpm_workspace_projects_graph::BaseProject;
 
@@ -48,7 +78,8 @@ pub(super) fn check_required_script(
     }
     let missing: Vec<String> = task_graph
         .values()
-        .filter(|node| node.requested && node.scripts.is_empty())
+        .filter(|node| node.requested)
+        .filter(|node| node.scripts.is_empty())
         .map(|node| project_display_name(graph, &node.project))
         .collect();
     if missing.is_empty() {
@@ -63,7 +94,8 @@ pub(super) fn check_required_script(
 fn project_display_name(graph: &ProjectGraph<GraphPkg<'_>>, project: &Path) -> String {
     graph[project].package
         .manifest_name()
-        .map_or_else(|| project.display().to_string(), str::to_string)
+        .map(str::to_string)
+        .unwrap_or_else(|| project.display().to_string())
 }
 
 pub(super) fn a_project_has_the_script(task_graph: &TaskGraph) -> bool {
@@ -110,8 +142,8 @@ pub(super) fn run_state_settings(
     settings
 }
 
-/// The task graph this run actually schedules: the full graph, or —
-/// under `--resume-from` — the part of it that follows the named project,
+/// The task graph this run actually schedules: the full graph, or
+/// (under `--resume-from`) the part of it that follows the named project,
 /// minus what the previous run already completed.
 pub(super) fn resume_task_graph(
     task_run_state_context: &TaskRunStateContext,
@@ -386,6 +418,7 @@ pub(super) fn build_run_task_graph(
         project_dependencies: &project_dependencies,
         select_scripts,
         task_name: script_name,
+        requested_projects: None,
         tasks: run_tasks(args, config),
         is_selector_task,
     });

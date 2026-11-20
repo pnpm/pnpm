@@ -1,9 +1,21 @@
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::BTreeSet,
+    sync::Arc,
+};
 
-use pnpm_lockfile::{Lockfile, LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_lockfile::{
+    Lockfile,
+    LockfileResolution,
+    PkgName,
+    is_git_hosted_tarball_url,
+};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{
-    ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture,
+    ResolutionPolicyViolation,
+    ResolutionVerification,
+    ResolutionVerifier,
+    VerifyCtx,
+    VerifyFuture,
 };
 
 use super::VerifyLockfileResolutionsOptions;
@@ -27,46 +39,52 @@ pub(super) fn verify_structure_before_install(
     verify_offline_structural_checks(lockfile)
 }
 
+/// Schema version recorded under `resolutionShapeCheck` in whole-lockfile
+/// verification caches (`lockfile-verified.jsonl` and `pnpr` verdict caches).
+/// Records carrying any other value (such as boolean `true` or a different
+/// integer) miss `can_trust_past_check` and trigger re-verification.
+pub const RESOLUTION_SHAPE_CACHE_VERSION: u64 = 2;
+
 /// Cache-key participant for an always-on offline structural check
-/// (resolution-shape, dependency-alias): a record written before the
-/// check's rule existed lacks its `flag`, so `can_trust_past_check`
-/// rejects it and forces a re-verification. `verify` is never invoked —
-/// the identity is appended only to the verifier lists handed to the
+/// (resolution-shape, dependency-alias): a record lacking `flag: expected`
+/// fails `can_trust_past_check` and forces re-verification. `verify` is never
+/// invoked, the identity is appended only to the verifier lists handed to the
 /// cache lookup and recorder.
 struct OfflineCheckCacheIdentity {
     policy: serde_json::Map<String, serde_json::Value>,
     flag: &'static str,
+    expected: serde_json::Value,
+}
+
+fn offline_cache_identity(
+    flag: &'static str,
+    expected: serde_json::Value,
+) -> Arc<dyn ResolutionVerifier> {
+    let mut policy = serde_json::Map::new();
+    policy.insert(flag.to_string(), expected.clone());
+    Arc::new(OfflineCheckCacheIdentity { policy, flag, expected })
 }
 
 fn resolution_shape_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("resolutionShapeCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "resolutionShapeCheck" })
+    offline_cache_identity(
+        "resolutionShapeCheck",
+        serde_json::Value::from(RESOLUTION_SHAPE_CACHE_VERSION),
+    )
 }
 
 fn dependency_alias_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("dependencyAliasCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "dependencyAliasCheck" })
+    offline_cache_identity("dependencyAliasCheck", serde_json::Value::Bool(true))
 }
 
 fn variation_resolution_cache_identity() -> Arc<dyn ResolutionVerifier> {
-    let mut policy = serde_json::Map::new();
-    policy.insert("variationResolutionCheck".to_string(), serde_json::Value::Bool(true));
-    Arc::new(OfflineCheckCacheIdentity { policy, flag: "variationResolutionCheck" })
+    offline_cache_identity("variationResolutionCheck", serde_json::Value::Bool(true))
 }
 
-/// Every verifier list that flows into the verification cache must
-/// carry the always-on offline structural checks' identities, so a
-/// record written before one of those rules existed cannot
-/// stat-fast-path around it — its missing flag fails
-/// `can_trust_past_check`, forcing a re-verification that runs the new
-/// check. Used by the gate itself and by
-/// [`crate::record_lockfile_verified()`], whose freshly-resolved
-/// lockfile satisfies these invariants by construction (the resolver
-/// validates aliases at manifest-read time and derives every resolution
-/// key from the resolution it just produced).
-pub(crate) fn with_offline_check_cache_identities(
+/// Append the always-on offline structural checks' identities to `verifiers`
+/// before consulting or recording a whole-lockfile verification cache, so a
+/// record written before one of those rules existed fails
+/// `can_trust_past_check` and forces re-verification.
+pub fn with_offline_check_cache_identities(
     verifiers: &[Arc<dyn ResolutionVerifier>],
 ) -> Vec<Arc<dyn ResolutionVerifier>> {
     verifiers
@@ -94,14 +112,14 @@ impl ResolutionVerifier for OfflineCheckCacheIdentity {
     }
 
     fn can_trust_past_check(&self, cached: &serde_json::Map<String, serde_json::Value>) -> bool {
-        cached.get(self.flag) == Some(&serde_json::Value::Bool(true))
+        cached.get(self.flag) == Some(&self.expected)
     }
 }
 
 /// Whether a resolution is registry-shaped. A plain tarball
 /// resolution is registry-shaped because the npm verifier unconditionally
 /// binds explicit tarball URLs of semver-keyed entries to the registry's
-/// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
+/// own `dist.tarball`. A git-hosted tarball is not, and trust is gated on
 /// the tarball URL rather than the `gitHosted` flag alone.
 pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> bool {
     match resolution {
@@ -112,7 +130,7 @@ pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> 
             // schemes other than HTTP and HTTPS (file:, etc.), so a `file:` tarball under a
             // name@semver key would otherwise be trusted with no safety net.
             is_http_tarball_url(&tarball.tarball)
-                && tarball.git_hosted != Some(true)
+                && !tarball.git_hosted.unwrap_or(false)
                 && !is_git_hosted_tarball_url(&tarball.tarball)
         }
         LockfileResolution::Variations(variations) => {
@@ -131,18 +149,88 @@ pub(super) fn is_registry_shaped_resolution(resolution: &LockfileResolution) -> 
     }
 }
 
-/// Whether a tarball URL uses an HTTP or HTTPS scheme — the only schemes a
+/// Whether a tarball URL uses an HTTP or HTTPS scheme, the only schemes a
 /// registry artifact is served over. Case-insensitive to reject a
 /// tampered uppercase scheme.
 fn is_http_tarball_url(url: &str) -> bool {
-    let lower = url.to_ascii_lowercase();
-    lower.starts_with("https://") || lower.starts_with("http://")
+    url.get(..8)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
+        || url
+            .get(..7)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"))
+}
+
+/// A registry-style key must have a registry-shaped resolution because
+/// build approval derives the trusted package identity from that key.
+fn has_registry_shape_mismatch(
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    resolution: &LockfileResolution,
+) -> bool {
+    key.suffix.prefix() == pnpm_lockfile::Prefix::None
+        && matches!(
+            key.suffix.version(),
+            pnpm_lockfile::VersionPart::Semver(_)
+                | pnpm_lockfile::VersionPart::RegistryQualified { .. },
+        )
+        && !is_registry_shaped_resolution(resolution)
+}
+
+fn resolution_shape_violation(
+    name: PkgName,
+    version: String,
+    resolution: LockfileResolution,
+) -> ResolutionPolicyViolation {
+    ResolutionPolicyViolation {
+        name,
+        version,
+        resolution,
+        code: RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE,
+        reason: "a registry-style dependency path is backed by a non-registry resolution"
+            .to_string(),
+    }
+}
+
+/// Collect every registry-style `packages` entry whose resolution has a
+/// non-registry shape (`file:`, `directory`, `git`, git-hosted tarballs,
+/// non-registry `variations`, or `binary`).
+#[must_use]
+pub fn collect_resolution_shape_violations(lockfile: &Lockfile) -> Vec<ResolutionPolicyViolation> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Vec::new();
+    };
+    let mut violations = Vec::new();
+    for (key, metadata) in packages {
+        if !has_registry_shape_mismatch(key, &metadata.resolution) {
+            continue;
+        }
+        let version = match key.suffix.registry_qualified() {
+            Some((_, version)) => version.to_string(),
+            None => key.suffix.version().to_string(),
+        };
+        violations.push(resolution_shape_violation(
+            key.name.clone(),
+            version,
+            metadata.resolution.clone(),
+        ));
+    }
+    violations
+}
+
+/// Reject a lockfile whose registry-style `packages` keys are backed by
+/// non-registry resolutions (`file:`, `directory`, `git`, git-hosted tarballs,
+/// non-registry `variations`, or `binary`).
+pub fn verify_lockfile_resolution_shapes(lockfile: &Lockfile) -> Result<(), VerifyError> {
+    let violations = collect_resolution_shape_violations(lockfile);
+    if violations.is_empty() {
+        return Ok(());
+    }
+    Err(super::candidates::build_verification_error(violations))
 }
 
 /// Add every alias in `aliases` that fails
 /// `is_valid_old_npm_package_name` (the `validForOldPackages` rule the
 /// dependency-alias check applies) to `invalid`. Only pass maps
-/// whose keys become `node_modules/<alias>` directories — not
+/// whose keys become `node_modules/<alias>` directories, not
 /// `overrides`, `patched_dependencies`, or peer dependencies.
 fn push_invalid_aliases<'alias>(
     aliases: impl Iterator<Item = &'alias PkgName>,
@@ -157,10 +245,10 @@ fn push_invalid_aliases<'alias>(
 }
 
 /// Collect every lockfile-controlled dependency name that isn't a valid
-/// npm package name. Three sources, each of which becomes a
-/// `node_modules/<name>` path component at install time:
+/// npm package name across:
 ///
 /// - every importer's direct-dependency aliases,
+/// - every `packages:` entry's package name,
 /// - every snapshot's own package name (the `snapshots:` map key), and
 /// - every snapshot's `dependencies` / `optionalDependencies` aliases.
 ///
@@ -181,6 +269,9 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> BTreeSet<String> {
             );
         }
     }
+    if let Some(packages) = lockfile.packages.as_ref() {
+        push_invalid_aliases(packages.keys().map(|key| &key.name), &mut invalid);
+    }
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return invalid };
     for (key, snapshot) in snapshots {
         push_invalid_aliases(std::iter::once(&key.name), &mut invalid);
@@ -199,7 +290,7 @@ fn collect_invalid_dependency_names(lockfile: &Lockfile) -> BTreeSet<String> {
 /// Reject a lockfile whose dependency names or aliases are not valid npm
 /// package names.
 ///
-/// This is an offline, network-free structural check — it does **not**
+/// This is an offline, network-free structural check; it does **not**
 /// depend on the resolution-policy verifiers, so it must run on every
 /// install, **including under `trustLockfile`**, which disables the
 /// policy fan-out. A crafted lockfile alias becomes a filesystem path

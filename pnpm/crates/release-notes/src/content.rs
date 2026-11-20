@@ -1,4 +1,7 @@
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 
 /// The largest note, in UTF-8 bytes, that a pnpr registry accepts.

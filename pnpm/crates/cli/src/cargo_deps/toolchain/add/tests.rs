@@ -1,7 +1,10 @@
 use super::PinnedToolchain;
 use pnpm_install_coordinator::PreparedInstall as _;
 use pnpm_rust_toolchain::InstalledToolchain;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 fn pinned(project: &Path, toolchain: &Path) -> PinnedToolchain {
     PinnedToolchain {

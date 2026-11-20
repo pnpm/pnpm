@@ -1,4 +1,11 @@
-use super::{DependencyGroup, PackageManifest, assert_eq, json, read_to_string, tempdir};
+use super::{
+    DependencyGroup,
+    PackageManifest,
+    assert_eq,
+    json,
+    read_to_string,
+    tempdir,
+};
 use std::fs;
 
 #[test]

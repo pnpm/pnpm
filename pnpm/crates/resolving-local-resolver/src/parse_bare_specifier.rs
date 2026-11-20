@@ -1,15 +1,28 @@
 //! Bare-specifier parsing for the local-filesystem resolver.
 //!
 //! Decides whether a wanted dep is a local-filesystem shape (and which
-//! protocol — `link:` vs `file:`) and builds the [`LocalPackageSpec`]
+//! protocol, `link:` vs `file:`) and builds the [`LocalPackageSpec`]
 //! the resolver consumes.
 
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
-use pnpm_fs::{lexical_normalize, relative_path};
-use pnpm_local_spec::{is_filespec, is_tarball_filename, normalize_specifier};
+use pnpm_fs::{
+    lexical_normalize,
+    relative_path,
+};
+use pnpm_local_spec::{
+    is_filespec,
+    is_tarball_filename,
+    normalize_specifier,
+};
 use pnpm_resolving_resolver_base::PkgResolutionId;
 
 /// The wanted-dependency slice the local resolver consumes.
@@ -101,7 +114,7 @@ pub(crate) fn parse_local_scheme(
     Ok(None)
 }
 
-/// Parse a wanted dep by path shape alone — no scheme prefix. The
+/// Parse a wanted dep by path shape alone, no scheme prefix. The
 /// dispatcher calls this *after* [`parse_local_scheme`] so explicit
 /// `link:`/`file:`/`workspace:`/`path:` prefixes don't slip through.
 pub(crate) fn parse_local_path(

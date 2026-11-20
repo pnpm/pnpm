@@ -1,11 +1,21 @@
 //! Compile the manifest allowlist into the walk's ignore rules.
 
-use super::{IgnoreRule, apply_rules, rule_matches};
+use super::{
+    IgnoreRule,
+    apply_rules,
+    rule_matches,
+};
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     fs,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Compiled file patterns for package selection and explicit listings.
@@ -42,7 +52,8 @@ impl FilesMatcher {
     ) {
         let mut entry = entry
             .strip_prefix("./")
-            .map_or_else(|| entry.to_string(), |entry| format!("/{entry}"));
+            .map(|entry| format!("/{entry}"))
+            .unwrap_or_else(|| entry.to_string());
         if entry.ends_with("/*") {
             entry.push('*');
         }

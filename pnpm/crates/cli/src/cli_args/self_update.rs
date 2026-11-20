@@ -1,4 +1,4 @@
-//! `pacquet self-update` — update pnpm to the latest version (or a given one).
+//! `pacquet self-update`: update pnpm to the latest version (or a given one).
 //!
 //! The target version is resolved from the trusted package-manager
 //! bootstrap registry. When the project pins pnpm via
@@ -13,28 +13,61 @@ pub(crate) mod install_pnpm;
 pub(super) mod project_pin;
 pub(crate) mod verify_engine;
 
-pub(crate) use externally_managed::{ExternalManager, find_external_manager};
+pub(crate) use externally_managed::{
+    ExternalManager,
+    find_external_manager,
+};
 
 mod externally_managed;
 mod global_bin;
 mod pinned_project;
 
-use crate::config_deps::{self, EnginePolicyViolation};
+use crate::config_deps::{
+    self,
+    EnginePolicyViolation,
+};
 use clap::Args;
-use derive_more::{Display, Error};
-use global_bin::{link_into_global_bin, link_into_legacy_home_dir};
-use miette::{Context, Diagnostic};
+use derive_more::{
+    Display,
+    Error,
+};
+use global_bin::{
+    link_into_global_bin,
+    link_into_legacy_home_dir,
+};
+use miette::{
+    Context,
+    Diagnostic,
+};
 use pinned_project::ProjectPin;
-use pnpm_config::{Config, Host, PNPM_VERSION, default_pnpm_home_dir};
+use pnpm_config::{
+    Config,
+    Host,
+    PNPM_VERSION,
+    default_pnpm_home_dir,
+};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use pnpm_resolving_npm_resolver::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, infer_range_spec_style};
+use pnpm_reporter::{
+    LogEvent,
+    LogLevel,
+    PnpmLog,
+    Reporter,
+};
+use pnpm_resolving_npm_resolver::{
+    MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+    infer_range_spec_style,
+};
 use project_pin::{
-    NoUpgradeKind, implicit_latest_no_upgrade_message, registry_latest_ignoring_maturity,
+    NoUpgradeKind,
+    implicit_latest_no_upgrade_message,
+    registry_latest_ignoring_maturity,
 };
 use serde_json::Value;
-use std::{io::IsTerminal, path::Path};
+use std::{
+    io::IsTerminal,
+    path::Path,
+};
 
 /// Errors specific to `self-update`. The codes carry the shared
 /// `ERR_PNPM_` prefix, so a code already starting with `PNPM_` becomes
@@ -131,16 +164,16 @@ pub struct SelfUpdateArgs {
 /// A `minimumReleaseAge` cutoff exists so a freshly published pnpm cannot
 /// reach the machine before anyone has had a chance to notice it is
 /// malicious, and pnpm itself is the most valuable thing on the machine to
-/// compromise — so under strict mode an immature pick is refused. An
+/// compromise, so under strict mode an immature pick is refused. An
 /// interactive run may still confirm it: naming a version on the command line
 /// is a deliberate act by the person at the keyboard, unlike a dependency
 /// drifting onto a new release. CI and other non-interactive runs always fail
-/// closed — a CI runner that allocates a pseudo-TTY has no one at the keyboard
-/// either. The cutoff never comes from the project — see
-/// [`WorkspaceSettings::clear_self_update_policy`] — so the only policy to
+/// closed, a CI runner that allocates a pseudo-TTY has no one at the keyboard
+/// either. The cutoff never comes from the project; see
+/// [`WorkspaceSettings::clear_self_update_policy`], so the only policy to
 /// confirm here is the user's own.
 ///
-/// A `trustPolicy` violation is not negotiable — it means the release's trust
+/// A `trustPolicy` violation is not negotiable; it means the release's trust
 /// evidence weakened relative to the installed version.
 ///
 /// [`WorkspaceSettings::clear_self_update_policy`]: pnpm_config::WorkspaceSettings::clear_self_update_policy

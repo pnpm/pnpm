@@ -1,4 +1,8 @@
-use super::{Section, find_sections, wrap_section};
+use super::{
+    Section,
+    find_sections,
+    wrap_section,
+};
 
 #[test]
 fn finds_every_closed_block() {

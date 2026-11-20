@@ -3,10 +3,16 @@
 //! imports, and the cached git-prepare policy.
 
 use super::{
-    CreateVirtualStore, CreateVirtualStoreError, PrefetchTask, snapshot_plan,
+    CreateVirtualStore,
+    CreateVirtualStoreError,
+    PrefetchTask,
+    snapshot_plan,
     warm::enforce_cached_git_prepare_policy,
 };
-use pnpm_lockfile::{PackageKey, PackageMetadata};
+use pnpm_lockfile::{
+    PackageKey,
+    PackageMetadata,
+};
 use pnpm_store_dir::SharedVerifiedFilesCache;
 use pnpm_tarball::PrefetchResult;
 use std::collections::HashMap;

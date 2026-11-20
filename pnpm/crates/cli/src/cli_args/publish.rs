@@ -1,4 +1,4 @@
-//! `pacquet publish` — publish a package to an npm registry.
+//! `pacquet publish`: publish a package to an npm registry.
 //!
 //! The registry-facing work (OIDC, OTP, the publish document and PUT) lives in
 //! [`pnpm_publish`]; this module maps the resolved [`Config`] and CLI flags
@@ -8,7 +8,12 @@
 //! `--recursive` (workspace publishing), including pnpr's batch endpoint,
 //! lives in [`recursive`].
 
-pub use arguments::{PublishGitArgs, PublishManifestArgs, PublishOutputArgs, PublishRegistryArgs};
+pub use arguments::{
+    PublishGitArgs,
+    PublishManifestArgs,
+    PublishOutputArgs,
+    PublishRegistryArgs,
+};
 mod new_version;
 mod notes;
 mod options;
@@ -25,19 +30,37 @@ mod arguments;
 
 use crate::cli_args::registry_client::build_publish_client;
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
+use miette::{
+    Context,
+    IntoDiagnostic,
+};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_executor::{
+    RunPostinstallHooks,
+    run_lifecycle_hook,
+};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_publish::{
-    Host, PackedPkg, PublishFailure, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
-    extract_publish_manifest_from_packed, is_tarball_path, publish_packed_pkg,
-    resolve_otp_from_env, run_git_checks,
+    Host,
+    PackedPkg,
+    PublishFailure,
+    PublishNetwork,
+    PublishPackedPkgOptions,
+    PublishSummary,
+    extract_publish_manifest_from_packed,
+    is_tarball_path,
+    publish_packed_pkg,
+    resolve_otp_from_env,
+    run_git_checks,
 };
 use pnpm_reporter::Reporter;
 use serde_json::Value;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// Publish a package to the registry.
 #[derive(Debug, Args)]
@@ -76,8 +99,8 @@ pub struct PublishFlags {
 
 /// What one `publish` / `stage publish` invocation published: the single
 /// package summary, or the recursive path's per-package summaries (possibly
-/// empty). The two arms serialize differently under `--json` — an object vs.
-/// an array — so the split is kept rather than flattened to a `Vec`.
+/// empty). The two arms serialize differently under `--json` (an object vs.
+/// an array) so the split is kept rather than flattened to a `Vec`.
 pub(super) enum PublishedPackages {
     Single(Box<PublishSummary>),
     Recursive(Vec<PublishSummary>),
@@ -95,7 +118,7 @@ impl PublishedPackages {
 
 impl PublishArgs {
     /// Publish the package at `dir` (or the given tarball/directory),
-    /// returning nothing — output is printed here. Handles the single-package
+    /// returning nothing, output is printed here. Handles the single-package
     /// and tarball paths.
     pub async fn run<Reporter: self::Reporter>(
         self,
@@ -134,8 +157,8 @@ impl PublishArgs {
         Ok(())
     }
 
-    /// Run the whole publish pipeline — git checks, packing, lifecycle
-    /// scripts, the registry request — and return the summaries instead of
+    /// Run the whole publish pipeline (git checks, packing, lifecycle
+    /// scripts, the registry request) and return the summaries instead of
     /// printing, so `publish` and `stage publish` can render them differently.
     /// `stage` sends the upload to the registry's staging endpoint.
     pub(super) async fn publish_packages<Reporter: self::Reporter>(
@@ -199,8 +222,8 @@ impl PublishArgs {
             self.publish_tarball::<Reporter>(&tarball_path, config, &opts, &network, scope).await
         } else {
             // Resolved against the command directory so every path the
-            // pack derives from it — the re-anchored `file:` / `link:`
-            // catalog entries among them — can be related to the
+            // pack derives from it, the re-anchored `file:` / `link:`
+            // catalog entries among them, can be related to the
             // absolute workspace directory. `join` keeps an absolute
             // argument as it is.
             let project_dir = self.package
@@ -330,7 +353,9 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     };
     if !script_names
         .iter()
-        .any(|name| declares(name).is_some())
+        .copied()
+        .map(declares)
+        .any(|declares| declares.is_some())
     {
         return Ok(());
     }

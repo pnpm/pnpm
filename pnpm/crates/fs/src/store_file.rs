@@ -3,7 +3,10 @@
 use std::{
     collections::HashMap,
     io,
-    path::{Path, PathBuf},
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::OnceLock,
 };
 

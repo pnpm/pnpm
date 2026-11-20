@@ -1,4 +1,7 @@
-use semver::{Version, VersionReq};
+use semver::{
+    Version,
+    VersionReq,
+};
 
 /// The requirement `pnpm update` writes for `resolved`, without build
 /// metadata, which Cargo ignores and warns about.
@@ -17,7 +20,8 @@ pub(crate) fn format_cargo_saved_spec(
     if let Some(spec) = explicit_spec {
         if spec.starts_with(['^', '~', '=', '>', '<']) {
             return VersionReq::parse(spec)
-                .map_or_else(|_| spec.to_string(), |req| req.to_string());
+                .map(|req| req.to_string())
+                .unwrap_or_else(|_| spec.to_string());
         }
         if spec.starts_with(|first: char| first.is_ascii_digit()) {
             return spec
@@ -72,7 +76,7 @@ fn requirement_without_build_metadata(raw: &str) -> String {
     if !raw.contains('+') {
         return raw.to_string();
     }
-    VersionReq::parse(raw).map_or_else(|_| raw.to_string(), |req| req.to_string())
+    VersionReq::parse(raw).map(|req| req.to_string()).unwrap_or_else(|_| raw.to_string())
 }
 
 fn lower_bound_prefix(clause: &str) -> Option<&'static str> {

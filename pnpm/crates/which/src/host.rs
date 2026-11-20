@@ -1,9 +1,20 @@
 use std::{
-    ffi::{OsStr, OsString},
-    fs, io,
-    path::{Path, PathBuf},
+    ffi::{
+        OsStr,
+        OsString,
+    },
+    fs,
+    io,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
-use which::{Result, WhichConfig, sys::Sys};
+use which::{
+    Result,
+    WhichConfig,
+    sys::Sys,
+};
 
 pub fn which<Name: AsRef<OsStr>>(name: Name) -> Result<PathBuf> {
     config(name.as_ref(), std::env::var_os("PATH")).first_result()

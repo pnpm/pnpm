@@ -2,28 +2,70 @@ pub(crate) use bump::parse_exact_version;
 pub(crate) use release::selected_projects;
 
 use crate::cli_args::{
-    change::{render_release_plan, to_engine_projects},
-    changelog::{self, confirmed_published_versions, unpublished_release_dirs},
-    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
+    change::{
+        render_release_plan,
+        to_engine_projects,
+    },
+    changelog::{
+        self,
+        confirmed_published_versions,
+        unpublished_release_dirs,
+    },
+    recursive::{
+        AutoExcludeRoot,
+        discover_workspace_projects,
+        select_recursive_projects,
+    },
 };
-use bump::{Bump, inc, parse_bump, parse_current_version};
-use clap::{Args, ValueHint};
+use bump::{
+    Bump,
+    inc,
+    parse_bump,
+    parse_current_version,
+};
+use clap::{
+    Args,
+    ValueHint,
+};
 use git::version_from_git;
 use miette::Context;
-use node_semver::{Identifier, Version};
+use node_semver::{
+    Identifier,
+    Version,
+};
 use pnpm_config::Config;
-use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
+use pnpm_executor::{
+    RunPostinstallHooks,
+    run_lifecycle_hook,
+};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_publish::{Host, RunCommand, is_git_repo, is_working_tree_clean};
+use pnpm_publish::{
+    Host,
+    RunCommand,
+    is_git_repo,
+    is_working_tree_clean,
+};
 use pnpm_versioning::{
-    AssembleReleasePlanOptions, apply_release_plan, assemble_release_plan, read_change_intents,
+    AssembleReleasePlanOptions,
+    apply_release_plan,
+    assemble_release_plan,
+    read_change_intents,
     read_ledger,
 };
 
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    collections::{
+        HashMap,
+        HashSet,
+    },
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 /// Bump the version of a package: `pnpm version <bump|semver>` applies an
@@ -105,7 +147,7 @@ impl VersionArgs {
         self.git.tag_version_prefix.as_deref().unwrap_or(&config.tag_version_prefix)
     }
 
-    /// Apply an npm-style bump — `pnpm version <major|minor|…|x.y.z>` — to
+    /// Apply an npm-style bump (`pnpm version <major|minor|…|x.y.z>`) to
     /// the package at `dir`, or to every selected workspace package when
     /// `recursive`. Mirrors the TypeScript handler: git-tree check, per-
     /// package bump with `preversion`/`version` hooks, a commit and tag for
@@ -230,7 +272,7 @@ impl VersionArgs {
 
     /// Bump one package's manifest, running its `preversion` and `version`
     /// lifecycle hooks around the write. Both the write and the hooks are
-    /// skipped on a dry run. Returns `None` — bumping nothing — when the
+    /// skipped on a dry run. Returns `None` (bumping nothing) when the
     /// manifest has no name or no version.
     fn bump_package_version<Reporter: pnpm_reporter::Reporter>(
         &self,

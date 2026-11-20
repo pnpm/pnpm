@@ -9,7 +9,10 @@
 use super::InstallWithFreshLockfileError;
 #[cfg(feature = "runtime-provisioning")]
 mod runtime_resolvers;
-use crate::{PrefetchContext, PrefetchingResolver};
+use crate::{
+    PrefetchContext,
+    PrefetchingResolver,
+};
 use pnpm_config::Config;
 #[cfg(feature = "runtime-provisioning")]
 use pnpm_config::Tool;
@@ -17,19 +20,43 @@ use pnpm_config::Tool;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_lockfile::DeclaredRegistryPrefixes;
 use pnpm_resolving_default_resolver::DefaultResolver;
-use pnpm_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
-use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
+use pnpm_resolving_git_resolver::{
+    GitFetchContext,
+    GitResolver,
+    RealGitProbe,
+    RealGitRunner,
+};
+use pnpm_resolving_local_resolver::{
+    LocalPathResolver,
+    LocalResolverContext,
+    LocalSchemeResolver,
+};
 use pnpm_resolving_npm_resolver::{
-    InMemoryPackageMetaCache, NamedRegistryResolver, NpmResolver, merge_named_registries,
-    shared_packument_fetch_locker, shared_picked_manifest_cache,
+    InMemoryPackageMetaCache,
+    NamedRegistryResolver,
+    NpmResolver,
+    merge_named_registries,
+    shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
 };
 use pnpm_resolving_resolver_base::Resolver;
-use pnpm_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
+use pnpm_resolving_tarball_resolver::{
+    TarballFetchContext,
+    TarballResolver,
+};
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
+    SharedReadonlyStoreIndex,
+    SharedVerifiedFilesCache,
+    StoreDir,
+    StoreIndex,
+    StoreIndexWriter,
 };
 use pnpm_tarball::SharedReportedProgressKeys;
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+};
 
 /// The store index the resolver chain and the install pass share, plus
 /// the batched writer both feed rows into.
@@ -95,7 +122,7 @@ pub(super) struct Registries {
     /// Scope → registry URL, as `.npmrc` resolves them.
     pub by_scope: HashMap<String, String>,
     /// `pnpm-workspace.yaml#namedRegistries` folded together with
-    /// pacquet's built-in aliases — today `gh:` → GitHub Packages.
+    /// pacquet's built-in aliases, today `gh:` → GitHub Packages.
     pub named: HashMap<String, String>,
     /// See [`DeclaredRegistryPrefixes`].
     pub declared: DeclaredRegistryPrefixes,
@@ -175,7 +202,7 @@ pub(super) struct ResolverChain {
 ///
 /// The chain is then wrapped twice: [`PrefetchingResolver`] so each
 /// tarball-shaped result fires a background download while the tree walk
-/// continues, and — for the pnpr server only — [`crate::ObservingResolver`]
+/// continues, and (for the pnpr server only) [`crate::ObservingResolver`]
 /// so each resolution is reported to the client as it lands.
 pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'static>(
     mut inputs: ResolverChainInputs<'_>,
@@ -275,8 +302,8 @@ impl ResolverChainInputs<'_> {
         })
     }
 
-    // A git dep's specifier names a repo, not a package, so its name —
-    // the `<name>@` half of every lockfile key it reaches — is only
+    // A git dep's specifier names a repo, not a package, so its name
+    // (the `<name>@` half of every lockfile key it reaches) is only
     // readable from the package's own `package.json`, in the host's
     // archive or (for a repo with no archive endpoint) a checkout. Hand
     // the resolver the handles to read it, on the same rationale as the
@@ -301,7 +328,7 @@ impl ResolverChainInputs<'_> {
     }
 
     // A remote (non-registry) tarball *direct* dependency carries no
-    // name/version/integrity at resolve time — they live in the
+    // name/version/integrity at resolve time; they live in the
     // tarball's `package.json`. The resolver downloads + extracts it here
     // (warming `tarball_mem_cache` under the hash it settles) so the
     // lockfile builder gets the manifest + integrity and the install pass
@@ -398,7 +425,8 @@ impl ResolverChainInputs<'_> {
         chain.extend(
             custom_resolvers
                 .iter()
-                .filter(|custom| custom.has_can_resolve() && custom.has_resolve())
+                .filter(|custom| custom.has_can_resolve())
+                .filter(|custom| custom.has_resolve())
                 .map(|custom| {
                     Box::new(pnpm_hooks::custom_resolver_adapter::CustomResolverAdapter::new(
                         Arc::clone(custom),
@@ -462,7 +490,7 @@ struct PnpmfileLoad {
     hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>>,
     // Loaded alongside the custom resolvers (same worker, same fatality
-    // rule) and consumed by `CreateVirtualStore` — a custom resolver
+    // rule) and consumed by `CreateVirtualStore`, a custom resolver
     // typically writes the custom-typed resolutions its sibling fetcher
     // materializes.
     custom_fetcher_session: Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>,

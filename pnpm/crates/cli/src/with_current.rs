@@ -10,7 +10,10 @@
 //! in-process config load and any child process the command spawns.
 
 use crate::parse_boundary::PreCommandPrefixes;
-use derive_more::{Display, Error};
+use derive_more::{
+    Display,
+    Error,
+};
 use miette::Diagnostic;
 use std::ffi::OsString;
 

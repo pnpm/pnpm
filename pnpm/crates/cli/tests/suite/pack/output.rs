@@ -1,9 +1,18 @@
-use super::{assert_pack_json_lifecycle_streams, read_manifest_from_tarball};
+use super::{
+    assert_pack_json_lifecycle_streams,
+    read_manifest_from_tarball,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
+};
 use serde_json::json;
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+};
 
 #[test]
 fn silent_flags_suppress_pack_output() {

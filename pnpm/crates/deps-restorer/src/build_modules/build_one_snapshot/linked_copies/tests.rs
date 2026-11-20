@@ -1,4 +1,7 @@
-use super::{LinkTargets, unlink_children};
+use super::{
+    LinkTargets,
+    unlink_children,
+};
 use std::fs;
 
 #[test]

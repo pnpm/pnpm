@@ -1,28 +1,50 @@
 use axum::{
     body::Body,
-    http::{StatusCode, header},
-    response::{IntoResponse, Response},
+    http::{
+        StatusCode,
+        header,
+    },
+    response::{
+        IntoResponse,
+        Response,
+    },
 };
-use serde_json::{Value, json};
+use serde_json::{
+    Value,
+    json,
+};
 
 use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{
     DOCUMENT_WRITE_RETRIES,
-    database::{Generation, TagChange, TagUpdate, validate_dist_tag},
+    database::{
+        Generation,
+        TagChange,
+        TagUpdate,
+        validate_dist_tag,
+    },
     wait_after_document_write_conflict,
 };
 
 use super::read_authorized_packument;
 use crate::server::{
-    Action, AppState, AuthorizationDecision, GENERATION_HEADER, RegistrySource,
-    authorize_without_owners, filter_osv_vulnerable_dist_tags, hosted_storage,
-    load_packument_for_read, not_found, resolve_write_target,
+    Action,
+    AppState,
+    AuthorizationDecision,
+    GENERATION_HEADER,
+    RegistrySource,
+    authorize_without_owners,
+    filter_osv_vulnerable_dist_tags,
+    hosted_storage,
+    load_packument_for_read,
+    not_found,
+    resolve_write_target,
 };
 
 /// `GET /-/package/:pkg/dist-tags` (path-less) or
-/// `GET /~<name>/-/package/:pkg/dist-tags` — return the packument's
+/// `GET /~<name>/-/package/:pkg/dist-tags`, return the packument's
 /// `dist-tags` object.
 pub(crate) async fn get_dist_tags(
     state: &AppState,
@@ -57,7 +79,7 @@ pub(crate) async fn get_dist_tags(
 }
 
 /// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
-/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
+/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag`, set a dist-tag. Body is
 /// a JSON-encoded version string (e.g. `"1.0.0"`), read only once the caller
 /// may change the tag.
 pub(crate) async fn set_dist_tag(

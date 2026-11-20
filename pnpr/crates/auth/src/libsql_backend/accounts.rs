@@ -1,6 +1,15 @@
 use super::{
-    AccountStatus, LibsqlAuth, RegistryError, Result, first_row, is_unique_violation, params,
-    retry_database_conflicts, token_timestamp_to_sql, unix_millis, validate_username,
+    AccountStatus,
+    LibsqlAuth,
+    RegistryError,
+    Result,
+    first_row,
+    is_unique_violation,
+    params,
+    retry_database_conflicts,
+    token_timestamp_to_sql,
+    unix_millis,
+    validate_username,
 };
 use crate::validation::name_revision_bounds;
 

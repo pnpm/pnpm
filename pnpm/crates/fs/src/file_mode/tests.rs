@@ -1,4 +1,10 @@
-use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_cas_file_path, is_executable};
+use super::{
+    EXEC_MASK,
+    EXEC_MODE,
+    cas_path_is_executable,
+    is_cas_file_path,
+    is_executable,
+};
 use std::path::Path;
 
 #[test]
@@ -47,7 +53,10 @@ fn is_cas_file_path_matches_the_store_layout_only() {
 fn set_path_permissions_refuses_symlinks() {
     use std::{
         fs,
-        os::unix::fs::{PermissionsExt, symlink},
+        os::unix::fs::{
+            PermissionsExt,
+            symlink,
+        },
     };
     let temporary = tempfile::tempdir().unwrap();
     let target = temporary.path().join("target");
@@ -130,7 +139,10 @@ fn make_file_executable_fills_partial_bits_and_preserves_full() {
 #[test]
 fn restore_exec_bit_adds_bits_for_exec_suffix() {
     use super::restore_exec_bit_from_cas_suffix;
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().expect("create tempdir");
     let cas_path = Path::new("files/1b/59d9-exec");
@@ -154,7 +166,10 @@ fn restore_exec_bit_adds_bits_for_exec_suffix() {
 #[test]
 fn restore_exec_bit_does_not_widen_non_exec_suffix() {
     use super::restore_exec_bit_from_cas_suffix;
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().expect("create tempdir");
     let cas_path = Path::new("files/1b/59d9");
@@ -188,7 +203,11 @@ fn inherited_file_mode_copies_directory_rw_and_keeps_owner_access() {
 /// readable-and-writable store implies.
 #[test]
 fn store_inode_mode_is_linkable_ignores_group_and_other_write() {
-    use super::{Umask, store_entry_mode, store_inode_mode_is_linkable};
+    use super::{
+        Umask,
+        store_entry_mode,
+        store_inode_mode_is_linkable,
+    };
     for (dir_mode, umask) in [(0o777, 0o000), (0o1777, 0o000), (0o2775, 0o002), (0o2775, 0o022)] {
         for executable in [false, true] {
             let mode = super::inherited_file_mode(dir_mode, executable);
@@ -203,7 +222,11 @@ fn store_inode_mode_is_linkable_ignores_group_and_other_write() {
 
 #[test]
 fn store_inode_mode_is_linkable_rejects_other_differences() {
-    use super::{Umask, store_entry_mode, store_inode_mode_is_linkable};
+    use super::{
+        Umask,
+        store_entry_mode,
+        store_inode_mode_is_linkable,
+    };
     let plain_077 = store_entry_mode(false, Umask::from_mask(0o077));
     let exec_077 = store_entry_mode(true, Umask::from_mask(0o077));
     assert!(!store_inode_mode_is_linkable(0o644, plain_077), "extra read bits");
@@ -245,7 +268,10 @@ fn inherited_dir_bits_carry_group_access_with_group_write() {
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_restores_group_search_under_restrictive_umask() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().unwrap();
     fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
@@ -273,7 +299,10 @@ fn grant_inherited_dir_mode_restores_group_search_under_restrictive_umask() {
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_does_not_follow_a_swapped_symlink() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().unwrap();
     let store = tmp.path().join("store");
@@ -300,7 +329,10 @@ fn grant_inherited_dir_mode_does_not_follow_a_swapped_symlink() {
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_refuses_a_swapped_fifo_without_blocking() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().unwrap();
     let store = tmp.path().join("store");
@@ -319,7 +351,10 @@ fn grant_inherited_dir_mode_refuses_a_swapped_fifo_without_blocking() {
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_reaches_a_directory_its_owner_cannot_read() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let tmp = tempfile::tempdir().unwrap();
     fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o2775)).unwrap();
@@ -340,7 +375,10 @@ fn grant_inherited_dir_mode_reaches_a_directory_its_owner_cannot_read() {
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_rejects_unrelated_template_without_changes() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let temporary = tempfile::tempdir().unwrap();
     let template = temporary.path().join("template");
@@ -371,7 +409,10 @@ fn grant_inherited_dir_mode_rejects_unrelated_template_without_changes() {
 fn grant_inherited_dir_mode_rejects_symlink_parent_escape() {
     use std::{
         fs,
-        os::unix::fs::{PermissionsExt, symlink},
+        os::unix::fs::{
+            PermissionsExt,
+            symlink,
+        },
     };
 
     let temporary = tempfile::tempdir().unwrap();
@@ -403,7 +444,10 @@ fn grant_inherited_dir_mode_rejects_symlink_parent_escape() {
 fn grant_inherited_dir_mode_refuses_intermediate_symlink() {
     use std::{
         fs,
-        os::unix::fs::{PermissionsExt, symlink},
+        os::unix::fs::{
+            PermissionsExt,
+            symlink,
+        },
     };
 
     let temporary = tempfile::tempdir().unwrap();
@@ -457,7 +501,10 @@ fn create_dir_all_inheriting_mode_rejects_parent_traversal_before_creation() {
 #[cfg(unix)]
 #[test]
 fn create_dir_all_inheriting_mode_accepts_existing_parent_traversal() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let temporary = tempfile::tempdir().unwrap();
     fs::create_dir(temporary.path().join("workspace")).unwrap();
@@ -478,7 +525,10 @@ fn create_dir_all_inheriting_mode_accepts_existing_parent_traversal() {
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_accepts_relative_dot_template() {
-    use std::{fs, os::unix::fs::PermissionsExt};
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+    };
 
     let temporary = tempfile::tempdir_in(".").unwrap();
     let directory = temporary.path().join("child");

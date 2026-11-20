@@ -1,4 +1,9 @@
-use crate::{Lockfile, PackageKey, PkgName, merge_lockfile_changes};
+use crate::{
+    Lockfile,
+    PackageKey,
+    PkgName,
+    merge_lockfile_changes,
+};
 use std::path::Path;
 
 fn parse(yaml: &str) -> Lockfile {
@@ -94,7 +99,7 @@ fn entries_only_one_side_records_all_survive() {
 }
 
 /// An entry both sides record merges field by field, the way pnpm's
-/// object spread does — a field only ours carries is not dropped because
+/// object spread does, a field only ours carries is not dropped because
 /// theirs omits it.
 #[test]
 fn a_shared_entry_keeps_the_fields_only_one_side_records() {
@@ -135,7 +140,7 @@ snapshots:
 
 /// The merged lockfile is what the install then resolves against, so the
 /// recorded-config fields are deliberately dropped rather than picked
-/// from one side — the install writes its own back.
+/// from one side, the install writes its own back.
 #[test]
 fn the_recorded_configuration_is_preserved_and_merged() {
     let ours = "\

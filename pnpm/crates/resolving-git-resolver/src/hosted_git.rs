@@ -19,8 +19,13 @@
 
 mod url_parse;
 use url_parse::{
-    correct_protocol, extract_auth, host_segments, is_github_shorthand, parse_git_url,
-    percent_decode, shortcut_segments,
+    correct_protocol,
+    extract_auth,
+    host_segments,
+    is_github_shorthand,
+    parse_git_url,
+    percent_decode,
+    shortcut_segments,
 };
 
 use pnpm_network::encode_uri_component;
@@ -160,7 +165,7 @@ impl HostedGit {
     /// recognise (Gitea, self-hosted GitLab, a generic
     /// `git+file://…`, ...), the project is missing, or the URL parses
     /// to an unsupported shape (e.g. a bitbucket `/get/…` archive
-    /// URL — upstream's `extract` returns undefined for those and
+    /// URL, upstream's `extract` returns undefined for those and
     /// pacquet mirrors it).
     pub fn from_url(giturl: &str) -> Option<HostedGit> {
         if giturl.is_empty() {
@@ -423,7 +428,7 @@ impl HostedGit {
     /// `/-/archive/<ref>/<project>-<ref>.tar.gz` shape instead of the
     /// upstream template.
     ///
-    /// Returns `None` when no committish is set — every supported host
+    /// Returns `None` when no committish is set; every supported host
     /// uses an explicit ref or the literal `HEAD` / `master` placeholder
     /// from upstream's template. Pacquet only ever invokes
     /// `tarball()` after [`crate::resolve_ref::resolve_ref`] has pinned

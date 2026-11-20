@@ -2,9 +2,16 @@ mod builds;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::bin::{
+    AddMockedRegistry,
+    CommandTempCwd,
+};
 use serde_json::Value;
-use std::{fs, path::Path, process::Command};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+};
 
 fn assert_no_installed_packages(root: &Path) {
     for entry in walkdir::WalkDir::new(root) {
@@ -98,7 +105,7 @@ fn cas_install_runs_scripts_bins_and_children_without_installed_packages() {
     #[cfg(unix)]
     Command::new(workspace.join("node_modules/.bin/hello-world-js-bin"))
         .with_current_dir(&workspace)
-        .env_remove("NODE_OPTIONS")
+        .without_env("NODE_OPTIONS")
         .assert()
         .success();
     assert!(workspace.join("node_modules/.pnpm-workspace-state-v1.json").is_file());
@@ -117,7 +124,7 @@ fn cas_install_runs_scripts_bins_and_children_without_installed_packages() {
             .with_current_dir(&workspace)
             .with_arg("--config.verify-deps-before-run=error")
             .with_args(args)
-            .env_remove("NODE_OPTIONS")
+            .without_env("NODE_OPTIONS")
             .assert()
             .success();
         assert!(String::from_utf8_lossy(&output.get_output().stdout).contains("CAS works"));
@@ -294,7 +301,7 @@ fn cas_workspace_preserves_workspace_and_alias_dependency_contexts() {
         .unwrap()
         .with_current_dir(&workspace)
         .with_args(["--config.verify-deps-before-run=error", "exec", "nested"])
-        .env_remove("NODE_OPTIONS")
+        .without_env("NODE_OPTIONS")
         .assert()
         .success();
     assert_no_installed_packages(&workspace);
@@ -359,7 +366,7 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
             .unwrap()
             .with_current_dir(&workspace)
             .with_args(["exec", "node", "-e", "require('@pnpm.e2e/pkg-with-1-dep')()"])
-            .env_remove("NODE_OPTIONS")
+            .without_env("NODE_OPTIONS")
             .assert()
             .success();
         assert!(
@@ -596,7 +603,7 @@ fn cas_loader_starts_when_a_package_ships_node_modules_files() {
         .unwrap()
         .with_current_dir(&workspace)
         .with_args(["exec", "node", "-e", "console.log(require('fixtures-in-node-modules'))"])
-        .env_remove("NODE_OPTIONS")
+        .without_env("NODE_OPTIONS")
         .assert()
         .success();
     assert_eq!(String::from_utf8_lossy(&output.get_output().stdout).trim(), "loaded");

@@ -1,4 +1,7 @@
-use super::{TempDir, fs};
+use super::{
+    TempDir,
+    fs,
+};
 
 /// The global `config.yaml` that seeding it with `original` and writing
 /// `entries` leaves, or `None` when there is no file.
