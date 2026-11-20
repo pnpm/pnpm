@@ -944,17 +944,11 @@ mod dev_preinstall {
         drop((root, mock_instance));
     }
 
-    #[test]
-    fn runs_when_shared_workspace_lockfile_is_false() {
-        let CommandTempCwd {
-            pacquet,
-            root,
-            workspace,
-            npmrc_info,
-            ..
-        } = CommandTempCwd::init().add_mocked_registry();
-        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-
+    /// Write a `sharedWorkspaceLockfile: false` workspace whose root and
+    /// members each define `pnpm:devPreinstall`. Returns the member dirs.
+    fn write_dedicated_workspace_with_hooks(
+        workspace: &std::path::Path,
+    ) -> Vec<std::path::PathBuf> {
         let yaml_path = workspace.join("pnpm-workspace.yaml");
         let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
         fs::write(
@@ -976,24 +970,69 @@ mod dev_preinstall {
         };
         fs::write(workspace.join("package.json"), manifest("root"))
             .expect("write the root package.json");
-        let member_dir = workspace.join("packages").join("member");
-        fs::create_dir_all(&member_dir).expect("create the member dir");
-        fs::write(member_dir.join("package.json"), manifest("member"))
-            .expect("write the member package.json");
+        ["member-a", "member-b"]
+            .into_iter()
+            .map(|name| {
+                let member_dir = workspace.join("packages").join(name);
+                fs::create_dir_all(&member_dir).expect("create the member dir");
+                fs::write(member_dir.join("package.json"), manifest(name))
+                    .expect("write the member package.json");
+                member_dir
+            })
+            .collect()
+    }
+
+    fn assert_only_the_root_ran(workspace: &std::path::Path, member_dirs: &[std::path::PathBuf]) {
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        assert_eq!(order.lines().collect::<Vec<&str>>(), ["root"]);
+        for member_dir in member_dirs {
+            assert!(
+                !member_dir.join("order.txt").exists(),
+                "member order.txt exists with: {:?}",
+                fs::read_to_string(member_dir.join("order.txt")),
+            );
+        }
+    }
+
+    #[test]
+    fn runs_once_for_the_workspace_root_when_shared_workspace_lockfile_is_false() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let member_dirs = write_dedicated_workspace_with_hooks(&workspace);
 
         pacquet
             .with_arg("install")
             .assert()
             .success();
 
-        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
-        assert_eq!(order.lines().collect::<Vec<&str>>(), ["root"]);
-        assert!(
-            !member_dir.join("order.txt").exists(),
-            "member order.txt exists with: {:?}",
-            fs::read_to_string(member_dir.join("order.txt")),
-        );
+        assert_only_the_root_ran(&workspace, &member_dirs);
+        drop((root, mock_instance));
+    }
 
+    #[test]
+    fn runs_for_the_workspace_root_when_a_filtered_install_excludes_it() {
+        let CommandTempCwd {
+            pacquet,
+            root,
+            workspace,
+            npmrc_info,
+            ..
+        } = CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let member_dirs = write_dedicated_workspace_with_hooks(&workspace);
+
+        pacquet
+            .with_args(["--filter", "member-a", "install"])
+            .assert()
+            .success();
+
+        assert_only_the_root_ran(&workspace, &member_dirs);
         drop((root, mock_instance));
     }
 }

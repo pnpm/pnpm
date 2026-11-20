@@ -2855,6 +2855,37 @@ test('pnpm:devPreinstall runs for root when shared-workspace-lockfile is false',
   expect(fs.existsSync('packages/member/order.txt')).toBe(false)
 })
 
+test('pnpm:devPreinstall runs for root when shared-workspace-lockfile is false and the filter excludes root', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        scripts: {
+          'pnpm:devPreinstall': 'node -e "require(\'fs\').appendFileSync(\'order.txt\', \'root\\n\')"',
+        },
+      },
+    },
+    {
+      location: 'packages/member',
+      package: {
+        name: 'member',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  await execPnpm(['--filter', 'member', 'install'])
+
+  expect(fs.readFileSync('order.txt', 'utf8')).toBe('root\n')
+})
+
 test('pnpm:devPreinstall is skipped when shared-workspace-lockfile is false and --ignore-scripts is used', async () => {
   preparePackages([
     {

@@ -169,6 +169,34 @@ pub(super) fn root_preinstall_already_ran() -> bool {
     std::env::var(ROOT_PREINSTALL_ALREADY_RAN_ENV).is_ok_and(|value| value == "true")
 }
 
+/// The workspace root's `pnpm:devPreinstall` for the per-project installs of
+/// a workspace whose projects keep their own lockfiles. The first install to
+/// reach its pre-resolution hooks runs it, and the others wait for it, so it
+/// runs once and before any project resolves.
+#[derive(Debug, Default, Clone)]
+pub struct SharedDevPreinstall(std::sync::Arc<Mutex<Option<bool>>>);
+
+impl SharedDevPreinstall {
+    /// Run `hook` unless an earlier call ran it. A failure is returned to the
+    /// install that ran the hook, and the others stop with
+    /// [`InstallError::WorkspaceDependencyFailed`].
+    pub(super) fn run_once(
+        &self,
+        hook: impl FnOnce() -> Result<bool, InstallError>,
+    ) -> Result<(), InstallError> {
+        let mut succeeded = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        match *succeeded {
+            Some(true) => Ok(()),
+            Some(false) => Err(InstallError::WorkspaceDependencyFailed),
+            None => {
+                let outcome = hook();
+                *succeeded = Some(outcome.is_ok());
+                outcome.map(drop)
+            }
+        }
+    }
+}
+
 /// Run one of the root project's pre-resolution hooks, `run` is
 /// [`pnpm_executor::run_dev_preinstall_hook`] or
 /// [`pnpm_executor::run_root_preinstall_hook`].

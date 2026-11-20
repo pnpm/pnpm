@@ -7,6 +7,7 @@ use super::super::{
     PathBuf,
     ProjectScriptsInputs,
     Reporter,
+    SharedDevPreinstall,
     dev_preinstall_already_ran,
     projects_running_own_scripts,
     root_preinstall_already_ran,
@@ -189,6 +190,10 @@ pub(super) struct RootHooksScope<'a> {
     pub(super) ignore_manifest_check: bool,
     /// What decides whether the root fires its own scripts after linking.
     pub(super) scripts: ProjectScriptSelection<'a, 'a>,
+    /// Set for a per-project install of a workspace whose projects keep their
+    /// own lockfiles. Such an install runs the workspace root's
+    /// `pnpm:devPreinstall` through it instead of its own project's.
+    pub(super) dedicated_dev_preinstall: Option<&'a SharedDevPreinstall>,
 }
 /// Run the root project's pre-resolution hooks. Returns whether its
 /// `preinstall` is taken care of, so the run after linking starts the
@@ -229,7 +234,7 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
     let root_defines = |stage: &str| {
         root_manifest.is_none_or(|manifest| matches!(manifest.script(stage, true), Ok(Some(_))))
     };
-    run_dev_preinstall_if_needed::<Reporter>(scope, &normalized_root, &root_defines)?;
+    run_dev_preinstall_if_needed::<Reporter>(scope, &root_defines)?;
     if root_preinstall_already_ran() {
         return Ok(true);
     }
@@ -248,25 +253,21 @@ pub(super) fn run_root_hooks<Reporter: self::Reporter>(
 
 fn run_dev_preinstall_if_needed<Reporter: self::Reporter>(
     scope: &RootHooksScope<'_>,
-    normalized_root: &Path,
     root_defines: &impl Fn(&str) -> bool,
 ) -> Result<(), InstallError> {
-    let is_workspace_root = scope.config.workspace_dir
-        .as_deref()
-        .is_none_or(|ws| pnpm_fs::lexical_normalize(ws) == normalized_root);
-    if is_workspace_root
-        && scope.scripts.include_dev
-        && !scope.ignore_manifest_check
-        && !dev_preinstall_already_ran()
-        && root_defines(DEV_PREINSTALL_STAGE)
-    {
-        run_root_hook(
-            scope.config,
-            scope.workspace_root,
-            pnpm_executor::run_dev_preinstall_hook::<Reporter>,
-        )?;
+    if !scope.scripts.include_dev || scope.ignore_manifest_check || dev_preinstall_already_ran() {
+        return Ok(());
     }
-    Ok(())
+    let run_at = |root: &Path| {
+        run_root_hook(scope.config, root, pnpm_executor::run_dev_preinstall_hook::<Reporter>)
+    };
+    match scope.dedicated_dev_preinstall {
+        Some(shared) => shared.run_once(|| {
+            run_at(scope.config.workspace_dir.as_deref().unwrap_or(scope.workspace_root))
+        }),
+        None if root_defines(DEV_PREINSTALL_STAGE) => run_at(scope.workspace_root).map(drop),
+        None => Ok(()),
+    }
 }
 /// Whether the root project's `preinstall` is this run's to fire: a
 /// removal runs the uninstall stages only, and `virtual_store_only` links
