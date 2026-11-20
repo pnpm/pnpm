@@ -11,6 +11,7 @@ use super::{
     add_dir_to_windows_env_path_inner,
     first_number,
     get_env_value_from_registry,
+    persisted_path_from_registry,
     run_capture_mode_with,
     split_registry_path,
     update_env_variable_with,
@@ -254,5 +255,28 @@ fn split_registry_path_drops_quotes_and_keeps_quoted_separators() {
     assert_eq!(
         dirs,
         [PathBuf::from(r"C:\npm"), PathBuf::from(r"C:\pnpm-home\bin"), PathBuf::from(r"C:\a;b")],
+    );
+}
+
+#[test]
+fn persisted_path_expands_each_scope_with_its_own_variables() {
+    let machine = "\r\nHKEY_LOCAL_MACHINE\\...\\Environment\r\n    \
+                   Path    REG_EXPAND_SZ    %TOOLS%;C:\\Windows\r\n    \
+                   TOOLS    REG_EXPAND_SZ    %SystemDrive%\\npm\r\n";
+    let user = "\r\nHKEY_CURRENT_USER\\Environment\r\n    \
+                Path    REG_EXPAND_SZ    %TOOLS%;%PNPM_HOME%\\bin\r\n    \
+                PNPM_HOME    REG_SZ    C:\\pnpm-home\r\n    \
+                TOOLS    REG_SZ    C:\\user-tools\r\n";
+    let process_env = |name: &str| (name == "SystemDrive").then(|| "C:".to_string());
+
+    let dirs = persisted_path_from_registry(machine, user, process_env).unwrap();
+    assert_eq!(
+        dirs,
+        [
+            PathBuf::from(r"C:\npm"),
+            PathBuf::from(r"C:\Windows"),
+            PathBuf::from(r"C:\user-tools"),
+            PathBuf::from(r"C:\pnpm-home\bin"),
+        ],
     );
 }

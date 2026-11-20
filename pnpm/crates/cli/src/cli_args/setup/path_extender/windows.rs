@@ -350,14 +350,37 @@ pub(in crate::cli_args::setup) fn persisted_path_dirs() -> Option<Vec<PathBuf>> 
 fn read_persisted_path_dirs() -> Option<Vec<PathBuf>> {
     let machine = run_capture("reg", &["query", MACHINE_REG_KEY]).ok()?;
     let user = get_registry_output().ok()?;
-    let machine_lookup = |name: &str| {
-        get_env_value_from_registry(&machine, name).or_else(|| std::env::var(name).ok())
+    persisted_path_from_registry(&machine, &user, |name| std::env::var(name).ok())
+}
+
+/// The saved `Path` directories from the `reg query` output of the machine
+/// and user environment keys. Windows builds a new process's environment
+/// from the machine values, expanded against the process environment, and
+/// then the user values, expanded against everything before them; `Path`
+/// is the machine value followed by the user value.
+fn persisted_path_from_registry<ProcessEnv>(
+    machine: &str,
+    user: &str,
+    process_env: ProcessEnv,
+) -> Option<Vec<PathBuf>>
+where
+    ProcessEnv: Fn(&str) -> Option<String>,
+{
+    let scoped = |output: &str, name: &str, outer: &dyn Fn(&str) -> Option<String>| {
+        let entry = get_env_value_with_type_from_registry(output, name)?;
+        Some(if entry.value_type == "REG_EXPAND_SZ" {
+            expand_env_references(&entry.data, &outer)
+        } else {
+            entry.data
+        })
     };
+    let machine_lookup =
+        |name: &str| scoped(machine, name, &process_env).or_else(|| process_env(name));
     let user_lookup =
-        |name: &str| get_env_value_from_registry(&user, name).or_else(|| machine_lookup(name));
+        |name: &str| scoped(user, name, &machine_lookup).or_else(|| machine_lookup(name));
     let mut dirs =
-        split_registry_path(&get_env_value_from_registry(&machine, "Path")?, machine_lookup);
-    if let Some(user_path) = get_env_value_from_registry(&user, "Path") {
+        split_registry_path(&get_env_value_from_registry(machine, "Path")?, machine_lookup);
+    if let Some(user_path) = get_env_value_from_registry(user, "Path") {
         dirs.extend(split_registry_path(&user_path, user_lookup));
     }
     Some(dirs)
