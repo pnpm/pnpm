@@ -617,7 +617,7 @@ fn project_runtime_ignores_a_different_global_version_and_uses_the_lockfile() {
 
 #[cfg(unix)]
 fn prepare_global_runtime(root: &TempDir, version: &str, output: &str) {
-    prepare_global_runtime_in_store(root, version, output, &root.path().join("store/v11"));
+    prepare_global_runtime_in_store(root, version, output, &root.path().join("store"));
 }
 
 #[cfg(unix)]
@@ -626,7 +626,9 @@ fn prepare_global_runtime_in_store(root: &TempDir, version: &str, output: &str, 
 
     let global_dir = root.path().join("pnpm-home/global/v11");
     let install_dir = global_dir.join("node-runtime-install");
-    let package_dir = store_dir.join("links/node-runtime/1/node_modules/node");
+    let package_dir = store_dir
+        .join(pnpm_store_dir::STORE_VERSION)
+        .join("links/node-runtime/1/node_modules/node");
     fs::create_dir_all(package_dir.join("bin")).unwrap();
     fs::create_dir_all(install_dir.join("node_modules")).unwrap();
     symlink(&package_dir, install_dir.join("node_modules/node")).unwrap();
